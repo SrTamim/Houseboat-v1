@@ -1,0 +1,21 @@
+{
+  "name": "houseboat",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Houseboat booking SaaS (Bangladesh) — NestJS + Prisma backend, Next.js frontend",
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test",
+    "dev:api": "pnpm --filter backend dev",
+    "dev:web": "pnpm --filter frontend dev",
+    "db:migrate": "pnpm --filter backend prisma:migrate",
+    "db:generate": "pnpm --filter backend prisma:generate",
+    "db:seed": "pnpm --filter backend db:seed"
+  }
+}

@@ -1,0 +1,482 @@
+// ============================================================
+//  HOUSEBOAT SaaS — Database schema for dbdiagram.io
+//  Paste this whole file at https://dbdiagram.io
+//  Naming: table names say WHO/WHAT they are.
+//  Notes on tables flag rules the DB must enforce (indexes,
+//  append-only) vs rules that live in application code.
+// ============================================================
+
+// ---------- IDENTITY, RBAC & AUDIT ----------
+
+Table account {
+  id uuid [pk, note: 'UUIDv7 — time-ordered, non-enumerable (no sequential IDs in URLs)']
+  name varchar
+  email varchar
+  phone varchar [unique, not null]
+  password_hash varchar [note: 'argon2/bcrypt; never plaintext']
+  phone_verified boolean [default: false]
+  is_platform boolean [default: false, note: 'true = your own admin/finance staff. NO type enum: what a person IS derives from relations below']
+  created_at timestamp
+  Note: 'One login per person. A single human can be a customer, an owner (via houseboat_member) AND crew (via houseboat_staff) at once.'
+}
+
+Table houseboat_member {
+  id uuid [pk]
+  account_id uuid [ref: > account.id]
+  houseboat_id uuid [ref: > houseboat.id]
+  role_id uuid [ref: > role.id]
+  shareholder_pct decimal [note: 'record only — no auto profit-split']
+  start_date date
+  end_date date [note: 'null = current; set on exit, keeps historical read access']
+  status varchar [note: 'active / exited']
+  Note: 'Per-boat permissions. Same person can be admin on one boat, restricted shareholder on another.'
+}
+
+Table role {
+  id uuid [pk]
+  houseboat_id uuid [ref: > houseboat.id]
+  name varchar [note: 'owner-named via role generator: Owner, Shareholder, Manager…']
+  is_template boolean [default: false]
+  permissions json [note: 'per-module view/edit map: {"bookings":{"view":true,"edit":false},…} — read as a unit at login']
+}
+
+
+Table audit_log {
+  id uuid [pk]
+  houseboat_id uuid [ref: > houseboat.id, note: 'null for platform-level actions']
+  actor_account_id uuid [ref: > account.id]
+  action varchar [note: 'mark_paid, void, price_change, role_change…']
+  entity_type varchar
+  entity_id uuid
+  before json [note: 'mask PII — store refs not raw bank details']
+  after json
+  device_time timestamp [note: 'clock on the device — may be manipulated']
+  server_time timestamp [note: 'authoritative']
+  synced_offline boolean [default: false]
+  Note: 'APPEND-ONLY. No UPDATE, no DELETE — enforce with a DB trigger/rule. Also the offline-sync replay store. Partition by month. Replayed actions are re-authorized against permissions as of device_time. OFFLINE-ALLOWED: date change, invoice update (mark cash paid / not arrived), cost entry, stock movement. OFFLINE-BLOCKED: new bookings and trip cancellation (both need connectivity).'
+}
+
+// ---------- HOUSEBOAT ASSETS ----------
+
+Table houseboat {
+  id uuid [pk]
+  name varchar
+  slug varchar [unique, note: 'public URL: /houseboat/[slug]']
+  description text
+  safety_features text
+  food_menu text
+  bank_account json [note: 'MANDATORY before any payout can run']
+  profile_complete_pct int [note: 'reaches 100 → admin can approve']
+  status varchar [note: 'draft / pending / live / suspended']
+  billing_config_id uuid [ref: > houseboat_billing_config.id]
+  operating_dates "date[]" [note: 'only these dates generate bookable departures']
+  default_crew "uuid[]" [note: 'staff ids auto-assigned to every new departure']
+  child_policy json [note: 'age bands: [{min,max,charge_pct}] e.g. 0-3 free, 3-5 half, 5+ full']
+  created_at timestamp
+}
+
+Table houseboat_deck {
+  id uuid [pk]
+  houseboat_id uuid [ref: > houseboat.id]
+  name varchar [note: 'Lower, Upper']
+  position int
+}
+
+Table houseboat_cabin {
+  id uuid [pk]
+  deck_id uuid [ref: > houseboat_deck.id]
+  cabin_category_id uuid [ref: > houseboat_cabin_category.id]
+  name varchar [note: '101, 102']
+  grid_row int [note: 'auto-generated 2x2 grid; not a positioning builder']
+  grid_col int
+}
+
+Table houseboat_cabin_category {
+  id uuid [pk]
+  houseboat_id uuid [ref: > houseboat.id]
+  name varchar [note: 'Luxury AC, Family…']
+  is_ac boolean
+  base_capacity int
+  extended_capacity int [note: 'group-booking overflow, owner-set']
+  facilities text
+}
+
+Table route {
+  id uuid [pk]
+  name varchar [note: 'Tanguar Haor, Nikli Haor… PLATFORM-curated']
+  region varchar
+  active boolean [default: true]
+  Note: 'Admin-managed. Owners pick from these; they cannot create routes.'
+}
+
+Table houseboat_route {
+  id uuid [pk]
+  houseboat_id uuid [ref: > houseboat.id]
+  route_id uuid [ref: > route.id]
+  Note: 'Many-to-many: which boats run which routes.'
+}
+
+// ---------- TRIPS, SCHEDULE & PRICING ----------
+
+Table trip_package {
+  id uuid [pk]
+  houseboat_id uuid [ref: > houseboat.id]
+  route_id uuid [ref: > route.id]
+  duration_days int [note: 'e.g. 1 = day trip, 2 = 2 days 1 night — shown on boat cards instead of times']
+  duration_label varchar [note: 'display text: "2 days 1 night"']
+  departure_ghat varchar
+  return_ghat varchar
+  meals text
+  included text
+  excluded text
+  cancellation_policy_id uuid [ref: > cancellation_policy.id]
+}
+
+Table trip_departure {
+  id uuid [pk]
+  package_id uuid [ref: > trip_package.id]
+  start_date date [note: 'multi-day trips MUST be booked on the start date; picking a middle day shows this trip with a warning']
+  end_date date [note: 'start_date + duration_days - 1']
+  departure_time time [note: 'shown on the boat page, not on search cards']
+  arrival_time time
+  pricing_profile_id uuid [ref: > pricing_profile.id]
+  available_count int [note: 'DENORMALIZED cabin availability — updated transactionally on every hold/release/booking so search is one lookup, not a recompute']
+  status varchar [note: 'scheduled / in_progress / completed / cancelled — time-driven job, UTC stored']
+}
+
+
+Table pricing_profile {
+  id uuid [pk]
+  houseboat_id uuid [ref: > houseboat.id]
+  name varchar [note: 'General Day, Weekend, Eid, Full Moon']
+  is_default boolean [note: 'General Day = base/fallback']
+  dates "date[]" [note: 'dates this profile applies to; null/empty for the default profile. GIN-index for date lookups']
+}
+
+
+Table pricing_rule {
+  id uuid [pk]
+  pricing_profile_id uuid [ref: > pricing_profile.id]
+  cabin_category_id uuid [ref: > houseboat_cabin_category.id]
+  occupancy int [note: '2, 3, 4… per-person price varies by how many share']
+  price_per_person decimal
+  Note: 'Each profile owns a FULL independent price table — not a multiplier on a base.'
+}
+
+Table group_price_band {
+  id uuid [pk]
+  houseboat_id uuid [ref: > houseboat.id]
+  min_people int
+  max_people int
+  total_price decimal [note: 'full-boat buyout; customer picks band then types headcount']
+}
+
+
+// ---------- BOOKINGS, HOLDS & WAITLIST ----------
+
+Table booking {
+  id uuid [pk]
+  departure_id uuid [ref: > trip_departure.id]
+  customer_id uuid [ref: > account.id]
+  booked_by uuid [ref: > account.id, note: 'owner in POS mode, else the customer']
+  type varchar [note: 'cabin / group / quote']
+  headcount int
+  special_instructions text
+  coupon_id uuid [ref: > coupon.id]
+  reference_name varchar [note: 'free text, optional — who referred/sent the customer; entered at checkout below the coupon field']
+  status varchar [note: 'confirmed / rescheduled / cancelled / not_arrived / completed']
+  reschedule_of uuid [ref: > booking.id, note: 'see booking_reschedule_history for the full chain']
+  created_at timestamp
+}
+
+Table booking_cabin {
+  id uuid [pk]
+  booking_id uuid [ref: > booking.id]
+  cabin_id uuid [ref: > houseboat_cabin.id]
+  adults int [note: 'chosen at the ROOM SELECTION step — this is what sets the price']
+  children int [note: 'charged per houseboat.child_policy']
+  occupancy int [note: 'adults + children — must not exceed capacity (or extended_capacity for groups)']
+  room_price decimal [note: 'owner-set price for this many people in this room; not calculated']
+  is_open_seat boolean [note: 'leftover shared inventory — spare place bookable by another party']
+  Note: 'ENFORCE unique (cabin_id, departure via booking) among ACTIVE rows so two bookings cannot take one cabin. Do it at the DB, not in app code.'
+}
+
+Table booking_guest {
+  id uuid [pk]
+  booking_id uuid [ref: > booking.id]
+  name varchar [note: 'lead guest only — captured at checkout for contact']
+  phone varchar
+  Note: 'Only the lead guest is recorded by name. Head counts live on booking_cabin (adults/children per room) because that is what sets the price.'
+}
+
+
+Table booking_reschedule_history {
+  id uuid [pk]
+  booking_id uuid [ref: > booking.id]
+  prev_departure_id uuid [ref: > trip_departure.id]
+  changed_to_departure_id uuid [ref: > trip_departure.id]
+  old_price decimal
+  new_price decimal [note: 'reschedule REPRICES at the new date; advance adjusts against new amount']
+  reason varchar
+  changed_by uuid [ref: > account.id]
+  changed_at timestamp
+}
+
+Table cabin_hold {
+  id uuid [pk]
+  cabin_id uuid [ref: > houseboat_cabin.id]
+  departure_id uuid [ref: > trip_departure.id]
+  held_by uuid [ref: > account.id]
+  expires_at timestamp [note: '10-min TTL; server clock is authoritative, not the device']
+  state varchar [note: 'held / converted / released']
+  Note: 'ENFORCE partial unique index on (cabin_id, departure_id) WHERE state = held. The second simultaneous tap fails at the DB. This is what kills double-booking.'
+}
+
+Table booking_waitlist {
+  id uuid [pk]
+  departure_id uuid [ref: > trip_departure.id]
+  customer_id uuid [ref: > account.id]
+  party_size int
+  created_at timestamp
+  Note: 'All notified at once when a cabin frees; the link routes through a HOLD attempt so first-to-hold wins, not first-to-checkout.'
+}
+
+Table quote_request {
+  id uuid [pk]
+  houseboat_id uuid [ref: > houseboat.id]
+  customer_id uuid [ref: > account.id]
+  date date
+  group_size int
+  special_needs text
+  quoted_price decimal [note: 'null until owner prices it']
+  status varchar [note: 'requested / sent / accepted / expired']
+  expires_at timestamp [note: '24h OR when the date fills, whichever first']
+}
+
+// ---------- MONEY: INVOICES, PAYMENTS, REFUNDS, PAYOUTS ----------
+
+Table invoice {
+  id uuid [pk]
+  booking_id uuid [ref: > booking.id]
+  houseboat_id uuid [ref: > houseboat.id]
+  customer_id uuid [ref: > account.id]
+  room_total decimal [note: 'STEP 1: owner-set room price (sum of all booking_cabin.room_price)']
+  gateway_fee decimal [note: 'STEP 2: platform % of room_total, added on top']
+  price_shown decimal [note: 'STEP 3: room_total + gateway_fee — what the customer sees BEFORE any coupon']
+  discount_amount decimal [note: 'STEP 4: coupon applied LAST, to price_shown']
+  display_total decimal [note: 'STEP 5: price_shown - discount_amount = what the customer actually pays']
+  commission decimal [note: 'platform % of room_total (the ORIGINAL price, NOT discounted) — the boat absorbs its own coupon']
+  due_to_boat decimal
+  amount_paid decimal
+  amount_overpaid decimal [note: 'buyout adjusted below what was paid → surfaces here, becomes customer_credit or refund']
+  policy_snapshot json [note: 'cancellation policy the customer agreed to at checkout — cite it in disputes']
+  payout_batch_id uuid [ref: > houseboat_payout_batch.id, note: 'null until pulled into a weekly batch; setting it locks the invoice (status in_payout)']
+  status varchar [note: 'customer_due / paid / payment_verified / in_payout / bill_cleared / cancelled / refund_requested / refund_verified / refund_completed. LOCK to in_payout on batch entry so no refund can double-spend.']
+  Note: 'ONE invoice per booking, three party-views (customer / boat / finance). BILL ORDER: room_total + gateway_fee = price_shown; price_shown - coupon = display_total (customer pays). Commission is % of room_total, NOT the discounted amount. Worked example: room 10,000 + 180 fee = 10,180 shown; 10% coupon = 9,162 paid; received 8,982; commission 500; boat gets 8,482.'
+}
+
+Table invoice_payment {
+  id uuid [pk]
+  invoice_id uuid [ref: > invoice.id]
+  amount decimal
+  method varchar [note: 'gateway / cash']
+  gateway_token varchar [note: 'unique-indexed → webhook replay is a no-op']
+  received_by uuid [ref: > account.id, note: 'who marked a cash payment']
+  verified_by uuid [ref: > account.id, note: 'finance for gateway; boat manager for cash']
+  paid_at timestamp
+}
+
+Table invoice_refund {
+  id uuid [pk]
+  invoice_id uuid [ref: > invoice.id]
+  amount decimal
+  reason varchar
+  bank_details json [note: 'ENCRYPT at rest; collected only after owner-cancel']
+  requested_by uuid [ref: > account.id]
+  verified_by uuid [ref: > account.id]
+  completed_by uuid [ref: > account.id, note: 'separation of duties: not the same person as verified_by']
+  status varchar [note: 'requested / verified / completed']
+  claim_deadline timestamp [note: '6 days from the owner cancellation; after this the refund button disappears entirely']
+  completed_at timestamp
+  Note: 'Only reachable when the OWNER cancelled the trip, and only within 6 days of that cancellation. Customer-cancel refunds follow the boat cancellation_policy template instead.'
+}
+
+Table houseboat_payout_batch {
+  id uuid [pk]
+  houseboat_id uuid [ref: > houseboat.id]
+  total_amount decimal [note: 'SIGNED — can be negative if the boat owes the platform']
+  prepared_by uuid [ref: > account.id]
+  approved_by uuid [ref: > account.id, note: 'separation of duties: must differ from prepared_by']
+  status varchar [note: 'prepared / approved / paid']
+  paid_at timestamp
+}
+
+
+Table cancellation_policy {
+  id uuid [pk]
+  houseboat_id uuid [ref: > houseboat.id]
+  policy_template varchar [note: 'flexible / moderate / strict / non_refundable / custom (Airbnb-style). Owner picks per boat. non_refundable = flat no-refund.']
+  deposit_pct int
+  shown_at_checkout boolean [default: true]
+  tiers json [note: 'custom template tiers + blackout dates: [{days_before,refund_pct,is_blackout}]; blackout → 0% regardless of template']
+}
+
+
+Table coupon {
+  id uuid [pk]
+  houseboat_id uuid [ref: > houseboat.id]
+  code varchar
+  kind varchar [note: 'percent / flat / referral']
+  value decimal
+  valid_from date
+  valid_to date
+}
+
+Table houseboat_billing_config {
+  id uuid [pk]
+  houseboat_id uuid [ref: > houseboat.id]
+  commission_pct decimal [note: 'null if not on commission']
+  monthly_fee decimal [note: 'null if not on monthly']
+  gateway_fee_pct decimal
+  platform_balance decimal [note: 'SIGNED. Negative = boat owes the platform. Offsets the platform fee; if exceeded, access denied until settled.']
+  trial_ends date
+  Note: 'Platform-set per boat. Commission AND monthly can both apply. Billing is PER BOAT — never combined across a multi-boat owner.'
+}
+
+Table houseboat_subscription_invoice {
+  id uuid [pk]
+  houseboat_id uuid [ref: > houseboat.id]
+  billing_config_id uuid [ref: > houseboat_billing_config.id]
+  period varchar
+  monthly_fee decimal
+  commission_total decimal
+  amount_due decimal
+  status varchar [note: 'issued / paid / overdue']
+  issued_at timestamp
+  Note: 'The monthly bill the PLATFORM sends the boat — separate from booking-commission invoices.'
+}
+
+Table owner_distribution {
+  id uuid [pk]
+  houseboat_id uuid [ref: > houseboat.id]
+  membership_id uuid [ref: > houseboat_member.id]
+  amount decimal
+  note varchar
+  recorded_by uuid [ref: > account.id]
+  at timestamp
+  Note: 'Records money a shareholder actually withdrew. No auto-split — just the record, so co-owners can see distributions.'
+}
+
+
+Table customer_credit {
+  id uuid [pk]
+  account_id uuid [ref: > account.id]
+  source_invoice_id uuid [ref: > invoice.id]
+  amount decimal
+  used_in_invoice_id uuid [ref: > invoice.id, note: 'null until spent']
+  status varchar [note: 'open / used']
+  Note: 'Home for buyout overpayments (invoice.amount_overpaid) — credit toward a future booking.'
+}
+
+// ---------- HR: STAFF, CREW, PAYROLL ----------
+
+Table houseboat_staff {
+  id uuid [pk]
+  account_id uuid [ref: > account.id, note: 'links to a login']
+  houseboat_id uuid [ref: > houseboat.id]
+  role_id uuid [ref: > role.id]
+  nid varchar
+  emergency_contact varchar
+  per_trip_rate decimal [note: 'own rate — a sukani is not paid like a cleaner']
+  monthly_salary decimal [note: 'set instead of per_trip_rate for salaried staff']
+}
+
+
+Table trip_crew {
+  id uuid [pk]
+  departure_id uuid [ref: > trip_departure.id]
+  staff_id uuid [ref: > houseboat_staff.id]
+  present boolean [note: 'attendance = this row existing + present flag']
+  Note: 'Auto-filled from houseboat_default_crew; owner edits only when someone differs that day.'
+}
+
+Table staff_leave {
+  id uuid [pk]
+  staff_id uuid [ref: > houseboat_staff.id]
+  state varchar [note: 'on_leave / available / other_duty — NOT the same as "not assigned today"']
+  from_date date
+  to_date date
+  note varchar
+}
+
+Table staff_payroll {
+  id uuid [pk]
+  staff_id uuid [ref: > houseboat_staff.id]
+  period varchar
+  trips_worked int
+  base_amount decimal [note: 'per_trip_rate × trips_worked, or monthly_salary']
+  bonus decimal [note: 'owner may add']
+  deduction decimal [note: 'owner may subtract']
+  total_amount decimal [note: 'base + bonus - deduction']
+  paid boolean [note: 'owner tracks whether the wage was actually handed over']
+  paid_at timestamp
+  paid_by uuid [ref: > account.id]
+  Note: 'Full payment history is kept — owners need to know who has and has not been paid.'
+}
+
+// ---------- OPS: COSTS, INVENTORY, REPORTING ----------
+
+Table cost {
+  id uuid [pk]
+  houseboat_id uuid [ref: > houseboat.id]
+  date date
+  description text [note: 'free text — no forced category. Bazar, fuel, repair…']
+  amount decimal
+  trip_id uuid [ref: > trip_departure.id, note: 'optional — link to a trip or leave null']
+  paid_by uuid [ref: > account.id, note: 'auto-captured from the logged-in user']
+  due_to_vendor decimal [note: 'optional bonus — no vendor management']
+  Note: 'The spreadsheet-killer. One row, faster than a sheet. Accept Bangla numerals in the amount at the input layer.'
+}
+
+Table inventory_item {
+  id uuid [pk]
+  houseboat_id uuid [ref: > houseboat.id]
+  name varchar
+  kind varchar [note: 'consumable (reorder alert) / durable (missing-item check)']
+  unit varchar
+  reorder_threshold decimal [note: 'consumables — flag when below']
+  current_qty decimal
+}
+
+Table stock_movement {
+  id uuid [pk]
+  inventory_item_id uuid [ref: > inventory_item.id]
+  trip_id uuid [ref: > trip_departure.id]
+  direction varchar [note: 'in / out / count']
+  qty decimal
+  expected_qty decimal [note: 'for a count: what the system believed was there']
+  discrepancy decimal [note: 'expected - actual; anything above zero is missing']
+  logged_by uuid [ref: > account.id, note: 'auto from login']
+  at timestamp
+  Note: 'Durable counts are run by the OWNER whenever they choose — not automatically after every trip.'
+}
+
+Table review {
+  id uuid [pk]
+  booking_id uuid [ref: > booking.id]
+  houseboat_id uuid [ref: > houseboat.id]
+  customer_id uuid [ref: > account.id]
+  rating int
+  text text
+  owner_reply text
+  Note: 'Only from verified completed bookings.'
+}
+
+Table notification {
+  id uuid [pk]
+  account_id uuid [ref: > account.id]
+  event varchar [note: 'booking, payment_due, refund_sent, low_stock, offer…']
+  channel varchar [note: 'sms / email']
+  delivered boolean
+  at timestamp
+}

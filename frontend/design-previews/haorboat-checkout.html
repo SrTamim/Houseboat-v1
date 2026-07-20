@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HaorBoat — checkout (design preview)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Hind+Siliguri:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#1a73e8; --blue-600:#1560d6; --blue-700:#0f56be; --blue-050:#e9f1fe; --blue-100:#d3e5fd;
+    --amber:#f6a623; --green:#0f9d58; --green-050:#e6f5ec;
+    --ink:#0f2440; --body:#4a5568; --muted:#8a93a3; --line:#e6eaf0;
+    --bg:#ffffff; --bg-2:#eef2f7; --surface:#ffffff; --chip:#eef2f7;
+    --footer:#0a2a5e; --footer-txt:#c9dcf7; --footer-h:#ffffff; --footer-mut:#9fbbe6;
+    --shadow-sm:0 1px 3px rgba(15,36,64,.08),0 1px 2px rgba(15,36,64,.04);
+    --shadow:0 8px 24px rgba(15,36,64,.10);
+    --shadow-lg:0 24px 60px rgba(15,36,64,.22);
+    --r:.6rem; --r-lg:1rem; --maxw:1120px;
+    --font:'Inter',system-ui,-apple-system,'Segoe UI','Hind Siliguri',sans-serif;
+    --mono:'Inter',ui-monospace,monospace;
+  }
+  :root[data-theme="dark"]{
+    --blue:#4f97ff; --blue-600:#63a4ff; --blue-700:#3d7fe0; --blue-050:#17233a; --blue-100:#1f3252;
+    --green:#34c77b; --green-050:#0f2a1e;
+    --ink:#eef3fb; --body:#aab6c9; --muted:#7a879c; --line:#243247;
+    --bg:#0b1220; --bg-2:#0e1728; --surface:#131d30; --chip:#1a2740;
+    --footer:#061a3a; --footer-txt:#a9c2ea; --footer-h:#eef3fb; --footer-mut:#7e97c2;
+    --shadow-sm:0 1px 3px rgba(0,0,0,.4);
+    --shadow:0 8px 24px rgba(0,0,0,.5);
+    --shadow-lg:0 24px 60px rgba(0,0,0,.6);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg-2);color:var(--body);font-family:var(--font);line-height:1.6;-webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  a{color:inherit;text-decoration:none}
+  h1,h2,h3,h4{margin:0;color:var(--ink);line-height:1.2;font-weight:800;letter-spacing:-.02em}
+  img{max-width:100%;display:block}
+  button{font-family:inherit;cursor:pointer}
+  :focus-visible{outline:2.5px solid var(--blue);outline-offset:2px;border-radius:8px}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+
+  .btn{border-radius:999px;padding:11px 26px;font-weight:700;font-size:15px;border:1.5px solid transparent;transition:transform .14s,box-shadow .14s,background .14s;display:inline-flex;align-items:center;gap:8px;white-space:nowrap;justify-content:center}
+  .btn:active{transform:translateY(1px)}
+  .btn-b{background:var(--blue);color:#fff;box-shadow:0 6px 16px -6px var(--blue)}
+  .btn-b:hover{background:var(--blue-600);box-shadow:0 10px 22px -8px var(--blue)}
+  .btn-o{background:var(--surface);border-color:var(--line);color:var(--ink)}
+  .btn-o:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-050)}
+  .btn-lg{padding:15px 32px;font-size:16px}
+  .btn-block{width:100%}
+  .btn[disabled]{opacity:.55;cursor:not-allowed;box-shadow:none}
+
+  /* ---------- header (shared) ---------- */
+  .nav{position:sticky;top:0;z-index:60;background:color-mix(in srgb,var(--surface) 92%,transparent);backdrop-filter:saturate(160%) blur(10px);border-bottom:1px solid var(--line)}
+  .nav .row{display:flex;align-items:center;gap:24px;height:76px}
+  .logo{display:flex;gap:10px;align-items:center;font-weight:800;font-size:23px;color:var(--ink);letter-spacing:-.03em}
+  .logo .mark{width:36px;height:36px;border-radius:50%;background:linear-gradient(150deg,var(--blue),var(--blue-700));color:#fff;display:grid;place-items:center;font-size:17px;box-shadow:0 4px 10px -3px var(--blue)}
+  .logo .b{color:var(--blue);font-style:italic;font-weight:800}
+  .nav .menu{flex:1;display:flex;justify-content:center;gap:32px;font-size:15px;font-weight:600;color:var(--ink)}
+  .nav .menu a:hover{color:var(--blue)}
+  .nav .right{display:flex;gap:12px;align-items:center}
+  .theme-btn{border:1px solid var(--line);background:var(--surface);width:44px;height:44px;border-radius:12px;font-size:18px;color:var(--ink);display:grid;place-items:center;transition:border-color .14s,transform .14s}
+  .theme-btn:hover{border-color:var(--blue);transform:translateY(-1px)}
+  .theme-btn .sun{display:none}
+  :root[data-theme="dark"] .theme-btn .moon{display:none}
+  :root[data-theme="dark"] .theme-btn .sun{display:block}
+  .burger{display:none;border:1px solid var(--line);background:var(--surface);width:44px;height:44px;border-radius:12px;font-size:20px;color:var(--ink)}
+
+  /* ---------- steps ---------- */
+  .steps{display:flex;align-items:center;gap:8px;justify-content:center;padding:26px 0 8px;flex-wrap:wrap}
+  .step{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:700;color:var(--muted)}
+  .step .n{width:26px;height:26px;border-radius:50%;background:var(--chip);color:var(--muted);display:grid;place-items:center;font-size:13px;border:1.5px solid var(--line)}
+  .step.done{color:var(--green)}
+  .step.done .n{background:var(--green);color:#fff;border-color:var(--green)}
+  .step.on{color:var(--blue)}
+  .step.on .n{background:var(--blue);color:#fff;border-color:var(--blue)}
+  .steps .bar{width:40px;height:2px;background:var(--line);border-radius:2px}
+
+  /* ---------- layout ---------- */
+  .co .wrap{padding:14px 24px 60px;display:grid;grid-template-columns:minmax(0,1fr) 460px;gap:30px;align-items:start}
+  .co h1{font-size:26px;margin-bottom:4px}
+  .co .lead{font-size:14px;color:var(--muted);margin-bottom:22px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:24px 26px;margin-bottom:20px;box-shadow:var(--shadow-sm)}
+  .card > h2{font-size:18px;margin-bottom:4px;display:flex;align-items:center;gap:9px}
+  .card > .ch{font-size:13px;color:var(--muted);margin-bottom:18px}
+
+  /* forms */
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .fld{margin-bottom:16px}
+  .fld:last-child{margin-bottom:0}
+  .fld label{display:block;font-size:13px;font-weight:700;color:var(--ink);margin-bottom:6px}
+  .fld label .req{color:#e2544d}
+  .fld input,.fld select,.fld textarea{width:100%;border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;font-size:15px;font-family:inherit;background:var(--bg-2);color:var(--ink);transition:border-color .14s,box-shadow .14s}
+  .fld input:focus,.fld select:focus,.fld textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-050);background:var(--surface)}
+  .fld .hint{font-size:12px;color:var(--muted);margin-top:5px}
+  .fld textarea{resize:vertical;min-height:74px}
+  .phone{display:flex}
+  .phone .cc{border:1px solid var(--line);border-right:none;border-radius:var(--r) 0 0 var(--r);padding:12px 12px;background:var(--chip);color:var(--body);font-weight:700;font-size:15px;display:flex;align-items:center}
+  .phone input{border-radius:0 var(--r) var(--r) 0}
+
+  /* lead guest chip toggle */
+  .who-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px}
+
+  /* payment method — small icon pills (in the summary, above pay button) */
+  .paylbl{font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:16px 0 8px}
+  .pays{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  .pay{border:1.5px solid var(--line);border-radius:var(--r);padding:10px 8px;cursor:pointer;transition:all .14s;background:var(--surface);display:flex;align-items:center;justify-content:center;gap:6px;font-size:13.5px;font-weight:700;color:var(--body)}
+  .pay:hover{border-color:var(--blue);color:var(--blue)}
+  .pay.on{border-color:var(--blue);background:var(--blue-050);color:var(--blue);box-shadow:inset 0 0 0 1px var(--blue)}
+
+  /* 50% advance vs full payment */
+  .paychoice{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+  .pc{position:relative;border:1.5px solid var(--line);border-radius:var(--r);padding:12px 10px;text-align:left;cursor:pointer;background:var(--bg-2);transition:all .14s}
+  .pc:hover{border-color:var(--blue-100)}
+  .pc.on{border-color:var(--blue);background:var(--blue-050)}
+  .pc.on::after{content:"✓";position:absolute;top:-8px;right:-8px;width:19px;height:19px;background:var(--blue);color:#fff;border-radius:50%;font-size:11px;font-weight:900;display:grid;place-items:center;box-shadow:var(--shadow-sm)}
+  .pc .pc-t{font-size:12.5px;font-weight:800;color:var(--ink)}
+  .pc .pc-a{font-size:18px;font-weight:900;color:var(--ink);font-family:var(--mono);letter-spacing:-.03em;margin:3px 0 1px}
+  .pc.on .pc-a{color:var(--blue)}
+  .pc .pc-s{font-size:11px;color:var(--muted);font-weight:600}
+  .dueline{font-size:12.5px;color:var(--muted);text-align:center;margin-top:10px}
+  .dueline b{color:var(--ink);font-weight:700}
+
+  /* trip summary card */
+  .trip{position:sticky;top:96px}
+  .trip .thead{display:flex;gap:14px;align-items:center;padding-bottom:16px;border-bottom:1px solid var(--line);margin-bottom:16px}
+  .trip .thead img{width:74px;height:56px;border-radius:var(--r);object-fit:cover;flex:none;background:var(--bg-2)}
+  .trip .thead h3{font-size:16px}
+  .trip .thead .tl{font-size:12.5px;color:var(--muted);margin-top:2px;display:flex;gap:5px;align-items:center}
+  .trip .meta{display:grid;gap:8px;font-size:13.5px;margin-bottom:16px}
+  .trip .meta .m{display:flex;gap:9px;align-items:center;color:var(--body)}
+  .trip .meta .m b{color:var(--ink);font-weight:700}
+  .trip .cabrow{display:flex;justify-content:space-between;font-size:13.5px;padding:8px 0;border-top:1px solid var(--line)}
+  .trip .cabrow span b{color:var(--ink)}
+  .trip .cabrow .cx{color:var(--muted);font-size:12px}
+  .trip .cabrow em{color:var(--ink);font-weight:700;font-style:normal;font-family:var(--mono)}
+  .trip .lines{border-top:1px solid var(--line);margin-top:6px;padding-top:12px}
+  .trip .brow{display:flex;justify-content:space-between;font-size:14px;padding:5px 0;color:var(--body)}
+  .trip .brow.muted{color:var(--muted);font-size:13px}
+  .trip .brow.disc em{color:var(--green);font-weight:700;font-style:normal;font-family:var(--mono)}
+  .trip .total{border-top:1px solid var(--line);margin-top:8px;padding-top:14px;display:flex;justify-content:space-between;align-items:baseline}
+  .trip .total .tl2{font-size:15px;font-weight:800;color:var(--ink)}
+  .trip .total .tv{font-size:24px;font-weight:900;color:var(--ink);font-family:var(--mono);letter-spacing:-.03em}
+  .promo{display:flex;gap:8px;margin:14px 0}
+  .promo input{flex:1;border:1px solid var(--line);border-radius:var(--r);padding:10px 13px;font-size:14px;font-family:inherit;background:var(--bg-2);color:var(--ink)}
+  .promo button{border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:0 16px;font-weight:700;font-size:13.5px;color:var(--blue)}
+  .hold{background:var(--green-050);color:var(--green);font-size:12.5px;font-weight:700;padding:10px 12px;border-radius:var(--r);text-align:center;margin-top:14px;display:flex;gap:7px;align-items:center;justify-content:center}
+  .terms{font-size:12.5px;color:var(--muted);margin-top:14px}
+  .terms a{color:var(--blue);font-weight:700}
+  .chk{display:inline-flex;gap:9px;align-items:flex-start;cursor:pointer}
+  .chk input{display:none}
+  .chk .box{width:19px;height:19px;border:1.5px solid var(--muted);border-radius:5px;display:grid;place-items:center;font-size:12px;color:#fff;transition:all .14s;flex:none;margin-top:1px}
+  .chk input:checked + .box{background:var(--blue);border-color:var(--blue)}
+  .chk input:checked + .box::after{content:"✓"}
+
+  /* mobile pay bar */
+  .mbar{display:none;position:fixed;left:0;right:0;bottom:0;z-index:70;background:var(--surface);border-top:1px solid var(--line);padding:12px 20px;align-items:center;justify-content:space-between;gap:14px;box-shadow:0 -8px 24px rgba(15,36,64,.12)}
+  .mbar .mp{font-size:18px;font-weight:900;color:var(--ink);font-family:var(--mono)}
+  .mbar .mp small{font-size:11px;color:var(--muted);font-weight:600;display:block;font-family:var(--font)}
+
+  /* ---------- footer (shared) ---------- */
+  .foot{position:relative;background:var(--footer);color:var(--footer-txt);overflow:hidden;isolation:isolate;margin-top:20px}
+  .foot::before{content:"";position:absolute;inset:0;z-index:-1;
+    background:linear-gradient(180deg,rgba(26,115,232,.28),transparent 40%),
+              radial-gradient(60% 90% at 88% -10%,rgba(59,139,255,.42),transparent 60%),
+              radial-gradient(50% 80% at 6% 8%,rgba(26,115,232,.22),transparent 55%)}
+  .foot::after{content:"";position:absolute;inset:0;z-index:-1;opacity:.5;
+    background-image:radial-gradient(rgba(255,255,255,.045) 1px,transparent 1px);background-size:22px 22px;
+    -webkit-mask-image:linear-gradient(180deg,#000,transparent 70%);mask-image:linear-gradient(180deg,#000,transparent 70%)}
+  .foot .inner{padding:52px 0 30px}
+  .foot .cols{display:grid;grid-template-columns:1.8fr 1fr 1fr 1fr;gap:40px}
+  .foot .logo{color:var(--footer-h);margin-bottom:16px}.foot .logo .b{color:#7fb2ff}
+  .foot .about{font-size:14.5px;line-height:1.65;max-width:38ch;color:var(--footer-mut)}
+  .foot .contact{display:grid;gap:9px;margin-top:16px;font-size:14px}
+  .foot .contact a{display:flex;gap:9px;align-items:center;color:var(--footer-mut)}
+  .foot .contact a:hover{color:var(--footer-h)}
+  .foot .pay-f{display:flex;gap:8px;margin-top:18px}
+  .foot .pay-f span{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);padding:7px 13px;border-radius:8px;font-size:12.5px;font-weight:700;color:#e2eaf5}
+  .foot h4{color:var(--footer-h);font-size:13px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:17px;font-weight:700}
+  .foot ul{list-style:none;padding:0;margin:0;display:grid;gap:12px;font-size:14.5px}
+  .foot ul a{color:var(--footer-mut);transition:color .14s,padding .14s;display:inline-block}
+  .foot ul a:hover{color:var(--footer-h);padding-left:4px}
+  .foot .bot{border-top:1px solid rgba(255,255,255,.12);padding:22px 0 30px;display:flex;justify-content:space-between;align-items:center;font-size:13.5px;color:var(--footer-mut);flex-wrap:wrap;gap:14px}
+  .foot .socials{display:flex;gap:10px}
+  .foot .socials a{width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);display:grid;place-items:center;font-size:15px;color:#dbe4f0;transition:transform .14s,background .14s,border-color .14s}
+  .foot .socials a:hover{transform:translateY(-3px);background:var(--blue);border-color:var(--blue);color:#fff}
+
+  /* ---------- responsive ---------- */
+  @media(max-width:940px){
+    .nav .menu{display:none}
+    .nav .right{margin-left:auto}
+    .burger{display:grid;place-items:center}
+    .co .wrap{grid-template-columns:1fr}
+    .trip{position:static}
+    .trip .cta-desktop{display:none}
+    .mbar{display:flex}
+    .co .wrap{padding-bottom:90px}
+    .foot .cols{grid-template-columns:1fr 1fr}
+  }
+  @media(max-width:560px){
+    .grid2{grid-template-columns:1fr}
+    .pays{grid-template-columns:1fr}
+    .steps .step .txt{display:none}
+    .foot .cols{grid-template-columns:1fr}
+    .foot .bot{flex-direction:column;text-align:center}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+
+<!-- ============ HEADER ============ -->
+<header class="nav"><div class="wrap row">
+  <a class="logo" href="haorboat-home.html"><span class="mark">🛥</span>Haor<span class="b">Boat</span></a>
+  <nav class="menu">
+    <a href="#">About</a>
+    <a href="#">Help</a>
+    <a href="#">Become a host</a>
+  </nav>
+  <div class="right">
+    <button class="theme-btn" id="themeToggle" aria-label="Toggle dark mode"><span class="moon">🌙</span><span class="sun">☀️</span></button>
+    <a class="btn btn-o" href="#">My trips</a>
+    <button class="burger" aria-label="Menu">☰</button>
+  </div>
+</div></header>
+
+<!-- ============ STEPS ============ -->
+<div class="wrap">
+  <div class="steps">
+    <div class="step done"><span class="n">✓</span><span class="txt">Choose cabins</span></div>
+    <span class="bar"></span>
+    <div class="step on"><span class="n">2</span><span class="txt">Guest &amp; payment</span></div>
+    <span class="bar"></span>
+    <div class="step"><span class="n">3</span><span class="txt">Confirmation</span></div>
+  </div>
+</div>
+
+<!-- ============ CHECKOUT ============ -->
+<section class="co"><div class="wrap">
+
+  <!-- LEFT: forms -->
+  <div>
+    <h1>Complete your booking</h1>
+    <p class="lead">Cabins held for <b id="holdMin">09:58</b> — finish before the timer runs out.</p>
+
+    <!-- personal details -->
+    <div class="card">
+      <h2>👤 Your details</h2>
+      <div class="ch">We'll send the booking voucher and boarding info here.</div>
+      <div class="fld"><label>Name <span class="req">*</span></label><input type="text" placeholder="Full name"></div>
+      <div class="grid2">
+        <div class="fld"><label>Phone number <span class="req">*</span></label>
+          <input type="tel" placeholder="01XXXXXXXXX">
+        </div>
+        <div class="fld"><label>Email <span class="req">*</span></label><input type="email" placeholder="you@email.com"></div>
+      </div>
+      <div class="fld"><label>NID / Passport number</label><input type="text" placeholder="10 or 17-digit NID / passport no."><div class="hint">Needed at the ghat before boarding.</div></div>
+
+      <!-- coupon + reference below personal details -->
+      <div class="grid2" style="margin-top:6px">
+        <div class="fld"><label>Coupon code</label>
+          <div class="promo"><input type="text" value="HAOR500"><button>Apply</button></div>
+          <div class="hint" style="color:var(--green);font-weight:700">✓ HAOR500 applied — ৳500 off</div>
+        </div>
+        <div class="fld"><label>Reference (optional)</label><input type="text" placeholder="Who referred you?"></div>
+      </div>
+    </div>
+
+    <!-- special requests -->
+    <div class="card">
+      <h2>💬 Special requests</h2>
+      <div class="ch">Meal preferences, celebrations, accessibility — we'll pass it to the host.</div>
+      <div class="fld"><textarea placeholder="e.g. one vegetarian meal plan, birthday cake on Day 2, ground-deck cabin for elderly guest…"></textarea></div>
+    </div>
+  </div>
+
+  <!-- RIGHT: trip summary -->
+  <aside>
+    <div class="card trip">
+      <div class="thead">
+        <img alt="Jolpori Houseboat" src="https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&w=200&q=60">
+        <div>
+          <h3>Jolpori Houseboat</h3>
+          <div class="tl">📍 Tahirpur · Tanguar Haor</div>
+          <div class="tl">⭐ 4.8 · Safety-verified</div>
+        </div>
+      </div>
+
+      <div class="meta">
+        <div class="m">📅 <b>24 – 26 Jul 2026</b> · 2 nights</div>
+        <div class="m">⚓ Boards <b>Tahirpur ghat</b> · 10:00 AM</div>
+        <div class="m">👥 <b id="paxLine">5 guests</b> · <span id="cabLine">2 cabins</span></div>
+      </div>
+
+      <div id="cabinLines"></div>
+
+      <div class="lines" id="priceLines"></div>
+
+      <div class="total">
+        <span class="tl2">Grand total</span>
+        <span class="tv" id="grandTotal">৳ 0</span>
+      </div>
+
+      <!-- 50% advance vs full payment -->
+      <div class="paychoice" id="payChoice">
+        <button class="pc on" data-pc="advance">
+          <div class="pc-t">Pay 50% advance</div>
+          <div class="pc-a" id="pcAdv">৳ 0</div>
+          <div class="pc-s">Rest due at boarding</div>
+        </button>
+        <button class="pc" data-pc="full">
+          <div class="pc-t">Pay full</div>
+          <div class="pc-a" id="pcFull">৳ 0</div>
+          <div class="pc-s">Nothing due later</div>
+        </button>
+      </div>
+      <div class="dueline" id="dueLine"></div>
+
+      <!-- payment method (small icons, no fields) -->
+      <div class="paylbl">Pay with</div>
+      <div class="pays" id="pays">
+        <button class="pay on" data-pay="bkash">📱 bKash</button>
+        <button class="pay" data-pay="nagad">📱 Nagad</button>
+        <button class="pay" data-pay="card">💳 Card</button>
+      </div>
+
+      <label class="chk terms" style="margin-top:16px"><input type="checkbox" id="agree" checked><span class="box"></span> I agree to the <a href="#">booking terms</a> &amp; <a href="#">cancellation policy</a>.</label>
+
+      <button class="btn btn-b btn-block btn-lg cta-desktop" id="payBtn" style="margin-top:14px">Pay &amp; confirm · <span id="payBtnAmt">৳ 0</span></button>
+      <div class="hold">⏱️ Cabins held — complete payment in <b id="holdMin2">09:58</b></div>
+    </div>
+  </aside>
+</div></section>
+
+<!-- mobile pay bar -->
+<div class="mbar">
+  <div class="mp" id="mAmt">৳ 0 <small>2 cabins · 5 guests</small></div>
+  <button class="btn btn-b btn-lg" id="mPay">🔒 Pay now</button>
+</div>
+
+<!-- ============ FOOTER ============ -->
+<footer class="foot"><div class="wrap">
+  <div class="inner">
+    <div class="cols">
+      <div>
+        <a class="logo" href="haorboat-home.html"><span class="mark">🛥</span>Haor<span class="b">Boat</span></a>
+        <p class="about">Bangladesh's houseboat booking platform. Real-time cabin availability, honest ৳ pricing, and boats we safety-check ourselves.</p>
+        <div class="contact">
+          <a href="#">📍 Banani, Dhaka 1213, Bangladesh</a>
+          <a href="tel:+8809600000000">📞 +880 9600 000 000</a>
+          <a href="mailto:hello@haorboat.com">✉️ hello@haorboat.com</a>
+        </div>
+        <div class="pay-f"><span>bKash</span><span>Nagad</span><span>Card</span></div>
+      </div>
+      <div><h4>Explore</h4><ul>
+        <li><a href="#">Houseboats</a></li><li><a href="#">Group trips</a></li>
+        <li><a href="#">Destinations</a></li><li><a href="#">Offers</a></li>
+      </ul></div>
+      <div><h4>Company</h4><ul>
+        <li><a href="#">About us</a></li><li><a href="#">Become a host</a></li>
+        <li><a href="#">Safety standards</a></li><li><a href="#">Careers</a></li>
+      </ul></div>
+      <div><h4>Support</h4><ul>
+        <li><a href="#">Help center</a></li><li><a href="#">Cancellation</a></li>
+        <li><a href="#">Terms</a></li><li><a href="#">Privacy</a></li>
+      </ul></div>
+    </div>
+  </div>
+  <div class="bot">
+    <span>© 2026 HaorBoat. All rights reserved. · Made in Bangladesh 🇧🇩</span>
+    <div class="socials">
+      <a href="#" aria-label="Facebook">f</a>
+      <a href="#" aria-label="Instagram">◎</a>
+      <a href="#" aria-label="YouTube">▶</a>
+      <a href="#" aria-label="WhatsApp">✆</a>
+    </div>
+  </div>
+</div></footer>
+
+<script>
+  var NIGHTS = 2, fmt = function(n){ return n.toLocaleString('en-US'); };
+
+  // ---- selected cabins carried from the boat page (design preview only) ----
+  var order = [
+    {name:'Deluxe AC Cabin', deck:'Upper deck', price:3250, adult:2, child:0},
+    {name:'Family AC Cabin', deck:'Upper deck', price:2900, adult:2, child:1}
+  ];
+  var CHILD_RATE = 0.5, DISCOUNT = 500;   // HAOR500 promo
+  var payMode = 'advance';                // 'advance' (50%) or 'full'
+
+  function cabinUnits(c){ return c.adult + c.child * CHILD_RATE; }
+  function cabinTotal(c){ return Math.round(c.price * cabinUnits(c) * NIGHTS); }
+
+  // trip summary cabin lines
+  document.getElementById('cabinLines').innerHTML = order.map(function(c){
+    var who = c.adult+'A'+(c.child?' + '+c.child+'C':'');
+    return '<div class="cabrow"><span><b>'+c.name+'</b> <span class="cx">'+c.deck+' · '+who+' · '+NIGHTS+'n</span></span><em>৳ '+fmt(cabinTotal(c))+'</em></div>';
+  }).join('');
+
+  function totals(){
+    var sub = 0, adults = 0, children = 0;
+    order.forEach(function(c){ sub += cabinTotal(c); adults += c.adult; children += c.child; });
+    var grand = sub - DISCOUNT;           // no service fee
+    return {sub:sub, disc:DISCOUNT, grand:grand, adults:adults, children:children, guests:adults+children};
+  }
+
+  function render(){
+    var t = totals();
+    document.getElementById('priceLines').innerHTML =
+        '<div class="brow"><span>Subtotal ('+order.length+' cabins · '+NIGHTS+' nights)</span><span>৳ '+fmt(t.sub)+'</span></div>'
+      + '<div class="brow disc"><span>Coupon · HAOR500</span><em>− ৳ '+fmt(t.disc)+'</em></div>';
+    document.getElementById('grandTotal').textContent = '৳ '+fmt(t.grand);
+
+    // advance (50%) vs full
+    var advance = Math.round(t.grand/2), due = t.grand - advance;
+    document.getElementById('pcAdv').textContent = '৳ '+fmt(advance);
+    document.getElementById('pcFull').textContent = '৳ '+fmt(t.grand);
+    var payNow = payMode==='advance' ? advance : t.grand;
+    var dueNow = payMode==='advance' ? due : 0;
+    document.getElementById('dueLine').innerHTML = payMode==='advance'
+      ? 'Pay <b>৳ '+fmt(payNow)+'</b> now · <b>৳ '+fmt(dueNow)+'</b> due at boarding'
+      : 'Pay <b>৳ '+fmt(payNow)+'</b> now · nothing due later';
+    document.getElementById('payBtnAmt').textContent = '৳ '+fmt(payNow);
+
+    var pax = t.guests+' guest'+(t.guests>1?'s':'')+(t.children?' ('+t.adults+'A + '+t.children+'C)':'');
+    document.getElementById('paxLine').textContent = pax;
+    document.getElementById('cabLine').textContent = order.length+' cabin'+(order.length>1?'s':'');
+    document.getElementById('mAmt').innerHTML = '৳ '+fmt(payNow)+' <small>'+(payMode==='advance'?'50% advance':'full')+' · '+order.length+' cabins</small>';
+  }
+  render();
+
+  // ---- 50% advance vs full payment ----
+  document.getElementById('payChoice').addEventListener('click', function(e){
+    var b = e.target.closest('.pc'); if(!b) return;
+    this.querySelectorAll('.pc').forEach(function(x){x.classList.remove('on')});
+    b.classList.add('on'); payMode = b.dataset.pc; render();
+  });
+
+  // ---- payment method (icon only, no fields) ----
+  document.getElementById('pays').addEventListener('click', function(e){
+    var p = e.target.closest('.pay'); if(!p) return;
+    this.querySelectorAll('.pay').forEach(function(x){x.classList.remove('on')});
+    p.classList.add('on');
+  });
+
+  // ---- hold countdown (visual) ----
+  (function(){
+    var t = 10*60;
+    var a = document.getElementById('holdMin'), b = document.getElementById('holdMin2');
+    setInterval(function(){
+      if(t<=0) return; t--;
+      var m = String(Math.floor(t/60)).padStart(2,'0'), s = String(t%60).padStart(2,'0');
+      a.textContent = m+':'+s; b.textContent = m+':'+s;
+    },1000);
+  })();
+
+  // ---- dark / light theme toggle (persisted) ----
+  (function(){
+    var root = document.documentElement, stored = null;
+    try{ stored = localStorage.getItem('hb-theme'); }catch(e){}
+    root.setAttribute('data-theme', stored || (window.matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light'));
+    document.getElementById('themeToggle').addEventListener('click', function(){
+      var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      root.setAttribute('data-theme', next);
+      try{ localStorage.setItem('hb-theme', next); }catch(e){}
+    });
+  })();
+</script>
+</body>
+</html>

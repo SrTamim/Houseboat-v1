@@ -1,0 +1,3 @@
+# Pin Node 24 on Railway.
+[phases.setup]
+nixPkgs = ["nodejs_24", "pnpm"]

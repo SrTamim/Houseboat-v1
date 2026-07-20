@@ -1,0 +1,924 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HaorBoat — boat detail (design preview)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Hind+Siliguri:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#1a73e8; --blue-600:#1560d6; --blue-700:#0f56be; --blue-050:#e9f1fe; --blue-100:#d3e5fd;
+    --amber:#f6a623; --green:#0f9d58; --green-050:#e6f5ec;
+    --ink:#0f2440; --body:#4a5568; --muted:#8a93a3; --line:#e6eaf0;
+    --bg:#ffffff; --bg-2:#eef2f7; --surface:#ffffff; --chip:#eef2f7;
+    --footer:#0a2a5e; --footer-txt:#c9dcf7; --footer-h:#ffffff; --footer-mut:#9fbbe6;
+    --shadow-sm:0 1px 3px rgba(15,36,64,.08),0 1px 2px rgba(15,36,64,.04);
+    --shadow:0 8px 24px rgba(15,36,64,.10);
+    --shadow-lg:0 24px 60px rgba(15,36,64,.22);
+    --r:.6rem; --r-lg:1rem; --maxw:1200px;
+    --font:'Inter',system-ui,-apple-system,'Segoe UI','Hind Siliguri',sans-serif;
+    --mono:'Inter',ui-monospace,monospace;
+  }
+  :root[data-theme="dark"]{
+    --blue:#4f97ff; --blue-600:#63a4ff; --blue-700:#3d7fe0; --blue-050:#17233a; --blue-100:#1f3252;
+    --green:#34c77b; --green-050:#0f2a1e;
+    --ink:#eef3fb; --body:#aab6c9; --muted:#7a879c; --line:#243247;
+    --bg:#0b1220; --bg-2:#0e1728; --surface:#131d30; --chip:#1a2740;
+    --footer:#061a3a; --footer-txt:#a9c2ea; --footer-h:#eef3fb; --footer-mut:#7e97c2;
+    --shadow-sm:0 1px 3px rgba(0,0,0,.4);
+    --shadow:0 8px 24px rgba(0,0,0,.5);
+    --shadow-lg:0 24px 60px rgba(0,0,0,.6);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg-2);color:var(--body);font-family:var(--font);line-height:1.6;-webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  a{color:inherit;text-decoration:none}
+  h1,h2,h3,h4{margin:0;color:var(--ink);line-height:1.2;font-weight:800;letter-spacing:-.02em}
+  img{max-width:100%;display:block}
+  button{font-family:inherit;cursor:pointer}
+  :focus-visible{outline:2.5px solid var(--blue);outline-offset:2px;border-radius:8px}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+
+  .btn{border-radius:999px;padding:11px 26px;font-weight:700;font-size:15px;border:1.5px solid transparent;transition:transform .14s,box-shadow .14s,background .14s;display:inline-flex;align-items:center;gap:8px;white-space:nowrap;justify-content:center}
+  .btn:active{transform:translateY(1px)}
+  .btn-b{background:var(--blue);color:#fff;box-shadow:0 6px 16px -6px var(--blue)}
+  .btn-b:hover{background:var(--blue-600);box-shadow:0 10px 22px -8px var(--blue)}
+  .btn-o{background:var(--surface);border-color:var(--line);color:var(--ink)}
+  .btn-o:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-050)}
+  .btn-lg{padding:14px 30px;font-size:16px}
+  .btn-block{width:100%}
+  .btn[disabled]{opacity:.55;cursor:not-allowed;box-shadow:none}
+
+  /* ---------- header (shared) ---------- */
+  .nav{position:sticky;top:0;z-index:60;background:color-mix(in srgb,var(--surface) 92%,transparent);backdrop-filter:saturate(160%) blur(10px);border-bottom:1px solid var(--line)}
+  .nav .row{display:flex;align-items:center;gap:24px;height:76px}
+  .logo{display:flex;gap:10px;align-items:center;font-weight:800;font-size:23px;color:var(--ink);letter-spacing:-.03em}
+  .logo .mark{width:36px;height:36px;border-radius:50%;background:linear-gradient(150deg,var(--blue),var(--blue-700));color:#fff;display:grid;place-items:center;font-size:17px;box-shadow:0 4px 10px -3px var(--blue)}
+  .logo .b{color:var(--blue);font-style:italic;font-weight:800}
+  .nav .menu{flex:1;display:flex;justify-content:center;gap:32px;font-size:15px;font-weight:600;color:var(--ink)}
+  .nav .menu a:hover{color:var(--blue)}
+  .nav .right{display:flex;gap:12px;align-items:center}
+  .theme-btn{border:1px solid var(--line);background:var(--surface);width:44px;height:44px;border-radius:12px;font-size:18px;color:var(--ink);display:grid;place-items:center;transition:border-color .14s,transform .14s}
+  .theme-btn:hover{border-color:var(--blue);transform:translateY(-1px)}
+  .theme-btn .sun{display:none}
+  :root[data-theme="dark"] .theme-btn .moon{display:none}
+  :root[data-theme="dark"] .theme-btn .sun{display:block}
+  .burger{display:none;border:1px solid var(--line);background:var(--surface);width:44px;height:44px;border-radius:12px;font-size:20px;color:var(--ink)}
+
+  /* ---------- detail head ---------- */
+  .detail .wrap{padding:22px 24px 60px}
+  .crumbs{font-size:13px;color:var(--muted);margin-bottom:14px}
+  .crumbs a:hover{color:var(--blue)}.crumbs b{color:var(--ink)}
+  .dhead{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .dhead h1{font-size:30px}
+  .rate{font-size:14px;font-weight:800;color:var(--ink);display:flex;gap:5px;align-items:center}
+  .rate i{color:var(--amber);font-style:normal}.rate span{color:var(--muted);font-weight:600}
+  .dloc{font-size:14px;color:var(--muted);font-weight:600;display:flex;gap:5px;align-items:center}
+  .verified{display:inline-flex;align-items:center;gap:6px;background:var(--green-050);color:var(--green);font-size:12.5px;font-weight:800;padding:5px 12px;border-radius:999px;border:1px solid color-mix(in srgb,var(--green) 30%,transparent)}
+  .dhead .sp{margin-left:auto;display:flex;gap:10px}
+  .icon-btn{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:9px 16px;font-size:14px;font-weight:700;color:var(--ink);display:inline-flex;gap:7px;align-items:center;transition:border-color .14s,color .14s}
+  .icon-btn:hover{border-color:var(--blue);color:var(--blue)}
+
+  /* ---------- overview: gallery (half) + about/facilities (half) ---------- */
+  .overview{display:grid;grid-template-columns:1fr 1fr;gap:26px;margin:18px 0 30px;align-items:start}
+  .gallery{display:grid;grid-template-columns:2fr 1fr;grid-template-rows:1fr 1fr;gap:8px;border-radius:var(--r-lg);overflow:hidden;height:340px;cursor:pointer}
+  .gallery a{position:relative;overflow:hidden;background:var(--bg-2)}
+  .gallery a:first-child{grid-row:1/3}
+  .gallery img{width:100%;height:100%;object-fit:cover;transition:transform .5s}
+  .gallery a:hover img{transform:scale(1.05)}
+  .gallery .more{position:absolute;inset:0;background:rgba(15,36,64,.55);color:#fff;display:grid;place-items:center;font-weight:800;font-size:15px}
+  .ov-info h2{font-size:19px;margin-bottom:10px}
+  .ov-info h2:not(:first-child){margin-top:22px}
+  .ov-info p{font-size:14.5px;color:var(--body)}
+  .ov-quick{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+  .ov-quick span{font-size:12.5px;font-weight:700;color:var(--body);background:var(--chip);border:1px solid var(--line);padding:6px 11px;border-radius:8px}
+  .facils{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}
+  .facil{display:inline-flex;gap:6px;align-items:center;font-size:12.5px;color:var(--body);font-weight:600;background:var(--chip);border:1px solid var(--line);padding:5px 10px;border-radius:999px}
+  .facil .fi{font-size:14px;line-height:1}
+  .more-facil{font-size:13px;font-weight:800;color:var(--blue);margin-top:12px;display:inline-block}
+
+  /* ---------- body grid ---------- */
+  .dbody{display:grid;grid-template-columns:1fr 360px;gap:34px;align-items:start}
+  .dsec{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:24px 26px;margin-bottom:22px;box-shadow:var(--shadow-sm)}
+  .dsec h2{font-size:20px;margin-bottom:14px}
+  .dsec p{font-size:15px;color:var(--body)}
+  /* cabins (richer row like reference) */
+  .cabin{display:flex;gap:14px;align-items:center;border:1px solid var(--line);border-radius:var(--r-lg);padding:12px 12px 42px;transition:border-color .16s,box-shadow .16s;margin-bottom:24px;position:relative;background:var(--surface)}
+  .cabin:last-child{margin-bottom:24px}
+  /* attached tab strip, bottom-left, overlapping the card edge */
+  .ctabs{position:absolute;left:16px;bottom:-16px;display:flex;gap:8px;flex-wrap:wrap}
+  .ctabs button{background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:7px 14px;font-size:12.5px;font-weight:700;color:var(--body);box-shadow:var(--shadow-sm);display:inline-flex;gap:6px;align-items:center;transition:all .14s}
+  .ctabs button:hover{border-color:var(--blue);color:var(--blue);transform:translateY(-1px)}
+  .cabin.sel{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-050)}
+  .cabin.booked{opacity:.96}
+  .cabin .cimg{position:relative;width:132px;height:96px;border-radius:var(--r);overflow:hidden;background:var(--bg-2);flex:none;cursor:pointer}
+  .cabin .cimg img{width:100%;height:100%;object-fit:cover;transition:transform .4s}
+  .cabin .cimg:hover img{transform:scale(1.06)}
+  .cabin .cimg .disc{position:absolute;top:8px;left:8px;background:var(--amber);color:#3a2a00;font-size:10.5px;font-weight:800;padding:3px 8px;border-radius:6px}
+  .cabin .cimg .zoom{position:absolute;bottom:8px;right:8px;background:rgba(15,36,64,.7);color:#fff;font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;display:flex;gap:4px;align-items:center}
+  .cabin .cinfo{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:8px}
+  .cabin .cn{font-size:16px;font-weight:800;color:var(--ink);display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+  .avail-tag{font-size:11px;font-weight:800;padding:3px 9px;border-radius:999px;display:inline-flex;gap:5px;align-items:center}
+  .avail-tag.ok{background:var(--green-050);color:var(--green)}
+  .avail-tag.no{background:color-mix(in srgb,#e2544d 14%,transparent);color:#e2544d}
+  .tag{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;padding:3px 8px;border-radius:6px}
+  .tag.ac{background:var(--blue-050);color:var(--blue)}
+  .tag.non{background:var(--chip);color:var(--body)}
+  .cabin .cm{font-size:13px;color:var(--muted)}
+  .cabin .cfac{display:flex;gap:7px;flex-wrap:wrap}
+  .cabin .cfac span{font-size:11.5px;font-weight:600;color:var(--body);background:var(--chip);border:1px solid var(--line);padding:3px 8px;border-radius:6px;display:inline-flex;gap:5px;align-items:center}
+  /* right column: price on top, two compact counters below */
+  .cabin .cright{flex:none;width:230px;display:flex;flex-direction:column;gap:10px;padding-left:16px;border-left:1px solid var(--line);justify-content:center}
+  .cabin .cprice{font-size:21px;font-weight:900;color:var(--ink);font-family:var(--mono);letter-spacing:-.03em;line-height:1;text-align:right}
+  .cabin .cprice .old{font-size:12px;color:var(--muted);text-decoration:line-through;font-family:var(--font);font-weight:600;margin-right:6px}
+  .cabin .cprice small{font-size:11px;color:var(--muted);font-weight:600;display:block;font-family:var(--font);margin-top:2px}
+  .cabin .cprice.sel{color:var(--blue)}
+  .cabin .cprice.sel .pl{display:block;font-size:11px;color:var(--muted);font-weight:700;font-family:var(--font);margin-bottom:2px}
+  /* per-cabin adult/child counters */
+  .ccount{display:grid;gap:6px}
+  .crow{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .crow .clbl{font-size:12.5px;font-weight:700;color:var(--ink)}
+  .crow .clbl small{display:block;font-size:10.5px;font-weight:600;color:var(--muted)}
+  .stepper{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:999px;overflow:hidden;flex:none}
+  .stepper button{width:26px;height:26px;border:none;background:var(--surface);color:var(--blue);font-size:15px;font-weight:800;display:grid;place-items:center}
+  .stepper button:hover{background:var(--blue-050)}
+  .stepper button[disabled]{color:var(--muted);cursor:not-allowed;background:var(--surface)}
+  .stepper .qv{min-width:24px;text-align:center;font-weight:800;color:var(--ink);font-size:14px}
+  .cabin.full .cright{opacity:.55}
+  .cabin.full .cright .soldout{pointer-events:none}
+  .cabin.full .cright .waitlist{opacity:1;pointer-events:auto}   /* keep waitlist fully lit & clickable */
+  .soldout{font-size:11.5px;font-weight:800;color:#e2544d;text-transform:uppercase;letter-spacing:.04em;text-align:center;border:1px dashed color-mix(in srgb,#e2544d 45%,transparent);padding:9px;border-radius:var(--r)}
+  /* open-seat badge on a cabin */
+  .avail-tag.seat{background:color-mix(in srgb,var(--amber) 16%,transparent);color:#a06400}
+  :root[data-theme="dark"] .avail-tag.seat{color:var(--amber)}
+  .cabin .seatnote{font-size:12px;color:#a06400;font-weight:700;background:color-mix(in srgb,var(--amber) 12%,transparent);border:1px solid color-mix(in srgb,var(--amber) 35%,transparent);border-radius:6px;padding:5px 9px;margin-top:2px}
+  :root[data-theme="dark"] .cabin .seatnote{color:var(--amber)}
+  /* waitlist button on a fully-booked cabin — clearly actionable, not disabled-looking */
+  .waitlist{margin-top:4px;background:var(--blue);border:1.5px solid var(--blue);color:#fff;border-radius:999px;padding:10px 14px;font-size:13px;font-weight:800;width:100%;transition:all .14s;box-shadow:0 4px 12px -5px var(--blue)}
+  .waitlist:hover{background:var(--blue-600);border-color:var(--blue-600)}
+  .waitlist.on{background:var(--green-050);border-color:color-mix(in srgb,var(--green) 45%,transparent);color:var(--green);box-shadow:none}
+
+  /* group booking bands */
+  .bands{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:18px}
+  .band{border:1.5px solid var(--line);border-radius:var(--r-lg);padding:16px 14px;text-align:center;cursor:pointer;transition:all .16s;background:var(--surface)}
+  .band:hover{border-color:var(--blue-100);transform:translateY(-2px)}
+  .band.on{border-color:var(--blue);background:var(--blue-050);box-shadow:0 0 0 3px var(--blue-050)}
+  .band .bsz{font-size:13px;font-weight:700;color:var(--body)}
+  .band .bpr{font-size:20px;font-weight:900;color:var(--ink);font-family:var(--mono);letter-spacing:-.03em;margin-top:5px}
+  .band.on .bpr{color:var(--blue)}
+  .band .bpr small{font-size:11px;color:var(--muted);font-weight:600;display:block;font-family:var(--font)}
+  .gbook{border:1px solid var(--line);border-radius:var(--r-lg);padding:18px 20px;background:var(--bg-2)}
+  .gbook .gb-head{font-size:14px;font-weight:800;color:var(--ink);margin-bottom:14px}
+  .gbook .counters{display:grid;gap:10px;max-width:420px}
+  .gbook .gb-note{font-size:12.5px;font-weight:700;margin-top:12px;min-height:18px}
+  .gbook .gb-note.ok{color:var(--green)}.gbook .gb-note.bad{color:#e2544d}
+  /* share empty rooms yes/no */
+  .gb-share{margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
+  .gb-share .gs-q{font-size:13.5px;font-weight:700;color:var(--ink);margin-bottom:10px}
+  .gb-share .gs-opts{display:inline-flex;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px}
+  .gb-share .gs-b{border:none;background:transparent;color:var(--body);font-weight:800;font-size:13px;padding:7px 22px;border-radius:999px;transition:all .14s}
+  .gb-share .gs-b:hover{color:var(--blue)}
+  .gb-share .gs-b.on{background:var(--blue);color:#fff}
+  .gb-share .gs-b[data-share="no"].on{background:#e2544d;color:#fff}
+  .gb-share .gs-hint{font-size:12px;color:var(--muted);margin-top:8px}
+
+  /* reviews mini */
+  .rev{border-top:1px solid var(--line);padding-top:16px;margin-top:16px}
+  .rev:first-of-type{border-top:none;padding-top:0;margin-top:0}
+  .rev .rt{display:flex;gap:10px;align-items:center}
+  .rev .av{width:38px;height:38px;border-radius:50%;background:var(--blue-050);color:var(--blue);display:grid;place-items:center;font-weight:800;font-size:15px}
+  .rev .who{font-weight:700;color:var(--ink);font-size:14.5px}
+  .rev .when{font-size:12.5px;color:var(--muted)}
+  .rev .stars{color:var(--amber);font-size:12px;margin-left:auto}
+  .rev p{font-size:14px;margin-top:8px}
+
+  /* ---------- boat map (houseboat deck plan) — own card below price ---------- */
+  .boatmap{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:20px;box-shadow:var(--shadow-sm);margin-top:20px}
+  .boatmap h3{font-size:15px;margin-bottom:4px}
+  .boatmap .mn{font-size:12px;color:var(--muted);margin-bottom:16px}
+  /* the hull: pointed bow at top, tapered sides, waterline glow at the base */
+  .hull{position:relative;padding:44px 18px 26px;isolation:isolate;
+    background:linear-gradient(180deg,color-mix(in srgb,var(--blue) 8%,var(--surface)),var(--surface) 30%);
+    border:2.5px solid var(--blue-100);
+    border-radius:120px 120px 22px 22px/72px 72px 22px 22px;
+    box-shadow:inset 0 2px 0 rgba(255,255,255,.5),0 10px 30px -12px var(--blue)}
+  :root[data-theme="dark"] .hull{box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 10px 30px -12px #000}
+  /* mast/flag at the bow tip */
+  .hull::before{content:"";position:absolute;top:-22px;left:50%;transform:translateX(-50%);
+    border-left:11px solid transparent;border-right:11px solid transparent;border-bottom:22px solid var(--blue-100)}
+  .hull .flag{position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:2;font-size:11px;font-weight:800;color:var(--blue);letter-spacing:.05em;display:flex;gap:5px;align-items:center}
+  /* waterline at the base */
+  .hull::after{content:"";position:absolute;left:-2px;right:-2px;bottom:-9px;height:14px;border-radius:0 0 40% 40%;
+    background:linear-gradient(180deg,var(--blue-100),transparent);opacity:.7;z-index:-1}
+  .deck-lbl{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--blue);margin:16px 0 8px;display:flex;align-items:center;gap:8px}
+  .deck-lbl:first-of-type{margin-top:4px}
+  .deck-lbl::after{content:"";flex:1;height:1px;background:var(--line)}
+  .deck-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  /* each cabin = a lit window */
+  .mcab{position:relative;border:2px solid var(--line);border-radius:8px;background:var(--bg-2);padding:11px 6px;text-align:center;cursor:pointer;transition:all .16s;min-height:56px;display:flex;flex-direction:column;justify-content:center;gap:3px;box-shadow:inset 0 0 0 3px var(--surface)}
+  .mcab .mc-n{color:var(--ink);font-weight:800;font-size:11.5px}
+  .mcab .mc-s{font-size:9.5px;color:var(--muted);font-weight:600}
+  .mcab:hover{border-color:var(--blue-100);transform:translateY(-2px)}
+  .mcab.sel{border-color:var(--blue);background:var(--blue-050);box-shadow:inset 0 0 0 3px var(--surface),0 6px 16px -6px var(--blue)}
+  .mcab.sel::before{content:"✓";position:absolute;top:-8px;right:-8px;width:20px;height:20px;background:var(--blue);color:#fff;border-radius:50%;font-size:11px;font-weight:900;display:grid;place-items:center;box-shadow:var(--shadow-sm)}
+  .mcab.sel .mc-n{color:var(--blue)}
+  .mcab.full{background:color-mix(in srgb,#e2544d 9%,transparent);border-color:color-mix(in srgb,#e2544d 35%,transparent);border-style:dashed;cursor:not-allowed;box-shadow:none}
+  .mcab.full .mc-n{color:#e2544d}
+  .maplegend{display:flex;gap:14px;flex-wrap:wrap;margin-top:14px;font-size:11.5px;font-weight:600;color:var(--muted)}
+  .maplegend span{display:inline-flex;gap:6px;align-items:center}
+  .maplegend i{width:13px;height:13px;border-radius:3px;border:2px solid var(--line);display:inline-block}
+  .maplegend i.s{background:var(--blue-050);border-color:var(--blue)}
+  .maplegend i.f{background:color-mix(in srgb,#e2544d 12%,transparent);border-color:#e2544d;border-style:dashed}
+
+  .agenote{font-size:12px;color:var(--muted);display:flex;gap:6px;align-items:center;background:var(--bg-2);border:1px solid var(--line);border-radius:var(--r);padding:9px 12px}
+
+  /* ---------- modal (cabin info tabs / image slider) ---------- */
+  .modal{position:fixed;inset:0;z-index:100;display:none;align-items:center;justify-content:center;padding:20px}
+  .modal.open{display:flex}
+  .modal .ov{position:absolute;inset:0;background:rgba(10,20,40,.6);backdrop-filter:blur(2px)}
+  .modal .box{position:relative;background:var(--surface);border-radius:var(--r-lg);width:min(680px,100%);max-height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--shadow-lg)}
+  .modal .mhead{background:linear-gradient(120deg,var(--blue-700),var(--blue));color:#fff;padding:16px 20px;display:flex;align-items:center;gap:10px}
+  .modal .mhead h3{color:#fff;font-size:17px;flex:1}
+  .modal .mclose{background:rgba(255,255,255,.2);border:none;color:#fff;width:34px;height:34px;border-radius:50%;font-size:16px}
+  .modal .mclose:hover{background:rgba(255,255,255,.32)}
+  .mtabs{display:flex;gap:2px;border-bottom:1px solid var(--line);padding:0 14px;background:var(--surface);overflow-x:auto}
+  .mtab{border:none;background:none;padding:14px 14px;font-size:13.5px;font-weight:700;color:var(--muted);border-bottom:2.5px solid transparent;white-space:nowrap;display:inline-flex;gap:6px;align-items:center}
+  .mtab.on{color:var(--blue);border-bottom-color:var(--blue)}
+  .mbody{padding:20px 22px;overflow-y:auto}
+  .mpane{display:none}.mpane.on{display:block}
+  .mpane h4{font-size:14px;margin:16px 0 8px}.mpane h4:first-child{margin-top:0}
+  .mpane p{font-size:14px;color:var(--body);margin:0 0 10px}
+  .mpane ul{margin:0 0 10px;padding-left:18px;font-size:14px;color:var(--body)}
+  .mpane li{margin-bottom:6px}
+  .mpane .kv{display:flex;gap:10px;font-size:14px;padding:8px 0;border-bottom:1px solid var(--line)}
+  .mpane .kv b{color:var(--ink);min-width:120px}
+  .itin{display:grid;gap:0}
+  .itin .step{display:flex;gap:14px;padding:12px 0;border-bottom:1px solid var(--line)}
+  .itin .step:last-child{border-bottom:none}
+  .itin .t{font-family:var(--mono);font-weight:800;color:var(--blue);font-size:13px;min-width:66px}
+  .itin .d b{color:var(--ink)}
+
+  /* image slider */
+  .slider{position:relative;background:#000;aspect-ratio:16/10}
+  .slider img{width:100%;height:100%;object-fit:cover}
+  .slider .nav-b{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.9);border:none;width:42px;height:42px;border-radius:50%;font-size:20px;color:var(--ink);display:grid;place-items:center}
+  .slider .prev{left:12px}.slider .next{right:12px}
+  .slider .idx{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:rgba(15,36,64,.7);color:#fff;font-size:12.5px;font-weight:700;padding:4px 12px;border-radius:999px}
+  .thumbs{display:flex;gap:8px;padding:14px;overflow-x:auto}
+  .thumbs img{width:80px;height:58px;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid transparent;flex:none}
+  .thumbs img.on{border-color:var(--blue)}
+
+  /* ---------- booking summary ---------- */
+  /* the whole right column sticks together (price card + boat map) */
+  .dbody > aside{position:sticky;top:96px;align-self:start}
+  .book{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:22px;box-shadow:var(--shadow)}
+  .book .bfrom{font-size:13px;color:var(--muted);font-weight:600}
+  .book .bp{font-size:26px;font-weight:900;color:var(--ink);font-family:var(--mono);letter-spacing:-.03em}
+  .book .bp small{font-size:13px;color:var(--muted);font-family:var(--font);font-weight:600}
+  .book .bfield{border:1px solid var(--line);border-radius:var(--r);padding:10px 14px;background:var(--bg-2);margin-top:14px}
+  .book .bfield label{font-size:10.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+  .book .bfield .v{font-size:15px;font-weight:700;color:var(--ink);margin-top:2px}
+  .book .lines{margin-top:16px}
+  .book .brow{display:flex;justify-content:space-between;font-size:14px;padding:7px 0;color:var(--body)}
+  .book .brow.muted{color:var(--muted);font-size:13px}
+  .book .brow b{color:var(--ink);font-weight:700}
+  .book .total{border-top:1px solid var(--line);margin-top:6px;padding-top:12px;font-size:17px;font-weight:800;color:var(--ink)}
+  .book .empty{font-size:13.5px;color:var(--muted);text-align:center;padding:8px 0 4px}
+  .hold{background:var(--green-050);color:var(--green);font-size:12.5px;font-weight:700;padding:9px 12px;border-radius:var(--r);text-align:center;margin-top:14px}
+  .book .paylogos{display:flex;justify-content:center;gap:8px;margin-top:14px}
+  .book .paylogos span{font-size:11px;font-weight:700;color:var(--muted);border:1px solid var(--line);padding:4px 10px;border-radius:6px}
+
+  /* mobile sticky book bar */
+  .mbar{display:none;position:fixed;left:0;right:0;bottom:0;z-index:70;background:var(--surface);border-top:1px solid var(--line);padding:12px 20px;align-items:center;justify-content:space-between;gap:14px;box-shadow:0 -8px 24px rgba(15,36,64,.12)}
+  .mbar .mp{font-size:18px;font-weight:900;color:var(--ink);font-family:var(--mono)}
+  .mbar .mp small{font-size:11px;color:var(--muted);font-weight:600;display:block;font-family:var(--font)}
+
+  /* ---------- footer (shared) ---------- */
+  .foot{position:relative;background:var(--footer);color:var(--footer-txt);overflow:hidden;isolation:isolate;margin-top:20px}
+  .foot::before{content:"";position:absolute;inset:0;z-index:-1;
+    background:linear-gradient(180deg,rgba(26,115,232,.28),transparent 40%),
+              radial-gradient(60% 90% at 88% -10%,rgba(59,139,255,.42),transparent 60%),
+              radial-gradient(50% 80% at 6% 8%,rgba(26,115,232,.22),transparent 55%)}
+  .foot::after{content:"";position:absolute;inset:0;z-index:-1;opacity:.5;
+    background-image:radial-gradient(rgba(255,255,255,.045) 1px,transparent 1px);background-size:22px 22px;
+    -webkit-mask-image:linear-gradient(180deg,#000,transparent 70%);mask-image:linear-gradient(180deg,#000,transparent 70%)}
+  .foot .inner{padding:52px 0 30px}
+  .foot .cols{display:grid;grid-template-columns:1.8fr 1fr 1fr 1fr;gap:40px}
+  .foot .logo{color:var(--footer-h);margin-bottom:16px}.foot .logo .b{color:#7fb2ff}
+  .foot .about{font-size:14.5px;line-height:1.65;max-width:38ch;color:var(--footer-mut)}
+  .foot .contact{display:grid;gap:9px;margin-top:16px;font-size:14px}
+  .foot .contact a{display:flex;gap:9px;align-items:center;color:var(--footer-mut)}
+  .foot .contact a:hover{color:var(--footer-h)}
+  .foot .pay{display:flex;gap:8px;margin-top:18px}
+  .foot .pay span{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);padding:7px 13px;border-radius:8px;font-size:12.5px;font-weight:700;color:#e2eaf5}
+  .foot h4{color:var(--footer-h);font-size:13px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:17px;font-weight:700}
+  .foot ul{list-style:none;padding:0;margin:0;display:grid;gap:12px;font-size:14.5px}
+  .foot ul a{color:var(--footer-mut);transition:color .14s,padding .14s;display:inline-block}
+  .foot ul a:hover{color:var(--footer-h);padding-left:4px}
+  .foot .bot{border-top:1px solid rgba(255,255,255,.12);padding:22px 0 30px;display:flex;justify-content:space-between;align-items:center;font-size:13.5px;color:var(--footer-mut);flex-wrap:wrap;gap:14px}
+  .foot .socials{display:flex;gap:10px}
+  .foot .socials a{width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);display:grid;place-items:center;font-size:15px;color:#dbe4f0;transition:transform .14s,background .14s,border-color .14s}
+  .foot .socials a:hover{transform:translateY(-3px);background:var(--blue);border-color:var(--blue);color:#fff}
+
+  /* ---------- responsive ---------- */
+  @media(max-width:940px){
+    .nav .menu{display:none}
+    .nav .right{margin-left:auto}
+    .burger{display:grid;place-items:center}
+    .overview{grid-template-columns:1fr}
+    .gallery{height:300px}
+    .dbody{grid-template-columns:1fr}
+    .book{position:static}
+    .book .paylogos,.book .cta-desktop{display:none}
+    .mbar{display:flex}
+    .detail .wrap{padding-bottom:90px}
+    .foot .cols{grid-template-columns:1fr 1fr}
+  }
+  @media(max-width:640px){
+    .dhead h1{font-size:24px}
+    .dhead .sp{margin-left:0;width:100%}
+    .gallery{height:240px}
+    .cabin{flex-wrap:wrap}
+    .cabin .cimg{width:100%;height:170px}
+    .cabin .cright{width:100%;padding-left:0;border-left:none;border-top:1px solid var(--line);padding-top:12px}
+    .foot .cols{grid-template-columns:1fr}
+    .foot .bot{flex-direction:column;text-align:center}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+
+<!-- ============ HEADER ============ -->
+<header class="nav"><div class="wrap row">
+  <a class="logo" href="haorboat-home.html"><span class="mark">🛥</span>Haor<span class="b">Boat</span></a>
+  <nav class="menu">
+    <a href="#">About</a>
+    <a href="#">Help</a>
+    <a href="#">Become a host</a>
+  </nav>
+  <div class="right">
+    <button class="theme-btn" id="themeToggle" aria-label="Toggle dark mode"><span class="moon">🌙</span><span class="sun">☀️</span></button>
+    <a class="btn btn-o" href="#">Login</a>
+    <a class="btn btn-b" href="#">Register</a>
+    <button class="burger" aria-label="Menu">☰</button>
+  </div>
+</div></header>
+
+<!-- ============ DETAIL ============ -->
+<section class="detail"><div class="wrap">
+  <div class="crumbs"><a href="haorboat-home.html">Home</a> › <a href="haorboat-houseboats.html">Houseboats</a> › Tanguar Haor › <b>Jolpori Houseboat</b></div>
+
+  <div class="dhead">
+    <h1>Jolpori Houseboat</h1>
+    <span class="rate"><i>★</i> 4.8 <span>(126 reviews)</span></span>
+    <span class="dloc">📍 Tahirpur · Tanguar Haor</span>
+    <span class="verified">🛟 Safety-verified</span>
+    <div class="sp">
+      <button class="icon-btn">♡ Save</button>
+      <button class="icon-btn">↗ Share</button>
+    </div>
+  </div>
+
+  <!-- overview: gallery (half) + about/facilities (half) -->
+  <div class="overview">
+    <div class="gallery" id="boatGallery">
+      <a><img alt="Houseboat exterior on the haor" loading="lazy" src="https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&w=900&q=70"></a>
+      <a><img alt="Sundeck" loading="lazy" src="https://images.unsplash.com/photo-1502933691298-84fc14542831?auto=format&fit=crop&w=500&q=70"></a>
+      <a><img alt="Water view" loading="lazy" src="https://images.unsplash.com/photo-1527004013197-933c4bb611b3?auto=format&fit=crop&w=500&q=70"><span class="more">+12 photos</span></a>
+    </div>
+    <div class="ov-info">
+      <h2>About this boat</h2>
+      <p>A 3-deck wooden houseboat cruising the wetlands of Tanguar Haor. Six cabins across two decks, an open sundeck for sunrise over the water, and home-cooked Sylheti meals included — calm haor nights, safe for families and small groups.</p>
+      <div class="ov-quick">
+        <span>🛏️ 6 cabins</span><span>👥 up to 12 guests</span><span>🍽️ Full-board meals</span><span>🕑 2N · 3D</span><span>⚓ Boards at Tahirpur</span>
+      </div>
+      <h2>Facilities</h2>
+      <div class="facils">
+        <div class="facil"><span class="fi">🛟</span> Life jackets</div>
+        <div class="facil"><span class="fi">❄️</span> AC &amp; non-AC cabins</div>
+        <div class="facil"><span class="fi">🍽️</span> Sylheti meals</div>
+        <div class="facil"><span class="fi">🪑</span> Balcony &amp; deck</div>
+        <div class="facil"><span class="fi">🎏</span> Sundeck swing</div>
+        <div class="facil"><span class="fi">🎲</span> Indoor games</div>
+        <div class="facil"><span class="fi">🔋</span> Generator backup</div>
+        <div class="facil"><span class="fi">🔥</span> BBQ &amp; bonfire</div>
+      </div>
+      <a class="more-facil" id="allInfo">View full boat info →</a>
+    </div>
+  </div>
+
+  <div class="dbody">
+    <!-- LEFT -->
+    <div>
+      <!-- CABINS -->
+      <div class="dsec">
+        <h2>Choose your cabins</h2>
+        <p style="margin-bottom:16px">Add adults / children to a cabin to select it. Price is <b>per person</b>, per night. Pick as many cabins as you like — the summary totals them all.</p>
+        <div class="agenote" style="margin-bottom:16px">ℹ️ Adult = age 5–18+ (full fare) · Child = age 1–5 (50% fare) · Infants under 1 free.</div>
+        <div id="cabinList"></div>
+      </div>
+
+      <!-- GROUP BOOKING (boat-set bands: pick a band → type headcount → adds to summary) -->
+      <div class="dsec">
+        <h2>👥 Book the whole boat (group)</h2>
+        <p style="margin-bottom:16px">Buy out the entire houseboat at a flat group rate. Pick a size band and enter your headcount — it's added to your booking summary, one payment, no per-cabin split. Selecting a group clears any picked cabins.</p>
+        <div class="bands" id="bandList"></div>
+
+        <div class="gbook" id="gbook" hidden>
+          <div class="gb-head">Your group · <span id="gbBand">15–20 people</span></div>
+          <div class="counters">
+            <div class="crow"><span class="clbl">Adults<small>age 5–18+</small></span><div class="stepper" data-gk="adult"><button class="dec" disabled>−</button><span class="qv" id="gAdult">15</span><button class="inc">+</button></div></div>
+            <div class="crow"><span class="clbl">Children<small>age 1–5 · counts toward band</small></span><div class="stepper" data-gk="child"><button class="dec" disabled>−</button><span class="qv" id="gChild">0</span><button class="inc">+</button></div></div>
+          </div>
+          <div class="gb-note" id="gbNote"></div>
+
+          <div class="gb-share">
+            <div class="gs-q">Are you willing to share the empty rooms with other guests?</div>
+            <div class="gs-opts" id="gbShare">
+              <button class="gs-b on" data-share="no">No</button>
+              <button class="gs-b" data-share="yes">Yes</button>
+            </div>
+            <div class="gs-hint" id="gbShareHint">Empty rooms stay yours — no strangers on board.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dsec">
+        <h2>Guest reviews · 4.8 (126)</h2>
+        <div class="rev">
+          <div class="rt"><span class="av">RA</span><div><div class="who">Rakib Ahmed</div><div class="when">Trip · Jun 2026</div></div><span class="stars">★★★★★</span></div>
+          <p>Sunrise from the top deck was unreal. Crew handled everything, food was proper Sylheti home-style. Booked the family AC cabin — worth it.</p>
+        </div>
+        <div class="rev">
+          <div class="rt"><span class="av">NF</span><div><div class="who">Nusrat Fariha</div><div class="when">Trip · May 2026</div></div><span class="stars">★★★★★</span></div>
+          <p>Very clean cabins and the swing on the sundeck was a hit with the kids. Boarding at Tahirpur was smooth. Would go again.</p>
+        </div>
+        <div class="rev">
+          <div class="rt"><span class="av">SI</span><div><div class="who">Sabbir Islam</div><div class="when">Trip · Apr 2026</div></div><span class="stars">★★★★☆</span></div>
+          <p>Great value for a group of 8. Network is patchy on the haor (expected). Generator kept the fans and lights running all night.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: booking summary -->
+    <aside>
+      <div class="book">
+        <div class="bfrom">from</div>
+        <div class="bp">৳ 3,250 <small>/ person · night</small></div>
+
+        <div class="bfield"><label>📅 Dates</label><div class="v">24 – 26 Jul 2026 · 2 nights</div></div>
+        <div class="bfield"><label>👤 Guests</label><div class="v" id="bGuests">4 adults</div></div>
+
+        <div class="lines" id="summaryLines">
+          <div class="empty">Select cabins to see your total</div>
+        </div>
+
+        <button class="btn btn-b btn-block btn-lg cta-desktop" id="reserveBtn" style="margin-top:16px" disabled>Reserve cabins</button>
+        <div class="hold">⏱️ Free hold for 10 minutes — no payment yet</div>
+        <div class="paylogos"><span>bKash</span><span>Nagad</span><span>Card</span></div>
+      </div>
+
+      <!-- boat map — its own separate card, below the price panel -->
+      <div class="boatmap">
+        <h3>🗺️ Boat layout · Jolpori</h3>
+        <div class="mn">See where your cabins are. Tap a cabin to select it.</div>
+        <div class="hull" id="boatMap"></div>
+        <div class="maplegend">
+          <span><i></i> Available</span>
+          <span><i class="s"></i> Selected</span>
+          <span><i class="f"></i> Fully booked</span>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div></section>
+
+<!-- mobile sticky book bar -->
+<div class="mbar">
+  <div class="mp" id="mbarPrice">৳ 0 <small>0 cabins · 2 nights</small></div>
+  <button class="btn btn-b btn-lg" id="mReserve" disabled>Reserve</button>
+</div>
+
+<!-- ===== CABIN INFO MODAL (tabs) ===== -->
+<div class="modal" id="infoModal">
+  <div class="ov" data-close></div>
+  <div class="box">
+    <div class="mhead"><span>⛵</span><h3 id="imTitle">Cabin details</h3><button class="mclose" data-close aria-label="Close">✕</button></div>
+    <div class="mtabs">
+      <button class="mtab on" data-tab="info">⚓ Boat info</button>
+      <button class="mtab" data-tab="incl">✔️ Inclusions</button>
+      <button class="mtab" data-tab="itin">🗺️ Itinerary</button>
+      <button class="mtab" data-tab="pol">🛡️ Policies</button>
+    </div>
+    <div class="mbody">
+      <div class="mpane on" data-pane="info">
+        <h4 id="imName">Deluxe AC Cabin</h4>
+        <p id="imDesc">A comfortable air-conditioned cabin on the upper deck with a large window facing the haor, private balcony access, and an attached washroom. Ideal for couples or small families.</p>
+        <div class="kv"><b>Deck</b><span id="imDeck">Upper deck</span></div>
+        <div class="kv"><b>Capacity</b><span id="imCap">Up to 2 guests</span></div>
+        <div class="kv"><b>Bed</b><span id="imBed">1 double bed</span></div>
+        <div class="kv"><b>Washroom</b><span id="imBath">Attached, high commode</span></div>
+        <div class="kv"><b>AC</b><span id="imAc">Yes — split AC</span></div>
+      </div>
+      <div class="mpane" data-pane="incl">
+        <h4>What's included</h4>
+        <ul>
+          <li>5 main meals + 4 snacks per person</li>
+          <li>Sunrise tea on the sundeck</li>
+          <li>Life jackets &amp; safety gear</li>
+          <li>Guide &amp; trained boatmen</li>
+          <li>Drinking water &amp; generator power</li>
+        </ul>
+        <h4>Not included</h4>
+        <ul><li>Personal expenses &amp; tips</li><li>Extra BBQ add-ons</li></ul>
+      </div>
+      <div class="mpane" data-pane="itin">
+        <div class="itin">
+          <div class="step"><span class="t">Day 1</span><span class="d"><b>Board at Tahirpur</b> · 10:00 AM. Lunch on board, sail into Tanguar Haor, sunset at Watchtower.</span></div>
+          <div class="step"><span class="t">Day 2</span><span class="d"><b>Tanguar Haor</b> · Sunrise, Tekerghat, Niladri Lake, Barikka Tila. BBQ &amp; bonfire evening.</span></div>
+          <div class="step"><span class="t">Day 3</span><span class="d"><b>Return</b> · Breakfast, morning cruise, drop back at Tahirpur by 12:00 PM.</span></div>
+        </div>
+      </div>
+      <div class="mpane" data-pane="pol">
+        <h4>Cancellation</h4>
+        <p>Free cancellation up to 7 days before departure. 50% refund up to 72 hours. No refund within 72 hours.</p>
+        <h4>Check-in</h4>
+        <p>Boarding 10:00 AM at Tahirpur ghat. Bring a valid NID/passport for every adult guest.</p>
+        <h4>House rules</h4>
+        <ul><li>No loud music after 11:00 PM</li><li>Life jackets mandatory on the sundeck</li><li>Smoking only on the open deck</li></ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== IMAGE SLIDER MODAL ===== -->
+<div class="modal" id="imgModal">
+  <div class="ov" data-close></div>
+  <div class="box">
+    <div class="mhead"><span>🖼️</span><h3 id="sTitle">Cabin photos</h3><button class="mclose" data-close aria-label="Close">✕</button></div>
+    <div class="slider">
+      <img id="sMain" alt="Cabin photo">
+      <button class="nav-b prev" id="sPrev" aria-label="Previous">‹</button>
+      <button class="nav-b next" id="sNext" aria-label="Next">›</button>
+      <span class="idx" id="sIdx">1 / 4</span>
+    </div>
+    <div class="thumbs" id="sThumbs"></div>
+  </div>
+</div>
+
+<!-- ============ FOOTER ============ -->
+<footer class="foot"><div class="wrap">
+  <div class="inner">
+    <div class="cols">
+      <div>
+        <a class="logo" href="haorboat-home.html"><span class="mark">🛥</span>Haor<span class="b">Boat</span></a>
+        <p class="about">Bangladesh's houseboat booking platform. Real-time cabin availability, honest ৳ pricing, and boats we safety-check ourselves.</p>
+        <div class="contact">
+          <a href="#">📍 Banani, Dhaka 1213, Bangladesh</a>
+          <a href="tel:+8809600000000">📞 +880 9600 000 000</a>
+          <a href="mailto:hello@haorboat.com">✉️ hello@haorboat.com</a>
+        </div>
+        <div class="pay"><span>bKash</span><span>Nagad</span><span>Card</span></div>
+      </div>
+      <div><h4>Explore</h4><ul>
+        <li><a href="#">Houseboats</a></li><li><a href="#">Group trips</a></li>
+        <li><a href="#">Destinations</a></li><li><a href="#">Offers</a></li>
+      </ul></div>
+      <div><h4>Company</h4><ul>
+        <li><a href="#">About us</a></li><li><a href="#">Become a host</a></li>
+        <li><a href="#">Safety standards</a></li><li><a href="#">Careers</a></li>
+      </ul></div>
+      <div><h4>Support</h4><ul>
+        <li><a href="#">Help center</a></li><li><a href="#">Cancellation</a></li>
+        <li><a href="#">Terms</a></li><li><a href="#">Privacy</a></li>
+      </ul></div>
+    </div>
+  </div>
+  <div class="bot">
+    <span>© 2026 HaorBoat. All rights reserved. · Made in Bangladesh 🇧🇩</span>
+    <div class="socials">
+      <a href="#" aria-label="Facebook">f</a>
+      <a href="#" aria-label="Instagram">◎</a>
+      <a href="#" aria-label="YouTube">▶</a>
+      <a href="#" aria-label="WhatsApp">✆</a>
+    </div>
+  </div>
+</div></footer>
+
+<script>
+  var NIGHTS = 2, CHILD_RATE = 0.5;
+  var fmt = function(n){ return n.toLocaleString('en-US'); };
+  var img = 'https://images.unsplash.com/';
+
+  // ---- cabins (design preview only). Each cabin: own capacity, own adult/child count.
+  //      A boat with N cabins renders N cards AND N slots on the boat map. ----
+  var cabins = [
+    {id:'c1', name:'Deluxe AC Cabin',   deck:'Upper deck', ac:true,  cap:2, price:3250, old:3900, booked:false, bed:'1 double bed',       bath:'Attached, high commode', desc:'A comfortable air-conditioned cabin on the upper deck with a large window facing the haor, private balcony access and an attached washroom. Ideal for couples or small families.', pics:['photo-1505577058444-a3dab90d4253','photo-1522708323590-d24dbb6b0267','photo-1560448204-e02f11c3d0e2']},
+    {id:'c2', name:'Family AC Cabin',   deck:'Upper deck', ac:true,  cap:4, price:2900, old:0,    booked:false, bed:'1 double + 2 single', bath:'Attached, high commode', desc:'Spacious upper-deck cabin sleeping up to four, with a double and two singles — the pick for families. Attached washroom and balcony access.', pics:['photo-1520454974749-611b7248ffdb','photo-1611892440504-42a792e24d32','photo-1560448204-e02f11c3d0e2']},
+    {id:'c3', name:'Standard AC Cabin', deck:'Middle deck', ac:true,  cap:3, price:2600, old:0,    booked:true,  bed:'1 double + 1 single', bath:'Attached, low commode',  desc:'Cosy middle-deck AC cabin with a double and a single. Currently fully booked for these dates.', pics:['photo-1502933691298-84fc14542831','photo-1522771739844-6a9f6d5f14af']},
+    {id:'c4', name:'Twin AC Cabin',     deck:'Middle deck', ac:true,  cap:2, price:2800, old:0,    booked:false, bed:'2 single beds',       bath:'Attached, high commode', desc:'Middle-deck AC cabin with two single beds — good for friends or colleagues. Attached washroom.', pics:['photo-1560448204-e02f11c3d0e2','photo-1611892440504-42a792e24d32']},
+    {id:'c5', name:'Non-AC Cabin',      deck:'Lower deck',  ac:false, cap:4, price:1900, old:2300, booked:false, openSeat:1, bed:'2 double beds', bath:'Shared, high commode',   desc:'Budget-friendly non-AC cabin on the lower deck. Another party has booked part of it — 1 place is spare and shared.', pics:['photo-1527004013197-933c4bb611b3','photo-1540541338287-41700207dee6']},
+    {id:'c6', name:'Economy Cabin',     deck:'Lower deck',  ac:false, cap:3, price:1600, old:0,    booked:false, bed:'1 double + 1 single', bath:'Shared, low commode',    desc:'Simple lower-deck cabin with a fan. The most affordable way to cruise the haor.', pics:['photo-1540541338287-41700207dee6','photo-1527004013197-933c4bb611b3']}
+  ];
+  // per-cabin state: {adult, child}. 0/0 = not selected.
+  var pax = {};
+  cabins.forEach(function(c){ pax[c.id] = {adult:0, child:0}; });
+
+  function cabinCount(c){ return pax[c.id].adult + pax[c.id].child; }
+  function cabinUnits(c){ return pax[c.id].adult + pax[c.id].child * CHILD_RATE; }
+  function cabinTotal(c){ return Math.round(c.price * cabinUnits(c) * NIGHTS); }
+  function isSelected(c){ return cabinCount(c) > 0; }
+
+  function stepper(cid, kind, val, canInc){
+    return '<div class="stepper" data-cid="'+cid+'" data-k="'+kind+'">'
+      + '<button class="dec"'+(val<=0?' disabled':'')+' aria-label="Remove">−</button>'
+      + '<span class="qv">'+val+'</span>'
+      + '<button class="inc"'+(canInc?'':' disabled')+' aria-label="Add">+</button></div>';
+  }
+
+  function renderCabins(){
+    // available cabins first, fully-booked ones fall to the bottom (stable order otherwise)
+    var ordered = cabins.slice().sort(function(a,b){ return (a.booked?1:0) - (b.booked?1:0); });
+    document.getElementById('cabinList').innerHTML = ordered.map(function(c){
+      var cap = c.openSeat ? c.openSeat : c.cap;   // open-seat cabin: only the spare places are bookable
+      var picked = isSelected(c), used = cabinCount(c), canInc = used < cap;
+      // price area: show per-person price until selected, then the live cabin subtotal
+      var priceBox = picked
+        ? '<div class="cprice sel"><span class="pl">'+used+' guest'+(used>1?'s':'')+' · '+NIGHTS+'n</span>৳ '+fmt(cabinTotal(c))+'<small>cabin total</small></div>'
+        : '<div class="cprice">'+(c.old?'<span class="old">৳ '+fmt(c.old)+'</span>':'')+'৳ '+fmt(c.price)+'<small>/ person · night</small></div>';
+      var right = c.booked
+        ? '<div class="soldout">⛔ Fully booked</div>'
+          + '<button class="waitlist" data-wait="'+c.id+'">🔔 Join waitlist</button>'
+        : priceBox
+          + (c.openSeat ? '<div class="seatnote">🪑 Shared cabin · only '+c.openSeat+' place'+(c.openSeat>1?'s':'')+' spare</div>' : '')
+          + '<div class="ccount">'
+            + '<div class="crow"><span class="clbl">Adult<small>5–18+ yr</small></span>'+stepper(c.id,'adult',pax[c.id].adult,canInc)+'</div>'
+            + '<div class="crow"><span class="clbl">Child<small>1–5 yr · 50%</small></span>'+stepper(c.id,'child',pax[c.id].child,canInc)+'</div>'
+          + '</div>';
+      var availTag = c.booked
+        ? '<span class="avail-tag no">⛔ Fully booked</span>'
+        : (c.openSeat ? '<span class="avail-tag seat">🪑 '+c.openSeat+' seat spare</span>' : '<span class="avail-tag ok">✓ Available</span>');
+      return '<div class="cabin'+(picked?' sel':'')+(c.booked?' full':'')+'" data-cabin="'+c.id+'">'
+        + '<div class="cimg" data-img="'+c.id+'">'
+        +   (c.old?'<span class="disc">'+Math.round((1-c.price/c.old)*100)+'% OFF</span>':'')
+        +   '<img alt="'+c.name+'" loading="lazy" src="'+img+c.pics[0]+'?auto=format&fit=crop&w=320&q=60">'
+        +   '<span class="zoom">🔍 '+c.pics.length+' photos</span>'
+        + '</div>'
+        + '<div class="cinfo">'
+        +   '<div class="cn">'+c.name+' '+availTag+'</div>'
+        +   '<div class="cfac"><span>👥 '+(c.openSeat?c.openSeat+' spare':'up to '+c.cap)+'</span><span>'+(c.ac?'❄️ AC':'🌀 Non-AC')+'</span><span>🛏️ '+c.bed+'</span><span>📍 '+c.deck+'</span></div>'
+        + '</div>'
+        + '<div class="cright">'+right+'</div>'
+        // attached tab strip on the bottom-left, outside the card body
+        + '<div class="ctabs">'
+        +   '<button data-info="'+c.id+'" data-tab="info">⚓ Boat info</button>'
+        +   '<button data-info="'+c.id+'" data-tab="incl">✔️ Inclusions</button>'
+        +   '<button data-info="'+c.id+'" data-tab="itin">🗺️ Itinerary</button>'
+        +   '<button data-info="'+c.id+'" data-tab="pol">🛡️ Policies</button>'
+        + '</div>'
+        + '</div>';
+    }).join('');
+  }
+
+  function renderMap(){
+    // group cabins by deck, render two-per-row window slots inside the hull
+    var decks = [];
+    cabins.forEach(function(c){ if(decks.indexOf(c.deck)<0) decks.push(c.deck); });
+    var body = decks.map(function(d){
+      var rows = cabins.filter(function(c){return c.deck===d;}).map(function(c){
+        var cls = c.booked ? 'full' : (isSelected(c) ? 'sel' : '');
+        return '<div class="mcab '+cls+'" data-map="'+c.id+'">'
+          + '<span class="mc-n">'+c.name.replace(/ Cabin| AC/g,'').trim()+'</span>'
+          + '<span class="mc-s">'+(c.booked?'booked':(isSelected(c)?cabinCount(c)+' guest'+(cabinCount(c)>1?'s':''):'up to '+c.cap))+'</span>'
+          + '</div>';
+      }).join('');
+      return '<div class="deck-lbl">'+d+'</div><div class="deck-row">'+rows+'</div>';
+    }).join('');
+    document.getElementById('boatMap').innerHTML = '<span class="flag">⚑ Bow</span>' + body;
+  }
+
+  // group booking selection lives here so the shared summary can read it
+  var groupSel = null;  // {min,max,price,adult,child} when a valid group is chosen
+
+  function renderSummary(){
+    var box = document.getElementById('summaryLines');
+    var total = 0, label = '', ready = false;
+
+    if(groupSel){
+      // group buyout — one flat line, no per-cabin split, no service fee
+      var head = groupSel.adult + groupSel.child;
+      total = groupSel.price; ready = true;
+      label = 'Full boat · '+head+' guests';
+      box.innerHTML = '<div class="brow"><span>Full boat · '+groupSel.min+'–'+groupSel.max+' band · '+NIGHTS+'n</span><b>৳ '+fmt(groupSel.price)+'</b></div>'
+        + '<div class="brow muted"><span>Guests</span><span>'+groupSel.adult+' adult'+(groupSel.adult>1?'s':'')+(groupSel.child?' · '+groupSel.child+' child':'')+'</span></div>'
+        + '<div class="brow total"><span>Group total</span><span>৳ '+fmt(total)+'</span></div>';
+    } else {
+      var lines = [], subtotal = 0, nCab = 0, nPax = 0;
+      cabins.forEach(function(c){
+        if(isSelected(c)){
+          var line = cabinTotal(c); subtotal += line; nCab++; nPax += cabinCount(c);
+          var p = pax[c.id], who = p.adult+'A'+(p.child?' + '+p.child+'C':'');
+          lines.push('<div class="brow"><span>'+c.name+' ('+who+') · '+NIGHTS+'n</span><b>৳ '+fmt(line)+'</b></div>');
+        }
+      });
+      if(nCab===0){
+        box.innerHTML = '<div class="empty">Add guests to a cabin — or pick a group band below</div>';
+      } else {
+        var fee = Math.round(subtotal*0.07);
+        total = subtotal + fee; ready = true;
+        box.innerHTML = lines.join('')
+          + '<div class="brow muted"><span>Service fee (7%)</span><span>৳ '+fmt(fee)+'</span></div>'
+          + '<div class="brow total"><span>Total</span><span>৳ '+fmt(total)+'</span></div>';
+      }
+      label = nCab===0 ? '0 cabins' : nCab+' cabin'+(nCab>1?'s':'')+' · '+nPax+' guest'+(nPax>1?'s':'');
+    }
+
+    document.getElementById('bGuests').textContent = ready ? label : 'Nothing selected yet';
+    document.getElementById('reserveBtn').disabled = !ready;
+    document.getElementById('mReserve').disabled = !ready;
+    document.getElementById('mbarPrice').innerHTML = '৳ '+fmt(total)+' <small>'+(ready?label:'nothing selected')+' · '+NIGHTS+'N</small>';
+  }
+
+  function renderAll(){ renderCabins(); renderMap(); renderSummary(); }
+
+  // cabin card: steppers + info + image + waitlist
+  document.getElementById('cabinList').addEventListener('click', function(e){
+    var wait = e.target.closest('[data-wait]');
+    if(wait){
+      wait.classList.toggle('on');
+      wait.textContent = wait.classList.contains('on') ? '✓ On waitlist — we\'ll notify you' : '🔔 Join waitlist';
+      return;
+    }
+    var step = e.target.closest('.stepper');
+    if(step){
+      var btn = e.target.closest('button'); if(!btn) return;
+      var cid = step.dataset.cid, k = step.dataset.k, c = cabins.find(function(x){return x.id===cid;});
+      var cap = c.openSeat ? c.openSeat : c.cap;   // open-seat cabins cap at spare places
+      if(btn.classList.contains('inc') && cabinCount(c) < cap){
+        // adding a cabin clears any group selection (mutually exclusive)
+        if(groupSel || gState.band!==null){ groupSel=null; gState.band=null; document.querySelectorAll('.band').forEach(function(x){x.classList.remove('on')}); document.getElementById('gbook').hidden=true; }
+        pax[cid][k]++;
+      }
+      if(btn.classList.contains('dec') && pax[cid][k] > 0) pax[cid][k]--;
+      renderAll(); return;
+    }
+    var infoBtn = e.target.closest('[data-info]'); if(infoBtn){ openInfo(infoBtn.dataset.info, infoBtn.dataset.tab); return; }
+    var imgBtn = e.target.closest('[data-img]');   if(imgBtn){ openSlider(imgBtn.dataset.img); return; }
+  });
+
+  // boat map: click a slot scrolls to & flashes that cabin card (booked = ignore)
+  document.getElementById('boatMap').addEventListener('click', function(e){
+    var slot = e.target.closest('[data-map]'); if(!slot) return;
+    var c = cabins.find(function(x){return x.id===slot.dataset.map;});
+    if(c.booked) return;
+    var card = document.querySelector('#cabinList .cabin[data-cabin="'+c.id+'"]');
+    if(!card) return;
+    card.scrollIntoView({behavior:'smooth', block:'center'});
+    card.style.transition='box-shadow .2s'; card.style.boxShadow='0 0 0 3px var(--blue)';
+    setTimeout(function(){ card.style.boxShadow=''; }, 900);
+  });
+
+  renderAll();
+
+  // ---- group booking (boat-set bands: pick band → type headcount → checkout) ----
+  var bands = [
+    {min:10, max:14, price:110000},
+    {min:15, max:20, price:150000},
+    {min:21, max:30, price:210000}
+  ];
+  var gState = {band:null, adult:0, child:0, share:false};
+  document.getElementById('bandList').innerHTML = bands.map(function(b,i){
+    return '<div class="band" data-band="'+i+'"><div class="bsz">'+b.min+'–'+b.max+' people</div>'
+      + '<div class="bpr">৳ '+fmt(b.price)+'<small>full boat · 2 nights</small></div></div>';
+  }).join('');
+
+  function renderGroup(){
+    var gb = document.getElementById('gbook');
+    if(gState.band===null){ gb.hidden = true; return; }
+    gb.hidden = false;
+    var b = bands[gState.band], head = gState.adult + gState.child;
+    document.getElementById('gbBand').textContent = b.min+'–'+b.max+' people';
+    document.getElementById('gAdult').textContent = gState.adult;
+    document.getElementById('gChild').textContent = gState.child;
+    document.querySelector('[data-gk="adult"] .dec').disabled = gState.adult<=0;
+    document.querySelector('[data-gk="child"] .dec').disabled = gState.child<=0;
+    var note = document.getElementById('gbNote'), ok = head>=b.min && head<=b.max;
+    if(head===0){ note.className='gb-note'; note.textContent=''; }
+    else if(head < b.min){ note.className='gb-note bad'; note.textContent='Add '+(b.min-head)+' more — this band needs at least '+b.min+'.'; }
+    else if(head > b.max){ note.className='gb-note bad'; note.textContent='Too many — this band allows up to '+b.max+'. Pick a bigger band.'; }
+    else { note.className='gb-note ok'; note.textContent='✓ '+head+' guests added to your summary → Reserve on the right.'; }
+
+    // feed the shared booking summary: valid group => groupSel, else clear it
+    groupSel = ok ? {min:b.min, max:b.max, price:b.price, adult:gState.adult, child:gState.child} : null;
+    renderSummary();
+  }
+  document.getElementById('bandList').addEventListener('click', function(e){
+    var el = e.target.closest('[data-band]'); if(!el) return;
+    // picking a group clears any selected cabins (mutually exclusive)
+    cabins.forEach(function(c){ pax[c.id].adult=0; pax[c.id].child=0; });
+    renderCabins(); renderMap();
+    this.querySelectorAll('.band').forEach(function(x){x.classList.remove('on')});
+    el.classList.add('on');
+    gState.band = +el.dataset.band;
+    gState.adult = bands[gState.band].min; gState.child = 0;   // start at band minimum
+    renderGroup();
+  });
+  document.getElementById('gbook').querySelector('.counters').addEventListener('click', function(e){
+    var btn = e.target.closest('button'); if(!btn) return;
+    var k = btn.closest('.stepper').dataset.gk, b = bands[gState.band];
+    if(btn.classList.contains('inc') && (gState.adult+gState.child) < b.max) gState[k]++;
+    if(btn.classList.contains('dec') && gState[k] > 0) gState[k]--;
+    renderGroup();
+  });
+  // share empty rooms with other guests? (yes -> spare places offered as open seats)
+  document.getElementById('gbShare').addEventListener('click', function(e){
+    var b = e.target.closest('.gs-b'); if(!b) return;
+    this.querySelectorAll('.gs-b').forEach(function(x){x.classList.remove('on')});
+    b.classList.add('on');
+    gState.share = b.dataset.share === 'yes';
+    document.getElementById('gbShareHint').textContent = gState.share
+      ? 'Your unused rooms are offered as open seats — you may get a discount if others join.'
+      : 'Empty rooms stay yours — no strangers on board.';
+  });
+
+  // ---- cabin info modal (tabs) ----
+  var infoModal = document.getElementById('infoModal');
+  function openInfo(id, tab){
+    tab = tab || 'info';
+    var c = cabins.find(function(x){return x.id===id;});
+    document.getElementById('imTitle').textContent = c.name;
+    document.getElementById('imName').textContent = c.name;
+    document.getElementById('imDesc').textContent = c.desc;
+    document.getElementById('imDeck').textContent = c.deck;
+    document.getElementById('imCap').textContent = 'Up to '+c.cap+' guests';
+    document.getElementById('imBed').textContent = c.bed;
+    document.getElementById('imBath').textContent = c.bath;
+    document.getElementById('imAc').textContent = c.ac ? 'Yes — split AC' : 'No — ceiling fan';
+    infoModal.querySelectorAll('.mtab').forEach(function(t){ t.classList.toggle('on', t.dataset.tab===tab); });
+    infoModal.querySelectorAll('.mpane').forEach(function(p){ p.classList.toggle('on', p.dataset.pane===tab); });
+    infoModal.classList.add('open');
+  }
+  infoModal.querySelectorAll('.mtab').forEach(function(t){
+    t.addEventListener('click', function(){
+      infoModal.querySelectorAll('.mtab').forEach(function(x){x.classList.remove('on')});
+      t.classList.add('on');
+      infoModal.querySelectorAll('.mpane').forEach(function(p){ p.classList.toggle('on', p.dataset.pane===t.dataset.tab); });
+    });
+  });
+
+  // ---- image slider modal ----
+  var imgModal = document.getElementById('imgModal'), sPics=[], sPos=0;
+  function paintSlider(){
+    document.getElementById('sMain').src = img+sPics[sPos]+'?auto=format&fit=crop&w=900&q=70';
+    document.getElementById('sIdx').textContent = (sPos+1)+' / '+sPics.length;
+    document.getElementById('sThumbs').querySelectorAll('img').forEach(function(t,i){ t.classList.toggle('on', i===sPos); });
+  }
+  // boat-level photo set (top gallery)
+  var boatPics = ['photo-1544551763-46a013bb70d5','photo-1502933691298-84fc14542831','photo-1527004013197-933c4bb611b3','photo-1520454974749-611b7248ffdb','photo-1505577058444-a3dab90d4253'];
+  function openSliderPics(pics, title){
+    sPics = pics; sPos = 0;
+    document.getElementById('sTitle').textContent = title;
+    document.getElementById('sThumbs').innerHTML = sPics.map(function(p,i){
+      return '<img data-i="'+i+'" alt="" src="'+img+p+'?auto=format&fit=crop&w=160&q=55">';
+    }).join('');
+    paintSlider();
+    imgModal.classList.add('open');
+  }
+  function openSlider(id){
+    var c = cabins.find(function(x){return x.id===id;});
+    openSliderPics(c.pics, c.name + ' · photos');
+  }
+  document.getElementById('sPrev').addEventListener('click', function(){ sPos=(sPos-1+sPics.length)%sPics.length; paintSlider(); });
+  document.getElementById('sNext').addEventListener('click', function(){ sPos=(sPos+1)%sPics.length; paintSlider(); });
+  document.getElementById('sThumbs').addEventListener('click', function(e){
+    var t=e.target.closest('img'); if(t){ sPos=+t.dataset.i; paintSlider(); }
+  });
+  // gallery (boat-level) opens the boat photo set in the same fixed slider
+  document.getElementById('boatGallery').addEventListener('click', function(){ openSliderPics(boatPics, 'Jolpori Houseboat · photos'); });
+  document.getElementById('allInfo').addEventListener('click', function(){ openInfo('c1','info'); });
+
+  // close any modal
+  document.querySelectorAll('.modal [data-close]').forEach(function(el){
+    el.addEventListener('click', function(){ el.closest('.modal').classList.remove('open'); });
+  });
+  document.addEventListener('keydown', function(e){
+    if(e.key==='Escape') document.querySelectorAll('.modal.open').forEach(function(m){m.classList.remove('open')});
+  });
+
+  // ---- dark / light theme toggle (persisted) ----
+  (function(){
+    var root = document.documentElement, stored = null;
+    try{ stored = localStorage.getItem('hb-theme'); }catch(e){}
+    root.setAttribute('data-theme', stored || (window.matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light'));
+    document.getElementById('themeToggle').addEventListener('click', function(){
+      var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      root.setAttribute('data-theme', next);
+      try{ localStorage.setItem('hb-theme', next); }catch(e){}
+    });
+  })();
+</script>
+</body>
+</html>

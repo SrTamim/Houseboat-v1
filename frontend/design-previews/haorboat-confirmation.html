@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HaorBoat — booking confirmed (design preview)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Hind+Siliguri:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#1a73e8; --blue-600:#1560d6; --blue-700:#0f56be; --blue-050:#e9f1fe; --blue-100:#d3e5fd;
+    --amber:#f6a623; --green:#0f9d58; --green-050:#e6f5ec;
+    --ink:#0f2440; --body:#4a5568; --muted:#8a93a3; --line:#e6eaf0;
+    --bg:#ffffff; --bg-2:#eef2f7; --surface:#ffffff; --chip:#eef2f7;
+    --footer:#0a2a5e; --footer-txt:#c9dcf7; --footer-h:#ffffff; --footer-mut:#9fbbe6;
+    --shadow-sm:0 1px 3px rgba(15,36,64,.08),0 1px 2px rgba(15,36,64,.04);
+    --shadow:0 8px 24px rgba(15,36,64,.10);
+    --shadow-lg:0 24px 60px rgba(15,36,64,.22);
+    --r:.6rem; --r-lg:1rem; --maxw:820px;
+    --font:'Inter',system-ui,-apple-system,'Segoe UI','Hind Siliguri',sans-serif;
+    --mono:'Inter',ui-monospace,monospace;
+  }
+  :root[data-theme="dark"]{
+    --blue:#4f97ff; --blue-600:#63a4ff; --blue-700:#3d7fe0; --blue-050:#17233a; --blue-100:#1f3252;
+    --green:#34c77b; --green-050:#0f2a1e;
+    --ink:#eef3fb; --body:#aab6c9; --muted:#7a879c; --line:#243247;
+    --bg:#0b1220; --bg-2:#0e1728; --surface:#131d30; --chip:#1a2740;
+    --footer:#061a3a; --footer-txt:#a9c2ea; --footer-h:#eef3fb; --footer-mut:#7e97c2;
+    --shadow-sm:0 1px 3px rgba(0,0,0,.4);
+    --shadow:0 8px 24px rgba(0,0,0,.5);
+    --shadow-lg:0 24px 60px rgba(0,0,0,.6);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg-2);color:var(--body);font-family:var(--font);line-height:1.6;-webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  a{color:inherit;text-decoration:none}
+  h1,h2,h3,h4{margin:0;color:var(--ink);line-height:1.2;font-weight:800;letter-spacing:-.02em}
+  img{max-width:100%;display:block}
+  button{font-family:inherit;cursor:pointer}
+  :focus-visible{outline:2.5px solid var(--blue);outline-offset:2px;border-radius:8px}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+
+  .btn{border-radius:999px;padding:11px 22px;font-weight:700;font-size:14.5px;border:1.5px solid transparent;transition:transform .14s,box-shadow .14s,background .14s;display:inline-flex;align-items:center;gap:8px;white-space:nowrap;justify-content:center}
+  .btn:active{transform:translateY(1px)}
+  .btn-b{background:var(--blue);color:#fff;box-shadow:0 6px 16px -6px var(--blue)}
+  .btn-b:hover{background:var(--blue-600)}
+  .btn-o{background:var(--surface);border-color:var(--line);color:var(--ink)}
+  .btn-o:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-050)}
+
+  /* header */
+  .nav{background:var(--surface);border-bottom:1px solid var(--line)}
+  .nav .row{display:flex;align-items:center;gap:24px;height:72px;max-width:var(--maxw);margin:0 auto;padding:0 24px}
+  .logo{display:flex;gap:10px;align-items:center;font-weight:800;font-size:22px;color:var(--ink);letter-spacing:-.03em}
+  .logo .mark{width:34px;height:34px;border-radius:50%;background:linear-gradient(150deg,var(--blue),var(--blue-700));color:#fff;display:grid;place-items:center;font-size:16px;box-shadow:0 4px 10px -3px var(--blue)}
+  .logo .b{color:var(--blue);font-style:italic}
+  .nav .right{margin-left:auto;display:flex;gap:10px;align-items:center}
+  .theme-btn{border:1px solid var(--line);background:var(--surface);width:42px;height:42px;border-radius:11px;font-size:17px;color:var(--ink);display:grid;place-items:center}
+  .theme-btn .sun{display:none}
+  :root[data-theme="dark"] .theme-btn .moon{display:none}
+  :root[data-theme="dark"] .theme-btn .sun{display:block}
+
+  /* success banner */
+  .success{text-align:center;padding:44px 24px 10px}
+  .tick{width:76px;height:76px;border-radius:50%;background:var(--green-050);color:var(--green);display:grid;place-items:center;font-size:38px;margin:0 auto 18px;border:2px solid color-mix(in srgb,var(--green) 30%,transparent);animation:pop .4s ease}
+  @keyframes pop{0%{transform:scale(.6);opacity:0}100%{transform:scale(1);opacity:1}}
+  .success h1{font-size:28px}
+  .success p{font-size:15px;color:var(--body);margin:8px 0 0}
+  .success .ref{display:inline-flex;gap:8px;align-items:center;margin-top:16px;background:var(--surface);border:1px dashed var(--blue-100);border-radius:999px;padding:9px 18px;font-weight:800;color:var(--ink);font-family:var(--mono)}
+  .success .ref b{color:var(--blue)}
+
+  .actions{display:flex;gap:10px;justify-content:center;margin:22px 0 6px;flex-wrap:wrap}
+
+  /* invoice */
+  .invoice{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--shadow-sm);margin:20px 0 40px;overflow:hidden}
+  .inv-top{display:flex;justify-content:space-between;gap:20px;padding:26px 28px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .inv-top .logo{font-size:20px}
+  .inv-top .meta{text-align:right;font-size:13px;color:var(--muted)}
+  .inv-top .meta b{color:var(--ink);font-weight:800;font-family:var(--mono)}
+  .inv-top .badge{display:inline-block;background:var(--green-050);color:var(--green);font-size:11.5px;font-weight:800;padding:4px 11px;border-radius:999px;border:1px solid color-mix(in srgb,var(--green) 30%,transparent);margin-top:6px}
+
+  .inv-cols{display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:1px solid var(--line)}
+  .inv-cols > div{padding:22px 28px}
+  .inv-cols > div:first-child{border-right:1px solid var(--line)}
+  .inv-cols h4{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:10px}
+  .kv{font-size:14px;color:var(--body);margin-bottom:5px}
+  .kv b{color:var(--ink);font-weight:700}
+
+  .boatrow{display:flex;gap:16px;align-items:center;padding:20px 28px;border-bottom:1px solid var(--line)}
+  .boatrow img{width:88px;height:64px;border-radius:var(--r);object-fit:cover;flex:none;background:var(--bg-2)}
+  .boatrow h3{font-size:17px}
+  .boatrow .sub{font-size:13px;color:var(--muted);margin-top:3px;display:flex;gap:10px;flex-wrap:wrap}
+
+  table.items{width:100%;border-collapse:collapse}
+  table.items th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:14px 28px;background:var(--bg-2);border-bottom:1px solid var(--line)}
+  table.items th.r,table.items td.r{text-align:right}
+  table.items td{padding:14px 28px;font-size:14px;color:var(--body);border-bottom:1px solid var(--line);vertical-align:top}
+  table.items td b{color:var(--ink);font-weight:700}
+  table.items td .cx{font-size:12px;color:var(--muted);display:block;margin-top:2px}
+  table.items td .amt{font-family:var(--mono);font-weight:700;color:var(--ink)}
+
+  .totals{padding:18px 28px}
+  .trow{display:flex;justify-content:space-between;font-size:14px;padding:6px 0;color:var(--body)}
+  .trow.disc em{color:var(--green);font-style:normal;font-weight:700;font-family:var(--mono)}
+  .trow.grand{border-top:1px solid var(--line);margin-top:6px;padding-top:14px;font-size:17px;font-weight:800;color:var(--ink)}
+  .trow.grand span:last-child{font-family:var(--mono)}
+  .paid-split{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:0 28px 24px}
+  .psplit{border:1px solid var(--line);border-radius:var(--r);padding:14px 16px}
+  .psplit.ok{border-color:color-mix(in srgb,var(--green) 40%,transparent);background:var(--green-050)}
+  .psplit .l{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  .psplit .v{font-size:20px;font-weight:900;color:var(--ink);font-family:var(--mono);letter-spacing:-.03em;margin-top:4px}
+  .psplit.ok .v{color:var(--green)}
+  .psplit .s{font-size:11.5px;color:var(--muted);font-weight:600;margin-top:2px}
+
+  .inv-note{padding:18px 28px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted)}
+  .inv-note b{color:var(--ink)}
+
+  .next{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:22px 24px;margin-bottom:40px;box-shadow:var(--shadow-sm)}
+  .next h3{font-size:16px;margin-bottom:14px}
+  .nsteps{display:grid;gap:12px}
+  .nstep{display:flex;gap:12px;align-items:flex-start;font-size:14px;color:var(--body)}
+  .nstep .i{width:34px;height:34px;border-radius:10px;background:var(--blue-050);color:var(--blue);display:grid;place-items:center;font-size:16px;flex:none}
+  .nstep b{color:var(--ink)}
+
+  .foot-sm{text-align:center;font-size:13px;color:var(--muted);padding:0 24px 40px}
+  .foot-sm a{color:var(--blue);font-weight:700}
+
+  @media(max-width:600px){
+    .inv-cols{grid-template-columns:1fr}
+    .inv-cols > div:first-child{border-right:none;border-bottom:1px solid var(--line)}
+    .paid-split{grid-template-columns:1fr}
+    .inv-top .meta{text-align:left}
+    table.items th,table.items td{padding-left:18px;padding-right:18px}
+  }
+
+  /* ---------- print ---------- */
+  @media print{
+    :root{--bg:#fff;--bg-2:#fff;--surface:#fff;--ink:#000;--body:#222;--line:#ccc}
+    .noprint{display:none !important}
+    body{background:#fff}
+    .invoice{box-shadow:none;border:1px solid #ccc;margin:0}
+    .success{padding-top:10px}
+    .tick{animation:none}
+    @page{margin:14mm}
+  }
+</style>
+</head>
+<body>
+
+<!-- header (hidden on print) -->
+<header class="nav noprint"><div class="row">
+  <a class="logo" href="haorboat-home.html"><span class="mark">🛥</span>Haor<span class="b">Boat</span></a>
+  <div class="right">
+    <button class="theme-btn" id="themeToggle" aria-label="Toggle dark mode"><span class="moon">🌙</span><span class="sun">☀️</span></button>
+    <a class="btn btn-o" href="#">My trips</a>
+  </div>
+</div></header>
+
+<div class="wrap">
+
+  <!-- success -->
+  <div class="success">
+    <div class="tick">✓</div>
+    <h1>Booking confirmed!</h1>
+    <p>Your cabins on <b>Jolpori Houseboat</b> are locked in. A voucher has been sent to your phone &amp; email.</p>
+    <div class="ref">Booking ref · <b id="refNo">HB-2K7Q4X</b></div>
+  </div>
+
+  <div class="actions noprint">
+    <button class="btn btn-b" onclick="window.print()">🖨️ Print invoice</button>
+    <button class="btn btn-o" onclick="window.print()">⬇️ Download PDF</button>
+    <a class="btn btn-o" href="haorboat-houseboats.html">Browse more boats</a>
+  </div>
+
+  <!-- INVOICE -->
+  <div class="invoice" id="invoice">
+    <div class="inv-top">
+      <div>
+        <span class="logo">🛥 Haor<span class="b">Boat</span></span>
+        <div class="badge">✓ Paid · Confirmed</div>
+      </div>
+      <div class="meta">
+        Invoice <b id="invNo">INV-2026-04821</b><br>
+        Booking <b>HB-2K7Q4X</b><br>
+        Issued <b>21 Jul 2026</b>
+      </div>
+    </div>
+
+    <div class="inv-cols">
+      <div>
+        <h4>Billed to</h4>
+        <div class="kv"><b>Rahim Uddin</b></div>
+        <div class="kv">📞 01712 345 678</div>
+        <div class="kv">✉️ rahim@email.com</div>
+        <div class="kv">NID · 1990XXXXXXX</div>
+      </div>
+      <div>
+        <h4>Trip</h4>
+        <div class="kv">📅 <b>24 – 26 Jul 2026</b> · 2 nights</div>
+        <div class="kv">⚓ Boards <b>Tahirpur ghat</b> · 10:00 AM</div>
+        <div class="kv">👥 <b>5 guests</b> · 2 cabins</div>
+      </div>
+    </div>
+
+    <div class="boatrow">
+      <img alt="Jolpori Houseboat" src="https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&w=200&q=60">
+      <div>
+        <h3>Jolpori Houseboat</h3>
+        <div class="sub"><span>📍 Tahirpur · Tanguar Haor</span><span>⭐ 4.8</span><span>🛟 Safety-verified</span></div>
+      </div>
+    </div>
+
+    <table class="items">
+      <thead><tr><th>Cabin</th><th>Guests</th><th class="r">Rate / person / night</th><th class="r">Amount</th></tr></thead>
+      <tbody id="itemBody"></tbody>
+    </table>
+
+    <div class="totals">
+      <div class="trow"><span>Subtotal (2 cabins · 2 nights)</span><span class="amt" id="subT">৳ 0</span></div>
+      <div class="trow disc"><span>Coupon · HAOR500</span><em id="discT">− ৳ 500</em></div>
+      <div class="trow grand"><span>Grand total</span><span id="grandT">৳ 0</span></div>
+    </div>
+
+    <div class="paid-split">
+      <div class="psplit ok">
+        <div class="l">Paid now (50% advance)</div>
+        <div class="v" id="paidV">৳ 0</div>
+        <div class="s">via bKash · 21 Jul 2026</div>
+      </div>
+      <div class="psplit">
+        <div class="l">Due at boarding</div>
+        <div class="v" id="dueV">৳ 0</div>
+        <div class="s">Pay cash / bKash on Day 1</div>
+      </div>
+    </div>
+
+    <div class="inv-note">
+      <b>Cancellation:</b> free up to 7 days before departure · 50% refund up to 72 hrs · no refund within 72 hrs. This is a computer-generated invoice from HaorBoat, Banani, Dhaka 1213 · hello@haorboat.com.
+    </div>
+  </div>
+
+  <!-- what's next -->
+  <div class="next noprint">
+    <h3>What happens next</h3>
+    <div class="nsteps">
+      <div class="nstep"><span class="i">📱</span><div><b>Voucher sent.</b> Check your SMS &amp; email for the e-voucher and QR code.</div></div>
+      <div class="nstep"><span class="i">💳</span><div><b>Due at boarding.</b> Pay the remaining balance in cash or bKash when you board at Tahirpur.</div></div>
+      <div class="nstep"><span class="i">🛟</span><div><b>Bring your NID.</b> Every adult guest needs a valid NID/passport at the ghat.</div></div>
+      <div class="nstep"><span class="i">📞</span><div><b>Questions?</b> Call the host or our support line — details are in your voucher.</div></div>
+    </div>
+  </div>
+
+  <p class="foot-sm noprint">Need help with this booking? <a href="#">Contact support</a> · © 2026 HaorBoat · Made in Bangladesh 🇧🇩</p>
+</div>
+
+<script>
+  var NIGHTS = 2, CHILD_RATE = 0.5, DISCOUNT = 500;
+  var fmt = function(n){ return n.toLocaleString('en-US'); };
+
+  // booking carried from checkout (design preview only)
+  var order = [
+    {name:'Deluxe AC Cabin', deck:'Upper deck', price:3250, adult:2, child:0},
+    {name:'Family AC Cabin', deck:'Upper deck', price:2900, adult:2, child:1}
+  ];
+  var payMode = 'advance';  // came from checkout
+
+  function units(c){ return c.adult + c.child*CHILD_RATE; }
+  function line(c){ return Math.round(c.price*units(c)*NIGHTS); }
+
+  document.getElementById('itemBody').innerHTML = order.map(function(c){
+    var who = c.adult+' adult'+(c.adult>1?'s':'')+(c.child?' + '+c.child+' child':'');
+    return '<tr><td><b>'+c.name+'</b><span class="cx">'+c.deck+'</span></td>'
+      + '<td>'+who+'</td>'
+      + '<td class="r">৳ '+fmt(c.price)+'</td>'
+      + '<td class="r"><span class="amt">৳ '+fmt(line(c))+'</span></td></tr>';
+  }).join('');
+
+  var sub = order.reduce(function(s,c){return s+line(c);},0);
+  var grand = sub - DISCOUNT;
+  var paid = payMode==='advance' ? Math.round(grand/2) : grand;
+  var due = grand - paid;
+
+  document.getElementById('subT').textContent = '৳ '+fmt(sub);
+  document.getElementById('grandT').textContent = '৳ '+fmt(grand);
+  document.getElementById('paidV').textContent = '৳ '+fmt(paid);
+  document.getElementById('dueV').textContent = '৳ '+fmt(due);
+  if(payMode!=='advance'){
+    document.querySelector('.psplit.ok .l').textContent = 'Paid now (full)';
+    document.querySelector('.psplit:not(.ok) .s').textContent = 'Nothing due';
+  }
+
+  // theme toggle (persisted)
+  (function(){
+    var root = document.documentElement, stored=null;
+    try{ stored = localStorage.getItem('hb-theme'); }catch(e){}
+    root.setAttribute('data-theme', stored || (window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'));
+    document.getElementById('themeToggle').addEventListener('click', function(){
+      var next = root.getAttribute('data-theme')==='dark'?'light':'dark';
+      root.setAttribute('data-theme', next);
+      try{ localStorage.setItem('hb-theme', next); }catch(e){}
+    });
+  })();
+</script>
+</body>
+</html>

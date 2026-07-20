@@ -1,0 +1,3663 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/api/health": {
+      "get": {
+        "operationId": "HealthController_check",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Liveness + DB reachability. Used by Railway health checks.",
+        "tags": [
+          "Health"
+        ]
+      }
+    },
+    "/api/auth/register": {
+      "post": {
+        "operationId": "AuthController_register",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "operationId": "AuthController_login",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/auth/csrf": {
+      "get": {
+        "operationId": "AuthController_getCsrf",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Hand the SPA a CSRF token (and set its matching cookie). Call right after\nlogin and reuse the token for the session's state-changing requests. Safe\n(GET) so it isn't itself CSRF-protected.",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/auth/refresh": {
+      "post": {
+        "operationId": "AuthController_refresh",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "operationId": "AuthController_logout",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "operationId": "AuthController_me",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/me/boats": {
+      "get": {
+        "operationId": "RbacController_myBoats",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Boat switcher — which boats can this account operate.",
+        "tags": [
+          "Rbac"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/roles": {
+      "get": {
+        "operationId": "RbacController_listRoles",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Rbac"
+        ]
+      },
+      "post": {
+        "operationId": "RbacController_createRole",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRoleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Rbac"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/roles/{roleId}": {
+      "patch": {
+        "operationId": "RbacController_updateRole",
+        "parameters": [
+          {
+            "name": "roleId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRoleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Rbac"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/members": {
+      "get": {
+        "operationId": "RbacController_listMembers",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Rbac"
+        ]
+      },
+      "post": {
+        "operationId": "RbacController_addMember",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddMemberDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Rbac"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/members/{membershipId}/role": {
+      "patch": {
+        "operationId": "RbacController_changeRole",
+        "parameters": [
+          {
+            "name": "membershipId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeRoleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Rbac"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/members/{membershipId}/exit": {
+      "post": {
+        "operationId": "RbacController_exitMember",
+        "parameters": [
+          {
+            "name": "membershipId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Rbac"
+        ]
+      }
+    },
+    "/api/houseboats": {
+      "get": {
+        "operationId": "HouseboatsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "GET /houseboats — public list of live boats.",
+        "tags": [
+          "Houseboats"
+        ]
+      },
+      "post": {
+        "operationId": "AssetsController_createBoat",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateHouseboatDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/houseboats/{slug}": {
+      "get": {
+        "operationId": "HouseboatsController_getBySlug",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "GET /houseboats/:slug — public boat detail.",
+        "tags": [
+          "Houseboats"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/manage": {
+      "get": {
+        "operationId": "AssetsController_getBoat",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}": {
+      "patch": {
+        "operationId": "AssetsController_updateBoat",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateHouseboatDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/decks": {
+      "post": {
+        "operationId": "AssetsController_addDeck",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDeckDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/categories": {
+      "post": {
+        "operationId": "AssetsController_addCategory",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCategoryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/cabins": {
+      "post": {
+        "operationId": "AssetsController_addCabin",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCabinDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/routes": {
+      "post": {
+        "operationId": "AssetsController_linkRoute",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkRouteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/routes": {
+      "get": {
+        "operationId": "AssetsController_listRoutes",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      },
+      "post": {
+        "operationId": "AssetsController_createRoute",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRouteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/platform/houseboats": {
+      "get": {
+        "operationId": "AssetsController_listForModeration",
+        "parameters": [
+          {
+            "name": "status",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/platform/houseboats/{houseboatId}/approve": {
+      "post": {
+        "operationId": "AssetsController_approve",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/platform/houseboats/{houseboatId}/status": {
+      "patch": {
+        "operationId": "AssetsController_setStatus",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/media": {
+      "get": {
+        "operationId": "MediaController_list",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cabinId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Media"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/media/images": {
+      "post": {
+        "operationId": "MediaController_uploadImage",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadImageDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Media"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/media/videos": {
+      "post": {
+        "operationId": "MediaController_createVideo",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateVideoDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Media"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/media/{mediaId}": {
+      "delete": {
+        "operationId": "MediaController_remove",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mediaId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Media"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/packages": {
+      "get": {
+        "operationId": "TripsController_listPackages",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Trips"
+        ]
+      },
+      "post": {
+        "operationId": "TripsController_createPackage",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePackageDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Trips"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/departures": {
+      "get": {
+        "operationId": "TripsController_listDepartures",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Trips"
+        ]
+      },
+      "post": {
+        "operationId": "TripsController_createDeparture",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDepartureDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Trips"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/pricing-profiles": {
+      "get": {
+        "operationId": "TripsController_listProfiles",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Trips"
+        ]
+      },
+      "post": {
+        "operationId": "TripsController_createProfile",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePricingProfileDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Trips"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/group-bands": {
+      "get": {
+        "operationId": "TripsController_listBands",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Trips"
+        ]
+      },
+      "post": {
+        "operationId": "TripsController_addBand",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GroupBandDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Trips"
+        ]
+      }
+    },
+    "/api/booking/hold": {
+      "post": {
+        "operationId": "BookingController_hold",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HoldCabinDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Take a hold on one cabin. Returns server-authoritative expires_at.",
+        "tags": [
+          "Booking"
+        ]
+      }
+    },
+    "/api/booking/hold/{holdId}/release": {
+      "post": {
+        "operationId": "BookingController_release",
+        "parameters": [
+          {
+            "name": "holdId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Booking"
+        ]
+      }
+    },
+    "/api/booking/departures/{departureId}/my-holds": {
+      "get": {
+        "operationId": "BookingController_myHolds",
+        "parameters": [
+          {
+            "name": "departureId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Booking"
+        ]
+      }
+    },
+    "/api/booking/checkout": {
+      "post": {
+        "operationId": "BookingController_checkout",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckoutDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Convert holds → confirmed booking + invoice. Instant confirmation.",
+        "tags": [
+          "Booking"
+        ]
+      }
+    },
+    "/api/booking/group-checkout": {
+      "post": {
+        "operationId": "BookingController_groupCheckout",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GroupCheckoutDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Full-boat group buyout: pick a band + headcount, one total, one payer.",
+        "tags": [
+          "Booking"
+        ]
+      }
+    },
+    "/api/booking/{bookingId}": {
+      "get": {
+        "operationId": "BookingController_get",
+        "parameters": [
+          {
+            "name": "bookingId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Booking"
+        ]
+      }
+    },
+    "/api/booking": {
+      "get": {
+        "operationId": "BookingController_myBookings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Booking"
+        ]
+      }
+    },
+    "/api/booking/waitlist": {
+      "post": {
+        "operationId": "BookingController_joinWaitlist",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WaitlistDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Booking"
+        ]
+      }
+    },
+    "/api/booking/open-seat/join": {
+      "post": {
+        "operationId": "BookingController_joinOpenSeat",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JoinOpenSeatDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Book a spare place on an open-seat cabin (Path §3). Drops the first booker's bill.",
+        "tags": [
+          "Booking"
+        ]
+      }
+    },
+    "/api/booking/{bookingId}/cancel": {
+      "post": {
+        "operationId": "BookingController_cancel",
+        "parameters": [
+          {
+            "name": "bookingId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Cancel a booking (Path B). Frees cabins, computes policy refund, notifies waitlist.",
+        "tags": [
+          "Booking"
+        ]
+      }
+    },
+    "/api/booking/{bookingId}/reschedule": {
+      "post": {
+        "operationId": "BookingController_reschedule",
+        "parameters": [
+          {
+            "name": "bookingId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RescheduleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Reschedule a booking to another departure (owner-side; reprices).",
+        "tags": [
+          "Booking"
+        ]
+      }
+    },
+    "/api/invoices/{invoiceId}/payments": {
+      "post": {
+        "operationId": "MoneyController_recordPayment",
+        "parameters": [
+          {
+            "name": "invoiceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordPaymentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Money"
+        ]
+      },
+      "get": {
+        "operationId": "MoneyController_listPayments",
+        "parameters": [
+          {
+            "name": "invoiceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Money"
+        ]
+      }
+    },
+    "/api/invoices/{invoiceId}/verify": {
+      "post": {
+        "operationId": "MoneyController_verifyPayment",
+        "parameters": [
+          {
+            "name": "invoiceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Money"
+        ]
+      }
+    },
+    "/api/invoices/{invoiceId}/refunds": {
+      "post": {
+        "operationId": "MoneyController_requestRefund",
+        "parameters": [
+          {
+            "name": "invoiceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefundRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Money"
+        ]
+      }
+    },
+    "/api/refunds/{refundId}/verify": {
+      "post": {
+        "operationId": "MoneyController_verifyRefund",
+        "parameters": [
+          {
+            "name": "refundId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Money"
+        ]
+      }
+    },
+    "/api/refunds/{refundId}/complete": {
+      "post": {
+        "operationId": "MoneyController_completeRefund",
+        "parameters": [
+          {
+            "name": "refundId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Money"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/due-payments": {
+      "get": {
+        "operationId": "MoneyController_duePayments",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Money"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/payout-batches": {
+      "post": {
+        "operationId": "MoneyController_prepareBatch",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Money"
+        ]
+      }
+    },
+    "/api/payout-batches/{batchId}/approve": {
+      "post": {
+        "operationId": "MoneyController_approveBatch",
+        "parameters": [
+          {
+            "name": "batchId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Money"
+        ]
+      }
+    },
+    "/api/payout-batches/{batchId}/pay": {
+      "post": {
+        "operationId": "MoneyController_payBatch",
+        "parameters": [
+          {
+            "name": "batchId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Money"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/coupons": {
+      "get": {
+        "operationId": "MoneyController_listCoupons",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Money"
+        ]
+      },
+      "post": {
+        "operationId": "MoneyController_createCoupon",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCouponDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Money"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/cancellation-policies": {
+      "get": {
+        "operationId": "MoneyController_listPolicies",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Money"
+        ]
+      },
+      "post": {
+        "operationId": "MoneyController_createPolicy",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePolicyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Money"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/distributions": {
+      "get": {
+        "operationId": "MoneyController_listDistributions",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Money"
+        ]
+      },
+      "post": {
+        "operationId": "MoneyController_recordDistribution",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordDistributionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Money"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/distributions/suggest": {
+      "get": {
+        "operationId": "MoneyController_suggestSplit",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "amount",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Money"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/billing-status": {
+      "get": {
+        "operationId": "MoneyController_billingStatus",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Money"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/my-subscription-invoices": {
+      "get": {
+        "operationId": "MoneyController_ownerSubscriptionInvoices",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Owner-visible list of their subscription invoices (to see what to pay).\n Accessible even when locked.",
+        "tags": [
+          "Money"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/subscription-invoices": {
+      "get": {
+        "operationId": "MoneyController_listSubscriptionInvoices",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Money"
+        ]
+      },
+      "post": {
+        "operationId": "MoneyController_issueSubscription",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssueSubscriptionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Money"
+        ]
+      }
+    },
+    "/api/subscription-invoices/{invoiceId}/pay": {
+      "post": {
+        "operationId": "MoneyController_paySubscription",
+        "parameters": [
+          {
+            "name": "invoiceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Money"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/quotes": {
+      "post": {
+        "operationId": "QuotesController_request",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateQuoteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Quotes"
+        ]
+      },
+      "get": {
+        "operationId": "QuotesController_listForBoat",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Quotes"
+        ]
+      }
+    },
+    "/api/me/quotes": {
+      "get": {
+        "operationId": "QuotesController_myQuotes",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Quotes"
+        ]
+      }
+    },
+    "/api/quotes/{quoteId}/accept": {
+      "post": {
+        "operationId": "QuotesController_accept",
+        "parameters": [
+          {
+            "name": "quoteId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Quotes"
+        ]
+      }
+    },
+    "/api/quotes/{quoteId}/price": {
+      "post": {
+        "operationId": "QuotesController_price",
+        "parameters": [
+          {
+            "name": "quoteId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PriceQuoteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Quotes"
+        ]
+      }
+    },
+    "/api/gateway/sslcommerz/initiate": {
+      "post": {
+        "operationId": "GatewayController_initiate",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InitiatePaymentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Start a hosted payment for an invoice. Returns the URL to redirect to.",
+        "tags": [
+          "Gateway"
+        ]
+      }
+    },
+    "/api/gateway/sslcommerz/ipn": {
+      "post": {
+        "operationId": "GatewayController_ipn",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SslcommerzIpnDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "SSLCommerz IPN (server-to-server). We NEVER trust the posted status — we\nre-validate by val_id, then record the payment idempotently.",
+        "tags": [
+          "Gateway"
+        ]
+      }
+    },
+    "/api/gateway/sslcommerz/return": {
+      "get": {
+        "operationId": "GatewayController_return",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Browser landing after the hosted page. Purely UX — the IPN is the source of\ntruth. Bounce the user back to the SPA; it polls the invoice for status.",
+        "tags": [
+          "Gateway"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/staff": {
+      "get": {
+        "operationId": "HrController_listStaff",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      },
+      "post": {
+        "operationId": "HrController_addStaff",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateStaffDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/staff/{staffId}/leave": {
+      "post": {
+        "operationId": "HrController_setLeave",
+        "parameters": [
+          {
+            "name": "staffId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeaveDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/staff/{staffId}/payroll": {
+      "post": {
+        "operationId": "HrController_runPayroll",
+        "parameters": [
+          {
+            "name": "staffId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayrollDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      },
+      "get": {
+        "operationId": "HrController_listPayroll",
+        "parameters": [
+          {
+            "name": "staffId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/payroll/{payrollId}/paid": {
+      "post": {
+        "operationId": "HrController_markPaid",
+        "parameters": [
+          {
+            "name": "payrollId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/departures/{departureId}/crew": {
+      "get": {
+        "operationId": "HrController_listCrew",
+        "parameters": [
+          {
+            "name": "departureId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      },
+      "post": {
+        "operationId": "HrController_setCrew",
+        "parameters": [
+          {
+            "name": "departureId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CrewPresenceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/costs": {
+      "get": {
+        "operationId": "OpsController_listCosts",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Ops"
+        ]
+      },
+      "post": {
+        "operationId": "OpsController_addCost",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCostDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Ops"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/inventory": {
+      "get": {
+        "operationId": "OpsController_listItems",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Ops"
+        ]
+      },
+      "post": {
+        "operationId": "OpsController_addItem",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInventoryItemDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Ops"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/inventory/{itemId}/movements": {
+      "post": {
+        "operationId": "OpsController_recordMovement",
+        "parameters": [
+          {
+            "name": "itemId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StockMovementDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Ops"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/reviews": {
+      "get": {
+        "operationId": "OpsController_listReviews",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Ops"
+        ]
+      }
+    },
+    "/api/bookings/{bookingId}/review": {
+      "post": {
+        "operationId": "OpsController_addReview",
+        "parameters": [
+          {
+            "name": "bookingId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReviewDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Ops"
+        ]
+      }
+    },
+    "/api/reviews/{reviewId}/reply": {
+      "post": {
+        "operationId": "OpsController_replyReview",
+        "parameters": [
+          {
+            "name": "reviewId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Ops"
+        ]
+      }
+    },
+    "/api/me/notifications": {
+      "get": {
+        "operationId": "OpsController_myNotifications",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Ops"
+        ]
+      }
+    },
+    "/api/sync/replay": {
+      "post": {
+        "operationId": "SyncController_replay",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncBatchDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Replay a batch of offline intents. Returns a per-intent result plus a\nhuman summary (\"7 actions synced, 1 needs review\").",
+        "tags": [
+          "Sync"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "Houseboat API",
+    "description": "Booking SaaS backend",
+    "version": "0.1.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "cookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "hb_access"
+      }
+    },
+    "schemas": {
+      "RegisterDto": {
+        "type": "object",
+        "properties": {
+          "phone": {
+            "type": "string",
+            "pattern": "BD_PHONE"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          }
+        },
+        "required": [
+          "phone",
+          "password"
+        ]
+      },
+      "LoginDto": {
+        "type": "object",
+        "properties": {
+          "phone": {
+            "type": "string",
+            "pattern": "BD_PHONE"
+          },
+          "password": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "phone",
+          "password"
+        ]
+      },
+      "CreateRoleDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "permissions": {
+            "type": "object"
+          },
+          "isTemplate": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "permissions"
+        ]
+      },
+      "UpdateRoleDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "permissions": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "name",
+          "permissions"
+        ]
+      },
+      "AddMemberDto": {
+        "type": "object",
+        "properties": {
+          "phone": {
+            "type": "string"
+          },
+          "roleId": {
+            "type": "string"
+          },
+          "shareholderPct": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          }
+        },
+        "required": [
+          "phone",
+          "roleId"
+        ]
+      },
+      "ChangeRoleDto": {
+        "type": "object",
+        "properties": {
+          "roleId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "roleId"
+        ]
+      },
+      "CreateHouseboatDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "safetyFeatures": {
+            "type": "string"
+          },
+          "foodMenu": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "UpdateHouseboatDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "safetyFeatures": {
+            "type": "string"
+          },
+          "foodMenu": {
+            "type": "string"
+          },
+          "bankAccount": {
+            "type": "object"
+          },
+          "childPolicy": {
+            "type": "object"
+          },
+          "operatingDates": {
+            "description": "ISO date strings — only these dates generate bookable departures.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "defaultCrew": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "CreateDeckDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "position": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "CreateCategoryDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "isAc": {
+            "type": "boolean"
+          },
+          "baseCapacity": {
+            "type": "number",
+            "minimum": 1
+          },
+          "extendedCapacity": {
+            "type": "number",
+            "minimum": 1
+          },
+          "facilities": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "baseCapacity"
+        ]
+      },
+      "CreateCabinDto": {
+        "type": "object",
+        "properties": {
+          "deckId": {
+            "type": "string"
+          },
+          "cabinCategoryId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "gridRow": {
+            "type": "number"
+          },
+          "gridCol": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "deckId",
+          "cabinCategoryId",
+          "name"
+        ]
+      },
+      "LinkRouteDto": {
+        "type": "object",
+        "properties": {
+          "routeId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "routeId"
+        ]
+      },
+      "CreateRouteDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "region": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "UploadImageDto": {
+        "type": "object",
+        "properties": {
+          "cabinId": {
+            "type": "string"
+          },
+          "sortOrder": {
+            "type": "number",
+            "minimum": 0
+          }
+        }
+      },
+      "CreateVideoDto": {
+        "type": "object",
+        "properties": {
+          "cabinId": {
+            "type": "string"
+          },
+          "youtubeUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "sortOrder": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "youtubeUrl"
+        ]
+      },
+      "CreatePackageDto": {
+        "type": "object",
+        "properties": {
+          "routeId": {
+            "type": "string"
+          },
+          "durationDays": {
+            "type": "number",
+            "minimum": 1
+          },
+          "durationLabel": {
+            "type": "string"
+          },
+          "departureGhat": {
+            "type": "string"
+          },
+          "returnGhat": {
+            "type": "string"
+          },
+          "meals": {
+            "type": "string"
+          },
+          "included": {
+            "type": "string"
+          },
+          "excluded": {
+            "type": "string"
+          },
+          "cancellationPolicyId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "routeId",
+          "durationDays"
+        ]
+      },
+      "CreateDepartureDto": {
+        "type": "object",
+        "properties": {
+          "packageId": {
+            "type": "string"
+          },
+          "startDate": {
+            "type": "string"
+          },
+          "departureTime": {
+            "type": "string"
+          },
+          "arrivalTime": {
+            "type": "string"
+          },
+          "pricingProfileId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "packageId",
+          "startDate"
+        ]
+      },
+      "PriceRuleDto": {
+        "type": "object",
+        "properties": {
+          "cabinCategoryId": {
+            "type": "string"
+          },
+          "occupancy": {
+            "type": "number",
+            "minimum": 1
+          },
+          "pricePerPerson": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "cabinCategoryId",
+          "occupancy",
+          "pricePerPerson"
+        ]
+      },
+      "CreatePricingProfileDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "isDefault": {
+            "type": "boolean"
+          },
+          "dates": {
+            "description": "ISO date strings the profile applies to. Empty for the default profile.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rules": {
+            "description": "Full independent price table for this profile.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PriceRuleDto"
+            }
+          }
+        },
+        "required": [
+          "name",
+          "rules"
+        ]
+      },
+      "GroupBandDto": {
+        "type": "object",
+        "properties": {
+          "minPeople": {
+            "type": "number",
+            "minimum": 1
+          },
+          "maxPeople": {
+            "type": "number",
+            "minimum": 1
+          },
+          "totalPrice": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "minPeople",
+          "maxPeople",
+          "totalPrice"
+        ]
+      },
+      "HoldCabinDto": {
+        "type": "object",
+        "properties": {
+          "cabinId": {
+            "type": "string"
+          },
+          "departureId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "cabinId",
+          "departureId"
+        ]
+      },
+      "CabinSelectionDto": {
+        "type": "object",
+        "properties": {
+          "cabinId": {
+            "type": "string"
+          },
+          "holdId": {
+            "type": "string"
+          },
+          "adults": {
+            "type": "number",
+            "minimum": 1
+          },
+          "children": {
+            "type": "number",
+            "minimum": 0
+          },
+          "childAges": {
+            "description": "Ages of the children, so each is charged per the boat's child_policy age\nbands. If omitted, children are charged full. Length should match children.",
+            "type": "array",
+            "items": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          "openSeat": {
+            "type": "boolean",
+            "description": "Opt-in: leave the unfilled places in this cabin as a shared \"open seat\"\nbookable by others. Priced at the full-capacity BUYOUT (plan §3); the\ncustomer pays only the deposit here."
+          }
+        },
+        "required": [
+          "cabinId",
+          "holdId",
+          "adults"
+        ]
+      },
+      "CheckoutDto": {
+        "type": "object",
+        "properties": {
+          "departureId": {
+            "type": "string"
+          },
+          "cabins": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CabinSelectionDto"
+            }
+          },
+          "leadGuestName": {
+            "type": "string"
+          },
+          "leadGuestPhone": {
+            "type": "string"
+          },
+          "specialInstructions": {
+            "type": "string"
+          },
+          "couponCode": {
+            "type": "string"
+          },
+          "referenceName": {
+            "type": "string"
+          },
+          "paymentChoice": {
+            "type": "string",
+            "description": "'deposit' | 'full'"
+          },
+          "useCredit": {
+            "type": "boolean",
+            "description": "Apply the customer's open credits toward this invoice."
+          }
+        },
+        "required": [
+          "departureId",
+          "cabins",
+          "leadGuestName"
+        ]
+      },
+      "GroupCheckoutDto": {
+        "type": "object",
+        "properties": {
+          "departureId": {
+            "type": "string"
+          },
+          "headcount": {
+            "type": "number",
+            "description": "Headcount the customer types; must fall inside a group band.",
+            "minimum": 1
+          },
+          "leadGuestName": {
+            "type": "string"
+          },
+          "leadGuestPhone": {
+            "type": "string"
+          },
+          "specialInstructions": {
+            "type": "string"
+          },
+          "referenceName": {
+            "type": "string"
+          },
+          "useCredit": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "departureId",
+          "headcount",
+          "leadGuestName"
+        ]
+      },
+      "WaitlistDto": {
+        "type": "object",
+        "properties": {
+          "departureId": {
+            "type": "string"
+          },
+          "partySize": {
+            "type": "number",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "departureId",
+          "partySize"
+        ]
+      },
+      "JoinOpenSeatDto": {
+        "type": "object",
+        "properties": {
+          "openSeatCabinId": {
+            "type": "string"
+          },
+          "adults": {
+            "type": "number",
+            "minimum": 1
+          },
+          "children": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "openSeatCabinId",
+          "adults"
+        ]
+      },
+      "RescheduleDto": {
+        "type": "object",
+        "properties": {
+          "newDepartureId": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "newDepartureId"
+        ]
+      },
+      "RecordPaymentDto": {
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "number",
+            "minimum": 0
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "gateway",
+              "cash"
+            ]
+          },
+          "gatewayToken": {
+            "type": "string"
+          },
+          "receivedBy": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "amount",
+          "method"
+        ]
+      },
+      "RefundRequestDto": {
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "number",
+            "minimum": 0
+          },
+          "reason": {
+            "type": "string"
+          },
+          "bankDetails": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "amount"
+        ]
+      },
+      "CreateCouponDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "percent",
+              "flat",
+              "referral"
+            ]
+          },
+          "value": {
+            "type": "number",
+            "minimum": 0
+          },
+          "validFrom": {
+            "type": "string"
+          },
+          "validTo": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "kind",
+          "value"
+        ]
+      },
+      "CreatePolicyDto": {
+        "type": "object",
+        "properties": {
+          "policyTemplate": {
+            "type": "string",
+            "enum": [
+              "flexible",
+              "moderate",
+              "strict",
+              "non_refundable",
+              "custom"
+            ]
+          },
+          "depositPct": {
+            "type": "number",
+            "minimum": 0
+          },
+          "tiers": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "policyTemplate"
+        ]
+      },
+      "RecordDistributionDto": {
+        "type": "object",
+        "properties": {
+          "membershipId": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number",
+            "minimum": 0
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "membershipId",
+          "amount"
+        ]
+      },
+      "IssueSubscriptionDto": {
+        "type": "object",
+        "properties": {
+          "period": {
+            "type": "string",
+            "description": "YYYY-MM"
+          }
+        },
+        "required": [
+          "period"
+        ]
+      },
+      "CreateQuoteDto": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string"
+          },
+          "groupSize": {
+            "type": "number",
+            "minimum": 1
+          },
+          "specialNeeds": {
+            "type": "string"
+          }
+        }
+      },
+      "PriceQuoteDto": {
+        "type": "object",
+        "properties": {
+          "quotedPrice": {
+            "type": "number",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "quotedPrice"
+        ]
+      },
+      "InitiatePaymentDto": {
+        "type": "object",
+        "properties": {
+          "invoiceId": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number",
+            "description": "Optional partial (deposit) amount. Defaults to the full outstanding.",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "invoiceId"
+        ]
+      },
+      "SslcommerzIpnDto": {
+        "type": "object",
+        "properties": {
+          "val_id": {
+            "type": "string"
+          },
+          "tran_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateStaffDto": {
+        "type": "object",
+        "properties": {
+          "phone": {
+            "type": "string"
+          },
+          "roleId": {
+            "type": "string"
+          },
+          "nid": {
+            "type": "string"
+          },
+          "emergencyContact": {
+            "type": "string"
+          },
+          "perTripRate": {
+            "type": "number",
+            "minimum": 0
+          },
+          "monthlySalary": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "phone"
+        ]
+      },
+      "LeaveDto": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "on_leave",
+              "available",
+              "other_duty"
+            ]
+          },
+          "fromDate": {
+            "type": "string"
+          },
+          "toDate": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "PayrollDto": {
+        "type": "object",
+        "properties": {
+          "period": {
+            "type": "string"
+          },
+          "bonus": {
+            "type": "number",
+            "minimum": 0
+          },
+          "deduction": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "period"
+        ]
+      },
+      "CrewPresenceDto": {
+        "type": "object",
+        "properties": {
+          "staffId": {
+            "type": "string"
+          },
+          "present": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "staffId"
+        ]
+      },
+      "CreateCostDto": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number",
+            "minimum": 0
+          },
+          "tripId": {
+            "type": "string"
+          },
+          "dueToVendor": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "date",
+          "amount"
+        ]
+      },
+      "CreateInventoryItemDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "consumable",
+              "durable"
+            ]
+          },
+          "unit": {
+            "type": "string"
+          },
+          "reorderThreshold": {
+            "type": "number",
+            "minimum": 0
+          },
+          "currentQty": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "name",
+          "kind"
+        ]
+      },
+      "StockMovementDto": {
+        "type": "object",
+        "properties": {
+          "direction": {
+            "type": "string",
+            "enum": [
+              "in",
+              "out",
+              "count"
+            ]
+          },
+          "qty": {
+            "type": "number"
+          },
+          "tripId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "direction",
+          "qty"
+        ]
+      },
+      "CreateReviewDto": {
+        "type": "object",
+        "properties": {
+          "rating": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "rating"
+        ]
+      },
+      "SyncIntentDto": {
+        "type": "object",
+        "properties": {
+          "intentId": {
+            "type": "string",
+            "description": "Client-generated id so replays of the same intent are idempotent."
+          },
+          "houseboatId": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "cost_add",
+              "stock_movement",
+              "mark_cash_paid",
+              "mark_not_arrived",
+              "date_change"
+            ]
+          },
+          "payload": {
+            "type": "object"
+          },
+          "deviceTime": {
+            "type": "string",
+            "description": "Device clock when the action was taken (may be manipulated)."
+          }
+        },
+        "required": [
+          "intentId",
+          "houseboatId",
+          "action",
+          "payload",
+          "deviceTime"
+        ]
+      },
+      "SyncBatchDto": {
+        "type": "object",
+        "properties": {
+          "intents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SyncIntentDto"
+            }
+          }
+        },
+        "required": [
+          "intents"
+        ]
+      }
+    }
+  }
+}

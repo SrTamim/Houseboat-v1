@@ -1,0 +1,39 @@
+# deps
+node_modules/
+.pnpm-store/
+
+# builds
+dist/
+build/
+.next/
+out/
+
+# env / secrets
+.env
+.env.local
+.env.*.local
+*.pem
+
+# prisma
+backend/prisma/*.db
+
+# logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# os / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# test / coverage
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+
+# misc
+*.tsbuildinfo

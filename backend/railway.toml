@@ -1,0 +1,11 @@
+[build]
+builder = "nixpacks"
+buildCommand = "pnpm install --frozen-lockfile && pnpm prisma:generate && pnpm build"
+
+[deploy]
+# Apply migrations, then boot. deploy (not dev) so it never prompts.
+startCommand = "pnpm prisma:deploy && node dist/main.js"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 100
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3

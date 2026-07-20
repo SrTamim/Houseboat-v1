@@ -1,0 +1,975 @@
+// ============================================================
+//  Houseboat SaaS — Prisma schema
+//  Translated from plan/houseboat (1).dbml (41 tables, 7 modules).
+//
+//  Conventions:
+//   - All PKs are uuid, generated app-side as UUIDv7 (time-ordered,
+//     non-enumerable) — see src/common/uuid.ts. We pass the id in on
+//     create rather than using dbDefault so we control v7.
+//   - All money is Decimal(12,2). Never Float.
+//   - All timestamps are stored UTC (DateTime @db.Timestamptz).
+//   - status/kind/state fields are varchar today; can tighten to
+//     Postgres enums later without a data change.
+//
+//  CONSTRAINTS PRISMA CANNOT EXPRESS live in a raw-SQL migration
+//  (prisma/migrations/*_constraints/). Namely:
+//    - cabin_hold  partial unique index (cabin_id, departure_id) WHERE state='held'
+//    - booking_cabin active-row uniqueness on the cabin per departure
+//    - audit_log    append-only trigger (no UPDATE/DELETE) + monthly partitions
+//    - pricing_profile GIN index on dates[]
+//  See that migration for the authoritative DDL.
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- IDENTITY, RBAC & AUDIT ----------
+
+/// One login per person. A single human can be a customer, an owner
+/// (via HouseboatMember) AND crew (via HouseboatStaff) at once.
+model Account {
+  id            String   @id @db.Uuid
+  name          String?
+  email         String?
+  phone         String   @unique
+  passwordHash  String?  @map("password_hash")
+  phoneVerified Boolean  @default(false) @map("phone_verified")
+  /// true = platform admin/finance staff. NO type enum: what a person IS derives from relations.
+  isPlatform    Boolean  @default(false) @map("is_platform")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  memberships          HouseboatMember[]
+  staffRoles           HouseboatStaff[]
+  auditLogs            AuditLog[]
+  bookingsAsCustomer   Booking[]                @relation("BookingCustomer")
+  bookingsBooked       Booking[]                @relation("BookingBookedBy")
+  rescheduleChanges    BookingRescheduleHistory[]
+  holds                CabinHold[]
+  waitlists            BookingWaitlist[]
+  quoteRequests        QuoteRequest[]
+  invoices             Invoice[]
+  paymentsReceived     InvoicePayment[]         @relation("PaymentReceivedBy")
+  paymentsVerified     InvoicePayment[]         @relation("PaymentVerifiedBy")
+  refundsRequested     InvoiceRefund[]          @relation("RefundRequestedBy")
+  refundsVerified      InvoiceRefund[]          @relation("RefundVerifiedBy")
+  refundsCompleted     InvoiceRefund[]          @relation("RefundCompletedBy")
+  payoutsPrepared      HouseboatPayoutBatch[]   @relation("PayoutPreparedBy")
+  payoutsApproved      HouseboatPayoutBatch[]   @relation("PayoutApprovedBy")
+  distributionsRecorded OwnerDistribution[]
+  credits              CustomerCredit[]
+  payrollPaid          StaffPayroll[]
+  costsPaid            Cost[]
+  stockLogged          StockMovement[]
+  reviews              Review[]
+  notifications        Notification[]
+
+  @@map("account")
+}
+
+/// Per-boat permissions. Same person can be admin on one boat, restricted shareholder on another.
+model HouseboatMember {
+  id             String    @id @db.Uuid
+  accountId      String    @map("account_id") @db.Uuid
+  houseboatId    String    @map("houseboat_id") @db.Uuid
+  roleId         String    @map("role_id") @db.Uuid
+  /// record only — no auto profit-split
+  shareholderPct Decimal?  @map("shareholder_pct") @db.Decimal(5, 2)
+  startDate      DateTime? @map("start_date") @db.Date
+  /// null = current; set on exit, keeps historical read access
+  endDate        DateTime? @map("end_date") @db.Date
+  /// active / exited
+  status         String    @default("active")
+
+  account   Account   @relation(fields: [accountId], references: [id])
+  houseboat Houseboat @relation(fields: [houseboatId], references: [id])
+  role      Role      @relation(fields: [roleId], references: [id])
+  distributions OwnerDistribution[]
+
+  @@index([accountId])
+  @@index([houseboatId])
+  @@map("houseboat_member")
+}
+
+model Role {
+  id          String  @id @db.Uuid
+  houseboatId String  @map("houseboat_id") @db.Uuid
+  /// owner-named via role generator: Owner, Shareholder, Manager…
+  name        String
+  isTemplate  Boolean @default(false) @map("is_template")
+  /// per-module view/edit map: {"bookings":{"view":true,"edit":false},…} — read as a unit at login
+  permissions Json?
+
+  houseboat Houseboat         @relation(fields: [houseboatId], references: [id])
+  members   HouseboatMember[]
+  staff     HouseboatStaff[]
+
+  @@index([houseboatId])
+  @@map("role")
+}
+
+/// APPEND-ONLY. No UPDATE/DELETE — enforced by DB trigger. Also the offline-sync replay store.
+/// Partitioned by month. Replayed actions re-authorized against permissions as of device_time.
+model AuditLog {
+  /// Partitioned by month on server_time — the PK must include the partition key.
+  id             String   @db.Uuid
+  /// null for platform-level actions
+  houseboatId    String?  @map("houseboat_id") @db.Uuid
+  actorAccountId String?  @map("actor_account_id") @db.Uuid
+  /// mark_paid, void, price_change, role_change…
+  action         String
+  entityType     String?  @map("entity_type")
+  entityId       String?  @map("entity_id") @db.Uuid
+  /// mask PII — store refs not raw bank details
+  before         Json?
+  after          Json?
+  /// clock on the device — may be manipulated
+  deviceTime     DateTime? @map("device_time") @db.Timestamptz
+  /// authoritative
+  serverTime     DateTime  @default(now()) @map("server_time") @db.Timestamptz
+  syncedOffline  Boolean   @default(false) @map("synced_offline")
+
+  houseboat Houseboat? @relation(fields: [houseboatId], references: [id])
+  actor     Account?   @relation(fields: [actorAccountId], references: [id])
+
+  @@id([id, serverTime])
+  @@index([houseboatId])
+  @@index([entityType, entityId])
+  @@map("audit_log")
+}
+
+// ---------- HOUSEBOAT ASSETS ----------
+
+model Houseboat {
+  id                String    @id @db.Uuid
+  name              String
+  /// public URL: /houseboat/[slug]
+  slug              String    @unique
+  description       String?
+  safetyFeatures    String?   @map("safety_features")
+  foodMenu          String?   @map("food_menu")
+  /// MANDATORY before any payout can run
+  bankAccount       Json?     @map("bank_account")
+  /// reaches 100 → admin can approve
+  profileCompletePct Int      @default(0) @map("profile_complete_pct")
+  /// draft / pending / live / suspended
+  status            String    @default("draft")
+  billingConfigId   String?   @map("billing_config_id") @db.Uuid
+  /// only these dates generate bookable departures
+  operatingDates    DateTime[] @map("operating_dates") @db.Date
+  /// staff ids auto-assigned to every new departure
+  defaultCrew       String[]  @map("default_crew") @db.Uuid
+  /// age bands: [{min,max,charge_pct}]
+  childPolicy       Json?     @map("child_policy")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  billingConfig        HouseboatBillingConfig?       @relation("HouseboatBillingConfig", fields: [billingConfigId], references: [id])
+  members              HouseboatMember[]
+  roles                Role[]
+  auditLogs            AuditLog[]
+  decks                HouseboatDeck[]
+  cabinCategories      HouseboatCabinCategory[]
+  routes               HouseboatRoute[]
+  tripPackages         TripPackage[]
+  pricingProfiles      PricingProfile[]
+  groupPriceBands      GroupPriceBand[]
+  quoteRequests        QuoteRequest[]
+  invoices             Invoice[]
+  cancellationPolicies CancellationPolicy[]
+  coupons              Coupon[]
+  billingConfigs       HouseboatBillingConfig[]      @relation("BillingConfigOwner")
+  subscriptionInvoices HouseboatSubscriptionInvoice[]
+  payoutBatches        HouseboatPayoutBatch[]
+  ownerDistributions   OwnerDistribution[]
+  staff                HouseboatStaff[]
+  costs                Cost[]
+  inventoryItems       InventoryItem[]
+  reviews              Review[]
+  media                HouseboatMedia[]
+
+  @@map("houseboat")
+}
+
+model HouseboatDeck {
+  id          String @id @db.Uuid
+  houseboatId String @map("houseboat_id") @db.Uuid
+  /// Lower, Upper
+  name        String
+  position    Int    @default(0)
+
+  houseboat Houseboat        @relation(fields: [houseboatId], references: [id])
+  cabins    HouseboatCabin[]
+
+  @@index([houseboatId])
+  @@map("houseboat_deck")
+}
+
+model HouseboatCabin {
+  id             String @id @db.Uuid
+  deckId         String @map("deck_id") @db.Uuid
+  cabinCategoryId String @map("cabin_category_id") @db.Uuid
+  /// 101, 102
+  name           String
+  /// auto-generated 2x2 grid; not a positioning builder
+  gridRow        Int?   @map("grid_row")
+  gridCol        Int?   @map("grid_col")
+
+  deck     HouseboatDeck          @relation(fields: [deckId], references: [id])
+  category HouseboatCabinCategory @relation(fields: [cabinCategoryId], references: [id])
+  bookingCabins BookingCabin[]
+  holds    CabinHold[]
+  media    HouseboatMedia[]
+
+  @@index([deckId])
+  @@index([cabinCategoryId])
+  @@map("houseboat_cabin")
+}
+
+model HouseboatCabinCategory {
+  id               String  @id @db.Uuid
+  houseboatId      String  @map("houseboat_id") @db.Uuid
+  /// Luxury AC, Family…
+  name             String
+  isAc             Boolean @default(false) @map("is_ac")
+  baseCapacity     Int     @map("base_capacity")
+  /// group-booking overflow, owner-set
+  extendedCapacity Int?    @map("extended_capacity")
+  facilities       String?
+
+  houseboat    Houseboat        @relation(fields: [houseboatId], references: [id])
+  cabins       HouseboatCabin[]
+  pricingRules PricingRule[]
+
+  @@index([houseboatId])
+  @@map("houseboat_cabin_category")
+}
+
+/// Admin-managed. Owners pick from these; they cannot create routes.
+model Route {
+  id     String  @id @db.Uuid
+  /// Tanguar Haor, Nikli Haor… PLATFORM-curated
+  name   String
+  region String?
+  active Boolean @default(true)
+
+  houseboatRoutes HouseboatRoute[]
+  tripPackages    TripPackage[]
+
+  @@map("route")
+}
+
+/// Many-to-many: which boats run which routes.
+model HouseboatRoute {
+  id          String @id @db.Uuid
+  houseboatId String @map("houseboat_id") @db.Uuid
+  routeId     String @map("route_id") @db.Uuid
+
+  houseboat Houseboat @relation(fields: [houseboatId], references: [id])
+  route     Route     @relation(fields: [routeId], references: [id])
+
+  @@unique([houseboatId, routeId])
+  @@map("houseboat_route")
+}
+
+// ---------- TRIPS, SCHEDULE & PRICING ----------
+
+model TripPackage {
+  id                   String  @id @db.Uuid
+  houseboatId          String  @map("houseboat_id") @db.Uuid
+  routeId              String  @map("route_id") @db.Uuid
+  /// 1 = day trip, 2 = 2 days 1 night — shown on boat cards instead of times
+  durationDays         Int     @map("duration_days")
+  /// display text: "2 days 1 night"
+  durationLabel        String? @map("duration_label")
+  departureGhat        String? @map("departure_ghat")
+  returnGhat           String? @map("return_ghat")
+  meals                String?
+  included             String?
+  excluded             String?
+  cancellationPolicyId String? @map("cancellation_policy_id") @db.Uuid
+
+  houseboat          Houseboat           @relation(fields: [houseboatId], references: [id])
+  route              Route               @relation(fields: [routeId], references: [id])
+  cancellationPolicy CancellationPolicy? @relation(fields: [cancellationPolicyId], references: [id])
+  departures         TripDeparture[]
+
+  @@index([houseboatId])
+  @@map("trip_package")
+}
+
+model TripDeparture {
+  id               String    @id @db.Uuid
+  packageId        String    @map("package_id") @db.Uuid
+  /// multi-day trips MUST be booked on the start date
+  startDate        DateTime  @map("start_date") @db.Date
+  /// start_date + duration_days - 1
+  endDate          DateTime? @map("end_date") @db.Date
+  /// shown on the boat page, not on search cards
+  departureTime    DateTime? @map("departure_time") @db.Time
+  arrivalTime      DateTime? @map("arrival_time") @db.Time
+  pricingProfileId String?   @map("pricing_profile_id") @db.Uuid
+  /// DENORMALIZED cabin availability — updated transactionally on every hold/release/booking
+  availableCount   Int       @default(0) @map("available_count")
+  /// scheduled / in_progress / completed / cancelled — time-driven, UTC
+  status           String    @default("scheduled")
+
+  package        TripPackage     @relation(fields: [packageId], references: [id])
+  pricingProfile PricingProfile? @relation(fields: [pricingProfileId], references: [id])
+  bookings       Booking[]
+  holds          CabinHold[]
+  waitlists      BookingWaitlist[]
+  crew           TripCrew[]
+  costs          Cost[]
+  stockMovements StockMovement[]
+  reschedulesFrom BookingRescheduleHistory[] @relation("RescheduleFrom")
+  reschedulesTo   BookingRescheduleHistory[] @relation("RescheduleTo")
+
+  @@index([packageId])
+  @@index([startDate])
+  @@index([status])
+  @@map("trip_departure")
+}
+
+model PricingProfile {
+  id          String     @id @db.Uuid
+  houseboatId String     @map("houseboat_id") @db.Uuid
+  /// General Day, Weekend, Eid, Full Moon
+  name        String
+  /// General Day = base/fallback
+  isDefault   Boolean    @default(false) @map("is_default")
+  /// dates this profile applies to; null/empty for the default. GIN-indexed (raw-SQL migration).
+  dates       DateTime[] @db.Date
+
+  houseboat  Houseboat       @relation(fields: [houseboatId], references: [id])
+  rules      PricingRule[]
+  departures TripDeparture[]
+
+  @@index([houseboatId])
+  @@map("pricing_profile")
+}
+
+/// Each profile owns a FULL independent price table — not a multiplier on a base.
+model PricingRule {
+  id              String  @id @db.Uuid
+  pricingProfileId String @map("pricing_profile_id") @db.Uuid
+  cabinCategoryId String  @map("cabin_category_id") @db.Uuid
+  /// 2, 3, 4… per-person price varies by how many share
+  occupancy       Int
+  pricePerPerson  Decimal @map("price_per_person") @db.Decimal(12, 2)
+
+  profile  PricingProfile         @relation(fields: [pricingProfileId], references: [id])
+  category HouseboatCabinCategory @relation(fields: [cabinCategoryId], references: [id])
+
+  @@unique([pricingProfileId, cabinCategoryId, occupancy])
+  @@map("pricing_rule")
+}
+
+model GroupPriceBand {
+  id          String  @id @db.Uuid
+  houseboatId String  @map("houseboat_id") @db.Uuid
+  minPeople   Int     @map("min_people")
+  maxPeople   Int     @map("max_people")
+  /// full-boat buyout; customer picks band then types headcount
+  totalPrice  Decimal @map("total_price") @db.Decimal(12, 2)
+
+  houseboat Houseboat @relation(fields: [houseboatId], references: [id])
+
+  @@index([houseboatId])
+  @@map("group_price_band")
+}
+
+// ---------- BOOKINGS, HOLDS & WAITLIST ----------
+
+model Booking {
+  id                  String   @id @db.Uuid
+  departureId         String   @map("departure_id") @db.Uuid
+  customerId          String   @map("customer_id") @db.Uuid
+  /// owner in POS mode, else the customer
+  bookedBy            String   @map("booked_by") @db.Uuid
+  /// cabin / group / quote
+  type                String
+  headcount           Int?
+  specialInstructions String?  @map("special_instructions")
+  couponId            String?  @map("coupon_id") @db.Uuid
+  /// free text, optional — who referred/sent the customer
+  referenceName       String?  @map("reference_name")
+  /// confirmed / rescheduled / cancelled / not_arrived / completed
+  status              String   @default("confirmed")
+  rescheduleOf        String?  @map("reschedule_of") @db.Uuid
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  departure  TripDeparture @relation(fields: [departureId], references: [id])
+  customer   Account       @relation("BookingCustomer", fields: [customerId], references: [id])
+  bookedByAccount Account  @relation("BookingBookedBy", fields: [bookedBy], references: [id])
+  coupon     Coupon?       @relation(fields: [couponId], references: [id])
+  rescheduledFrom Booking?  @relation("BookingReschedule", fields: [rescheduleOf], references: [id])
+  reschedules     Booking[] @relation("BookingReschedule")
+  cabins     BookingCabin[]
+  guests     BookingGuest[]
+  rescheduleHistory BookingRescheduleHistory[]
+  invoice    Invoice?
+  review     Review?
+
+  @@index([departureId])
+  @@index([customerId])
+  @@index([status])
+  @@map("booking")
+}
+
+/// ENFORCE unique (cabin_id, departure via booking) among ACTIVE rows — DB-level, not app code.
+model BookingCabin {
+  id         String  @id @db.Uuid
+  bookingId  String  @map("booking_id") @db.Uuid
+  cabinId    String  @map("cabin_id") @db.Uuid
+  /// chosen at the ROOM SELECTION step — this is what sets the price
+  adults     Int
+  /// charged per houseboat.child_policy
+  children   Int     @default(0)
+  /// adults + children — must not exceed capacity (or extended for groups)
+  occupancy  Int
+  /// owner-set price for this many people in this room; not calculated
+  roomPrice  Decimal @map("room_price") @db.Decimal(12, 2)
+  /// leftover shared inventory — spare place bookable by another party
+  isOpenSeat Boolean @default(false) @map("is_open_seat")
+
+  booking Booking        @relation(fields: [bookingId], references: [id])
+  cabin   HouseboatCabin @relation(fields: [cabinId], references: [id])
+
+  @@index([bookingId])
+  @@index([cabinId])
+  @@map("booking_cabin")
+}
+
+/// Only the lead guest is recorded by name. Head counts live on booking_cabin.
+model BookingGuest {
+  id        String @id @db.Uuid
+  bookingId String @map("booking_id") @db.Uuid
+  /// lead guest only — captured at checkout for contact
+  name      String
+  phone     String?
+
+  booking Booking @relation(fields: [bookingId], references: [id])
+
+  @@index([bookingId])
+  @@map("booking_guest")
+}
+
+model BookingRescheduleHistory {
+  id                    String   @id @db.Uuid
+  bookingId             String   @map("booking_id") @db.Uuid
+  prevDepartureId       String   @map("prev_departure_id") @db.Uuid
+  changedToDepartureId  String   @map("changed_to_departure_id") @db.Uuid
+  oldPrice              Decimal? @map("old_price") @db.Decimal(12, 2)
+  /// reschedule REPRICES at the new date; advance adjusts against new amount
+  newPrice              Decimal? @map("new_price") @db.Decimal(12, 2)
+  reason                String?
+  changedBy             String   @map("changed_by") @db.Uuid
+  changedAt             DateTime @default(now()) @map("changed_at") @db.Timestamptz
+
+  booking       Booking       @relation(fields: [bookingId], references: [id])
+  prevDeparture TripDeparture @relation("RescheduleFrom", fields: [prevDepartureId], references: [id])
+  toDeparture   TripDeparture @relation("RescheduleTo", fields: [changedToDepartureId], references: [id])
+  changedByAccount Account    @relation(fields: [changedBy], references: [id])
+
+  @@index([bookingId])
+  @@map("booking_reschedule_history")
+}
+
+/// ENFORCE partial unique index on (cabin_id, departure_id) WHERE state='held'.
+/// The second simultaneous tap fails at the DB. This kills double-booking.
+model CabinHold {
+  id          String   @id @db.Uuid
+  cabinId     String   @map("cabin_id") @db.Uuid
+  departureId String   @map("departure_id") @db.Uuid
+  heldBy      String   @map("held_by") @db.Uuid
+  /// 10-min TTL; server clock authoritative, not the device
+  expiresAt   DateTime @map("expires_at") @db.Timestamptz
+  /// held / converted / released
+  state       String   @default("held")
+
+  cabin     HouseboatCabin @relation(fields: [cabinId], references: [id])
+  departure TripDeparture  @relation(fields: [departureId], references: [id])
+  heldByAccount Account    @relation(fields: [heldBy], references: [id])
+
+  @@index([departureId])
+  @@index([expiresAt])
+  @@map("cabin_hold")
+}
+
+/// All notified at once when a cabin frees; the link routes through a HOLD attempt so first-to-hold wins.
+model BookingWaitlist {
+  id          String   @id @db.Uuid
+  departureId String   @map("departure_id") @db.Uuid
+  customerId  String   @map("customer_id") @db.Uuid
+  partySize   Int      @map("party_size")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  departure TripDeparture @relation(fields: [departureId], references: [id])
+  customer  Account       @relation(fields: [customerId], references: [id])
+
+  @@index([departureId])
+  @@map("booking_waitlist")
+}
+
+model QuoteRequest {
+  id           String    @id @db.Uuid
+  houseboatId  String    @map("houseboat_id") @db.Uuid
+  customerId   String    @map("customer_id") @db.Uuid
+  date         DateTime? @db.Date
+  groupSize    Int?      @map("group_size")
+  specialNeeds String?   @map("special_needs")
+  /// null until owner prices it
+  quotedPrice  Decimal?  @map("quoted_price") @db.Decimal(12, 2)
+  /// requested / sent / accepted / expired
+  status       String    @default("requested")
+  /// 24h OR when the date fills, whichever first
+  expiresAt    DateTime? @map("expires_at") @db.Timestamptz
+
+  houseboat Houseboat @relation(fields: [houseboatId], references: [id])
+  customer  Account   @relation(fields: [customerId], references: [id])
+
+  @@index([houseboatId])
+  @@map("quote_request")
+}
+
+// ---------- MONEY: INVOICES, PAYMENTS, REFUNDS, PAYOUTS ----------
+
+/// ONE invoice per booking, three party-views. See BILL ORDER in plan/houseboat_logic.md §1.
+model Invoice {
+  id             String   @id @db.Uuid
+  bookingId      String   @unique @map("booking_id") @db.Uuid
+  houseboatId    String   @map("houseboat_id") @db.Uuid
+  customerId     String   @map("customer_id") @db.Uuid
+  /// STEP 1: owner-set room price (sum of booking_cabin.room_price)
+  roomTotal      Decimal  @map("room_total") @db.Decimal(12, 2)
+  /// STEP 2: platform % of room_total, added on top
+  gatewayFee     Decimal  @default(0) @map("gateway_fee") @db.Decimal(12, 2)
+  /// STEP 3: room_total + gateway_fee — shown BEFORE any coupon
+  priceShown     Decimal  @map("price_shown") @db.Decimal(12, 2)
+  /// STEP 4: coupon applied LAST, to price_shown
+  discountAmount Decimal  @default(0) @map("discount_amount") @db.Decimal(12, 2)
+  /// STEP 5: price_shown - discount = what the customer pays
+  displayTotal   Decimal  @map("display_total") @db.Decimal(12, 2)
+  /// platform % of room_total (ORIGINAL, NOT discounted) — boat absorbs its own coupon
+  commission     Decimal  @default(0) @db.Decimal(12, 2)
+  dueToBoat      Decimal  @default(0) @map("due_to_boat") @db.Decimal(12, 2)
+  amountPaid     Decimal  @default(0) @map("amount_paid") @db.Decimal(12, 2)
+  /// buyout adjusted below what was paid → becomes customer_credit or refund
+  amountOverpaid Decimal  @default(0) @map("amount_overpaid") @db.Decimal(12, 2)
+  /// cancellation policy agreed at checkout — cite in disputes
+  policySnapshot Json?    @map("policy_snapshot")
+  /// null until pulled into a weekly batch; setting it locks the invoice (in_payout)
+  payoutBatchId  String?  @map("payout_batch_id") @db.Uuid
+  /// see plan §4 state machine. LOCK to in_payout on batch entry.
+  status         String   @default("customer_due")
+
+  booking     Booking               @relation(fields: [bookingId], references: [id])
+  houseboat   Houseboat             @relation(fields: [houseboatId], references: [id])
+  customer    Account               @relation(fields: [customerId], references: [id])
+  payoutBatch HouseboatPayoutBatch? @relation(fields: [payoutBatchId], references: [id])
+  payments    InvoicePayment[]
+  refunds     InvoiceRefund[]
+  creditsFrom CustomerCredit[]      @relation("CreditSource")
+  creditsUsed CustomerCredit[]      @relation("CreditUsed")
+
+  @@index([houseboatId])
+  @@index([customerId])
+  @@index([status])
+  @@map("invoice")
+}
+
+model InvoicePayment {
+  id           String   @id @db.Uuid
+  invoiceId    String   @map("invoice_id") @db.Uuid
+  amount       Decimal  @db.Decimal(12, 2)
+  /// gateway / cash
+  method       String
+  /// unique-indexed → webhook replay is a no-op
+  gatewayToken String?  @unique @map("gateway_token")
+  /// who marked a cash payment
+  receivedBy   String?  @map("received_by") @db.Uuid
+  /// finance for gateway; boat manager for cash
+  verifiedBy   String?  @map("verified_by") @db.Uuid
+  paidAt       DateTime? @map("paid_at") @db.Timestamptz
+
+  invoice      Invoice  @relation(fields: [invoiceId], references: [id])
+  receivedByAccount Account? @relation("PaymentReceivedBy", fields: [receivedBy], references: [id])
+  verifiedByAccount Account? @relation("PaymentVerifiedBy", fields: [verifiedBy], references: [id])
+
+  @@index([invoiceId])
+  @@map("invoice_payment")
+}
+
+/// Only reachable when the OWNER cancelled the trip, within 6 days. Customer-cancel refunds follow policy template.
+model InvoiceRefund {
+  id            String    @id @db.Uuid
+  invoiceId     String    @map("invoice_id") @db.Uuid
+  amount        Decimal   @db.Decimal(12, 2)
+  reason        String?
+  /// ENCRYPT at rest; collected only after owner-cancel
+  bankDetails   Json?     @map("bank_details")
+  requestedBy   String?   @map("requested_by") @db.Uuid
+  verifiedBy    String?   @map("verified_by") @db.Uuid
+  /// separation of duties: not the same person as verified_by
+  completedBy   String?   @map("completed_by") @db.Uuid
+  /// requested / verified / completed
+  status        String    @default("requested")
+  /// 6 days from owner cancellation; after this the refund button disappears
+  claimDeadline DateTime? @map("claim_deadline") @db.Timestamptz
+  completedAt   DateTime? @map("completed_at") @db.Timestamptz
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+  requestedByAccount Account? @relation("RefundRequestedBy", fields: [requestedBy], references: [id])
+  verifiedByAccount  Account? @relation("RefundVerifiedBy", fields: [verifiedBy], references: [id])
+  completedByAccount Account? @relation("RefundCompletedBy", fields: [completedBy], references: [id])
+
+  @@index([invoiceId])
+  @@map("invoice_refund")
+}
+
+model HouseboatPayoutBatch {
+  id          String    @id @db.Uuid
+  houseboatId String    @map("houseboat_id") @db.Uuid
+  /// SIGNED — can be negative if the boat owes the platform
+  totalAmount Decimal   @map("total_amount") @db.Decimal(12, 2)
+  preparedBy  String?   @map("prepared_by") @db.Uuid
+  /// separation of duties: must differ from prepared_by
+  approvedBy  String?   @map("approved_by") @db.Uuid
+  /// prepared / approved / paid
+  status      String    @default("prepared")
+  paidAt      DateTime? @map("paid_at") @db.Timestamptz
+
+  houseboat Houseboat @relation(fields: [houseboatId], references: [id])
+  preparedByAccount Account? @relation("PayoutPreparedBy", fields: [preparedBy], references: [id])
+  approvedByAccount Account? @relation("PayoutApprovedBy", fields: [approvedBy], references: [id])
+  invoices  Invoice[]
+
+  @@index([houseboatId])
+  @@map("houseboat_payout_batch")
+}
+
+model CancellationPolicy {
+  id             String  @id @db.Uuid
+  houseboatId    String  @map("houseboat_id") @db.Uuid
+  /// flexible / moderate / strict / non_refundable / custom
+  policyTemplate String  @map("policy_template")
+  depositPct     Int?    @map("deposit_pct")
+  shownAtCheckout Boolean @default(true) @map("shown_at_checkout")
+  /// custom tiers + blackout dates: [{days_before,refund_pct,is_blackout}]
+  tiers          Json?
+
+  houseboat    Houseboat     @relation(fields: [houseboatId], references: [id])
+  tripPackages TripPackage[]
+
+  @@index([houseboatId])
+  @@map("cancellation_policy")
+}
+
+model Coupon {
+  id          String    @id @db.Uuid
+  houseboatId String    @map("houseboat_id") @db.Uuid
+  code        String
+  /// percent / flat / referral
+  kind        String
+  value       Decimal   @db.Decimal(12, 2)
+  validFrom   DateTime? @map("valid_from") @db.Date
+  validTo     DateTime? @map("valid_to") @db.Date
+
+  houseboat Houseboat @relation(fields: [houseboatId], references: [id])
+  bookings  Booking[]
+
+  @@index([houseboatId])
+  @@index([code])
+  @@map("coupon")
+}
+
+/// Platform-set per boat. Commission AND monthly can both apply. Billing PER BOAT.
+model HouseboatBillingConfig {
+  id             String    @id @db.Uuid
+  houseboatId    String    @map("houseboat_id") @db.Uuid
+  /// null if not on commission
+  commissionPct  Decimal?  @map("commission_pct") @db.Decimal(5, 2)
+  /// null if not on monthly
+  monthlyFee     Decimal?  @map("monthly_fee") @db.Decimal(12, 2)
+  gatewayFeePct  Decimal?  @map("gateway_fee_pct") @db.Decimal(5, 2)
+  /// SIGNED. Negative = boat owes platform. If exceeded, access denied until settled.
+  platformBalance Decimal  @default(0) @map("platform_balance") @db.Decimal(12, 2)
+  trialEnds      DateTime? @map("trial_ends") @db.Date
+
+  houseboat            Houseboat                      @relation("BillingConfigOwner", fields: [houseboatId], references: [id])
+  houseboatsUsing      Houseboat[]                    @relation("HouseboatBillingConfig")
+  subscriptionInvoices HouseboatSubscriptionInvoice[]
+
+  @@index([houseboatId])
+  @@map("houseboat_billing_config")
+}
+
+/// The monthly bill the PLATFORM sends the boat — separate from booking-commission invoices.
+model HouseboatSubscriptionInvoice {
+  id              String   @id @db.Uuid
+  houseboatId     String   @map("houseboat_id") @db.Uuid
+  billingConfigId String   @map("billing_config_id") @db.Uuid
+  period          String
+  monthlyFee      Decimal? @map("monthly_fee") @db.Decimal(12, 2)
+  commissionTotal Decimal? @map("commission_total") @db.Decimal(12, 2)
+  amountDue       Decimal  @map("amount_due") @db.Decimal(12, 2)
+  /// issued / paid / overdue
+  status          String   @default("issued")
+  issuedAt        DateTime @default(now()) @map("issued_at") @db.Timestamptz
+
+  houseboat     Houseboat              @relation(fields: [houseboatId], references: [id])
+  billingConfig HouseboatBillingConfig @relation(fields: [billingConfigId], references: [id])
+
+  @@index([houseboatId])
+  @@map("houseboat_subscription_invoice")
+}
+
+/// Records money a shareholder actually withdrew. No auto-split — just the record.
+model OwnerDistribution {
+  id           String   @id @db.Uuid
+  houseboatId  String   @map("houseboat_id") @db.Uuid
+  membershipId String   @map("membership_id") @db.Uuid
+  amount       Decimal  @db.Decimal(12, 2)
+  note         String?
+  recordedBy   String?  @map("recorded_by") @db.Uuid
+  at           DateTime @default(now()) @db.Timestamptz
+
+  houseboat  Houseboat       @relation(fields: [houseboatId], references: [id])
+  membership HouseboatMember @relation(fields: [membershipId], references: [id])
+  recordedByAccount Account? @relation(fields: [recordedBy], references: [id])
+
+  @@index([houseboatId])
+  @@map("owner_distribution")
+}
+
+/// Home for buyout overpayments — credit toward a future booking.
+model CustomerCredit {
+  id              String  @id @db.Uuid
+  accountId       String  @map("account_id") @db.Uuid
+  sourceInvoiceId String? @map("source_invoice_id") @db.Uuid
+  amount          Decimal @db.Decimal(12, 2)
+  /// null until spent
+  usedInInvoiceId String? @map("used_in_invoice_id") @db.Uuid
+  /// open / used
+  status          String  @default("open")
+
+  account       Account  @relation(fields: [accountId], references: [id])
+  sourceInvoice Invoice? @relation("CreditSource", fields: [sourceInvoiceId], references: [id])
+  usedInInvoice Invoice? @relation("CreditUsed", fields: [usedInInvoiceId], references: [id])
+
+  @@index([accountId])
+  @@map("customer_credit")
+}
+
+// ---------- HR: STAFF, CREW, PAYROLL ----------
+
+model HouseboatStaff {
+  id               String   @id @db.Uuid
+  /// links to a login
+  accountId        String   @map("account_id") @db.Uuid
+  houseboatId      String   @map("houseboat_id") @db.Uuid
+  roleId           String?  @map("role_id") @db.Uuid
+  nid              String?
+  emergencyContact String?  @map("emergency_contact")
+  /// own rate — a sukani is not paid like a cleaner
+  perTripRate      Decimal? @map("per_trip_rate") @db.Decimal(12, 2)
+  /// set instead of per_trip_rate for salaried staff
+  monthlySalary    Decimal? @map("monthly_salary") @db.Decimal(12, 2)
+
+  account   Account   @relation(fields: [accountId], references: [id])
+  houseboat Houseboat @relation(fields: [houseboatId], references: [id])
+  role      Role?     @relation(fields: [roleId], references: [id])
+  tripCrew  TripCrew[]
+  leaves    StaffLeave[]
+  payroll   StaffPayroll[]
+
+  @@index([houseboatId])
+  @@index([accountId])
+  @@map("houseboat_staff")
+}
+
+/// Auto-filled from houseboat.default_crew; owner edits only when someone differs that day.
+model TripCrew {
+  id          String  @id @db.Uuid
+  departureId String  @map("departure_id") @db.Uuid
+  staffId     String  @map("staff_id") @db.Uuid
+  /// attendance = this row existing + present flag
+  present     Boolean @default(true)
+
+  departure TripDeparture  @relation(fields: [departureId], references: [id])
+  staff     HouseboatStaff @relation(fields: [staffId], references: [id])
+
+  @@unique([departureId, staffId])
+  @@map("trip_crew")
+}
+
+model StaffLeave {
+  id       String    @id @db.Uuid
+  staffId  String    @map("staff_id") @db.Uuid
+  /// on_leave / available / other_duty — NOT the same as "not assigned today"
+  state    String
+  fromDate DateTime? @map("from_date") @db.Date
+  toDate   DateTime? @map("to_date") @db.Date
+  note     String?
+
+  staff HouseboatStaff @relation(fields: [staffId], references: [id])
+
+  @@index([staffId])
+  @@map("staff_leave")
+}
+
+/// Full payment history is kept — owners need to know who has and has not been paid.
+model StaffPayroll {
+  id          String    @id @db.Uuid
+  staffId     String    @map("staff_id") @db.Uuid
+  period      String
+  tripsWorked Int?      @map("trips_worked")
+  /// per_trip_rate × trips_worked, or monthly_salary
+  baseAmount  Decimal   @map("base_amount") @db.Decimal(12, 2)
+  bonus       Decimal   @default(0) @db.Decimal(12, 2)
+  deduction   Decimal   @default(0) @db.Decimal(12, 2)
+  /// base + bonus - deduction
+  totalAmount Decimal   @map("total_amount") @db.Decimal(12, 2)
+  /// owner tracks whether the wage was actually handed over
+  paid        Boolean   @default(false)
+  paidAt      DateTime? @map("paid_at") @db.Timestamptz
+  paidBy      String?   @map("paid_by") @db.Uuid
+
+  staff         HouseboatStaff @relation(fields: [staffId], references: [id])
+  paidByAccount Account?       @relation(fields: [paidBy], references: [id])
+
+  @@index([staffId])
+  @@map("staff_payroll")
+}
+
+// ---------- OPS: COSTS, INVENTORY, REPORTING ----------
+
+/// The spreadsheet-killer. One row, faster than a sheet. Accept Bangla numerals at the input layer.
+model Cost {
+  id          String   @id @db.Uuid
+  houseboatId String   @map("houseboat_id") @db.Uuid
+  date        DateTime @db.Date
+  /// free text — no forced category. Bazar, fuel, repair…
+  description String?
+  amount      Decimal  @db.Decimal(12, 2)
+  /// optional — link to a trip or leave null
+  tripId      String?  @map("trip_id") @db.Uuid
+  /// auto-captured from the logged-in user
+  paidBy      String?  @map("paid_by") @db.Uuid
+  /// optional — no vendor management
+  dueToVendor Decimal? @map("due_to_vendor") @db.Decimal(12, 2)
+
+  houseboat     Houseboat      @relation(fields: [houseboatId], references: [id])
+  trip          TripDeparture? @relation(fields: [tripId], references: [id])
+  paidByAccount Account?       @relation(fields: [paidBy], references: [id])
+
+  @@index([houseboatId])
+  @@index([date])
+  @@map("cost")
+}
+
+model InventoryItem {
+  id               String   @id @db.Uuid
+  houseboatId      String   @map("houseboat_id") @db.Uuid
+  name             String
+  /// consumable (reorder alert) / durable (missing-item check)
+  kind             String
+  unit             String?
+  /// consumables — flag when below
+  reorderThreshold Decimal? @map("reorder_threshold") @db.Decimal(12, 2)
+  currentQty       Decimal  @default(0) @map("current_qty") @db.Decimal(12, 2)
+
+  houseboat Houseboat       @relation(fields: [houseboatId], references: [id])
+  movements StockMovement[]
+
+  @@index([houseboatId])
+  @@map("inventory_item")
+}
+
+/// Durable counts are run by the OWNER whenever they choose — not automatically after every trip.
+model StockMovement {
+  id              String   @id @db.Uuid
+  inventoryItemId String   @map("inventory_item_id") @db.Uuid
+  tripId          String?  @map("trip_id") @db.Uuid
+  /// in / out / count
+  direction       String
+  qty             Decimal  @db.Decimal(12, 2)
+  /// for a count: what the system believed was there
+  expectedQty     Decimal? @map("expected_qty") @db.Decimal(12, 2)
+  /// expected - actual; anything above zero is missing
+  discrepancy     Decimal? @db.Decimal(12, 2)
+  /// auto from login
+  loggedBy        String?  @map("logged_by") @db.Uuid
+  at              DateTime @default(now()) @db.Timestamptz
+
+  item          InventoryItem  @relation(fields: [inventoryItemId], references: [id])
+  trip          TripDeparture? @relation(fields: [tripId], references: [id])
+  loggedByAccount Account?     @relation(fields: [loggedBy], references: [id])
+
+  @@index([inventoryItemId])
+  @@map("stock_movement")
+}
+
+/// Only from verified completed bookings.
+model Review {
+  id          String  @id @db.Uuid
+  bookingId   String  @unique @map("booking_id") @db.Uuid
+  houseboatId String  @map("houseboat_id") @db.Uuid
+  customerId  String  @map("customer_id") @db.Uuid
+  rating      Int
+  text        String?
+  ownerReply  String? @map("owner_reply")
+
+  booking   Booking   @relation(fields: [bookingId], references: [id])
+  houseboat Houseboat @relation(fields: [houseboatId], references: [id])
+  customer  Account   @relation(fields: [customerId], references: [id])
+
+  @@index([houseboatId])
+  @@map("review")
+}
+
+model Notification {
+  id        String   @id @db.Uuid
+  accountId String   @map("account_id") @db.Uuid
+  /// booking, payment_due, refund_sent, low_stock, offer…
+  event     String
+  /// sms / email
+  channel   String
+  delivered Boolean  @default(false)
+  at        DateTime @default(now()) @db.Timestamptz
+
+  account Account @relation(fields: [accountId], references: [id])
+
+  @@index([accountId])
+  @@map("notification")
+}
+
+model HouseboatMedia {
+  id          String  @id @db.Uuid
+  houseboatId String  @map("houseboat_id") @db.Uuid
+  /// optional: media belongs to a specific cabin's gallery (else boat-level)
+  cabinId     String? @map("cabin_id") @db.Uuid
+  /// image | video
+  kind        String
+  /// image only: object key in the Cloudflare R2 bucket. public URL is
+  /// storage.publicBaseUrl + key. null for videos.
+  storageKey  String? @map("storage_key")
+  /// video only: YouTube URL. null for images.
+  youtubeUrl  String? @map("youtube_url")
+  /// display order within the gallery
+  sortOrder   Int     @default(0) @map("sort_order")
+  uploadedBy  String? @map("uploaded_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  houseboat Houseboat      @relation(fields: [houseboatId], references: [id])
+  cabin     HouseboatCabin? @relation(fields: [cabinId], references: [id])
+
+  @@index([houseboatId])
+  @@index([cabinId])
+  @@map("houseboat_media")
+}
