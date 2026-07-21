@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HaorBoat — profile (design preview)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Hind+Siliguri:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#1a73e8; --blue-600:#1560d6; --blue-700:#0f56be; --blue-050:#e9f1fe; --blue-100:#d3e5fd;
+    --amber:#f6a623; --amber-050:#fdf3e0; --green:#0f9d58; --green-050:#e6f5ec; --red:#dc3545; --red-050:#fdeaec;
+    --ink:#0f2440; --body:#4a5568; --muted:#8a93a3; --line:#e6eaf0;
+    --bg:#ffffff; --bg-2:#eef2f7; --surface:#ffffff; --chip:#eef2f7;
+    --shadow-sm:0 1px 3px rgba(15,36,64,.08),0 1px 2px rgba(15,36,64,.04);
+    --shadow:0 8px 24px rgba(15,36,64,.10);--shadow-lg:0 24px 60px rgba(15,36,64,.22);
+    --r:.6rem; --r-lg:1rem; --maxw:1120px;
+    --font:'Inter',system-ui,-apple-system,'Segoe UI','Hind Siliguri',sans-serif;--mono:'Inter',ui-monospace,monospace;
+  }
+  :root[data-theme="dark"]{
+    --blue:#4f97ff; --blue-600:#63a4ff; --blue-700:#3d7fe0; --blue-050:#17233a; --blue-100:#1f3252;
+    --amber:#f6a623; --amber-050:#2a2211; --green:#34c77b; --green-050:#0f2a1e; --red:#f26d78; --red-050:#301418;
+    --ink:#eef3fb; --body:#aab6c9; --muted:#7a879c; --line:#243247;
+    --bg:#0b1220; --bg-2:#0e1728; --surface:#131d30; --chip:#1a2740;
+    --shadow-sm:0 1px 3px rgba(0,0,0,.4);--shadow:0 8px 24px rgba(0,0,0,.5);--shadow-lg:0 24px 60px rgba(0,0,0,.6);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg-2);color:var(--body);font-family:var(--font);line-height:1.55;-webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  a{color:inherit;text-decoration:none}
+  h1,h2,h3,h4{margin:0;color:var(--ink);line-height:1.2;font-weight:800;letter-spacing:-.02em}
+  button{font-family:inherit;cursor:pointer}
+  :focus-visible{outline:2.5px solid var(--blue);outline-offset:2px;border-radius:8px}
+
+  .btn{border-radius:999px;padding:10px 20px;font-weight:700;font-size:14px;border:1.5px solid transparent;transition:background .14s,border-color .14s,transform .12s;display:inline-flex;align-items:center;gap:7px;white-space:nowrap;justify-content:center}
+  .btn:active{transform:translateY(1px)}
+  .btn-b{background:var(--blue);color:#fff;box-shadow:0 6px 16px -6px var(--blue)}
+  .btn-b:hover{background:var(--blue-600)}
+  .btn-o{background:var(--surface);border-color:var(--line);color:var(--ink)}
+  .btn-o:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-050)}
+  .btn-d{background:var(--surface);border-color:color-mix(in srgb,var(--red) 40%,transparent);color:var(--red)}
+  .btn-d:hover{background:var(--red-050)}
+  .btn-sm{padding:7px 13px;font-size:13px}
+
+  .nav{position:sticky;top:0;z-index:50;background:color-mix(in srgb,var(--surface) 92%,transparent);backdrop-filter:saturate(160%) blur(10px);border-bottom:1px solid var(--line)}
+  .nav .row{display:flex;align-items:center;gap:20px;height:70px;max-width:var(--maxw);margin:0 auto;padding:0 24px}
+  .logo{display:flex;gap:10px;align-items:center;font-weight:800;font-size:22px;color:var(--ink);letter-spacing:-.03em}
+  .logo .mark{width:34px;height:34px;border-radius:50%;background:linear-gradient(150deg,var(--blue),var(--blue-700));color:#fff;display:grid;place-items:center;font-size:16px}
+  .logo .b{color:var(--blue);font-style:italic}
+  .nav .sp{flex:1}
+  .navlink{font-size:14.5px;font-weight:600;color:var(--ink)}.navlink:hover{color:var(--blue)}
+  .theme-btn{border:1px solid var(--line);background:var(--surface);width:42px;height:42px;border-radius:11px;font-size:16px;color:var(--ink);display:grid;place-items:center}
+  .theme-btn .sun{display:none}
+  .icon-btn{position:relative;border:1px solid var(--line);background:var(--surface);width:42px;height:42px;border-radius:11px;font-size:17px;color:var(--ink);display:grid;place-items:center;transition:border-color .14s}
+  .icon-btn:hover{border-color:var(--blue)}
+  .icon-btn .dot{position:absolute;top:8px;right:9px;width:8px;height:8px;border-radius:50%;background:var(--amber);border:2px solid var(--surface)}
+  :root[data-theme="dark"] .theme-btn .moon{display:none}
+  :root[data-theme="dark"] .theme-btn .sun{display:block}
+  .whoami{display:flex;gap:9px;align-items:center}
+  .whoami .av{width:38px;height:38px;border-radius:50%;background:var(--blue-050);color:var(--blue);display:grid;place-items:center;font-weight:800;font-size:14px;border:1px solid var(--blue-100)}
+  .whoami .nm{font-size:13.5px;font-weight:700;color:var(--ink);line-height:1.1}
+  .whoami .rl{font-size:11.5px;color:var(--muted)}
+
+  .shell{max-width:var(--maxw);margin:0 auto;padding:28px 24px 60px;display:grid;grid-template-columns:236px 1fr;gap:28px;align-items:start}
+  .side{position:sticky;top:94px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:10px;box-shadow:var(--shadow-sm)}
+  .side .grp{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700;padding:12px 12px 6px}
+  .slink{display:flex;align-items:center;gap:11px;padding:11px 12px;border-radius:var(--r);font-size:14.5px;font-weight:600;color:var(--body);transition:background .12s,color .12s}
+  .slink .i{font-size:16px;width:20px;text-align:center}
+  .slink:hover{background:var(--bg-2);color:var(--ink)}
+  .slink.on{background:var(--blue-050);color:var(--blue)}
+  .slink .ct{margin-left:auto;background:var(--blue);color:#fff;font-size:11px;font-weight:800;min-width:20px;height:20px;border-radius:999px;display:grid;place-items:center;padding:0 6px}
+  .slink .ct.warn{background:var(--amber);color:#3a2a00}
+  .side .foot{padding:12px;border-top:1px solid var(--line);margin-top:6px}
+
+  .main{min-width:0;display:grid;gap:18px}
+  .page-head h1{font-size:26px}
+  .page-head p{font-size:14px;color:var(--muted);margin-top:5px}
+
+  /* identity header */
+  .idcard{display:flex;gap:18px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:22px 24px;box-shadow:var(--shadow-sm);flex-wrap:wrap}
+  .idcard .big-av{width:72px;height:72px;border-radius:50%;background:linear-gradient(150deg,var(--blue),var(--blue-700));color:#fff;display:grid;place-items:center;font-weight:900;font-size:26px;flex:none}
+  .idcard h2{font-size:22px}
+  .idcard .sub{font-size:14px;color:var(--muted);margin-top:4px;display:flex;gap:14px;flex-wrap:wrap}
+  .idcard .verified{color:var(--green);font-weight:700}
+  .idcard .sp{flex:1}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--shadow-sm);overflow:hidden}
+  .ch{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--line)}
+  .ch h3{font-size:15px}
+  .cb{padding:20px}
+
+  .fgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .field label{display:block;font-size:12.5px;font-weight:700;color:var(--ink);margin-bottom:7px}
+  .field input,.field select{width:100%;border:1.5px solid var(--line);border-radius:var(--r);padding:11px 13px;font-size:14.5px;font-family:inherit;background:var(--surface);color:var(--ink);transition:border-color .14s,box-shadow .14s}
+  .field input:focus,.field select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-050)}
+  .field .hint{font-size:11.5px;color:var(--muted);margin-top:5px}
+  .field.full{grid-column:1/-1}
+
+  /* payment methods */
+  .pm{display:flex;gap:14px;align-items:center;padding:14px 20px;border-bottom:1px solid var(--line)}
+  .pm:last-child{border-bottom:none}
+  .pm .badge{width:46px;height:36px;border-radius:8px;display:grid;place-items:center;font-size:13px;font-weight:800;color:#fff;flex:none}
+  .pm .badge.bkash{background:#e2136e}.pm .badge.nagad{background:#f6821f}.pm .badge.card{background:var(--ink)}
+  .pm .t{font-size:14.5px;font-weight:700;color:var(--ink)}
+  .pm .d{font-size:12.5px;color:var(--muted)}
+  .pm .sp{flex:1}
+  .pm .def{font-size:11px;font-weight:800;color:var(--green);background:var(--green-050);border:1px solid color-mix(in srgb,var(--green) 30%,transparent);padding:3px 9px;border-radius:999px}
+
+  /* saved travellers */
+  .trav{display:flex;gap:12px;align-items:center;padding:13px 20px;border-bottom:1px solid var(--line)}
+  .trav:last-child{border-bottom:none}
+  .trav .av{width:38px;height:38px;border-radius:50%;background:var(--chip);color:var(--body);display:grid;place-items:center;font-weight:800;font-size:14px;flex:none}
+  .trav .t{font-size:14px;font-weight:700;color:var(--ink)}
+  .trav .d{font-size:12.5px;color:var(--muted)}
+  .trav .sp{flex:1}
+
+  /* notification toggles */
+  .toggle-row{display:flex;gap:14px;align-items:center;padding:14px 20px;border-bottom:1px solid var(--line)}
+  .toggle-row:last-child{border-bottom:none}
+  .toggle-row .t{font-size:14.5px;font-weight:700;color:var(--ink)}
+  .toggle-row .d{font-size:12.5px;color:var(--muted);margin-top:2px}
+  .toggle-row .sp{flex:1}
+  .sw{width:46px;height:26px;border-radius:999px;background:var(--line);position:relative;cursor:pointer;transition:background .16s;flex:none;border:none}
+  .sw::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:transform .16s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+  .sw.on{background:var(--blue)}
+  .sw.on::after{transform:translateX(20px)}
+
+  .footbar{display:flex;gap:12px;justify-content:flex-end;flex-wrap:wrap}
+  .danger-zone{border-color:color-mix(in srgb,var(--red) 30%,transparent)}
+  .danger-zone .ch h3{color:var(--red)}
+
+  @media(max-width:920px){
+    .shell{grid-template-columns:1fr}
+    .side{position:static;display:flex;overflow-x:auto;gap:4px;padding:8px}
+    .side .grp,.side .foot{display:none}.slink{flex:none}
+  }
+  @media(max-width:560px){
+    .whoami .nm,.whoami .rl,.navlink{display:none}
+    .fgrid{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+
+<header class="nav"><div class="row">
+  <a class="logo" href="haorboat-home.html"><span class="mark">🛥</span>Haor<span class="b">Boat</span></a>
+  <div class="sp"></div>
+  <a class="navlink" href="haorboat-home.html">Browse boats</a>
+  <a class="icon-btn" href="haorboat-account-notifications.html" aria-label="Notifications">🔔<span class="dot"></span></a>
+  <button class="theme-btn" id="themeToggle" aria-label="Toggle dark mode"><span class="moon">🌙</span><span class="sun">☀️</span></button>
+  <div class="whoami"><span class="av">RU</span><div><div class="nm">Rahim Uddin</div><div class="rl">01712 345 678</div></div></div>
+</div></header>
+
+<div class="shell">
+  <aside class="side">
+    <div class="grp">My account</div>
+    <a class="slink" href="haorboat-account-trips.html"><span class="i">🎟️</span> My trips <span class="ct">4</span></a>
+    <a class="slink" href="haorboat-account-wallet.html"><span class="i">💳</span> Wallet &amp; credits</a>
+    <a class="slink" href="haorboat-account-waitlist.html"><span class="i">⏳</span> Waitlist <span class="ct warn">1</span></a>
+    <a class="slink" href="haorboat-account-notifications.html"><span class="i">🔔</span> Notifications <span class="ct">3</span></a>
+    <a class="slink on" href="haorboat-account-profile.html"><span class="i">👤</span> Profile</a>
+    <div class="foot"><a class="slink" href="haorboat-account-login.html"><span class="i">↩</span> Sign out</a></div>
+  </aside>
+
+  <main class="main">
+    <div class="page-head"><h1>Profile &amp; settings</h1><p>Your details, payment methods, saved travellers and how we reach you.</p></div>
+
+    <!-- identity -->
+    <div class="idcard">
+      <div class="big-av">RU</div>
+      <div>
+        <h2>Rahim Uddin</h2>
+        <div class="sub"><span>📱 01712 345 678</span><span>✉️ rahim@email.com</span><span class="verified">✓ Phone verified</span></div>
+      </div>
+      <div class="sp"></div>
+      <button class="btn btn-o btn-sm">Change photo</button>
+    </div>
+
+    <!-- personal details -->
+    <div class="card">
+      <div class="ch"><h3>Personal details</h3></div>
+      <div class="cb">
+        <div class="fgrid">
+          <div class="field"><label>Full name</label><input type="text" value="Rahim Uddin"></div>
+          <div class="field"><label>Date of birth</label><input type="text" value="14 Mar 1990"></div>
+          <div class="field"><label>Phone</label><input type="text" value="01712 345 678"><div class="hint">Used to sign in &amp; receive vouchers</div></div>
+          <div class="field"><label>Email</label><input type="text" value="rahim@email.com"></div>
+          <div class="field"><label>NID / Passport</label><input type="text" value="1990 XXXX XXX"><div class="hint">Required at the ghat for every adult</div></div>
+          <div class="field"><label>City</label><input type="text" value="Dhaka"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- payment methods -->
+    <div class="card">
+      <div class="ch"><h3>Payment methods</h3><button class="btn btn-o btn-sm">＋ Add method</button></div>
+      <div>
+        <div class="pm"><span class="badge bkash">bKash</span><div><div class="t">bKash · 01712 ••• 678</div><div class="d">Personal</div></div><span class="sp"></span><span class="def">Default</span></div>
+        <div class="pm"><span class="badge nagad">Nagad</span><div><div class="t">Nagad · 01712 ••• 678</div><div class="d">Personal</div></div><span class="sp"></span><button class="btn btn-o btn-sm">Make default</button></div>
+        <div class="pm"><span class="badge card">VISA</span><div><div class="t">Visa •••• 4291</div><div class="d">Expires 08/28</div></div><span class="sp"></span><button class="btn btn-d btn-sm">Remove</button></div>
+      </div>
+    </div>
+
+    <!-- saved travellers -->
+    <div class="card">
+      <div class="ch"><h3>Saved travellers</h3><button class="btn btn-o btn-sm">＋ Add traveller</button></div>
+      <div>
+        <div class="trav"><span class="av">SA</span><div><div class="t">Sadia Akter</div><div class="d">Spouse · NID 1992 XXXX XXX</div></div><span class="sp"></span><button class="btn btn-o btn-sm">Edit</button></div>
+        <div class="trav"><span class="av">TU</span><div><div class="t">Tanvir Uddin</div><div class="d">Child · age 7</div></div><span class="sp"></span><button class="btn btn-o btn-sm">Edit</button></div>
+      </div>
+    </div>
+
+    <!-- notifications -->
+    <div class="card">
+      <div class="ch"><h3>Notifications</h3></div>
+      <div>
+        <div class="toggle-row"><div><div class="t">Booking &amp; payment alerts</div><div class="d">Vouchers, balance reminders, verification updates</div></div><span class="sp"></span><button class="sw on" aria-label="Toggle"></button></div>
+        <div class="toggle-row"><div><div class="t">Waitlist openings</div><div class="d">Instant SMS &amp; email when a watched cabin frees up</div></div><span class="sp"></span><button class="sw on" aria-label="Toggle"></button></div>
+        <div class="toggle-row"><div><div class="t">Offers &amp; deals</div><div class="d">Eid specials, discounts, new routes</div></div><span class="sp"></span><button class="sw" aria-label="Toggle"></button></div>
+        <div class="toggle-row"><div><div class="t">Channel</div><div class="d">How we reach you</div></div><span class="sp"></span>
+          <select style="border:1.5px solid var(--line);border-radius:var(--r);padding:8px 12px;font-family:inherit;font-size:13.5px;background:var(--surface);color:var(--ink)"><option>SMS + Email</option><option>SMS only</option><option>Email only</option></select>
+        </div>
+      </div>
+    </div>
+
+    <div class="footbar">
+      <button class="btn btn-o">Discard</button>
+      <button class="btn btn-b">Save changes</button>
+    </div>
+
+    <!-- danger zone -->
+    <div class="card danger-zone">
+      <div class="ch"><h3>Account</h3></div>
+      <div class="cb" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+        <div style="flex:1;min-width:200px"><div style="font-size:14px;font-weight:700;color:var(--ink)">Delete account</div><div style="font-size:12.5px;color:var(--muted);margin-top:2px">Removes your profile. Active bookings and refund claims must be settled first.</div></div>
+        <button class="btn btn-d">Delete account</button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+  document.querySelectorAll('.sw').forEach(function(s){
+    s.addEventListener('click',function(){s.classList.toggle('on');});
+  });
+  (function(){
+    var root=document.documentElement,stored=null;
+    try{stored=localStorage.getItem('hb-theme');}catch(e){}
+    root.setAttribute('data-theme', stored || (window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'));
+    document.getElementById('themeToggle').addEventListener('click',function(){
+      var n=root.getAttribute('data-theme')==='dark'?'light':'dark';root.setAttribute('data-theme',n);
+      try{localStorage.setItem('hb-theme',n);}catch(e){}
+    });
+  })();
+</script>
+</body>
+</html>

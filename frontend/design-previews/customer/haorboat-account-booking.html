@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HaorBoat — booking detail (design preview)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Hind+Siliguri:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#1a73e8; --blue-600:#1560d6; --blue-700:#0f56be; --blue-050:#e9f1fe; --blue-100:#d3e5fd;
+    --amber:#f6a623; --amber-050:#fdf3e0; --green:#0f9d58; --green-050:#e6f5ec; --red:#dc3545; --red-050:#fdeaec;
+    --ink:#0f2440; --body:#4a5568; --muted:#8a93a3; --line:#e6eaf0;
+    --bg:#ffffff; --bg-2:#eef2f7; --surface:#ffffff; --chip:#eef2f7;
+    --shadow-sm:0 1px 3px rgba(15,36,64,.08),0 1px 2px rgba(15,36,64,.04);
+    --shadow:0 8px 24px rgba(15,36,64,.10);--shadow-lg:0 24px 60px rgba(15,36,64,.22);
+    --r:.6rem; --r-lg:1rem; --maxw:1120px;
+    --font:'Inter',system-ui,-apple-system,'Segoe UI','Hind Siliguri',sans-serif;--mono:'Inter',ui-monospace,monospace;
+  }
+  :root[data-theme="dark"]{
+    --blue:#4f97ff; --blue-600:#63a4ff; --blue-700:#3d7fe0; --blue-050:#17233a; --blue-100:#1f3252;
+    --amber:#f6a623; --amber-050:#2a2211; --green:#34c77b; --green-050:#0f2a1e; --red:#f26d78; --red-050:#301418;
+    --ink:#eef3fb; --body:#aab6c9; --muted:#7a879c; --line:#243247;
+    --bg:#0b1220; --bg-2:#0e1728; --surface:#131d30; --chip:#1a2740;
+    --shadow-sm:0 1px 3px rgba(0,0,0,.4);--shadow:0 8px 24px rgba(0,0,0,.5);--shadow-lg:0 24px 60px rgba(0,0,0,.6);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg-2);color:var(--body);font-family:var(--font);line-height:1.55;-webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  a{color:inherit;text-decoration:none}
+  h1,h2,h3,h4{margin:0;color:var(--ink);line-height:1.2;font-weight:800;letter-spacing:-.02em}
+  img{max-width:100%;display:block}
+  button{font-family:inherit;cursor:pointer}
+  :focus-visible{outline:2.5px solid var(--blue);outline-offset:2px;border-radius:8px}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+
+  .btn{border-radius:999px;padding:10px 20px;font-weight:700;font-size:14px;border:1.5px solid transparent;transition:background .14s,border-color .14s,transform .12s;display:inline-flex;align-items:center;gap:7px;white-space:nowrap;justify-content:center}
+  .btn:active{transform:translateY(1px)}
+  .btn-b{background:var(--blue);color:#fff;box-shadow:0 6px 16px -6px var(--blue)}
+  .btn-b:hover{background:var(--blue-600)}
+  .btn-o{background:var(--surface);border-color:var(--line);color:var(--ink)}
+  .btn-o:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-050)}
+  .btn-d{background:var(--surface);border-color:color-mix(in srgb,var(--red) 40%,transparent);color:var(--red)}
+  .btn-d:hover{background:var(--red-050)}
+  .btn-block{width:100%}
+
+  /* nav */
+  .nav{position:sticky;top:0;z-index:50;background:color-mix(in srgb,var(--surface) 92%,transparent);backdrop-filter:saturate(160%) blur(10px);border-bottom:1px solid var(--line)}
+  .nav .row{display:flex;align-items:center;gap:20px;height:70px;max-width:var(--maxw);margin:0 auto;padding:0 24px}
+  .logo{display:flex;gap:10px;align-items:center;font-weight:800;font-size:22px;color:var(--ink);letter-spacing:-.03em}
+  .logo .mark{width:34px;height:34px;border-radius:50%;background:linear-gradient(150deg,var(--blue),var(--blue-700));color:#fff;display:grid;place-items:center;font-size:16px;box-shadow:0 4px 10px -3px var(--blue)}
+  .logo .b{color:var(--blue);font-style:italic}
+  .nav .sp{flex:1}
+  .theme-btn{border:1px solid var(--line);background:var(--surface);width:42px;height:42px;border-radius:11px;font-size:16px;color:var(--ink);display:grid;place-items:center}
+  .theme-btn:hover{border-color:var(--blue)}
+  .theme-btn .sun{display:none}
+  .icon-btn{position:relative;border:1px solid var(--line);background:var(--surface);width:42px;height:42px;border-radius:11px;font-size:17px;color:var(--ink);display:grid;place-items:center;transition:border-color .14s}
+  .icon-btn:hover{border-color:var(--blue)}
+  .icon-btn .dot{position:absolute;top:8px;right:9px;width:8px;height:8px;border-radius:50%;background:var(--amber);border:2px solid var(--surface)}
+  :root[data-theme="dark"] .theme-btn .moon{display:none}
+  :root[data-theme="dark"] .theme-btn .sun{display:block}
+  .whoami{display:flex;gap:9px;align-items:center}
+  .whoami .av{width:38px;height:38px;border-radius:50%;background:var(--blue-050);color:var(--blue);display:grid;place-items:center;font-weight:800;font-size:14px;border:1px solid var(--blue-100)}
+  .whoami .nm{font-size:13.5px;font-weight:700;color:var(--ink);line-height:1.1}
+  .whoami .rl{font-size:11.5px;color:var(--muted)}
+
+  .crumb{max-width:var(--maxw);margin:0 auto;padding:20px 24px 0;font-size:13px;color:var(--muted);font-weight:600}
+  .crumb a{color:var(--blue)}
+
+  .grid{max-width:var(--maxw);margin:0 auto;padding:14px 24px 60px;display:grid;grid-template-columns:1fr 340px;gap:24px;align-items:start}
+  .col{display:grid;gap:20px;min-width:0}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--shadow-sm);overflow:hidden}
+  .ch{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--line)}
+  .ch h3{font-size:15px}
+  .ch .sub{font-size:12px;color:var(--muted);font-weight:600}
+  .cb{padding:20px}
+
+  /* header hero of booking */
+  .bhead{position:relative;color:#fff;overflow:hidden;isolation:isolate;border-radius:var(--r-lg);padding:26px 24px}
+  .bhead .bg{position:absolute;inset:0;z-index:-2}
+  .bhead .bg img{width:100%;height:100%;object-fit:cover}
+  .bhead::after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(180deg,rgba(11,38,80,.55),rgba(13,45,95,.8))}
+  .bhead h1{color:#fff;font-size:24px}
+  .bhead .rt{display:flex;gap:8px;align-items:center;margin-top:8px;font-size:13.5px;color:#dbe8ff;flex-wrap:wrap}
+  .bhead .ref{font-family:var(--mono);font-weight:800;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28);padding:3px 10px;border-radius:999px}
+  .bhead .facts{display:flex;gap:26px;margin-top:18px;flex-wrap:wrap}
+  .bhead .fact .l{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#b9cdf0;font-weight:700}
+  .bhead .fact .v{font-size:15px;font-weight:800;color:#fff;margin-top:3px}
+
+  .pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:800;padding:4px 11px;border-radius:999px;border:1px solid transparent}
+  .pill.ok{background:var(--green-050);color:var(--green);border-color:color-mix(in srgb,var(--green) 30%,transparent)}
+  .pill.blue{background:var(--blue-050);color:var(--blue);border-color:var(--blue-100)}
+  .pill.mut{background:var(--bg-2);color:var(--muted);border-color:var(--line)}
+  .pill.light{background:rgba(255,255,255,.2);color:#fff;border-color:rgba(255,255,255,.3)}
+
+  /* invoice state timeline */
+  .timeline{position:relative;padding:4px 0 0 6px}
+  .tl{position:relative;padding:0 0 22px 30px}
+  .tl:last-child{padding-bottom:0}
+  .tl::before{content:"";position:absolute;left:9px;top:20px;bottom:-2px;width:2px;background:var(--line)}
+  .tl:last-child::before{display:none}
+  .tl .dot{position:absolute;left:0;top:1px;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:900;background:var(--bg-2);color:var(--muted);border:2px solid var(--line)}
+  .tl.done .dot{background:var(--green);color:#fff;border-color:var(--green)}
+  .tl.done::before{background:var(--green)}
+  .tl.now .dot{background:var(--blue);color:#fff;border-color:var(--blue);box-shadow:0 0 0 4px var(--blue-050)}
+  .tl .t{font-size:14px;font-weight:800;color:var(--ink)}
+  .tl.pend .t{color:var(--muted)}
+  .tl .d{font-size:12.5px;color:var(--muted);margin-top:2px}
+  .tl .when{font-size:11.5px;color:var(--muted);font-family:var(--mono);margin-top:3px}
+
+  /* cabin items */
+  .items{width:100%;border-collapse:collapse}
+  .items th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:0 0 10px}
+  .items th.r,.items td.r{text-align:right}
+  .items td{padding:12px 0;font-size:14px;border-top:1px solid var(--line);vertical-align:top}
+  .items td b{color:var(--ink)}
+  .items td .cx{font-size:12px;color:var(--muted);display:block;margin-top:2px}
+  .items .amt{font-family:var(--mono);font-weight:700;color:var(--ink)}
+  .opentag{font-size:10.5px;font-weight:800;color:var(--amber);background:var(--amber-050);border:1px solid color-mix(in srgb,var(--amber) 40%,transparent);padding:2px 7px;border-radius:6px;margin-left:6px}
+
+  /* payment sidebar */
+  .paycard .cb{display:grid;gap:14px}
+  .amtbig{text-align:center;padding:6px 0 2px}
+  .amtbig .l{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+  .amtbig .v{font-size:34px;font-weight:900;color:var(--amber);font-family:var(--mono);letter-spacing:-.03em;margin-top:4px}
+  .amtbig .s{font-size:12px;color:var(--muted);margin-top:2px}
+  .prog{height:8px;border-radius:999px;background:var(--bg-2);overflow:hidden}
+  .prog > i{display:block;height:100%;background:var(--green);border-radius:999px}
+  .splitrow{display:flex;justify-content:space-between;font-size:13px;color:var(--body)}
+  .splitrow b{color:var(--ink);font-family:var(--mono)}
+  .paymethods{display:flex;gap:8px;flex-wrap:wrap}
+  .pm{flex:1;min-width:70px;border:1.5px solid var(--line);border-radius:var(--r);padding:9px;text-align:center;font-size:12px;font-weight:700;color:var(--body);cursor:pointer;transition:border-color .14s,background .14s}
+  .pm.on{border-color:var(--blue);background:var(--blue-050);color:var(--blue)}
+  .pm .e{font-size:18px;display:block;margin-bottom:3px}
+
+  .qrcard{text-align:center}
+  .qr{width:150px;height:150px;margin:6px auto 12px;border-radius:12px;background:
+    linear-gradient(45deg,var(--ink) 25%,transparent 25%,transparent 75%,var(--ink) 75%),
+    linear-gradient(45deg,var(--ink) 25%,transparent 25%,transparent 75%,var(--ink) 75%);
+    background-size:20px 20px;background-position:0 0,10px 10px;border:6px solid var(--surface);box-shadow:0 0 0 1px var(--line)}
+  .qrcard .code{font-family:var(--mono);font-weight:800;color:var(--ink);letter-spacing:.05em}
+
+  .act-list{display:grid;gap:9px}
+  .note{display:flex;gap:9px;align-items:flex-start;border-radius:var(--r);padding:12px 14px;font-size:13px;line-height:1.5}
+  .note.info{background:var(--blue-050);border:1px solid var(--blue-100);color:var(--body)}
+  .note.warn{background:var(--amber-050);border:1px solid color-mix(in srgb,var(--amber) 40%,transparent);color:var(--body)}
+  .note b{color:var(--ink)}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:8px 14px;font-size:13.5px}
+  .kv dt{color:var(--muted);font-weight:600}
+  .kv dd{margin:0;color:var(--ink);font-weight:700;text-align:right}
+
+  @media(max-width:900px){.grid{grid-template-columns:1fr}}
+  @media(max-width:560px){.whoami .nm,.whoami .rl{display:none}.bhead .facts{gap:18px}}
+</style>
+</head>
+<body>
+
+<header class="nav"><div class="row">
+  <a class="logo" href="haorboat-home.html"><span class="mark">🛥</span>Haor<span class="b">Boat</span></a>
+  <div class="sp"></div>
+  <a class="icon-btn" href="haorboat-account-notifications.html" aria-label="Notifications">🔔<span class="dot"></span></a>
+  <button class="theme-btn" id="themeToggle" aria-label="Toggle dark mode"><span class="moon">🌙</span><span class="sun">☀️</span></button>
+  <div class="whoami"><span class="av">RU</span><div><div class="nm">Rahim Uddin</div><div class="rl">01712 345 678</div></div></div>
+</div></header>
+
+<div class="crumb"><a href="haorboat-account-trips.html">My trips</a> › <span>HB-2K7Q4X</span></div>
+
+<div class="grid">
+  <!-- main column -->
+  <div class="col">
+
+    <!-- booking hero -->
+    <div class="bhead">
+      <div class="bg"><img alt="Jolpori Houseboat" src="https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&w=1200&q=65"></div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+        <div>
+          <h1>Jolpori Houseboat</h1>
+          <div class="rt">📍 Tahirpur · Tanguar Haor · ⭐ 4.8 · <span class="ref">HB-2K7Q4X</span></div>
+        </div>
+        <span class="pill light">✓ Confirmed · Paid advance</span>
+      </div>
+      <div class="facts">
+        <div class="fact"><div class="l">Trip dates</div><div class="v">24–26 Jul 2026</div></div>
+        <div class="fact"><div class="l">Boarding</div><div class="v">Tahirpur ghat · 10:00</div></div>
+        <div class="fact"><div class="l">Guests</div><div class="v">5 · 2 cabins</div></div>
+      </div>
+    </div>
+
+    <!-- invoice status machine -->
+    <div class="card">
+      <div class="ch"><h3>Booking status</h3><span class="sub">customer_due → paid → verified → cleared</span></div>
+      <div class="cb">
+        <div class="timeline">
+          <div class="tl done"><span class="dot">✓</span><div class="t">Advance paid</div><div class="d">৳ 6,000 via bKash — 50% advance</div><div class="when">21 Jul 2026 · 18:12 BST</div></div>
+          <div class="tl done"><span class="dot">✓</span><div class="t">Cabins confirmed</div><div class="d">2 cabins locked · voucher &amp; e-ticket issued</div><div class="when">21 Jul 2026 · 18:12 BST</div></div>
+          <div class="tl now"><span class="dot">●</span><div class="t">Balance due at boarding</div><div class="d">Pay ৳ 2,400 in cash or bKash when you board</div><div class="when">Due 24 Jul 2026</div></div>
+          <div class="tl pend"><span class="dot"></span><div class="t">Payment verified</div><div class="d">Boat manager confirms your full payment</div></div>
+          <div class="tl pend"><span class="dot"></span><div class="t">Trip completed</div><div class="d">Enjoy the haor 🌅 · then leave a review</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- cabins & invoice -->
+    <div class="card">
+      <div class="ch"><h3>Cabins &amp; charges</h3><a class="sub" href="haorboat-confirmation.html" style="color:var(--blue)">Full invoice →</a></div>
+      <div class="cb">
+        <table class="items">
+          <thead><tr><th>Cabin</th><th>Guests</th><th class="r">Rate</th><th class="r">Amount</th></tr></thead>
+          <tbody>
+            <tr><td><b>Deluxe AC Cabin</b><span class="cx">Upper deck · sleeps 2</span></td><td>2 adults</td><td class="r">৳ 3,250</td><td class="r"><span class="amt">৳ 6,500</span></td></tr>
+            <tr><td><b>Family AC Cabin</b><span class="cx">Upper deck · sleeps 3</span><span class="opentag">1 place spare</span></td><td>2 adults + 1 child</td><td class="r">৳ 2,900</td><td class="r"><span class="amt">৳ 5,000</span></td></tr>
+          </tbody>
+        </table>
+        <div class="note info" style="margin-top:16px"><span>ℹ️</span><div><b>Open seat on Family cabin.</b> One place is spare and shown to others on this departure. If someone books it, your invoice <b>drops</b> and any surplus becomes wallet credit.</div></div>
+      </div>
+    </div>
+
+    <!-- trip logistics -->
+    <div class="card">
+      <div class="ch"><h3>Trip details</h3></div>
+      <div class="cb">
+        <dl class="kv">
+          <dt>Boarding point</dt><dd>Tahirpur ghat, Sunamganj</dd>
+          <dt>Departure</dt><dd>24 Jul 2026 · 10:00 AM</dd>
+          <dt>Return</dt><dd>26 Jul 2026 · ~04:00 PM</dd>
+          <dt>Route</dt><dd>Tanguar Haor circuit · 2 nights</dd>
+          <dt>Host</dt><dd>Kamal H. · 01819 000 111</dd>
+          <dt>Meals</dt><dd>Full board · 6 meals included</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+
+  <!-- sidebar -->
+  <div class="col">
+
+    <!-- pay balance -->
+    <div class="card paycard">
+      <div class="ch"><h3>Balance due</h3><span class="pill mut">at boarding</span></div>
+      <div class="cb">
+        <div class="amtbig"><div class="l">Remaining balance</div><div class="v">৳ 2,400</div><div class="s">of ৳ 8,400 grand total</div></div>
+        <div class="prog"><i style="width:71%"></i></div>
+        <div class="splitrow"><span>Paid so far</span><b>৳ 6,000</b></div>
+        <div class="splitrow"><span>Still due</span><b style="color:var(--amber)">৳ 2,400</b></div>
+        <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:4px">Pay online now</div>
+        <div class="paymethods">
+          <div class="pm on"><span class="e">📱</span>bKash</div>
+          <div class="pm"><span class="e">💗</span>Nagad</div>
+          <div class="pm"><span class="e">💳</span>Card</div>
+        </div>
+        <button class="btn btn-b btn-block">Pay ৳ 2,400 now</button>
+        <div class="note warn"><span>💵</span><div>Prefer cash? You can pay the ৳ 2,400 to the boat manager at boarding — no online payment needed.</div></div>
+      </div>
+    </div>
+
+    <!-- e-ticket -->
+    <div class="card qrcard">
+      <div class="ch"><h3>E-ticket</h3><span class="pill ok">Ready</span></div>
+      <div class="cb">
+        <div class="qr" role="img" aria-label="Booking QR code"></div>
+        <div class="code">HB-2K7Q4X</div>
+        <p style="font-size:12.5px;color:var(--muted);margin:8px 0 14px">Show this QR &amp; a valid NID for every adult at the ghat.</p>
+        <button class="btn btn-o btn-block" onclick="window.print()">⬇️ Download voucher</button>
+      </div>
+    </div>
+
+    <!-- manage booking -->
+    <div class="card">
+      <div class="ch"><h3>Manage booking</h3></div>
+      <div class="cb act-list">
+        <a class="btn btn-o btn-block" href="haorboat-account-reschedule.html">🔁 Reschedule dates</a>
+        <a class="btn btn-d btn-block" href="haorboat-account-cancel.html">✕ Cancel booking</a>
+        <a class="btn btn-o btn-block" href="#">📞 Contact host &amp; support</a>
+        <div class="note info"><span>🛡️</span><div><b>Free cancellation</b> until 17 Jul (7 days before). After that: 50% refund up to 72 hrs, then non-refundable.</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll('.pm').forEach(function(p){
+    p.addEventListener('click',function(){
+      document.querySelectorAll('.pm').forEach(function(x){x.classList.remove('on');});
+      p.classList.add('on');
+    });
+  });
+  (function(){
+    var root=document.documentElement,stored=null;
+    try{stored=localStorage.getItem('hb-theme');}catch(e){}
+    root.setAttribute('data-theme', stored || (window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'));
+    document.getElementById('themeToggle').addEventListener('click',function(){
+      var n=root.getAttribute('data-theme')==='dark'?'light':'dark';root.setAttribute('data-theme',n);
+      try{localStorage.setItem('hb-theme',n);}catch(e){}
+    });
+  })();
+</script>
+</body>
+</html>

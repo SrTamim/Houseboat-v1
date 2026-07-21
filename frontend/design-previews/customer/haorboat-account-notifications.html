@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HaorBoat — notifications (design preview)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Hind+Siliguri:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#1a73e8; --blue-600:#1560d6; --blue-700:#0f56be; --blue-050:#e9f1fe; --blue-100:#d3e5fd;
+    --amber:#f6a623; --amber-050:#fdf3e0; --green:#0f9d58; --green-050:#e6f5ec; --red:#dc3545; --red-050:#fdeaec;
+    --ink:#0f2440; --body:#4a5568; --muted:#8a93a3; --line:#e6eaf0;
+    --bg:#ffffff; --bg-2:#eef2f7; --surface:#ffffff; --chip:#eef2f7;
+    --shadow-sm:0 1px 3px rgba(15,36,64,.08),0 1px 2px rgba(15,36,64,.04);
+    --shadow:0 8px 24px rgba(15,36,64,.10);--shadow-lg:0 24px 60px rgba(15,36,64,.22);
+    --r:.6rem; --r-lg:1rem; --maxw:1120px;
+    --font:'Inter',system-ui,-apple-system,'Segoe UI','Hind Siliguri',sans-serif;--mono:'Inter',ui-monospace,monospace;
+  }
+  :root[data-theme="dark"]{
+    --blue:#4f97ff; --blue-600:#63a4ff; --blue-700:#3d7fe0; --blue-050:#17233a; --blue-100:#1f3252;
+    --amber:#f6a623; --amber-050:#2a2211; --green:#34c77b; --green-050:#0f2a1e; --red:#f26d78; --red-050:#301418;
+    --ink:#eef3fb; --body:#aab6c9; --muted:#7a879c; --line:#243247;
+    --bg:#0b1220; --bg-2:#0e1728; --surface:#131d30; --chip:#1a2740;
+    --shadow-sm:0 1px 3px rgba(0,0,0,.4);--shadow:0 8px 24px rgba(0,0,0,.5);--shadow-lg:0 24px 60px rgba(0,0,0,.6);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg-2);color:var(--body);font-family:var(--font);line-height:1.55;-webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  a{color:inherit;text-decoration:none}
+  h1,h2,h3,h4{margin:0;color:var(--ink);line-height:1.2;font-weight:800;letter-spacing:-.02em}
+  button{font-family:inherit;cursor:pointer}
+  :focus-visible{outline:2.5px solid var(--blue);outline-offset:2px;border-radius:8px}
+
+  .btn{border-radius:999px;padding:10px 20px;font-weight:700;font-size:14px;border:1.5px solid transparent;transition:background .14s,border-color .14s,transform .12s;display:inline-flex;align-items:center;gap:7px;white-space:nowrap;justify-content:center}
+  .btn:active{transform:translateY(1px)}
+  .btn-b{background:var(--blue);color:#fff;box-shadow:0 6px 16px -6px var(--blue)}
+  .btn-b:hover{background:var(--blue-600)}
+  .btn-o{background:var(--surface);border-color:var(--line);color:var(--ink)}
+  .btn-o:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-050)}
+  .btn-sm{padding:8px 14px;font-size:13px}
+
+  .nav{position:sticky;top:0;z-index:50;background:color-mix(in srgb,var(--surface) 92%,transparent);backdrop-filter:saturate(160%) blur(10px);border-bottom:1px solid var(--line)}
+  .nav .row{display:flex;align-items:center;gap:20px;height:70px;max-width:var(--maxw);margin:0 auto;padding:0 24px}
+  .logo{display:flex;gap:10px;align-items:center;font-weight:800;font-size:22px;color:var(--ink);letter-spacing:-.03em}
+  .logo .mark{width:34px;height:34px;border-radius:50%;background:linear-gradient(150deg,var(--blue),var(--blue-700));color:#fff;display:grid;place-items:center;font-size:16px}
+  .logo .b{color:var(--blue);font-style:italic}
+  .nav .sp{flex:1}
+  .navlink{font-size:14.5px;font-weight:600;color:var(--ink)}.navlink:hover{color:var(--blue)}
+  .theme-btn{border:1px solid var(--line);background:var(--surface);width:42px;height:42px;border-radius:11px;font-size:16px;color:var(--ink);display:grid;place-items:center}
+  .theme-btn .sun{display:none}
+  .icon-btn{position:relative;border:1px solid var(--line);background:var(--surface);width:42px;height:42px;border-radius:11px;font-size:17px;color:var(--ink);display:grid;place-items:center;transition:border-color .14s}
+  .icon-btn:hover{border-color:var(--blue)}
+  .icon-btn.on{border-color:var(--blue);color:var(--blue);background:var(--blue-050)}
+  .icon-btn .dot{position:absolute;top:8px;right:9px;width:8px;height:8px;border-radius:50%;background:var(--amber);border:2px solid var(--surface)}
+  :root[data-theme="dark"] .theme-btn .moon{display:none}
+  :root[data-theme="dark"] .theme-btn .sun{display:block}
+  .whoami{display:flex;gap:9px;align-items:center}
+  .whoami .av{width:38px;height:38px;border-radius:50%;background:var(--blue-050);color:var(--blue);display:grid;place-items:center;font-weight:800;font-size:14px;border:1px solid var(--blue-100)}
+  .whoami .nm{font-size:13.5px;font-weight:700;color:var(--ink);line-height:1.1}
+  .whoami .rl{font-size:11.5px;color:var(--muted)}
+
+  .shell{max-width:var(--maxw);margin:0 auto;padding:28px 24px 60px;display:grid;grid-template-columns:236px 1fr;gap:28px;align-items:start}
+  .side{position:sticky;top:94px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:10px;box-shadow:var(--shadow-sm)}
+  .side .grp{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700;padding:12px 12px 6px}
+  .slink{display:flex;align-items:center;gap:11px;padding:11px 12px;border-radius:var(--r);font-size:14.5px;font-weight:600;color:var(--body);transition:background .12s,color .12s}
+  .slink .i{font-size:16px;width:20px;text-align:center}
+  .slink:hover{background:var(--bg-2);color:var(--ink)}
+  .slink.on{background:var(--blue-050);color:var(--blue)}
+  .slink .ct{margin-left:auto;background:var(--blue);color:#fff;font-size:11px;font-weight:800;min-width:20px;height:20px;border-radius:999px;display:grid;place-items:center;padding:0 6px}
+  .slink .ct.warn{background:var(--amber);color:#3a2a00}
+  .side .foot{padding:12px;border-top:1px solid var(--line);margin-top:6px}
+
+  .main{min-width:0;display:grid;gap:18px}
+  .page-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap}
+  .page-head h1{font-size:26px}
+  .page-head p{font-size:14px;color:var(--muted);margin-top:5px}
+  .page-head .acts{display:flex;gap:9px;flex-wrap:wrap}
+
+  /* filter chips */
+  .ftabs{display:flex;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:4px;width:fit-content;flex-wrap:wrap}
+  .ftab{border:none;background:transparent;color:var(--body);font-weight:700;font-size:13.5px;padding:8px 16px;border-radius:999px;transition:all .14s;display:flex;gap:7px;align-items:center}
+  .ftab.on{background:var(--blue);color:#fff}
+  .ftab .n{background:var(--bg-2);color:var(--body);font-size:11px;font-weight:800;padding:1px 7px;border-radius:999px}
+  .ftab.on .n{background:rgba(255,255,255,.25);color:#fff}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--shadow-sm);overflow:hidden}
+  .daylabel{font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding:14px 20px 8px}
+
+  /* notification row */
+  .note{display:grid;grid-template-columns:44px 1fr auto;gap:14px;padding:16px 20px;border-top:1px solid var(--line);align-items:start;position:relative;transition:background .12s}
+  .note:hover{background:var(--bg-2)}
+  .note.unread{background:color-mix(in srgb,var(--blue-050) 60%,transparent)}
+  .note.unread:hover{background:var(--blue-050)}
+  .note .ic{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;font-size:19px;flex:none}
+  .ic.wait{background:var(--amber-050);color:#b45309}
+  :root[data-theme="dark"] .ic.wait{color:var(--amber)}
+  .ic.pay{background:var(--green-050);color:var(--green)}
+  .ic.cancel{background:var(--red-050);color:var(--red)}
+  .ic.refund{background:var(--blue-050);color:var(--blue)}
+  .ic.info{background:var(--bg-2);color:var(--muted)}
+  .note .t{font-size:14.5px;font-weight:700;color:var(--ink)}
+  .note .d{font-size:13px;color:var(--body);margin-top:3px;line-height:1.5}
+  .note .d b{color:var(--ink)}
+  .note .when{font-size:12px;color:var(--muted);white-space:nowrap;font-weight:600;margin-top:2px}
+  .note .cta{margin-top:9px;display:flex;gap:8px;flex-wrap:wrap}
+  .unread-dot{width:9px;height:9px;border-radius:50%;background:var(--blue);position:absolute;left:8px;top:22px}
+  .note:not(.unread) .unread-dot{display:none}
+
+  .empty{padding:52px 24px;text-align:center}
+  .empty .em{font-size:40px}
+  .empty h3{font-size:18px;margin:12px 0 6px}
+  .empty p{font-size:14px;color:var(--muted)}
+
+  @media(max-width:920px){
+    .shell{grid-template-columns:1fr}
+    .side{position:static;display:flex;overflow-x:auto;gap:4px;padding:8px}
+    .side .grp,.side .foot{display:none}.slink{flex:none}
+  }
+  @media(max-width:560px){
+    .whoami .nm,.whoami .rl,.navlink{display:none}
+    .note{grid-template-columns:44px 1fr}
+    .note .when{grid-column:2;text-align:left}
+  }
+</style>
+</head>
+<body>
+
+<header class="nav"><div class="row">
+  <a class="logo" href="haorboat-home.html"><span class="mark">🛥</span>Haor<span class="b">Boat</span></a>
+  <div class="sp"></div>
+  <a class="navlink" href="haorboat-home.html">Browse boats</a>
+  <a class="icon-btn on" href="haorboat-account-notifications.html" aria-label="Notifications">🔔<span class="dot"></span></a>
+  <button class="theme-btn" id="themeToggle" aria-label="Toggle dark mode"><span class="moon">🌙</span><span class="sun">☀️</span></button>
+  <div class="whoami"><span class="av">RU</span><div><div class="nm">Rahim Uddin</div><div class="rl">01712 345 678</div></div></div>
+</div></header>
+
+<div class="shell">
+  <aside class="side">
+    <div class="grp">My account</div>
+    <a class="slink" href="haorboat-account-trips.html"><span class="i">🎟️</span> My trips <span class="ct">4</span></a>
+    <a class="slink" href="haorboat-account-wallet.html"><span class="i">💳</span> Wallet &amp; credits</a>
+    <a class="slink" href="haorboat-account-waitlist.html"><span class="i">⏳</span> Waitlist <span class="ct warn">1</span></a>
+    <a class="slink" href="haorboat-account-notifications.html" style="background:var(--blue-050);color:var(--blue)"><span class="i">🔔</span> Notifications <span class="ct">3</span></a>
+    <a class="slink" href="haorboat-account-profile.html"><span class="i">👤</span> Profile</a>
+    <div class="foot"><a class="slink" href="haorboat-account-login.html"><span class="i">↩</span> Sign out</a></div>
+  </aside>
+
+  <main class="main">
+    <div class="page-head">
+      <div><h1>Notifications</h1><p>Waitlist openings, payments and trip updates. <b id="unreadCt">3 unread</b>.</p></div>
+      <div class="acts">
+        <button class="btn btn-o btn-sm" id="markAll">✓ Mark all read</button>
+        <a class="btn btn-o btn-sm" href="haorboat-account-profile.html">⚙ Settings</a>
+      </div>
+    </div>
+
+    <div class="ftabs" id="ftabs">
+      <button class="ftab on" data-f="all">All <span class="n">6</span></button>
+      <button class="ftab" data-f="unread">Unread <span class="n">3</span></button>
+      <button class="ftab" data-f="trip">Trips <span class="n">3</span></button>
+      <button class="ftab" data-f="money">Money <span class="n">2</span></button>
+    </div>
+
+    <div class="card" id="list"></div>
+
+    <div class="card empty" id="empty" style="display:none">
+      <div class="em">🔕</div><h3>You're all caught up</h3><p>No notifications match this filter.</p>
+    </div>
+  </main>
+</div>
+
+<script>
+  // design-preview notification feed, drawn from the platform events a customer sees
+  var N=[
+    {id:1,cat:'trip',type:'wait',unread:true,day:'Today',when:'2 min ago',
+     t:'A cabin just opened on Tanguar Tara',
+     d:'The <b>Deluxe AC Cabin</b> you\'re waiting for (18–20 Jul) is free. Everyone on the waitlist was notified — grab it before someone else does.',
+     cta:'<a class="btn btn-b btn-sm" href="haorboat-account-waitlist.html">⚡ Grab it now</a>'},
+    {id:2,cat:'money',type:'cancel',unread:true,day:'Today',when:'1 hr ago',
+     t:'Host cancelled your Meghdut Cruiser trip',
+     d:'Your <b>02–03 Aug</b> booking (HB-9M3P1Z) was cancelled by the host. You have <b>6 days</b> to choose a refund or reschedule.',
+     cta:'<a class="btn btn-b btn-sm" href="haorboat-account-cancel.html">Choose refund / reschedule →</a>'},
+    {id:3,cat:'money',type:'pay',unread:true,day:'Today',when:'3 hr ago',
+     t:'Your invoice dropped — ৳ 1,800 credited',
+     d:'Someone booked the spare place on your <b>Jolpori</b> open seat. Your bill went down and the surplus is now wallet credit.',
+     cta:'<a class="btn btn-o btn-sm" href="haorboat-account-wallet.html">View wallet →</a>'},
+    {id:4,cat:'trip',type:'pay',unread:false,day:'Yesterday',when:'20 Jul · 18:12',
+     t:'Booking confirmed · Jolpori Houseboat',
+     d:'Advance of <b>৳ 6,000</b> received. Your voucher &amp; e-ticket are ready. ৳ 2,400 due at boarding.',
+     cta:'<a class="btn btn-o btn-sm" href="haorboat-account-booking.html">View booking →</a>'},
+    {id:5,cat:'trip',type:'info',unread:false,day:'Yesterday',when:'20 Jul · 09:00',
+     t:'Boarding reminder — 4 days to go',
+     d:'Your Tanguar Haor trip boards <b>24 Jul, 10:00</b> at Tahirpur ghat. Bring a valid NID for every adult guest.',
+     cta:''},
+    {id:6,cat:'money',type:'refund',unread:false,day:'Earlier',when:'22 May',
+     t:'Refund completed · ৳ 950',
+     d:'Your refund for the cancelled <b>Shapla Nauka</b> trip (HB-1A4K7N) was transferred to bKash 01712 ••• 678.',
+     cta:''}
+  ];
+
+  function matches(n,f){
+    if(f==='all')return true;
+    if(f==='unread')return n.unread;
+    return n.cat===f;
+  }
+  function render(f){
+    var list=N.filter(function(n){return matches(n,f);});
+    document.getElementById('empty').style.display=list.length?'none':'block';
+    document.getElementById('list').style.display=list.length?'block':'none';
+    var days=[], byDay={};
+    list.forEach(function(n){ if(!byDay[n.day]){byDay[n.day]=[];days.push(n.day);} byDay[n.day].push(n); });
+    var html='';
+    days.forEach(function(day){
+      html+='<div class="daylabel">'+day+'</div>';
+      byDay[day].forEach(function(n){
+        html+='<div class="note'+(n.unread?' unread':'')+'">'
+          +'<span class="unread-dot"></span>'
+          +'<span class="ic '+n.type+'">'+iconFor(n.type)+'</span>'
+          +'<div><div class="t">'+n.t+'</div><div class="d">'+n.d+'</div>'
+          +(n.cta?'<div class="cta">'+n.cta+'</div>':'')+'</div>'
+          +'<div class="when">'+n.when+'</div></div>';
+      });
+    });
+    document.getElementById('list').innerHTML=html;
+  }
+  function iconFor(t){return {wait:'⏳',pay:'✓',cancel:'⚑',refund:'↩',info:'📅'}[t]||'🔔';}
+  render('all');
+
+  document.querySelectorAll('.ftab').forEach(function(b){
+    b.addEventListener('click',function(){
+      document.querySelectorAll('.ftab').forEach(function(x){x.classList.remove('on');});
+      b.classList.add('on');render(b.dataset.f);
+    });
+  });
+  document.getElementById('markAll').addEventListener('click',function(){
+    N.forEach(function(n){n.unread=false;});
+    document.getElementById('unreadCt').textContent='0 unread';
+    document.querySelector('.icon-btn .dot').style.display='none';
+    var on=document.querySelector('.ftab.on');render(on?on.dataset.f:'all');
+  });
+
+  (function(){
+    var root=document.documentElement,stored=null;
+    try{stored=localStorage.getItem('hb-theme');}catch(e){}
+    root.setAttribute('data-theme', stored || (window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'));
+    document.getElementById('themeToggle').addEventListener('click',function(){
+      var n=root.getAttribute('data-theme')==='dark'?'light':'dark';root.setAttribute('data-theme',n);
+      try{localStorage.setItem('hb-theme',n);}catch(e){}
+    });
+  })();
+</script>
+</body>
+</html>

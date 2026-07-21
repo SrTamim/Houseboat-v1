@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HaorBoat — sign in (design preview)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Hind+Siliguri:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#1a73e8; --blue-600:#1560d6; --blue-700:#0f56be; --blue-050:#e9f1fe; --blue-100:#d3e5fd;
+    --amber:#f6a623; --green:#0f9d58; --green-050:#e6f5ec;
+    --ink:#0f2440; --body:#4a5568; --muted:#8a93a3; --line:#e6eaf0;
+    --bg:#ffffff; --bg-2:#eef2f7; --surface:#ffffff; --chip:#eef2f7;
+    --shadow-sm:0 1px 3px rgba(15,36,64,.08),0 1px 2px rgba(15,36,64,.04);
+    --shadow:0 8px 24px rgba(15,36,64,.10);
+    --shadow-lg:0 24px 60px rgba(15,36,64,.22);
+    --r:.6rem; --r-lg:1rem;
+    --font:'Inter',system-ui,-apple-system,'Segoe UI','Hind Siliguri',sans-serif;
+    --mono:'Inter',ui-monospace,monospace;
+  }
+  :root[data-theme="dark"]{
+    --blue:#4f97ff; --blue-600:#63a4ff; --blue-700:#3d7fe0; --blue-050:#17233a; --blue-100:#1f3252;
+    --green:#34c77b; --green-050:#0f2a1e;
+    --ink:#eef3fb; --body:#aab6c9; --muted:#7a879c; --line:#243247;
+    --bg:#0b1220; --bg-2:#0e1728; --surface:#131d30; --chip:#1a2740;
+    --shadow-sm:0 1px 3px rgba(0,0,0,.4);--shadow:0 8px 24px rgba(0,0,0,.5);--shadow-lg:0 24px 60px rgba(0,0,0,.6);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg-2);color:var(--body);font-family:var(--font);line-height:1.55;-webkit-font-smoothing:antialiased;letter-spacing:-.01em;min-height:100vh}
+  a{color:inherit;text-decoration:none}
+  h1,h2,h3,h4{margin:0;color:var(--ink);line-height:1.2;font-weight:800;letter-spacing:-.02em}
+  button{font-family:inherit;cursor:pointer}
+  :focus-visible{outline:2.5px solid var(--blue);outline-offset:2px;border-radius:8px}
+
+  .split{display:grid;grid-template-columns:1.05fr .95fr;min-height:100vh}
+  /* left: brand panel */
+  .brandside{position:relative;color:#fff;overflow:hidden;isolation:isolate;padding:48px;display:flex;flex-direction:column}
+  .brandside .bg{position:absolute;inset:0;z-index:-2}
+  .brandside .bg img{width:100%;height:100%;object-fit:cover}
+  .brandside::after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(180deg,rgba(11,38,80,.72),rgba(13,45,95,.62))}
+  .logo{display:flex;gap:10px;align-items:center;font-weight:800;font-size:23px;color:#fff;letter-spacing:-.03em}
+  .logo .mark{width:36px;height:36px;border-radius:50%;background:linear-gradient(150deg,var(--blue),var(--blue-700));display:grid;place-items:center;font-size:17px;box-shadow:0 4px 10px -3px rgba(0,0,0,.4)}
+  .logo .b{color:#9dc4ff;font-style:italic}
+  .brandside .mid{margin-top:auto}
+  .brandside h2{color:#fff;font-size:34px;line-height:1.18;max-width:15ch}
+  .brandside p{color:#dbe8ff;font-size:16px;margin-top:14px;max-width:38ch}
+  .bpoints{display:grid;gap:12px;margin-top:26px}
+  .bpoint{display:flex;gap:11px;align-items:center;font-size:14.5px;color:#eaf1fd;font-weight:600}
+  .bpoint .i{width:30px;height:30px;border-radius:9px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28);display:grid;place-items:center;font-size:15px;flex:none}
+
+  /* right: form */
+  .formside{display:flex;align-items:center;justify-content:center;padding:40px 32px;background:var(--bg-2)}
+  .formcard{width:100%;max-width:400px}
+  .topbar{display:flex;justify-content:flex-end;margin-bottom:8px}
+  .theme-btn{border:1px solid var(--line);background:var(--surface);width:42px;height:42px;border-radius:11px;font-size:17px;color:var(--ink);display:grid;place-items:center;transition:border-color .14s}
+  .theme-btn:hover{border-color:var(--blue)}
+  .theme-btn .sun{display:none}
+  :root[data-theme="dark"] .theme-btn .moon{display:none}
+  :root[data-theme="dark"] .theme-btn .sun{display:block}
+  .fh{margin-bottom:22px}
+  .fh h1{font-size:26px}
+  .fh p{font-size:14.5px;color:var(--muted);margin-top:6px}
+
+  .tabs{display:flex;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:4px;margin-bottom:22px}
+  .tab{flex:1;text-align:center;border:none;background:transparent;color:var(--body);font-weight:700;font-size:14.5px;padding:9px;border-radius:999px;transition:all .14s}
+  .tab.on{background:var(--blue);color:#fff;box-shadow:0 4px 12px -4px var(--blue)}
+
+  .field{margin-bottom:15px}
+  .field label{display:block;font-size:13px;font-weight:700;color:var(--ink);margin-bottom:7px}
+  .inp{position:relative}
+  .inp input{width:100%;border:1.5px solid var(--line);border-radius:var(--r);padding:13px 15px 13px 44px;font-size:15px;font-family:inherit;background:var(--surface);color:var(--ink);transition:border-color .14s,box-shadow .14s}
+  .inp input::placeholder{color:var(--muted)}
+  .inp input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-050)}
+  .inp .ic{position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:16px;color:var(--muted)}
+  .inp .eye{position:absolute;right:12px;top:50%;transform:translateY(-50%);border:none;background:none;font-size:16px;color:var(--muted);padding:4px}
+  .hint{font-size:12px;color:var(--muted);margin-top:6px}
+
+  .row-between{display:flex;justify-content:space-between;align-items:center;margin:4px 0 20px}
+  .chk{display:flex;gap:8px;align-items:center;font-size:13.5px;font-weight:600;color:var(--body);cursor:pointer}
+  .chk input{width:17px;height:17px;accent-color:var(--blue)}
+  .link{color:var(--blue);font-weight:700;font-size:13.5px}
+
+  .btn{width:100%;border:none;border-radius:999px;padding:14px;font-weight:800;font-size:15.5px;background:var(--blue);color:#fff;box-shadow:0 8px 18px -8px var(--blue);transition:background .14s,transform .12s;display:flex;align-items:center;justify-content:center;gap:8px}
+  .btn:hover{background:var(--blue-600)}
+  .btn:active{transform:translateY(1px)}
+
+  .div{display:flex;align-items:center;gap:14px;margin:22px 0;color:var(--muted);font-size:12.5px;font-weight:600}
+  .div::before,.div::after{content:"";flex:1;height:1px;background:var(--line)}
+  .socials{display:grid;gap:10px}
+  .sbtn{display:flex;align-items:center;justify-content:center;gap:10px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);border-radius:var(--r);padding:12px;font-weight:700;font-size:14.5px;transition:border-color .14s,background .14s}
+  .sbtn:hover{border-color:var(--blue-100);background:var(--blue-050)}
+  .sbtn .g{font-weight:900}
+
+  .swap{text-align:center;font-size:14px;color:var(--body);margin-top:22px}
+  .swap a{color:var(--blue);font-weight:800}
+  .backhome{margin-top:26px;text-align:center}
+  .backhome a{font-size:13.5px;color:var(--muted);font-weight:600}
+  .backhome a:hover{color:var(--blue)}
+
+  .otpnote{display:none;align-items:flex-start;gap:10px;background:var(--blue-050);border:1px solid var(--blue-100);border-radius:var(--r);padding:12px 14px;font-size:13px;color:var(--body);margin-bottom:18px}
+  .otpnote.on{display:flex}
+  .otpnote b{color:var(--ink)}
+
+  @media(max-width:860px){
+    .split{grid-template-columns:1fr}
+    .brandside{display:none}
+  }
+</style>
+</head>
+<body>
+<div class="split">
+
+  <!-- brand panel -->
+  <aside class="brandside">
+    <div class="bg"><img alt="Houseboat at sunrise on a haor" src="https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&w=1400&q=70"></div>
+    <a class="logo" href="haorboat-home.html"><span class="mark">🛥</span>Haor<span class="b">Boat</span></a>
+    <div class="mid">
+      <h2>Your haor trips, all in one place.</h2>
+      <p>Sign in to see your bookings, pay your boarding balance, and manage cancellations or reschedules.</p>
+      <div class="bpoints">
+        <div class="bpoint"><span class="i">🎟️</span> Every voucher &amp; e-ticket, ready to show at the ghat</div>
+        <div class="bpoint"><span class="i">💳</span> Pay the balance due by bKash, Nagad or card</div>
+        <div class="bpoint"><span class="i">↩</span> Cancel, reschedule or claim a refund in a few taps</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- form -->
+  <main class="formside">
+    <div class="formcard">
+      <div class="topbar">
+        <button class="theme-btn" id="themeToggle" aria-label="Toggle dark mode"><span class="moon">🌙</span><span class="sun">☀️</span></button>
+      </div>
+
+      <div class="tabs">
+        <button class="tab on" id="tLogin">Log in</button>
+        <button class="tab" id="tReg">Register</button>
+      </div>
+
+      <div class="fh">
+        <h1 id="fhTitle">Welcome back</h1>
+        <p id="fhSub">Enter your phone or email to continue.</p>
+      </div>
+
+      <div class="otpnote" id="otpNote"><span>📲</span><div>We'll text a <b>6-digit code</b> to verify your number. No password needed for new accounts.</div></div>
+
+      <form onsubmit="return false">
+        <div class="field regonly" style="display:none">
+          <label>Full name</label>
+          <div class="inp"><span class="ic">👤</span><input type="text" placeholder="Rahim Uddin"></div>
+        </div>
+        <div class="field">
+          <label>Phone or email</label>
+          <div class="inp"><span class="ic">📱</span><input type="text" placeholder="01712 345 678" value="01712 345 678"></div>
+        </div>
+        <div class="field loginonly">
+          <label>Password</label>
+          <div class="inp"><span class="ic">🔒</span><input type="password" placeholder="••••••••" value="password"><button type="button" class="eye" id="eye">👁</button></div>
+        </div>
+
+        <div class="row-between loginonly">
+          <label class="chk"><input type="checkbox" checked> Remember me</label>
+          <a class="link" href="#">Forgot password?</a>
+        </div>
+
+        <button class="btn" id="submitBtn">Log in →</button>
+      </form>
+
+      <div class="div">or continue with</div>
+      <div class="socials">
+        <a class="sbtn" href="haorboat-account-trips.html"><span class="g">G</span> Continue with Google</a>
+        <a class="sbtn" href="haorboat-account-trips.html">📘 Continue with Facebook</a>
+      </div>
+
+      <p class="swap" id="swap">New to HaorBoat? <a href="#" id="swapLink">Create an account</a></p>
+      <div class="backhome"><a href="haorboat-home.html">← Back to homepage</a></div>
+    </div>
+  </main>
+</div>
+
+<script>
+  // login / register toggle (design preview)
+  var isReg = false;
+  var tLogin = document.getElementById('tLogin'), tReg = document.getElementById('tReg');
+  function render(){
+    tLogin.classList.toggle('on', !isReg);
+    tReg.classList.toggle('on', isReg);
+    document.getElementById('fhTitle').textContent = isReg ? 'Create your account' : 'Welcome back';
+    document.getElementById('fhSub').textContent = isReg ? 'Book faster and keep all your trips together.' : 'Enter your phone or email to continue.';
+    document.getElementById('submitBtn').textContent = isReg ? 'Send verification code →' : 'Log in →';
+    document.getElementById('otpNote').classList.toggle('on', isReg);
+    document.querySelectorAll('.loginonly').forEach(function(e){e.style.display = isReg ? 'none' : '';});
+    document.querySelectorAll('.regonly').forEach(function(e){e.style.display = isReg ? '' : 'none';});
+    document.getElementById('swap').innerHTML = isReg
+      ? 'Already have an account? <a href="#" id="swapLink">Log in</a>'
+      : 'New to HaorBoat? <a href="#" id="swapLink">Create an account</a>';
+    document.getElementById('swapLink').addEventListener('click', function(e){e.preventDefault();isReg=!isReg;render();});
+  }
+  tLogin.addEventListener('click', function(){isReg=false;render();});
+  tReg.addEventListener('click', function(){isReg=true;render();});
+  document.getElementById('swapLink').addEventListener('click', function(e){e.preventDefault();isReg=!isReg;render();});
+  document.getElementById('submitBtn').addEventListener('click', function(){location.href='haorboat-account-trips.html';});
+
+  var eye = document.getElementById('eye');
+  if(eye) eye.addEventListener('click', function(){
+    var i = eye.previousElementSibling; // input before button? actually input is sibling
+    var inp = eye.parentElement.querySelector('input');
+    inp.type = inp.type==='password'?'text':'password';
+  });
+
+  // theme toggle (persisted)
+  (function(){
+    var root=document.documentElement,stored=null;
+    try{stored=localStorage.getItem('hb-theme');}catch(e){}
+    root.setAttribute('data-theme', stored || (window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'));
+    document.getElementById('themeToggle').addEventListener('click',function(){
+      var n=root.getAttribute('data-theme')==='dark'?'light':'dark';
+      root.setAttribute('data-theme',n);try{localStorage.setItem('hb-theme',n);}catch(e){}
+    });
+  })();
+</script>
+</body>
+</html>

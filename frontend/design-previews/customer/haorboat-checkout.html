@@ -220,7 +220,7 @@
   </nav>
   <div class="right">
     <button class="theme-btn" id="themeToggle" aria-label="Toggle dark mode"><span class="moon">🌙</span><span class="sun">☀️</span></button>
-    <a class="btn btn-o" href="#">My trips</a>
+    <a class="btn btn-o" href="haorboat-account-trips.html">My trips</a>
     <button class="burger" aria-label="Menu">☰</button>
   </div>
 </div></header>
@@ -442,6 +442,11 @@
     var p = e.target.closest('.pay'); if(!p) return;
     this.querySelectorAll('.pay').forEach(function(x){x.classList.remove('on')});
     p.classList.add('on');
+  });
+
+  // ---- pay & confirm → confirmation (design preview flow) ----
+  document.querySelectorAll('#payBtn, .cta-mobile').forEach(function(btn){
+    btn.addEventListener('click', function(){ location.href = 'haorboat-confirmation.html'; });
   });
 
   // ---- hold countdown (visual) ----

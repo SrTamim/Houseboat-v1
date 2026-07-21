@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HaorBoat — reschedule trip (design preview)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Hind+Siliguri:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#1a73e8; --blue-600:#1560d6; --blue-700:#0f56be; --blue-050:#e9f1fe; --blue-100:#d3e5fd;
+    --amber:#f6a623; --amber-050:#fdf3e0; --green:#0f9d58; --green-050:#e6f5ec; --red:#dc3545; --red-050:#fdeaec;
+    --ink:#0f2440; --body:#4a5568; --muted:#8a93a3; --line:#e6eaf0;
+    --bg:#ffffff; --bg-2:#eef2f7; --surface:#ffffff; --chip:#eef2f7;
+    --shadow-sm:0 1px 3px rgba(15,36,64,.08),0 1px 2px rgba(15,36,64,.04);
+    --shadow:0 8px 24px rgba(15,36,64,.10);--shadow-lg:0 24px 60px rgba(15,36,64,.22);
+    --r:.6rem; --r-lg:1rem; --maxw:900px;
+    --font:'Inter',system-ui,-apple-system,'Segoe UI','Hind Siliguri',sans-serif;--mono:'Inter',ui-monospace,monospace;
+  }
+  :root[data-theme="dark"]{
+    --blue:#4f97ff; --blue-600:#63a4ff; --blue-700:#3d7fe0; --blue-050:#17233a; --blue-100:#1f3252;
+    --amber:#f6a623; --amber-050:#2a2211; --green:#34c77b; --green-050:#0f2a1e; --red:#f26d78; --red-050:#301418;
+    --ink:#eef3fb; --body:#aab6c9; --muted:#7a879c; --line:#243247;
+    --bg:#0b1220; --bg-2:#0e1728; --surface:#131d30; --chip:#1a2740;
+    --shadow-sm:0 1px 3px rgba(0,0,0,.4);--shadow:0 8px 24px rgba(0,0,0,.5);--shadow-lg:0 24px 60px rgba(0,0,0,.6);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg-2);color:var(--body);font-family:var(--font);line-height:1.55;-webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  a{color:inherit;text-decoration:none}
+  h1,h2,h3,h4{margin:0;color:var(--ink);line-height:1.2;font-weight:800;letter-spacing:-.02em}
+  button{font-family:inherit;cursor:pointer}
+  :focus-visible{outline:2.5px solid var(--blue);outline-offset:2px;border-radius:8px}
+
+  .btn{border-radius:999px;padding:12px 24px;font-weight:700;font-size:14.5px;border:1.5px solid transparent;transition:background .14s,border-color .14s,transform .12s;display:inline-flex;align-items:center;gap:8px;justify-content:center}
+  .btn:active{transform:translateY(1px)}
+  .btn-b{background:var(--blue);color:#fff;box-shadow:0 6px 16px -6px var(--blue)}
+  .btn-b:hover{background:var(--blue-600)}
+  .btn-o{background:var(--surface);border-color:var(--line);color:var(--ink)}
+  .btn-o:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-050)}
+
+  .nav{background:var(--surface);border-bottom:1px solid var(--line)}
+  .nav .row{display:flex;align-items:center;gap:20px;height:70px;max-width:var(--maxw);margin:0 auto;padding:0 24px}
+  .logo{display:flex;gap:10px;align-items:center;font-weight:800;font-size:22px;color:var(--ink);letter-spacing:-.03em}
+  .logo .mark{width:34px;height:34px;border-radius:50%;background:linear-gradient(150deg,var(--blue),var(--blue-700));color:#fff;display:grid;place-items:center;font-size:16px}
+  .logo .b{color:var(--blue);font-style:italic}
+  .nav .sp{flex:1}
+  .theme-btn{border:1px solid var(--line);background:var(--surface);width:42px;height:42px;border-radius:11px;font-size:16px;color:var(--ink);display:grid;place-items:center}
+  .theme-btn .sun{display:none}
+  .icon-btn{position:relative;border:1px solid var(--line);background:var(--surface);width:42px;height:42px;border-radius:11px;font-size:17px;color:var(--ink);display:grid;place-items:center;transition:border-color .14s}
+  .icon-btn:hover{border-color:var(--blue)}
+  .icon-btn .dot{position:absolute;top:8px;right:9px;width:8px;height:8px;border-radius:50%;background:var(--amber);border:2px solid var(--surface)}
+  :root[data-theme="dark"] .theme-btn .moon{display:none}
+  :root[data-theme="dark"] .theme-btn .sun{display:block}
+
+  .crumb{max-width:var(--maxw);margin:0 auto;padding:20px 24px 0;font-size:13px;color:var(--muted);font-weight:600}
+  .crumb a{color:var(--blue)}
+
+  .page{max-width:var(--maxw);margin:0 auto;padding:14px 24px 60px;display:grid;gap:18px}
+  .head h1{font-size:24px}
+  .head p{font-size:14px;color:var(--muted);margin-top:6px;max-width:60ch}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--shadow-sm);overflow:hidden}
+  .ch{padding:16px 20px;border-bottom:1px solid var(--line)}
+  .ch h3{font-size:16px}
+  .ch p{font-size:13px;color:var(--muted);margin-top:3px}
+  .cb{padding:18px 20px}
+
+  /* credit banner */
+  .credit{display:flex;gap:14px;align-items:center;background:var(--green-050);border:1px solid color-mix(in srgb,var(--green) 30%,transparent);border-radius:var(--r-lg);padding:16px 20px}
+  .credit .i{width:44px;height:44px;border-radius:12px;background:var(--green);color:#fff;display:grid;place-items:center;font-size:20px;flex:none}
+  .credit h3{font-size:16px}
+  .credit p{font-size:13.5px;color:var(--body);margin-top:3px}
+  .credit .amt{margin-left:auto;font-family:var(--mono);font-weight:900;font-size:24px;color:var(--green);white-space:nowrap}
+
+  /* date picker */
+  .dates{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+  .date{border:1.5px solid var(--line);border-radius:var(--r);padding:14px 16px;cursor:pointer;transition:border-color .14s,background .14s;position:relative}
+  .date:hover{border-color:var(--blue-100);background:var(--blue-050)}
+  .date.on{border-color:var(--blue);background:var(--blue-050);box-shadow:0 0 0 3px var(--blue-050)}
+  .date .dow{font-size:12px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+  .date .dd{font-size:17px;font-weight:800;color:var(--ink);margin-top:2px}
+  .date .pr{font-size:14px;font-weight:800;font-family:var(--mono);margin-top:8px}
+  .date .pr.up{color:var(--red)}.date .pr.same{color:var(--body)}.date .pr.down{color:var(--green)}
+  .date .flag{position:absolute;top:-9px;right:10px;font-size:10px;font-weight:800;padding:2px 8px;border-radius:6px;text-transform:uppercase;letter-spacing:.03em}
+  .date .flag.eid{background:var(--amber);color:#3a2a00}
+  .date .flag.deal{background:var(--green);color:#fff}
+  .date.soldout{opacity:.5;cursor:not-allowed}
+  .date.soldout .pr{color:var(--muted)}
+
+  /* reprice breakdown */
+  .repr{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+  .repr > div{padding:16px 18px}
+  .repr .old{background:var(--bg-2);border-right:1px solid var(--line)}
+  .repr .lab{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700}
+  .repr .dt{font-size:15px;font-weight:800;color:var(--ink);margin-top:4px}
+  .repr .tot{font-size:22px;font-weight:900;font-family:var(--mono);color:var(--ink);margin-top:10px;letter-spacing:-.02em}
+  .repr .cross{text-decoration:line-through;color:var(--muted);font-size:16px}
+
+  .settle{display:grid;gap:9px;margin-top:16px;max-width:460px}
+  .srow{display:flex;justify-content:space-between;font-size:14px;color:var(--body)}
+  .srow b{color:var(--ink);font-family:var(--mono)}
+  .srow.grand{border-top:1px solid var(--line);margin-top:4px;padding-top:11px;font-size:17px;font-weight:800;color:var(--ink)}
+  .srow.grand.pay b{color:var(--amber)}
+  .srow.grand.credit b{color:var(--green)}
+
+  .note{display:flex;gap:9px;align-items:flex-start;border-radius:var(--r);padding:12px 14px;font-size:13px;line-height:1.5;margin-top:16px}
+  .note.info{background:var(--blue-050);border:1px solid var(--blue-100);color:var(--body)}
+  .note.warn{background:var(--amber-050);border:1px solid color-mix(in srgb,var(--amber) 40%,transparent);color:var(--body)}
+  .note b{color:var(--ink)}
+
+  .footbar{display:flex;gap:12px;justify-content:flex-end;flex-wrap:wrap}
+  @media(max-width:600px){.repr{grid-template-columns:1fr}.repr .old{border-right:none;border-bottom:1px solid var(--line)}}
+</style>
+</head>
+<body>
+
+<header class="nav"><div class="row">
+  <a class="logo" href="haorboat-home.html"><span class="mark">🛥</span>Haor<span class="b">Boat</span></a>
+  <div class="sp"></div>
+  <a class="icon-btn" href="haorboat-account-notifications.html" aria-label="Notifications">🔔<span class="dot"></span></a>
+  <button class="theme-btn" id="themeToggle" aria-label="Toggle dark mode"><span class="moon">🌙</span><span class="sun">☀️</span></button>
+</div></header>
+
+<div class="crumb"><a href="haorboat-account-trips.html">My trips</a> › <a href="haorboat-account-booking.html">HB-9M3P1Z</a> › <span>Reschedule</span></div>
+
+<div class="page">
+  <div class="head">
+    <h1>Reschedule your trip</h1>
+    <p>Pick a new departure for <b>Meghdut Cruiser</b>. Your advance carries over as credit — but the trip <b>re-prices at the new date's rate</b>. Eid and festival dates cost more; quieter dates may cost less.</p>
+  </div>
+
+  <!-- credit carried over -->
+  <div class="credit">
+    <div class="i">🎫</div>
+    <div><h3>Advance carried as credit</h3><p>From your cancelled 02–03 Aug booking · never expires</p></div>
+    <div class="amt">৳ 4,500</div>
+  </div>
+
+  <!-- pick a date -->
+  <div class="card">
+    <div class="ch"><h3>Pick a new departure</h3><p>Prices shown are the new grand total for the same 2 cabins.</p></div>
+    <div class="cb">
+      <div class="dates" id="dates">
+        <div class="date" data-total="9000" data-flag=""><div class="dow">Fri</div><div class="dd">15 Aug</div><div class="pr same">৳ 9,000</div></div>
+        <div class="date on" data-total="8200" data-flag="deal"><span class="flag deal">−9%</span><div class="dow">Fri</div><div class="dd">22 Aug</div><div class="pr down">৳ 8,200</div></div>
+        <div class="date" data-total="9000" data-flag=""><div class="dow">Fri</div><div class="dd">29 Aug</div><div class="pr same">৳ 9,000</div></div>
+        <div class="date" data-total="13500" data-flag="eid"><span class="flag eid">Eid</span><div class="dow">Mon</div><div class="dd">08 Sep</div><div class="pr up">৳ 13,500</div></div>
+        <div class="date soldout" data-total="0"><div class="dow">Fri</div><div class="dd">12 Sep</div><div class="pr">Sold out</div></div>
+        <div class="date" data-total="9500" data-flag=""><div class="dow">Fri</div><div class="dd">19 Sep</div><div class="pr same">৳ 9,500</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- reprice -->
+  <div class="card">
+    <div class="ch"><h3>New price</h3><p>The advance is credit, not a locked price — the invoice reprices to the date you pick.</p></div>
+    <div class="cb">
+      <div class="repr">
+        <div class="old"><div class="lab">Old trip</div><div class="dt">02–03 Aug 2026</div><div class="tot cross">৳ 9,000</div><div style="font-size:12px;color:var(--muted);margin-top:4px">cancelled by host</div></div>
+        <div><div class="lab">New trip</div><div class="dt" id="newDate">22 Aug 2026</div><div class="tot" id="newTot">৳ 8,200</div><div style="font-size:12px;color:var(--green);margin-top:4px" id="newFlag">quieter date · −9%</div></div>
+      </div>
+
+      <div class="settle">
+        <div class="srow"><span>New grand total</span><b id="sTot">৳ 8,200</b></div>
+        <div class="srow"><span>Credit applied</span><b style="color:var(--green)">− ৳ 4,500</b></div>
+        <div class="srow grand pay" id="grandRow"><span id="grandLbl">Balance to pay now</span><b id="grandVal">৳ 3,700</b></div>
+      </div>
+
+      <div class="note info" id="settleNote"><span>💳</span><div>You'll pay the <b id="noteAmt">৳ 3,700</b> difference to confirm. Advance from the old trip is applied automatically. The old trip stays on your record as cancelled.</div></div>
+      <div class="note warn"><span>📅</span><div><b>Eid pricing is real.</b> If you pick a festival date, the higher rate applies and you top up the difference — the credit doesn't lock the old price.</div></div>
+    </div>
+  </div>
+
+  <div class="footbar">
+    <a class="btn btn-o" href="haorboat-account-cancel.html">← Back</a>
+    <button class="btn btn-b" id="confirmBtn">Confirm reschedule · pay ৳ 3,700 →</button>
+  </div>
+</div>
+
+<script>
+  var CREDIT=4500, fmt=function(n){return n.toLocaleString('en-US');};
+  var dates=document.getElementById('dates');
+  var LBL={22:'22 Aug 2026',15:'15 Aug 2026',29:'29 Aug 2026',8:'08 Sep 2026',19:'19 Sep 2026'};
+  function pick(el){
+    if(el.classList.contains('soldout'))return;
+    dates.querySelectorAll('.date').forEach(function(x){x.classList.remove('on');});
+    el.classList.add('on');
+    var tot=+el.dataset.total, flag=el.dataset.flag;
+    var dd=el.querySelector('.dd').textContent, dow=el.querySelector('.dow').textContent;
+    document.getElementById('newDate').textContent=dd+' 2026';
+    document.getElementById('newTot').textContent='৳ '+fmt(tot);
+    var fl=document.getElementById('newFlag');
+    if(flag==='eid'){fl.textContent='Eid date · +50%';fl.style.color='var(--amber)';}
+    else if(flag==='deal'){fl.textContent='quieter date · −9%';fl.style.color='var(--green)';}
+    else{fl.textContent='standard rate';fl.style.color='var(--muted)';}
+    document.getElementById('sTot').textContent='৳ '+fmt(tot);
+    var diff=tot-CREDIT;
+    var grandRow=document.getElementById('grandRow'), grandLbl=document.getElementById('grandLbl'),
+        grandVal=document.getElementById('grandVal'), confirmBtn=document.getElementById('confirmBtn'),
+        noteAmt=document.getElementById('noteAmt'), settleNote=document.getElementById('settleNote');
+    if(diff>0){
+      grandRow.className='srow grand pay';grandLbl.textContent='Balance to pay now';
+      grandVal.textContent='৳ '+fmt(diff);noteAmt.textContent='৳ '+fmt(diff);
+      confirmBtn.textContent='Confirm reschedule · pay ৳ '+fmt(diff)+' →';
+      settleNote.querySelector('div').innerHTML='You\'ll pay the <b>৳ '+fmt(diff)+'</b> difference to confirm. Advance from the old trip is applied automatically.';
+    } else {
+      grandRow.className='srow grand credit';grandLbl.textContent='Surplus → wallet credit';
+      grandVal.textContent='৳ '+fmt(Math.abs(diff));
+      confirmBtn.textContent='Confirm reschedule →';
+      settleNote.querySelector('div').innerHTML='The new date is cheaper. The extra <b>৳ '+fmt(Math.abs(diff))+'</b> stays as wallet credit for a future booking.';
+    }
+  }
+  dates.querySelectorAll('.date').forEach(function(d){d.addEventListener('click',function(){pick(d);});});
+  (function(){
+    var root=document.documentElement,stored=null;
+    try{stored=localStorage.getItem('hb-theme');}catch(e){}
+    root.setAttribute('data-theme', stored || (window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'));
+    document.getElementById('themeToggle').addEventListener('click',function(){
+      var n=root.getAttribute('data-theme')==='dark'?'light':'dark';root.setAttribute('data-theme',n);
+      try{localStorage.setItem('hb-theme',n);}catch(e){}
+    });
+  })();
+</script>
+</body>
+</html>

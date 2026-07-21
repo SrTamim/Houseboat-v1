@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HaorBoat — my trips (design preview)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Hind+Siliguri:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#1a73e8; --blue-600:#1560d6; --blue-700:#0f56be; --blue-050:#e9f1fe; --blue-100:#d3e5fd;
+    --amber:#f6a623; --amber-050:#fdf3e0; --green:#0f9d58; --green-050:#e6f5ec;
+    --red:#dc3545; --red-050:#fdeaec;
+    --ink:#0f2440; --body:#4a5568; --muted:#8a93a3; --line:#e6eaf0;
+    --bg:#ffffff; --bg-2:#eef2f7; --surface:#ffffff; --chip:#eef2f7;
+    --shadow-sm:0 1px 3px rgba(15,36,64,.08),0 1px 2px rgba(15,36,64,.04);
+    --shadow:0 8px 24px rgba(15,36,64,.10);--shadow-lg:0 24px 60px rgba(15,36,64,.22);
+    --r:.6rem; --r-lg:1rem; --maxw:1120px;
+    --font:'Inter',system-ui,-apple-system,'Segoe UI','Hind Siliguri',sans-serif;--mono:'Inter',ui-monospace,monospace;
+  }
+  :root[data-theme="dark"]{
+    --blue:#4f97ff; --blue-600:#63a4ff; --blue-700:#3d7fe0; --blue-050:#17233a; --blue-100:#1f3252;
+    --amber:#f6a623; --amber-050:#2a2211; --green:#34c77b; --green-050:#0f2a1e; --red:#f26d78; --red-050:#301418;
+    --ink:#eef3fb; --body:#aab6c9; --muted:#7a879c; --line:#243247;
+    --bg:#0b1220; --bg-2:#0e1728; --surface:#131d30; --chip:#1a2740;
+    --shadow-sm:0 1px 3px rgba(0,0,0,.4);--shadow:0 8px 24px rgba(0,0,0,.5);--shadow-lg:0 24px 60px rgba(0,0,0,.6);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg-2);color:var(--body);font-family:var(--font);line-height:1.55;-webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  a{color:inherit;text-decoration:none}
+  h1,h2,h3,h4{margin:0;color:var(--ink);line-height:1.2;font-weight:800;letter-spacing:-.02em}
+  img{max-width:100%;display:block}
+  button{font-family:inherit;cursor:pointer}
+  :focus-visible{outline:2.5px solid var(--blue);outline-offset:2px;border-radius:8px}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+
+  .btn{border-radius:999px;padding:10px 20px;font-weight:700;font-size:14px;border:1.5px solid transparent;transition:background .14s,border-color .14s,transform .12s;display:inline-flex;align-items:center;gap:7px;white-space:nowrap;justify-content:center}
+  .btn:active{transform:translateY(1px)}
+  .btn-b{background:var(--blue);color:#fff;box-shadow:0 6px 16px -6px var(--blue)}
+  .btn-b:hover{background:var(--blue-600)}
+  .btn-o{background:var(--surface);border-color:var(--line);color:var(--ink)}
+  .btn-o:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-050)}
+  .btn-sm{padding:8px 14px;font-size:13px}
+
+  /* ===== top nav ===== */
+  .nav{position:sticky;top:0;z-index:50;background:color-mix(in srgb,var(--surface) 92%,transparent);backdrop-filter:saturate(160%) blur(10px);border-bottom:1px solid var(--line)}
+  .nav .row{display:flex;align-items:center;gap:20px;height:70px;max-width:var(--maxw);margin:0 auto;padding:0 24px}
+  .logo{display:flex;gap:10px;align-items:center;font-weight:800;font-size:22px;color:var(--ink);letter-spacing:-.03em}
+  .logo .mark{width:34px;height:34px;border-radius:50%;background:linear-gradient(150deg,var(--blue),var(--blue-700));color:#fff;display:grid;place-items:center;font-size:16px;box-shadow:0 4px 10px -3px var(--blue)}
+  .logo .b{color:var(--blue);font-style:italic}
+  .nav .sp{flex:1}
+  .navlink{font-size:14.5px;font-weight:600;color:var(--ink)}
+  .navlink:hover{color:var(--blue)}
+  .theme-btn{border:1px solid var(--line);background:var(--surface);width:42px;height:42px;border-radius:11px;font-size:16px;color:var(--ink);display:grid;place-items:center;transition:border-color .14s}
+  .theme-btn:hover{border-color:var(--blue)}
+  .theme-btn .sun{display:none}
+  .icon-btn{position:relative;border:1px solid var(--line);background:var(--surface);width:42px;height:42px;border-radius:11px;font-size:17px;color:var(--ink);display:grid;place-items:center;transition:border-color .14s}
+  .icon-btn:hover{border-color:var(--blue)}
+  .icon-btn .dot{position:absolute;top:8px;right:9px;width:8px;height:8px;border-radius:50%;background:var(--amber);border:2px solid var(--surface)}
+  :root[data-theme="dark"] .theme-btn .moon{display:none}
+  :root[data-theme="dark"] .theme-btn .sun{display:block}
+  .whoami{display:flex;gap:9px;align-items:center}
+  .whoami .av{width:38px;height:38px;border-radius:50%;background:var(--blue-050);color:var(--blue);display:grid;place-items:center;font-weight:800;font-size:14px;border:1px solid var(--blue-100)}
+  .whoami .nm{font-size:13.5px;font-weight:700;color:var(--ink);line-height:1.1}
+  .whoami .rl{font-size:11.5px;color:var(--muted)}
+  .burger{display:none;border:1px solid var(--line);background:var(--surface);width:42px;height:42px;border-radius:11px;font-size:18px;color:var(--ink)}
+
+  /* ===== account shell: sidebar + content ===== */
+  .shell{max-width:var(--maxw);margin:0 auto;padding:28px 24px 60px;display:grid;grid-template-columns:236px 1fr;gap:28px;align-items:start}
+  .side{position:sticky;top:94px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:10px;box-shadow:var(--shadow-sm)}
+  .side .grp{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700;padding:12px 12px 6px}
+  .slink{display:flex;align-items:center;gap:11px;padding:11px 12px;border-radius:var(--r);font-size:14.5px;font-weight:600;color:var(--body);transition:background .12s,color .12s}
+  .slink .i{font-size:16px;width:20px;text-align:center}
+  .slink:hover{background:var(--bg-2);color:var(--ink)}
+  .slink.on{background:var(--blue-050);color:var(--blue)}
+  .slink .ct{margin-left:auto;background:var(--blue);color:#fff;font-size:11px;font-weight:800;min-width:20px;height:20px;border-radius:999px;display:grid;place-items:center;padding:0 6px}
+  .slink .ct.warn{background:var(--amber);color:#3a2a00}
+  .side .foot{padding:12px;border-top:1px solid var(--line);margin-top:6px}
+
+  .main{min-width:0}
+  .page-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:22px;flex-wrap:wrap}
+  .page-head h1{font-size:26px}
+  .page-head p{font-size:14px;color:var(--muted);margin-top:5px}
+
+  /* filter tabs */
+  .ftabs{display:flex;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:4px;margin-bottom:20px;width:fit-content;flex-wrap:wrap}
+  .ftab{border:none;background:transparent;color:var(--body);font-weight:700;font-size:13.5px;padding:8px 16px;border-radius:999px;transition:all .14s;display:flex;gap:7px;align-items:center}
+  .ftab.on{background:var(--blue);color:#fff}
+  .ftab .n{background:var(--bg-2);color:var(--body);font-size:11px;font-weight:800;padding:1px 7px;border-radius:999px}
+  .ftab.on .n{background:rgba(255,255,255,.25);color:#fff}
+
+  /* trip cards */
+  .trips{display:grid;gap:16px}
+  .trip{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--shadow-sm);overflow:hidden;display:grid;grid-template-columns:150px 1fr;transition:box-shadow .18s,transform .18s}
+  .trip:hover{box-shadow:var(--shadow);transform:translateY(-2px)}
+  .trip .ph{position:relative;background:var(--bg-2)}
+  .trip .ph img{width:100%;height:100%;object-fit:cover}
+  .trip .ph .st{position:absolute;top:10px;left:10px}
+  .trip .bd{padding:18px 20px;min-width:0}
+  .trip .toprow{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+  .trip h3{font-size:17px}
+  .trip .route{font-size:13px;color:var(--muted);margin-top:4px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .ref{font-family:var(--mono);font-size:12.5px;font-weight:800;color:var(--muted)}
+  .facts{display:flex;gap:22px;margin-top:14px;flex-wrap:wrap}
+  .fact .l{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:700}
+  .fact .v{font-size:14px;font-weight:700;color:var(--ink);margin-top:2px;font-family:var(--mono)}
+  .fact .v.pln{font-family:var(--font)}
+  .trip .cta{display:flex;gap:9px;margin-top:16px;padding-top:15px;border-top:1px solid var(--line);flex-wrap:wrap;align-items:center}
+  .trip .cta .sp{flex:1}
+
+  /* pills / status */
+  .pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:800;padding:4px 11px;border-radius:999px;letter-spacing:.01em;border:1px solid transparent}
+  .pill.ok{background:var(--green-050);color:var(--green);border-color:color-mix(in srgb,var(--green) 30%,transparent)}
+  .pill.amb{background:var(--amber-050);color:#b45309;border-color:color-mix(in srgb,var(--amber) 40%,transparent)}
+  :root[data-theme="dark"] .pill.amb{color:var(--amber)}
+  .pill.blue{background:var(--blue-050);color:var(--blue);border-color:var(--blue-100)}
+  .pill.mut{background:var(--bg-2);color:var(--muted);border-color:var(--line)}
+  .pill.danger{background:var(--red-050);color:var(--red);border-color:color-mix(in srgb,var(--red) 30%,transparent)}
+  .due-note{font-size:13px;font-weight:700;color:#b45309}
+  :root[data-theme="dark"] .due-note{color:var(--amber)}
+
+  /* empty */
+  .empty{background:var(--surface);border:1px dashed var(--line);border-radius:var(--r-lg);padding:48px 24px;text-align:center;display:none}
+  .empty .em{font-size:40px}
+  .empty h3{font-size:18px;margin:12px 0 6px}
+  .empty p{font-size:14px;color:var(--muted);max-width:38ch;margin:0 auto 18px}
+
+  @media(max-width:920px){
+    .shell{grid-template-columns:1fr}
+    .side{position:static;display:flex;overflow-x:auto;gap:4px;padding:8px}
+    .side .grp,.side .foot{display:none}
+    .slink{flex:none}
+  }
+  @media(max-width:560px){
+    .nav .navlink,.whoami .nm,.whoami .rl{display:none}
+    .burger{display:grid;place-items:center}
+    .trip{grid-template-columns:1fr}
+    .trip .ph{height:150px}
+  }
+</style>
+</head>
+<body>
+
+<!-- top nav -->
+<header class="nav"><div class="row">
+  <a class="logo" href="haorboat-home.html"><span class="mark">🛥</span>Haor<span class="b">Boat</span></a>
+  <div class="sp"></div>
+  <a class="navlink" href="haorboat-home.html">Browse boats</a>
+  <a class="icon-btn" href="haorboat-account-notifications.html" aria-label="Notifications">🔔<span class="dot"></span></a>
+  <button class="theme-btn" id="themeToggle" aria-label="Toggle dark mode"><span class="moon">🌙</span><span class="sun">☀️</span></button>
+  <div class="whoami"><span class="av">RU</span><div><div class="nm">Rahim Uddin</div><div class="rl">01712 345 678</div></div></div>
+  <button class="burger" aria-label="Menu">☰</button>
+</div></header>
+
+<div class="shell">
+
+  <!-- account sidebar -->
+  <aside class="side">
+    <div class="grp">My account</div>
+    <a class="slink on" href="haorboat-account-trips.html"><span class="i">🎟️</span> My trips <span class="ct">4</span></a>
+    <a class="slink" href="haorboat-account-wallet.html"><span class="i">💳</span> Wallet &amp; credits</a>
+    <a class="slink" href="haorboat-account-waitlist.html"><span class="i">⏳</span> Waitlist <span class="ct warn">1</span></a>
+    <a class="slink" href="haorboat-account-notifications.html"><span class="i">🔔</span> Notifications <span class="ct">3</span></a>
+    <a class="slink" href="haorboat-account-profile.html"><span class="i">👤</span> Profile</a>
+    <div class="foot"><a class="slink" href="haorboat-account-login.html"><span class="i">↩</span> Sign out</a></div>
+  </aside>
+
+  <!-- content -->
+  <main class="main">
+    <div class="page-head">
+      <div><h1>My trips</h1><p>Everything you've booked on HaorBoat — upcoming, past and cancelled.</p></div>
+      <a class="btn btn-b" href="haorboat-home.html">＋ Book a new trip</a>
+    </div>
+
+    <div class="ftabs" id="ftabs">
+      <button class="ftab on" data-f="all">All <span class="n">4</span></button>
+      <button class="ftab" data-f="upcoming">Upcoming <span class="n">2</span></button>
+      <button class="ftab" data-f="completed">Completed <span class="n">1</span></button>
+      <button class="ftab" data-f="cancelled">Cancelled <span class="n">1</span></button>
+    </div>
+
+    <div class="trips" id="trips"></div>
+
+    <div class="empty" id="empty">
+      <div class="em">🧭</div>
+      <h3>Nothing here yet</h3>
+      <p>No trips match this filter. Ready for your next haor cruise?</p>
+      <a class="btn btn-b" href="haorboat-home.html">Browse houseboats</a>
+    </div>
+  </main>
+</div>
+
+<script>
+  var fmt=function(n){return n.toLocaleString('en-US');};
+  // design-preview data, shaped like a customer's booking list
+  var TRIPS=[
+    {ref:'HB-2K7Q4X',boat:'Jolpori Houseboat',route:'Tanguar Haor · Sunamganj',img:'photo-1544551763-46a013bb70d5',
+     f:'upcoming',status:'confirmed',dates:'24–26 Jul 2026',guests:'5 guests · 2 cabins',
+     due:2400,paid:6000,note:'৳ 2,400 due at boarding'},
+    {ref:'HB-9M3P1Z',boat:'Meghdut Cruiser',route:'Padma River · Rajshahi',img:'photo-1520454974749-611b7248ffdb',
+     f:'upcoming',status:'owner-cancelled',dates:'02–03 Aug 2026',guests:'4 guests · 2 cabins',
+     due:0,paid:4500,note:'Owner cancelled — choose refund or reschedule',action:'claim'},
+    {ref:'HB-5T8W2C',boat:'Haor Konna',route:'Nikli Haor · Kishoreganj',img:'photo-1516426122078-c23e76319801',
+     f:'completed',status:'completed',dates:'12–14 Jun 2026',guests:'2 guests · 1 cabin',
+     due:0,paid:5200,note:'Trip completed · leave a review',action:'review'},
+    {ref:'HB-1A4K7N',boat:'Shapla Nauka',route:'Boga Lake · Bandarban',img:'photo-1502680390469-be75c86b636f',
+     f:'cancelled',status:'cancelled',dates:'20–21 May 2026',guests:'3 guests · 2 cabins',
+     due:0,paid:1900,note:'You cancelled · ৳ 950 refunded'}
+  ];
+  var STPILL={confirmed:['ok','✓ Confirmed'],'owner-cancelled':['danger','⚑ Owner cancelled'],
+    completed:['blue','✓ Completed'],cancelled:['mut','✕ Cancelled']};
+
+  function render(filter){
+    var list = filter==='all'?TRIPS:TRIPS.filter(function(t){return t.f===filter;});
+    var el=document.getElementById('trips');
+    document.getElementById('empty').style.display = list.length?'none':'block';
+    el.innerHTML = list.map(function(t){
+      var sp=STPILL[t.status];
+      var actBtn='';
+      if(t.action==='claim') actBtn='<a class="btn btn-sm btn-b" href="haorboat-account-cancel.html">Choose refund / reschedule →</a>';
+      else if(t.action==='review') actBtn='<a class="btn btn-sm btn-o" href="#">★ Leave a review</a>';
+      else if(t.status==='confirmed') actBtn='<a class="btn btn-sm btn-b" href="haorboat-account-booking.html">Pay balance</a>';
+      var dueNote = t.due>0?'<span class="due-note">⏳ '+t.note+'</span>':'<span style="font-size:13px;color:var(--muted)">'+t.note+'</span>';
+      return '<article class="trip">'
+        +'<div class="ph"><img alt="'+t.boat+'" src="https://images.unsplash.com/'+t.img+'?auto=format&fit=crop&w=320&q=60">'
+        +'<span class="st"><span class="pill '+sp[0]+'">'+sp[1]+'</span></span></div>'
+        +'<div class="bd">'
+        +'<div class="toprow"><div><h3>'+t.boat+'</h3><div class="route">📍 '+t.route+' · <span class="ref">'+t.ref+'</span></div></div></div>'
+        +'<div class="facts">'
+        +'<div class="fact"><div class="l">Dates</div><div class="v">'+t.dates+'</div></div>'
+        +'<div class="fact"><div class="l">Guests</div><div class="v pln">'+t.guests+'</div></div>'
+        +'<div class="fact"><div class="l">Paid</div><div class="v">৳ '+fmt(t.paid)+'</div></div>'
+        +(t.due>0?'<div class="fact"><div class="l">Due at boarding</div><div class="v" style="color:var(--amber)">৳ '+fmt(t.due)+'</div></div>':'')
+        +'</div>'
+        +'<div class="cta">'+dueNote+'<span class="sp"></span>'
+        +'<a class="btn btn-sm btn-o" href="haorboat-account-booking.html">View details</a>'+actBtn+'</div>'
+        +'</div></article>';
+    }).join('');
+  }
+  render('all');
+  document.querySelectorAll('.ftab').forEach(function(b){
+    b.addEventListener('click',function(){
+      document.querySelectorAll('.ftab').forEach(function(x){x.classList.remove('on');});
+      b.classList.add('on');render(b.dataset.f);
+    });
+  });
+
+  (function(){
+    var root=document.documentElement,stored=null;
+    try{stored=localStorage.getItem('hb-theme');}catch(e){}
+    root.setAttribute('data-theme', stored || (window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'));
+    document.getElementById('themeToggle').addEventListener('click',function(){
+      var n=root.getAttribute('data-theme')==='dark'?'light':'dark';root.setAttribute('data-theme',n);
+      try{localStorage.setItem('hb-theme',n);}catch(e){}
+    });
+  })();
+</script>
+</body>
+</html>

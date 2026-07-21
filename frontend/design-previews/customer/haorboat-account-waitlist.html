@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HaorBoat — waitlist (design preview)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Hind+Siliguri:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#1a73e8; --blue-600:#1560d6; --blue-700:#0f56be; --blue-050:#e9f1fe; --blue-100:#d3e5fd;
+    --amber:#f6a623; --amber-050:#fdf3e0; --green:#0f9d58; --green-050:#e6f5ec; --red:#dc3545; --red-050:#fdeaec;
+    --ink:#0f2440; --body:#4a5568; --muted:#8a93a3; --line:#e6eaf0;
+    --bg:#ffffff; --bg-2:#eef2f7; --surface:#ffffff; --chip:#eef2f7;
+    --shadow-sm:0 1px 3px rgba(15,36,64,.08),0 1px 2px rgba(15,36,64,.04);
+    --shadow:0 8px 24px rgba(15,36,64,.10);--shadow-lg:0 24px 60px rgba(15,36,64,.22);
+    --r:.6rem; --r-lg:1rem; --maxw:1120px;
+    --font:'Inter',system-ui,-apple-system,'Segoe UI','Hind Siliguri',sans-serif;--mono:'Inter',ui-monospace,monospace;
+  }
+  :root[data-theme="dark"]{
+    --blue:#4f97ff; --blue-600:#63a4ff; --blue-700:#3d7fe0; --blue-050:#17233a; --blue-100:#1f3252;
+    --amber:#f6a623; --amber-050:#2a2211; --green:#34c77b; --green-050:#0f2a1e; --red:#f26d78; --red-050:#301418;
+    --ink:#eef3fb; --body:#aab6c9; --muted:#7a879c; --line:#243247;
+    --bg:#0b1220; --bg-2:#0e1728; --surface:#131d30; --chip:#1a2740;
+    --shadow-sm:0 1px 3px rgba(0,0,0,.4);--shadow:0 8px 24px rgba(0,0,0,.5);--shadow-lg:0 24px 60px rgba(0,0,0,.6);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg-2);color:var(--body);font-family:var(--font);line-height:1.55;-webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  a{color:inherit;text-decoration:none}
+  h1,h2,h3,h4{margin:0;color:var(--ink);line-height:1.2;font-weight:800;letter-spacing:-.02em}
+  img{max-width:100%;display:block}
+  button{font-family:inherit;cursor:pointer}
+  :focus-visible{outline:2.5px solid var(--blue);outline-offset:2px;border-radius:8px}
+
+  .btn{border-radius:999px;padding:10px 20px;font-weight:700;font-size:14px;border:1.5px solid transparent;transition:background .14s,border-color .14s,transform .12s;display:inline-flex;align-items:center;gap:7px;white-space:nowrap;justify-content:center}
+  .btn:active{transform:translateY(1px)}
+  .btn-b{background:var(--blue);color:#fff;box-shadow:0 6px 16px -6px var(--blue)}
+  .btn-b:hover{background:var(--blue-600)}
+  .btn-o{background:var(--surface);border-color:var(--line);color:var(--ink)}
+  .btn-o:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-050)}
+  .btn-d{background:var(--surface);border-color:color-mix(in srgb,var(--red) 40%,transparent);color:var(--red)}
+  .btn-d:hover{background:var(--red-050)}
+  .btn-sm{padding:8px 14px;font-size:13px}
+  .btn:disabled{opacity:.55;cursor:not-allowed}
+
+  .nav{position:sticky;top:0;z-index:50;background:color-mix(in srgb,var(--surface) 92%,transparent);backdrop-filter:saturate(160%) blur(10px);border-bottom:1px solid var(--line)}
+  .nav .row{display:flex;align-items:center;gap:20px;height:70px;max-width:var(--maxw);margin:0 auto;padding:0 24px}
+  .logo{display:flex;gap:10px;align-items:center;font-weight:800;font-size:22px;color:var(--ink);letter-spacing:-.03em}
+  .logo .mark{width:34px;height:34px;border-radius:50%;background:linear-gradient(150deg,var(--blue),var(--blue-700));color:#fff;display:grid;place-items:center;font-size:16px}
+  .logo .b{color:var(--blue);font-style:italic}
+  .nav .sp{flex:1}
+  .navlink{font-size:14.5px;font-weight:600;color:var(--ink)}.navlink:hover{color:var(--blue)}
+  .theme-btn{border:1px solid var(--line);background:var(--surface);width:42px;height:42px;border-radius:11px;font-size:16px;color:var(--ink);display:grid;place-items:center}
+  .theme-btn .sun{display:none}
+  .icon-btn{position:relative;border:1px solid var(--line);background:var(--surface);width:42px;height:42px;border-radius:11px;font-size:17px;color:var(--ink);display:grid;place-items:center;transition:border-color .14s}
+  .icon-btn:hover{border-color:var(--blue)}
+  .icon-btn .dot{position:absolute;top:8px;right:9px;width:8px;height:8px;border-radius:50%;background:var(--amber);border:2px solid var(--surface)}
+  :root[data-theme="dark"] .theme-btn .moon{display:none}
+  :root[data-theme="dark"] .theme-btn .sun{display:block}
+  .whoami{display:flex;gap:9px;align-items:center}
+  .whoami .av{width:38px;height:38px;border-radius:50%;background:var(--blue-050);color:var(--blue);display:grid;place-items:center;font-weight:800;font-size:14px;border:1px solid var(--blue-100)}
+  .whoami .nm{font-size:13.5px;font-weight:700;color:var(--ink);line-height:1.1}
+  .whoami .rl{font-size:11.5px;color:var(--muted)}
+
+  .shell{max-width:var(--maxw);margin:0 auto;padding:28px 24px 60px;display:grid;grid-template-columns:236px 1fr;gap:28px;align-items:start}
+  .side{position:sticky;top:94px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:10px;box-shadow:var(--shadow-sm)}
+  .side .grp{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700;padding:12px 12px 6px}
+  .slink{display:flex;align-items:center;gap:11px;padding:11px 12px;border-radius:var(--r);font-size:14.5px;font-weight:600;color:var(--body);transition:background .12s,color .12s}
+  .slink .i{font-size:16px;width:20px;text-align:center}
+  .slink:hover{background:var(--bg-2);color:var(--ink)}
+  .slink.on{background:var(--blue-050);color:var(--blue)}
+  .slink .ct{margin-left:auto;background:var(--blue);color:#fff;font-size:11px;font-weight:800;min-width:20px;height:20px;border-radius:999px;display:grid;place-items:center;padding:0 6px}
+  .slink .ct.warn{background:var(--amber);color:#3a2a00}
+  .side .foot{padding:12px;border-top:1px solid var(--line);margin-top:6px}
+
+  .main{min-width:0;display:grid;gap:18px}
+  .page-head h1{font-size:26px}
+  .page-head p{font-size:14px;color:var(--muted);margin-top:5px;max-width:62ch}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--shadow-sm);overflow:hidden}
+  .ch{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--line)}
+  .ch h3{font-size:15px}
+  .ch .sub{font-size:12px;color:var(--muted);font-weight:600}
+  .cb{padding:0}
+
+  /* waitlist row */
+  .wl{display:grid;grid-template-columns:120px 1fr auto;gap:16px;padding:16px 20px;border-bottom:1px solid var(--line);align-items:center}
+  .wl:last-child{border-bottom:none}
+  .wl .ph{width:120px;height:80px;border-radius:var(--r);object-fit:cover;background:var(--bg-2)}
+  .wl h3{font-size:16px}
+  .wl .meta{font-size:13px;color:var(--muted);margin-top:4px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .wl .cab{font-size:13px;color:var(--body);margin-top:8px}
+  .wl .cab b{color:var(--ink)}
+  .wl .side-r{text-align:right;display:grid;gap:8px;justify-items:end}
+
+  .pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:800;padding:4px 11px;border-radius:999px;border:1px solid transparent}
+  .pill.wait{background:var(--amber-050);color:#b45309;border-color:color-mix(in srgb,var(--amber) 40%,transparent)}
+  :root[data-theme="dark"] .pill.wait{color:var(--amber)}
+  .pill.open{background:var(--green-050);color:var(--green);border-color:color-mix(in srgb,var(--green) 30%,transparent)}
+  .pill.gone{background:var(--red-050);color:var(--red);border-color:color-mix(in srgb,var(--red) 30%,transparent)}
+  .pill.mut{background:var(--bg-2);color:var(--muted);border-color:var(--line)}
+
+  /* how it works */
+  .how{display:grid;grid-template-columns:repeat(4,1fr);gap:0}
+  .step{padding:18px 20px;border-right:1px solid var(--line)}
+  .step:last-child{border-right:none}
+  .step .n{width:28px;height:28px;border-radius:8px;background:var(--blue-050);color:var(--blue);font-weight:900;font-size:13px;display:grid;place-items:center;margin-bottom:10px}
+  .step h4{font-size:14px}
+  .step p{font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.5}
+
+  .note{display:flex;gap:9px;align-items:flex-start;border-radius:var(--r);padding:12px 14px;font-size:13px;line-height:1.5}
+  .note.info{background:var(--blue-050);border:1px solid var(--blue-100);color:var(--body)}
+  .note b{color:var(--ink)}
+
+  /* ==== "just taken" race modal (logic §80) ==== */
+  .modal{position:fixed;inset:0;z-index:100;background:rgba(9,18,32,.55);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;padding:24px}
+  .modal.on{display:flex}
+  .sheet{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--shadow-lg);width:100%;max-width:420px;overflow:hidden;animation:rise .22s ease}
+  @keyframes rise{from{transform:translateY(14px);opacity:0}to{transform:none;opacity:1}}
+  .sheet .top{padding:26px 24px 6px;text-align:center}
+  .sheet .badge{width:60px;height:60px;border-radius:50%;background:var(--red-050);color:var(--red);display:grid;place-items:center;font-size:28px;margin:0 auto 14px;border:2px solid color-mix(in srgb,var(--red) 30%,transparent)}
+  .sheet h3{font-size:20px}
+  .sheet p{font-size:14px;color:var(--body);margin-top:8px;padding:0 6px}
+  .sheet .body2{padding:18px 24px 24px}
+  .sheet .acts{display:grid;gap:9px;margin-top:8px}
+
+  @media(max-width:920px){
+    .shell{grid-template-columns:1fr}
+    .side{position:static;display:flex;overflow-x:auto;gap:4px;padding:8px}
+    .side .grp,.side .foot{display:none}
+    .slink{flex:none}
+    .how{grid-template-columns:1fr 1fr}
+    .step:nth-child(2n){border-right:none}
+  }
+  @media(max-width:560px){
+    .whoami .nm,.whoami .rl,.navlink{display:none}
+    .wl{grid-template-columns:1fr}
+    .wl .ph{width:100%;height:140px}
+    .wl .side-r{justify-items:start;text-align:left}
+    .how{grid-template-columns:1fr}
+    .step{border-right:none;border-bottom:1px solid var(--line)}
+  }
+</style>
+</head>
+<body>
+
+<header class="nav"><div class="row">
+  <a class="logo" href="haorboat-home.html"><span class="mark">🛥</span>Haor<span class="b">Boat</span></a>
+  <div class="sp"></div>
+  <a class="navlink" href="haorboat-home.html">Browse boats</a>
+  <a class="icon-btn" href="haorboat-account-notifications.html" aria-label="Notifications">🔔<span class="dot"></span></a>
+  <button class="theme-btn" id="themeToggle" aria-label="Toggle dark mode"><span class="moon">🌙</span><span class="sun">☀️</span></button>
+  <div class="whoami"><span class="av">RU</span><div><div class="nm">Rahim Uddin</div><div class="rl">01712 345 678</div></div></div>
+</div></header>
+
+<div class="shell">
+  <aside class="side">
+    <div class="grp">My account</div>
+    <a class="slink" href="haorboat-account-trips.html"><span class="i">🎟️</span> My trips <span class="ct">4</span></a>
+    <a class="slink" href="haorboat-account-wallet.html"><span class="i">💳</span> Wallet &amp; credits</a>
+    <a class="slink on" href="haorboat-account-waitlist.html"><span class="i">⏳</span> Waitlist <span class="ct warn">1</span></a>
+    <a class="slink" href="haorboat-account-notifications.html"><span class="i">🔔</span> Notifications <span class="ct">3</span></a>
+    <a class="slink" href="haorboat-account-profile.html"><span class="i">👤</span> Profile</a>
+    <div class="foot"><a class="slink" href="haorboat-account-login.html"><span class="i">↩</span> Sign out</a></div>
+  </aside>
+
+  <main class="main">
+    <div class="page-head">
+      <h1>Waitlist</h1>
+      <p>Sold-out cabins you're watching. When one frees up we notify <b>everyone waiting at once</b> — first to grab it wins. There are no queue positions, so be quick.</p>
+    </div>
+
+    <div class="card">
+      <div class="ch"><h3>Watching</h3><span class="sub">2 cabins · notifications on</span></div>
+      <div class="cb">
+
+        <!-- a spot just opened -->
+        <div class="wl">
+          <img class="ph" alt="Tanguar Tara" src="https://images.unsplash.com/photo-1439066615861-d1af74d74000?auto=format&fit=crop&w=280&q=60">
+          <div>
+            <h3>Tanguar Tara</h3>
+            <div class="meta">📍 Tanguar Haor · <span class="pill open">✨ A spot just opened!</span></div>
+            <div class="cab"><b>Deluxe AC Cabin</b> · 18–20 Jul 2026 · ৳ 4,100 / person</div>
+          </div>
+          <div class="side-r">
+            <span style="font-size:12px;color:var(--muted);font-weight:600">Notified 30s ago · be fast</span>
+            <button class="btn btn-b btn-sm" id="grabBtn">⚡ Grab this cabin</button>
+          </div>
+        </div>
+
+        <!-- still waiting -->
+        <div class="wl">
+          <img class="ph" alt="Panshi Palace" src="https://images.unsplash.com/photo-1444201983204-c43cbd584d93?auto=format&fit=crop&w=280&q=60">
+          <div>
+            <h3>Panshi Palace</h3>
+            <div class="meta">📍 Sundarban · <span class="pill wait">⏳ Sold out — waiting</span></div>
+            <div class="cab"><b>Family AC Cabin</b> · 05–07 Sep 2026 · ৳ 4,700 / person</div>
+          </div>
+          <div class="side-r">
+            <span style="font-size:12px;color:var(--muted);font-weight:600">We'll SMS &amp; email you</span>
+            <button class="btn btn-d btn-sm">Leave waitlist</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- how the waitlist works -->
+    <div class="card">
+      <div class="ch"><h3>How the waitlist works</h3></div>
+      <div class="how">
+        <div class="step"><div class="n">1</div><h4>A cabin frees up</h4><p>Someone cancels and their room becomes available on that departure.</p></div>
+        <div class="step"><div class="n">2</div><h4>Everyone's notified</h4><p>All watchers get an SMS &amp; email at the <b>same moment</b> — no head start for anyone.</p></div>
+        <div class="step"><div class="n">3</div><h4>First to hold wins</h4><p>Tapping the link tries to hold the cabin for 10 minutes. Fastest tap secures it.</p></div>
+        <div class="step"><div class="n">4</div><h4>Others see "just taken"</h4><p>If someone beat you, you find out <b>before</b> entering any details — never after paying.</p></div>
+      </div>
+    </div>
+
+    <div class="note info"><span>🔔</span><div><b>Rate-limited for fairness.</b> Repeated taps during a release spike are throttled per cabin so everyone gets a fair shot. Keep notifications on so you don't miss the alert.</div></div>
+  </main>
+</div>
+
+<!-- "just taken" race outcome modal -->
+<div class="modal" id="modal">
+  <div class="sheet">
+    <div class="top">
+      <div class="badge">😔</div>
+      <h3>Just taken</h3>
+      <p>Someone grabbed the <b>Deluxe AC Cabin</b> on Tanguar Tara a moment before you. No details entered, no payment taken — you're not charged anything.</p>
+    </div>
+    <div class="body2">
+      <div class="note info"><span>⏳</span><div>You're <b>still on the waitlist</b> for this departure. If another cabin frees up, we'll alert you again.</div></div>
+      <div class="acts">
+        <a class="btn btn-b" href="haorboat-search.html">See other dates for Tanguar Tara</a>
+        <button class="btn btn-o" id="closeModal">Stay on waitlist</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Grab → simulate losing the race (design preview of the §80 "just taken" state)
+  document.getElementById('grabBtn').addEventListener('click',function(){
+    document.getElementById('modal').classList.add('on');
+  });
+  document.getElementById('closeModal').addEventListener('click',function(){
+    document.getElementById('modal').classList.remove('on');
+  });
+  document.getElementById('modal').addEventListener('click',function(e){
+    if(e.target===this)this.classList.remove('on');
+  });
+  (function(){
+    var root=document.documentElement,stored=null;
+    try{stored=localStorage.getItem('hb-theme');}catch(e){}
+    root.setAttribute('data-theme', stored || (window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'));
+    document.getElementById('themeToggle').addEventListener('click',function(){
+      var n=root.getAttribute('data-theme')==='dark'?'light':'dark';root.setAttribute('data-theme',n);
+      try{localStorage.setItem('hb-theme',n);}catch(e){}
+    });
+  })();
+</script>
+</body>
+</html>
