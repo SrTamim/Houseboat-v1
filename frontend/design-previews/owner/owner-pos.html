@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HaorBoat Owner — Counter sale (design preview)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Hind+Siliguri:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     HaorBoat Owner Console — shared design system
+     Brand tokens + shell copied verbatim from the admin console
+     (admin/_shell.html) so all three surfaces read as one product.
+     This _shell.html is the canonical skeleton every owner screen
+     is stamped from. It is a reference, not a nav target.
+     ============================================================ */
+  :root{
+    /* brand — same in both themes */
+    --blue:#1a73e8; --blue-600:#1560d6; --blue-700:#0f56be; --blue-050:#e9f1fe; --blue-100:#d3e5fd;
+    --amber:#f6a623;
+    /* semantic (derived for owner data states) */
+    --ok:#1f9d57; --ok-050:#e7f6ee; --warn:#c77700; --warn-050:#fdf3e2; --danger:#d64545; --danger-050:#fdecec;
+    /* light theme (default) */
+    --ink:#0f2440; --body:#4a5568; --muted:#8a93a3; --line:#e6eaf0;
+    --bg:#ffffff; --bg-2:#eef2f7; --surface:#ffffff; --chip:#eef2f7;
+    --sidebar:#0a2a5e; --sidebar-txt:#c9dcf7; --sidebar-h:#ffffff; --sidebar-mut:#9fbbe6; --sidebar-line:#173766;
+    --shadow-sm:0 1px 3px rgba(15,36,64,.08),0 1px 2px rgba(15,36,64,.04);
+    --shadow:0 8px 24px rgba(15,36,64,.10);
+    --shadow-lg:0 24px 60px rgba(15,36,64,.22);
+    --r:.6rem; --r-lg:1rem;
+    --font:'Inter',system-ui,-apple-system,'Segoe UI','Hind Siliguri',sans-serif;
+    --mono:'Inter',ui-monospace,monospace;
+    --sbw:248px;
+  }
+  :root[data-theme="dark"]{
+    --blue:#4f97ff; --blue-600:#63a4ff; --blue-700:#3d7fe0; --blue-050:#17233a; --blue-100:#1f3252;
+    --ok:#3fbf78; --ok-050:#12271c; --warn:#e0a54a; --warn-050:#2a2113; --danger:#f0736f; --danger-050:#2c1717;
+    --ink:#eef3fb; --body:#aab6c9; --muted:#7a879c; --line:#243247;
+    --bg:#0b1220; --bg-2:#0e1728; --surface:#131d30; --chip:#1a2740;
+    --sidebar:#061a3a; --sidebar-txt:#a9c2ea; --sidebar-h:#eef3fb; --sidebar-mut:#7e97c2; --sidebar-line:#12294c;
+    --shadow-sm:0 1px 3px rgba(0,0,0,.4);
+    --shadow:0 8px 24px rgba(0,0,0,.5);
+    --shadow-lg:0 24px 60px rgba(0,0,0,.6);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg-2);color:var(--body);font-family:var(--font);line-height:1.5;-webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  a{color:inherit;text-decoration:none}
+  h1,h2,h3,h4{margin:0;color:var(--ink);line-height:1.2;font-weight:800;letter-spacing:-.02em}
+  img{max-width:100%;display:block}
+  button{font-family:inherit;cursor:pointer}
+  :focus-visible{outline:2.5px solid var(--blue);outline-offset:2px;border-radius:8px}
+
+  /* ---------- buttons (from booking previews) ---------- */
+  .btn{border-radius:999px;padding:9px 20px;font-weight:700;font-size:14px;border:1.5px solid transparent;transition:transform .14s,box-shadow .14s,background .14s;display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+  .btn:active{transform:translateY(1px)}
+  .btn-b{background:var(--blue);color:#fff;box-shadow:0 6px 16px -6px var(--blue)}
+  .btn-b:hover{background:var(--blue-600)}
+  .btn-o{background:var(--surface);border-color:var(--line);color:var(--ink)}
+  .btn-o:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-050)}
+  .btn-danger{background:var(--danger-050);border-color:transparent;color:var(--danger)}
+  .btn-danger:hover{background:var(--danger);color:#fff}
+  .btn-ok{background:var(--ok);color:#fff}
+  .btn-sm{padding:6px 13px;font-size:12.5px}
+  .btn[disabled]{opacity:.5;cursor:not-allowed;box-shadow:none}
+
+  /* ---------- app shell layout ---------- */
+  .app{display:grid;grid-template-columns:var(--sbw) 1fr;min-height:100vh}
+  .sidebar{background:var(--sidebar);color:var(--sidebar-txt);position:sticky;top:0;height:100vh;overflow-y:auto;display:flex;flex-direction:column;border-right:1px solid var(--sidebar-line)}
+  .sb-logo{display:flex;gap:10px;align-items:center;padding:20px 20px;font-weight:800;font-size:19px;color:var(--sidebar-h);letter-spacing:-.03em;border-bottom:1px solid var(--sidebar-line)}
+  .sb-logo .mark{width:32px;height:32px;border-radius:50%;background:linear-gradient(150deg,var(--blue),var(--blue-700));color:#fff;display:grid;place-items:center;font-size:15px;flex:none}
+  .sb-logo .b{color:#7fb2ff;font-style:italic}
+  .sb-logo .tag{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--sidebar-mut);margin-left:auto;border:1px solid var(--sidebar-line);padding:3px 6px;border-radius:5px}
+
+  /* ---------- boat switcher (owner-specific) ---------- */
+  .boatsw{margin:12px;border:1px solid var(--sidebar-line);border-radius:11px;background:rgba(255,255,255,.04);position:relative}
+  .boatsw-btn{width:100%;display:flex;align-items:center;gap:11px;padding:10px 12px;background:none;border:none;color:var(--sidebar-txt);text-align:left}
+  .boatsw-btn .bav{width:34px;height:34px;border-radius:9px;background:linear-gradient(150deg,var(--amber),#d9861a);color:#3a2a00;display:grid;place-items:center;font-size:16px;flex:none}
+  .boatsw-btn .bn{font-size:14px;font-weight:800;color:var(--sidebar-h);line-height:1.15}
+  .boatsw-btn .bm{font-size:10.5px;font-weight:700;color:var(--sidebar-mut);text-transform:uppercase;letter-spacing:.04em}
+  .boatsw-btn .cv{margin-left:auto;font-size:12px;color:var(--sidebar-mut)}
+  .boatsw-menu{display:none;position:absolute;left:0;right:0;top:calc(100% + 6px);background:var(--surface);border:1px solid var(--line);border-radius:11px;box-shadow:var(--shadow-lg);z-index:60;overflow:hidden;padding:6px}
+  .boatsw.open .boatsw-menu{display:block}
+  .boatsw-menu a{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:8px;font-size:13.5px;font-weight:700;color:var(--ink)}
+  .boatsw-menu a:hover{background:var(--bg-2)}
+  .boatsw-menu a .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);flex:none}
+  .boatsw-menu a .dot.mut{background:var(--muted)} .boatsw-menu a .dot.warn{background:var(--danger)}
+  .boatsw-menu a .sub{margin-left:auto;font-size:11px;color:var(--muted);font-weight:700}
+  .boatsw-menu .sep{height:1px;background:var(--line);margin:6px 4px}
+  .boatsw-menu a.add{color:var(--blue)}
+
+  .sb-nav{padding:6px 12px 12px;flex:1}
+  .sb-group{margin:14px 0 6px;padding:0 10px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--sidebar-mut)}
+  .sb-link{display:flex;gap:11px;align-items:center;padding:9px 12px;border-radius:9px;font-size:13.5px;font-weight:600;color:var(--sidebar-txt);transition:background .12s,color .12s;position:relative}
+  .sb-link .ic{width:18px;text-align:center;font-size:15px;flex:none;opacity:.9}
+  .sb-link:hover{background:rgba(255,255,255,.06);color:var(--sidebar-h)}
+  .sb-link.on{background:var(--blue);color:#fff}
+  .sb-link .ct{margin-left:auto;background:rgba(255,255,255,.14);color:var(--sidebar-h);font-size:11px;font-weight:800;padding:1px 7px;border-radius:999px;font-family:var(--mono)}
+  .sb-link.on .ct{background:rgba(255,255,255,.22)}
+  .sb-link .ct.warn{background:var(--amber);color:#3a2a00}
+  .sb-foot{padding:14px 16px;border-top:1px solid var(--sidebar-line);font-size:11.5px;color:var(--sidebar-mut)}
+
+  .main{display:flex;flex-direction:column;min-width:0}
+  .topbar{position:sticky;top:0;z-index:40;background:color-mix(in srgb,var(--surface) 92%,transparent);backdrop-filter:saturate(160%) blur(10px);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:16px;padding:0 24px;height:64px}
+  .topbar .burger{display:none;border:1px solid var(--line);background:var(--surface);width:40px;height:40px;border-radius:10px;font-size:18px;color:var(--ink)}
+  .topbar .pt{font-size:19px;font-weight:800;color:var(--ink);letter-spacing:-.02em}
+  .topbar .crumb{font-size:12.5px;color:var(--muted);font-weight:600}
+  .topbar .sp{flex:1}
+  .icon-btn{border:1px solid var(--line);background:var(--surface);width:40px;height:40px;border-radius:10px;font-size:16px;color:var(--ink);display:grid;place-items:center;transition:border-color .14s,transform .14s;position:relative}
+  .icon-btn:hover{border-color:var(--blue);transform:translateY(-1px)}
+  .icon-btn .dot{position:absolute;top:8px;right:9px;width:8px;height:8px;background:var(--danger);border-radius:50%;border:2px solid var(--surface)}
+  .theme-btn .sun{display:none}
+  :root[data-theme="dark"] .theme-btn .moon{display:none}
+  :root[data-theme="dark"] .theme-btn .sun{display:block}
+  .whoami{display:flex;align-items:center;gap:10px;padding:5px 12px 5px 6px;border:1px solid var(--line);border-radius:999px;background:var(--surface)}
+  .whoami .av{width:30px;height:30px;border-radius:50%;background:linear-gradient(150deg,var(--blue),var(--blue-700));color:#fff;display:grid;place-items:center;font-size:12px;font-weight:800}
+  .whoami .nm{font-size:13px;font-weight:700;color:var(--ink);line-height:1.15}
+  .whoami .rl{font-size:10.5px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.04em}
+
+  .content{padding:24px;max-width:1320px;width:100%}
+  .page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+  .page-head h1{font-size:24px}
+  .page-head p{margin:6px 0 0;font-size:13.5px;color:var(--muted);max-width:70ch}
+  .page-head .acts{display:flex;gap:10px;flex-wrap:wrap}
+
+  /* ---------- cards / panels ---------- */
+  .card2{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--shadow-sm)}
+  .card2 .ch{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px;border-bottom:1px solid var(--line)}
+  .card2 .ch h3{font-size:15px}
+  .card2 .ch .sub{font-size:12px;color:var(--muted);font-weight:600}
+  .card2 .cb{padding:18px}
+  .card2 .cb.flush{padding:0}
+
+  /* ---------- KPI tiles ---------- */
+  .kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:16px;margin-bottom:22px}
+  .kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--shadow-sm);padding:16px 18px}
+  .kpi .l{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);display:flex;align-items:center;gap:7px}
+  .kpi .l .ic{color:var(--blue);font-size:13px}
+  .kpi .n{font-size:30px;font-weight:900;color:var(--ink);font-family:var(--mono);letter-spacing:-.03em;margin-top:8px;line-height:1}
+  .kpi .n .u{font-size:16px;color:var(--muted);font-weight:800}
+  .kpi .d{font-size:12px;font-weight:600;margin-top:7px;color:var(--muted)}
+  .kpi .d.up{color:var(--ok)} .kpi .d.down{color:var(--danger)}
+  .kpi.alert{border-color:color-mix(in srgb,var(--danger) 40%,var(--line))}
+  .kpi.alert .n{color:var(--danger)}
+
+  /* ---------- data table ---------- */
+  .tbl-wrap{overflow-x:auto}
+  table.tbl{width:100%;border-collapse:collapse;font-size:13.5px;min-width:640px}
+  .tbl thead th{position:sticky;top:0;background:var(--bg-2);text-align:left;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:11px 16px;border-bottom:1px solid var(--line);white-space:nowrap}
+  .tbl tbody td{padding:13px 16px;border-bottom:1px solid var(--line);color:var(--body);vertical-align:middle}
+  .tbl tbody tr:last-child td{border-bottom:none}
+  .tbl tbody tr:hover{background:var(--bg-2)}
+  .tbl td .t1{font-weight:700;color:var(--ink)}
+  .tbl td .t2{font-size:12px;color:var(--muted)}
+  .tbl .num{font-family:var(--mono);font-weight:800;text-align:right;color:var(--ink);white-space:nowrap}
+  .tbl .num.neg{color:var(--danger)}
+  .tbl .rowact{display:flex;gap:6px;justify-content:flex-end}
+
+  /* ---------- status pills ---------- */
+  .pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:800;padding:3px 10px;border-radius:999px;white-space:nowrap;letter-spacing:.01em}
+  .pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+  .pill.blue{background:var(--blue-050);color:var(--blue-600)}
+  .pill.ok{background:var(--ok-050);color:var(--ok)}
+  .pill.warn{background:var(--warn-050);color:var(--warn)}
+  .pill.danger{background:var(--danger-050);color:var(--danger)}
+  .pill.mut{background:var(--chip);color:var(--muted)}
+  .pill.amb{background:#fff5e3;color:#a86400}
+  :root[data-theme="dark"] .pill.amb{background:#2a2113;color:var(--amber)}
+  .pill.lock::before{content:"🔒";width:auto;height:auto;background:none;font-size:9px}
+
+  /* ---------- filter bar ---------- */
+  .filterbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+  .seg{display:inline-flex;background:var(--bg-2);border:1px solid var(--line);border-radius:999px;padding:3px}
+  .seg-b{border:none;background:transparent;color:var(--body);font-weight:700;font-size:13px;padding:6px 14px;border-radius:999px;transition:all .14s}
+  .seg-b:hover{color:var(--blue)}
+  .seg-b.on{background:var(--surface);color:var(--blue);box-shadow:var(--shadow-sm)}
+  .seg-b .ct{font-family:var(--mono);opacity:.7;margin-left:4px}
+  .search{position:relative;flex:1;min-width:200px;max-width:340px}
+  .search input{width:100%;border:1px solid var(--line);border-radius:var(--r);background:var(--bg-2);padding:9px 14px 9px 36px;font-family:inherit;font-size:14px;color:var(--ink);transition:border-color .14s,box-shadow .14s}
+  .search input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-050)}
+  .search .mag{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:14px}
+  .select{border:1px solid var(--line);border-radius:var(--r);background:var(--bg-2);padding:8px 12px;font-family:inherit;font-size:13.5px;font-weight:600;color:var(--ink)}
+
+  /* ---------- form fields (from booking previews) ---------- */
+  .field{position:relative;border:1px solid var(--line);border-radius:var(--r);padding:10px 14px;background:var(--bg-2);transition:border-color .14s,box-shadow .14s}
+  .field:focus-within{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-050)}
+  .field label{display:block;font-size:11px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
+  .field input,.field select{width:100%;border:none;background:none;font-family:inherit;font-size:15px;font-weight:600;color:var(--ink);padding:0}
+  .field input:focus,.field select:focus{outline:none}
+  .form-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+
+  /* ---------- misc ---------- */
+  .note{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:var(--r);font-size:13px;font-weight:600;line-height:1.45}
+  .note.info{background:var(--blue-050);color:var(--blue-700)}
+  .note.warn{background:var(--warn-050);color:var(--warn)}
+  .note.danger{background:var(--danger-050);color:var(--danger)}
+  .note.ok{background:var(--ok-050);color:var(--ok)}
+  .note .ic{font-size:15px;flex:none}
+  .grid-2{display:grid;grid-template-columns:2fr 1fr;gap:20px;align-items:start}
+  .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .stack{display:flex;flex-direction:column;gap:20px}
+  .money{font-family:var(--mono);font-weight:800;color:var(--ink)} .money.neg{color:var(--danger)}
+  .muted{color:var(--muted)}
+  .tag{display:inline-block;font-size:11px;font-weight:700;color:var(--body);background:var(--chip);border:1px solid var(--line);padding:3px 9px;border-radius:6px}
+
+  /* ---------- cabin grid (owner-specific: POS / departure) ---------- */
+  .cabgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px}
+  .cab{border:1.5px solid var(--line);border-radius:12px;padding:12px;background:var(--surface);text-align:left;transition:border-color .14s,transform .14s;position:relative}
+  .cab:hover{transform:translateY(-2px)}
+  .cab .cn{font-size:15px;font-weight:800;color:var(--ink)}
+  .cab .cc{font-size:11px;font-weight:700;color:var(--muted);margin-top:2px}
+  .cab .cp{font-family:var(--mono);font-weight:800;color:var(--ink);font-size:13px;margin-top:8px}
+  .cab.free{border-color:color-mix(in srgb,var(--ok) 45%,var(--line));cursor:pointer}
+  .cab.free:hover{border-color:var(--ok);background:var(--ok-050)}
+  .cab.held{border-color:color-mix(in srgb,var(--warn) 45%,var(--line));background:var(--warn-050)}
+  .cab.booked{border-color:var(--line);background:var(--bg-2);opacity:.75}
+  .cab.spare{border-color:color-mix(in srgb,var(--blue) 45%,var(--line));background:var(--blue-050)}
+  .cab .st{position:absolute;top:10px;right:10px;font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em}
+  .cab.free .st{color:var(--ok)} .cab.held .st{color:var(--warn)} .cab.booked .st{color:var(--muted)} .cab.spare .st{color:var(--blue)}
+
+  /* ---------- bill breakdown (invoice) ---------- */
+  .bill{font-size:13.5px}
+  .bill .row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed var(--line)}
+  .bill .row:last-child{border-bottom:none}
+  .bill .row .lbl{color:var(--body);font-weight:600}
+  .bill .row .lbl .s{display:block;font-size:11px;color:var(--muted);font-weight:600}
+  .bill .row .val{font-family:var(--mono);font-weight:800;color:var(--ink);white-space:nowrap}
+  .bill .row.sub{color:var(--muted)}.bill .row.sub .val{color:var(--muted)}
+  .bill .row.neg .val{color:var(--danger)}
+  .bill .row.total{border-top:2px solid var(--line);border-bottom:none;margin-top:4px;padding-top:12px}
+  .bill .row.total .lbl{font-weight:800;color:var(--ink);font-size:15px}
+  .bill .row.total .val{color:var(--blue);font-size:16px}
+
+  /* ---------- drawer ---------- */
+  .drawer-sc{position:fixed;inset:0;background:rgba(10,25,50,.44);backdrop-filter:blur(2px);z-index:80;display:none}
+  .drawer-sc.open{display:block}
+  .drawer{position:fixed;top:0;right:0;height:100vh;width:min(460px,94vw);background:var(--surface);border-left:1px solid var(--line);box-shadow:var(--shadow-lg);z-index:81;transform:translateX(100%);transition:transform .22s ease;display:flex;flex-direction:column}
+  .drawer.open{transform:translateX(0)}
+  .drawer .dh{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line)}
+  .drawer .dh h3{font-size:16px}
+  .drawer .db{padding:20px;overflow-y:auto;flex:1}
+  .drawer .df{padding:16px 20px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+  .drawer .x{border:1px solid var(--line);background:var(--surface);width:34px;height:34px;border-radius:9px;font-size:16px;color:var(--ink)}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:13.5px}
+  .kv dt{color:var(--muted);font-weight:600} .kv dd{margin:0;color:var(--ink);font-weight:700;text-align:right}
+
+  /* ---------- responsive ---------- */
+  @media(max-width:1024px){
+    .app{grid-template-columns:1fr}
+    .sidebar{position:fixed;left:0;top:0;z-index:70;width:var(--sbw);transform:translateX(-100%);transition:transform .2s}
+    .sidebar.open{transform:translateX(0)}
+    .topbar .burger{display:grid;place-items:center}
+    .grid-2,.grid-3{grid-template-columns:1fr}
+  }
+  @media(max-width:560px){
+    .whoami .nm,.whoami .rl{display:none}
+    .content{padding:16px}
+    .page-head h1{font-size:20px}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sb-logo"><span class="mark">⚓</span> Haor<span class="b">Boat</span> <span class="tag">Owner</span></div>
+
+    <div class="boatsw" id="boatsw">
+      <button class="boatsw-btn" id="boatswBtn">
+        <span class="bav">⛵</span>
+        <span><span class="bn">Jol Kolol</span><span class="bm">Tanguar Haor · live</span></span>
+        <span class="cv">▾</span>
+      </button>
+      <div class="boatsw-menu">
+        <a href="owner-dashboard.html"><span class="dot"></span> Jol Kolol <span class="sub">live</span></a>
+        <a href="owner-dashboard.html"><span class="dot"></span> Haor Bilash <span class="sub">live</span></a>
+        <a href="owner-profile.html"><span class="dot mut"></span> Meghduar <span class="sub">draft 82%</span></a>
+        <div class="sep"></div>
+        <a class="add" href="owner-profile.html">＋ Add a boat</a>
+      </div>
+    </div>
+
+    <nav class="sb-nav">
+      <div class="sb-group">Overview</div>
+      <a class="sb-link" href="owner-dashboard.html"><span class="ic">▦</span> Dashboard</a>
+      <a class="sb-link" href="owner-calendar.html"><span class="ic">🗓️</span> Calendar</a>
+      <div class="sb-group">Bookings</div>
+      <a class="sb-link" href="owner-bookings.html"><span class="ic">🎟️</span> Bookings</a>
+      <a class="sb-link on" href="owner-pos.html"><span class="ic">🧾</span> Counter sale</a>
+      <a class="sb-link" href="owner-departure.html"><span class="ic">⛴️</span> Departures <span class="ct warn">2</span></a>
+      <a class="sb-link" href="owner-waitlist.html"><span class="ic">⏳</span> Waitlist <span class="ct">4</span></a>
+      <a class="sb-link" href="owner-quotes.html"><span class="ic">💬</span> Quotes <span class="ct warn">3</span></a>
+      <a class="sb-link" href="owner-reviews.html"><span class="ic">★</span> Reviews</a>
+      <a class="sb-link" href="owner-guests.html"><span class="ic">👥</span> Guests</a>
+      <div class="sb-group">Trips & pricing</div>
+      <a class="sb-link" href="owner-packages.html"><span class="ic">📦</span> Packages</a>
+      <a class="sb-link" href="owner-schedule.html"><span class="ic">📅</span> Schedule</a>
+      <a class="sb-link" href="owner-pricing.html"><span class="ic">৳</span> Pricing <span class="ct warn">1</span></a>
+      <div class="sb-group">Boat setup</div>
+      <a class="sb-link" href="owner-profile.html"><span class="ic">⛵</span> Boat profile</a>
+      <a class="sb-link" href="owner-cabins.html"><span class="ic">🚪</span> Decks & cabins</a>
+      <a class="sb-link" href="owner-coupons.html"><span class="ic">🏷</span> Coupons</a>
+      <div class="sb-group">Money</div>
+      <a class="sb-link" href="owner-invoices.html"><span class="ic">🧮</span> Invoices</a>
+      <a class="sb-link" href="owner-payments.html"><span class="ic">💵</span> Payments <span class="ct warn">2</span></a>
+      <a class="sb-link" href="owner-refunds.html"><span class="ic">↩</span> Refunds <span class="ct">1</span></a>
+      <a class="sb-link" href="owner-payouts.html"><span class="ic">💸</span> Payouts</a>
+      <a class="sb-link" href="owner-earnings.html"><span class="ic">📊</span> Earnings</a>
+      <a class="sb-link" href="owner-billing.html"><span class="ic">🏛</span> Platform billing <span class="ct warn">1</span></a>
+      <div class="sb-group">People</div>
+      <a class="sb-link" href="owner-crew.html"><span class="ic">⚓</span> Crew</a>
+      <a class="sb-link" href="owner-attendance.html"><span class="ic">✓</span> Attendance</a>
+      <a class="sb-link" href="owner-payroll.html"><span class="ic">💰</span> Payroll <span class="ct warn">3</span></a>
+      <a class="sb-link" href="owner-team.html"><span class="ic">🔑</span> Team & roles</a>
+      <div class="sb-group">Operations</div>
+      <a class="sb-link" href="owner-costs.html"><span class="ic">🧾</span> Costs</a>
+      <a class="sb-link" href="owner-inventory.html"><span class="ic">📦</span> Inventory <span class="ct warn">2</span></a>
+      <a class="sb-link" href="owner-maintenance.html"><span class="ic">🛠</span> Maintenance <span class="ct warn">1</span></a>
+      <a class="sb-link" href="owner-reports.html"><span class="ic">📈</span> Reports</a>
+      <a class="sb-link" href="owner-notifications.html"><span class="ic">🔔</span> Notifications</a>
+      <a class="sb-link" href="owner-audit.html"><span class="ic">📜</span> Audit log</a>
+      <a class="sb-link" href="owner-sync.html"><span class="ic">🔄</span> Sync <span class="ct warn">1</span></a>
+      <a class="sb-link" href="owner-settings.html"><span class="ic">⚙</span> Settings</a>
+    </nav>
+    <div class="sb-foot">Kamal Uddin · Owner · UTC+6 (BST)</div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <button class="burger" id="burger" aria-label="Menu">☰</button>
+      <div><div class="pt">Counter sale</div><div class="crumb">Jol Kolol · POS mode</div></div>
+      <div class="sp"></div>
+      <a class="icon-btn" href="owner-notifications.html" aria-label="Notifications">🔔<span class="dot"></span></a>
+      <button class="icon-btn theme-btn" id="themeToggle" aria-label="Toggle theme"><span class="moon">🌙</span><span class="sun">☀️</span></button>
+      <div class="whoami"><span class="av">KU</span><div><div class="nm">Kamal Uddin</div><div class="rl">Owner · Jol Kolol</div></div></div>
+    </header>
+
+    <main class="content">
+
+      <div class="page-head">
+        <div><h1>Counter sale</h1><p>Sell a cabin at the ghat. Tap a room to take a live hold (10-min server-clocked expiry) — the same anti-double-booking path a customer uses. You are recorded as <b>booked by</b>.</p></div>
+      </div>
+      <div class="grid-2">
+        <div class="card2">
+          <div class="ch"><h3>Cabins · 21 Jul Day trip</h3><span class="sub">6 of 8 sold · 2 spare</span></div>
+          <div class="cb">
+            <div class="cabgrid">
+              <div class="cab booked"><span class="st">sold</span><div class="cn">101</div><div class="cc">Family · 2p</div><div class="cp">৳10,000</div></div>
+              <div class="cab booked"><span class="st">sold</span><div class="cn">102</div><div class="cc">Family · 2p</div><div class="cp">৳10,000</div></div>
+              <div class="cab spare"><span class="st">1 spare</span><div class="cn">103</div><div class="cc">Family · open seat</div><div class="cp">৳5,000</div></div>
+              <div class="cab booked"><span class="st">sold</span><div class="cn">104</div><div class="cc">Family · 3p</div><div class="cp">৳13,740</div></div>
+              <div class="cab held"><span class="st">held 8:42</span><div class="cn">201</div><div class="cc">Luxury AC · 2p</div><div class="cp">৳14,000</div></div>
+              <div class="cab free"><span class="st">free</span><div class="cn">202</div><div class="cc">Luxury AC · 2p</div><div class="cp">৳14,000</div></div>
+              <div class="cab booked"><span class="st">sold</span><div class="cn">203</div><div class="cc">Luxury AC · 2p</div><div class="cp">৳14,000</div></div>
+              <div class="cab free"><span class="st">free</span><div class="cn">204</div><div class="cc">Luxury AC · 2p</div><div class="cp">৳14,000</div></div>
+            </div>
+            <div class="note info" style="margin-top:14px"><span class="ic">⏱️</span> Hold on 201 expires in 8:42 — countdown runs off the <b>server</b> clock, never the device.</div>
+          </div>
+        </div>
+
+        <div class="card2">
+          <div class="ch"><h3>Cart · Cabin 201</h3></div>
+          <div class="cb stack" style="gap:14px">
+            <div class="form-grid">
+              <div class="field"><label>Adults</label><input value="2"></div>
+              <div class="field"><label>Children</label><input value="0"></div>
+            </div>
+            <div class="field"><label>Lead guest name</label><input placeholder="Full name"></div>
+            <div class="field"><label>Phone</label><input placeholder="+8801…"></div>
+            <div class="field"><label>Coupon code</label><input placeholder="optional"></div>
+            <div class="field"><label>Reference name</label><input placeholder="who sent them · optional"></div>
+            <div class="bill" style="border-top:1px solid var(--line);padding-top:12px">
+              <div class="row"><span class="lbl">Room total · 2 people</span><span class="val">৳14,000</span></div>
+              <div class="row sub"><span class="lbl">+ Gateway fee (1.8%)</span><span class="val">৳252</span></div>
+              <div class="row total"><span class="lbl">Customer pays</span><span class="val">৳14,252</span></div>
+            </div>
+            <div class="form-grid">
+              <button class="btn btn-o">Take deposit</button>
+              <button class="btn btn-b">Full payment · cash</button>
+            </div>
+            <div class="note warn"><span class="ic">⚠️</span> Cash you take is verified by you as manager — it never runs through the gateway, so it stays out of the weekly payout.</div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<script>
+  // shared owner shell behaviour (copied into every screen)
+  (function(){
+    var root = document.documentElement, stored=null;
+    try{ stored = localStorage.getItem('hb-theme'); }catch(e){}
+    root.setAttribute('data-theme', stored || (window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'));
+    var t=document.getElementById('themeToggle');
+    t&&t.addEventListener('click',function(){
+      var n=root.getAttribute('data-theme')==='dark'?'light':'dark';
+      root.setAttribute('data-theme',n); try{localStorage.setItem('hb-theme',n);}catch(e){}
+    });
+    var b=document.getElementById('burger'), sb=document.getElementById('sidebar');
+    b&&b.addEventListener('click',function(){ sb.classList.toggle('open'); });
+    // boat switcher
+    var bsw=document.getElementById('boatsw'), bswb=document.getElementById('boatswBtn');
+    bswb&&bswb.addEventListener('click',function(e){ e.stopPropagation(); bsw.classList.toggle('open'); });
+    document.addEventListener('click',function(){ bsw&&bsw.classList.remove('open'); });
+    // segmented filter toggle
+    document.querySelectorAll('.seg').forEach(function(seg){
+      seg.querySelectorAll('.seg-b').forEach(function(x){
+        x.addEventListener('click',function(){
+          seg.querySelectorAll('.seg-b').forEach(function(y){y.classList.remove('on')});
+          x.classList.add('on');
+        });
+      });
+    });
+    // drawer open/close (elements with data-drawer open #drawer; .x / scrim close)
+    document.querySelectorAll('[data-drawer]').forEach(function(el){
+      el.addEventListener('click',function(){
+        document.getElementById('drawer')?.classList.add('open');
+        document.getElementById('drawerScrim')?.classList.add('open');
+      });
+    });
+    function closeDrawer(){ document.getElementById('drawer')?.classList.remove('open'); document.getElementById('drawerScrim')?.classList.remove('open'); }
+    document.getElementById('drawerScrim')?.addEventListener('click',closeDrawer);
+    document.querySelectorAll('[data-drawer-close]').forEach(function(el){ el.addEventListener('click',closeDrawer); });
+  })();
+</script>
+</body>
+</html>
+
