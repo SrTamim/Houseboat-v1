@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HaorBoat Admin — Sync conflicts (design preview)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Hind+Siliguri:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     HaorBoat Admin Console — shared design system
+     Brand tokens copied verbatim from the booking previews
+     (haorboat-home.html) so the console reads as one product.
+     This _shell.html is the canonical skeleton every admin
+     screen is stamped from. It is a reference, not a nav target.
+     ============================================================ */
+  :root{
+    /* brand — same in both themes */
+    --blue:#1a73e8; --blue-600:#1560d6; --blue-700:#0f56be; --blue-050:#e9f1fe; --blue-100:#d3e5fd;
+    --amber:#f6a623;
+    /* semantic (derived for admin data states) */
+    --ok:#1f9d57; --ok-050:#e7f6ee; --warn:#c77700; --warn-050:#fdf3e2; --danger:#d64545; --danger-050:#fdecec;
+    /* light theme (default) */
+    --ink:#0f2440; --body:#4a5568; --muted:#8a93a3; --line:#e6eaf0;
+    --bg:#ffffff; --bg-2:#eef2f7; --surface:#ffffff; --chip:#eef2f7;
+    --sidebar:#0a2a5e; --sidebar-txt:#c9dcf7; --sidebar-h:#ffffff; --sidebar-mut:#9fbbe6; --sidebar-line:#173766;
+    --shadow-sm:0 1px 3px rgba(15,36,64,.08),0 1px 2px rgba(15,36,64,.04);
+    --shadow:0 8px 24px rgba(15,36,64,.10);
+    --shadow-lg:0 24px 60px rgba(15,36,64,.22);
+    --r:.6rem; --r-lg:1rem;
+    --font:'Inter',system-ui,-apple-system,'Segoe UI','Hind Siliguri',sans-serif;
+    --mono:'Inter',ui-monospace,monospace;
+    --sbw:248px;
+  }
+  :root[data-theme="dark"]{
+    --blue:#4f97ff; --blue-600:#63a4ff; --blue-700:#3d7fe0; --blue-050:#17233a; --blue-100:#1f3252;
+    --ok:#3fbf78; --ok-050:#12271c; --warn:#e0a54a; --warn-050:#2a2113; --danger:#f0736f; --danger-050:#2c1717;
+    --ink:#eef3fb; --body:#aab6c9; --muted:#7a879c; --line:#243247;
+    --bg:#0b1220; --bg-2:#0e1728; --surface:#131d30; --chip:#1a2740;
+    --sidebar:#061a3a; --sidebar-txt:#a9c2ea; --sidebar-h:#eef3fb; --sidebar-mut:#7e97c2; --sidebar-line:#12294c;
+    --shadow-sm:0 1px 3px rgba(0,0,0,.4);
+    --shadow:0 8px 24px rgba(0,0,0,.5);
+    --shadow-lg:0 24px 60px rgba(0,0,0,.6);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg-2);color:var(--body);font-family:var(--font);line-height:1.5;-webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  a{color:inherit;text-decoration:none}
+  h1,h2,h3,h4{margin:0;color:var(--ink);line-height:1.2;font-weight:800;letter-spacing:-.02em}
+  img{max-width:100%;display:block}
+  button{font-family:inherit;cursor:pointer}
+  :focus-visible{outline:2.5px solid var(--blue);outline-offset:2px;border-radius:8px}
+
+  /* ---------- buttons (from booking previews) ---------- */
+  .btn{border-radius:999px;padding:9px 20px;font-weight:700;font-size:14px;border:1.5px solid transparent;transition:transform .14s,box-shadow .14s,background .14s;display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+  .btn:active{transform:translateY(1px)}
+  .btn-b{background:var(--blue);color:#fff;box-shadow:0 6px 16px -6px var(--blue)}
+  .btn-b:hover{background:var(--blue-600)}
+  .btn-o{background:var(--surface);border-color:var(--line);color:var(--ink)}
+  .btn-o:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-050)}
+  .btn-danger{background:var(--danger-050);border-color:transparent;color:var(--danger)}
+  .btn-danger:hover{background:var(--danger);color:#fff}
+  .btn-ok{background:var(--ok);color:#fff}
+  .btn-sm{padding:6px 13px;font-size:12.5px}
+  .btn[disabled]{opacity:.5;cursor:not-allowed;box-shadow:none}
+
+  /* ---------- app shell layout ---------- */
+  .app{display:grid;grid-template-columns:var(--sbw) 1fr;min-height:100vh}
+  .sidebar{background:var(--sidebar);color:var(--sidebar-txt);position:sticky;top:0;height:100vh;overflow-y:auto;display:flex;flex-direction:column;border-right:1px solid var(--sidebar-line)}
+  .sb-logo{display:flex;gap:10px;align-items:center;padding:20px 20px;font-weight:800;font-size:19px;color:var(--sidebar-h);letter-spacing:-.03em;border-bottom:1px solid var(--sidebar-line)}
+  .sb-logo .mark{width:32px;height:32px;border-radius:50%;background:linear-gradient(150deg,var(--blue),var(--blue-700));color:#fff;display:grid;place-items:center;font-size:15px;flex:none}
+  .sb-logo .b{color:#7fb2ff;font-style:italic}
+  .sb-logo .tag{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--sidebar-mut);margin-left:auto;border:1px solid var(--sidebar-line);padding:3px 6px;border-radius:5px}
+  .sb-nav{padding:12px 12px;flex:1}
+  .sb-group{margin:14px 0 6px;padding:0 10px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--sidebar-mut)}
+  .sb-link{display:flex;gap:11px;align-items:center;padding:9px 12px;border-radius:9px;font-size:13.5px;font-weight:600;color:var(--sidebar-txt);transition:background .12s,color .12s;position:relative}
+  .sb-link .ic{width:18px;text-align:center;font-size:15px;flex:none;opacity:.9}
+  .sb-link:hover{background:rgba(255,255,255,.06);color:var(--sidebar-h)}
+  .sb-link.on{background:var(--blue);color:#fff}
+  .sb-link .ct{margin-left:auto;background:rgba(255,255,255,.14);color:var(--sidebar-h);font-size:11px;font-weight:800;padding:1px 7px;border-radius:999px;font-family:var(--mono)}
+  .sb-link.on .ct{background:rgba(255,255,255,.22)}
+  .sb-link .ct.warn{background:var(--amber);color:#3a2a00}
+  .sb-foot{padding:14px 16px;border-top:1px solid var(--sidebar-line);font-size:11.5px;color:var(--sidebar-mut)}
+
+  .main{display:flex;flex-direction:column;min-width:0}
+  .topbar{position:sticky;top:0;z-index:40;background:color-mix(in srgb,var(--surface) 92%,transparent);backdrop-filter:saturate(160%) blur(10px);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:16px;padding:0 24px;height:64px}
+  .topbar .burger{display:none;border:1px solid var(--line);background:var(--surface);width:40px;height:40px;border-radius:10px;font-size:18px;color:var(--ink)}
+  .topbar .pt{font-size:19px;font-weight:800;color:var(--ink);letter-spacing:-.02em}
+  .topbar .crumb{font-size:12.5px;color:var(--muted);font-weight:600}
+  .topbar .sp{flex:1}
+  .icon-btn{border:1px solid var(--line);background:var(--surface);width:40px;height:40px;border-radius:10px;font-size:16px;color:var(--ink);display:grid;place-items:center;transition:border-color .14s,transform .14s;position:relative}
+  .icon-btn:hover{border-color:var(--blue);transform:translateY(-1px)}
+  .icon-btn .dot{position:absolute;top:8px;right:9px;width:8px;height:8px;background:var(--danger);border-radius:50%;border:2px solid var(--surface)}
+  .theme-btn .sun{display:none}
+  :root[data-theme="dark"] .theme-btn .moon{display:none}
+  :root[data-theme="dark"] .theme-btn .sun{display:block}
+  .whoami{display:flex;align-items:center;gap:10px;padding:5px 12px 5px 6px;border:1px solid var(--line);border-radius:999px;background:var(--surface)}
+  .whoami .av{width:30px;height:30px;border-radius:50%;background:linear-gradient(150deg,var(--blue),var(--blue-700));color:#fff;display:grid;place-items:center;font-size:12px;font-weight:800}
+  .whoami .nm{font-size:13px;font-weight:700;color:var(--ink);line-height:1.15}
+  .whoami .rl{font-size:10.5px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.04em}
+
+  .content{padding:24px;max-width:1320px;width:100%}
+  .page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+  .page-head h1{font-size:24px}
+  .page-head p{margin:6px 0 0;font-size:13.5px;color:var(--muted);max-width:70ch}
+  .page-head .acts{display:flex;gap:10px;flex-wrap:wrap}
+
+  /* ---------- cards / panels ---------- */
+  .card2{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--shadow-sm)}
+  .card2 .ch{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px;border-bottom:1px solid var(--line)}
+  .card2 .ch h3{font-size:15px}
+  .card2 .ch .sub{font-size:12px;color:var(--muted);font-weight:600}
+  .card2 .cb{padding:18px}
+  .card2 .cb.flush{padding:0}
+
+  /* ---------- KPI tiles ---------- */
+  .kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:16px;margin-bottom:22px}
+  .kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--shadow-sm);padding:16px 18px}
+  .kpi .l{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);display:flex;align-items:center;gap:7px}
+  .kpi .l .ic{color:var(--blue);font-size:13px}
+  .kpi .n{font-size:30px;font-weight:900;color:var(--ink);font-family:var(--mono);letter-spacing:-.03em;margin-top:8px;line-height:1}
+  .kpi .n .u{font-size:16px;color:var(--muted);font-weight:800}
+  .kpi .d{font-size:12px;font-weight:600;margin-top:7px;color:var(--muted)}
+  .kpi .d.up{color:var(--ok)} .kpi .d.down{color:var(--danger)}
+  .kpi.alert{border-color:color-mix(in srgb,var(--danger) 40%,var(--line))}
+  .kpi.alert .n{color:var(--danger)}
+
+  /* ---------- data table ---------- */
+  .tbl-wrap{overflow-x:auto}
+  table.tbl{width:100%;border-collapse:collapse;font-size:13.5px;min-width:640px}
+  .tbl thead th{position:sticky;top:0;background:var(--bg-2);text-align:left;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:11px 16px;border-bottom:1px solid var(--line);white-space:nowrap}
+  .tbl tbody td{padding:13px 16px;border-bottom:1px solid var(--line);color:var(--body);vertical-align:middle}
+  .tbl tbody tr:last-child td{border-bottom:none}
+  .tbl tbody tr:hover{background:var(--bg-2)}
+  .tbl td .t1{font-weight:700;color:var(--ink)}
+  .tbl td .t2{font-size:12px;color:var(--muted)}
+  .tbl .num{font-family:var(--mono);font-weight:800;text-align:right;color:var(--ink);white-space:nowrap}
+  .tbl .num.neg{color:var(--danger)}
+  .tbl .rowact{display:flex;gap:6px;justify-content:flex-end}
+
+  /* ---------- status pills ---------- */
+  .pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:800;padding:3px 10px;border-radius:999px;white-space:nowrap;letter-spacing:.01em}
+  .pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+  .pill.blue{background:var(--blue-050);color:var(--blue-600)}
+  .pill.ok{background:var(--ok-050);color:var(--ok)}
+  .pill.warn{background:var(--warn-050);color:var(--warn)}
+  .pill.danger{background:var(--danger-050);color:var(--danger)}
+  .pill.mut{background:var(--chip);color:var(--muted)}
+  .pill.amb{background:#fff5e3;color:#a86400}
+  :root[data-theme="dark"] .pill.amb{background:#2a2113;color:var(--amber)}
+  .pill.lock::before{content:"🔒";width:auto;height:auto;background:none;font-size:9px}
+
+  /* ---------- filter bar ---------- */
+  .filterbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+  .seg{display:inline-flex;background:var(--bg-2);border:1px solid var(--line);border-radius:999px;padding:3px}
+  .seg-b{border:none;background:transparent;color:var(--body);font-weight:700;font-size:13px;padding:6px 14px;border-radius:999px;transition:all .14s}
+  .seg-b:hover{color:var(--blue)}
+  .seg-b.on{background:var(--surface);color:var(--blue);box-shadow:var(--shadow-sm)}
+  .seg-b .ct{font-family:var(--mono);opacity:.7;margin-left:4px}
+  .search{position:relative;flex:1;min-width:200px;max-width:340px}
+  .search input{width:100%;border:1px solid var(--line);border-radius:var(--r);background:var(--bg-2);padding:9px 14px 9px 36px;font-family:inherit;font-size:14px;color:var(--ink);transition:border-color .14s,box-shadow .14s}
+  .search input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-050)}
+  .search .mag{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:14px}
+  .select{border:1px solid var(--line);border-radius:var(--r);background:var(--bg-2);padding:8px 12px;font-family:inherit;font-size:13.5px;font-weight:600;color:var(--ink)}
+
+  /* ---------- form fields (from booking previews) ---------- */
+  .field{position:relative;border:1px solid var(--line);border-radius:var(--r);padding:10px 14px;background:var(--bg-2);transition:border-color .14s,box-shadow .14s}
+  .field:focus-within{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-050)}
+  .field label{display:block;font-size:11px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
+  .field input,.field select{width:100%;border:none;background:none;font-family:inherit;font-size:15px;font-weight:600;color:var(--ink);padding:0}
+  .field input:focus,.field select:focus{outline:none}
+  .form-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+
+  /* ---------- misc ---------- */
+  .note{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:var(--r);font-size:13px;font-weight:600;line-height:1.45}
+  .note.info{background:var(--blue-050);color:var(--blue-700)}
+  .note.warn{background:var(--warn-050);color:var(--warn)}
+  .note.danger{background:var(--danger-050);color:var(--danger)}
+  .note.ok{background:var(--ok-050);color:var(--ok)}
+  .note .ic{font-size:15px;flex:none}
+  .grid-2{display:grid;grid-template-columns:2fr 1fr;gap:20px;align-items:start}
+  .stack{display:flex;flex-direction:column;gap:20px}
+  .money{font-family:var(--mono);font-weight:800;color:var(--ink)} .money.neg{color:var(--danger)}
+  .muted{color:var(--muted)}
+  .tag{display:inline-block;font-size:11px;font-weight:700;color:var(--body);background:var(--chip);border:1px solid var(--line);padding:3px 9px;border-radius:6px}
+
+  /* ---------- drawer ---------- */
+  .drawer-sc{position:fixed;inset:0;background:rgba(10,25,50,.44);backdrop-filter:blur(2px);z-index:80;display:none}
+  .drawer-sc.open{display:block}
+  .drawer{position:fixed;top:0;right:0;height:100vh;width:min(460px,94vw);background:var(--surface);border-left:1px solid var(--line);box-shadow:var(--shadow-lg);z-index:81;transform:translateX(100%);transition:transform .22s ease;display:flex;flex-direction:column}
+  .drawer.open{transform:translateX(0)}
+  .drawer .dh{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line)}
+  .drawer .dh h3{font-size:16px}
+  .drawer .db{padding:20px;overflow-y:auto;flex:1}
+  .drawer .df{padding:16px 20px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+  .drawer .x{border:1px solid var(--line);background:var(--surface);width:34px;height:34px;border-radius:9px;font-size:16px;color:var(--ink)}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:13.5px}
+  .kv dt{color:var(--muted);font-weight:600} .kv dd{margin:0;color:var(--ink);font-weight:700;text-align:right}
+
+  /* ---------- responsive ---------- */
+  @media(max-width:1024px){
+    .app{grid-template-columns:1fr}
+    .sidebar{position:fixed;left:0;top:0;z-index:70;width:var(--sbw);transform:translateX(-100%);transition:transform .2s}
+    .sidebar.open{transform:translateX(0)}
+    .topbar .burger{display:grid;place-items:center}
+    .grid-2{grid-template-columns:1fr}
+  }
+  @media(max-width:560px){
+    .whoami .nm,.whoami .rl{display:none}
+    .content{padding:16px}
+    .page-head h1{font-size:20px}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sb-logo"><span class="mark">⚓</span> Haor<span class="b">Boat</span> <span class="tag">Platform</span></div>
+    <nav class="sb-nav">
+      <div class="sb-group">Overview</div>
+      <a class="sb-link" href="admin-dashboard.html"><span class="ic">▦</span> Dashboard</a>
+      <a class="sb-link" href="admin-analytics.html"><span class="ic">📈</span> Analytics</a>
+      <div class="sb-group">Operations</div>
+      <a class="sb-link" href="admin-boats.html"><span class="ic">🚤</span> Boats <span class="ct warn">3</span></a>
+      <a class="sb-link" href="admin-routes.html"><span class="ic">🗺️</span> Routes</a>
+      <a class="sb-link" href="admin-bookings.html"><span class="ic">🎟️</span> Bookings</a>
+      <a class="sb-link" href="admin-reviews.html"><span class="ic">★</span> Reviews</a>
+      <a class="sb-link" href="admin-accounts.html"><span class="ic">👤</span> Accounts</a>
+      <a class="sb-link" href="admin-memberships.html"><span class="ic">👥</span> Memberships</a>
+      <a class="sb-link" href="admin-waitlist.html"><span class="ic">⏳</span> Waitlist</a>
+      <div class="sb-group">Finance</div>
+      <a class="sb-link" href="admin-finance-verify.html"><span class="ic">✓</span> Verify <span class="ct warn">5</span></a>
+      <a class="sb-link" href="admin-finance-refunds.html"><span class="ic">↩</span> Refunds <span class="ct">2</span></a>
+      <a class="sb-link" href="admin-finance-payouts.html"><span class="ic">💸</span> Payouts</a>
+      <a class="sb-link" href="admin-finance-overpayments.html"><span class="ic">⚖</span> Overpayments</a>
+      <a class="sb-link" href="admin-finance-credits.html"><span class="ic">🎫</span> Credits</a>
+      <a class="sb-link" href="admin-finance-commission.html"><span class="ic">%</span> Commission</a>
+      <a class="sb-link" href="admin-billing.html"><span class="ic">🧾</span> Subscriptions</a>
+      <a class="sb-link" href="admin-billing-config.html"><span class="ic">⚙</span> Billing config</a>
+      <a class="sb-link" href="admin-debtors.html"><span class="ic">🔻</span> Debtors <span class="ct warn">1</span></a>
+      <a class="sb-link" href="admin-trials.html"><span class="ic">⏱</span> Trials</a>
+      <div class="sb-group">System</div>
+      <a class="sb-link" href="admin-jobs.html"><span class="ic">🩺</span> Jobs & health <span class="ct warn">1</span></a>
+      <a class="sb-link" href="admin-audit.html"><span class="ic">📜</span> Audit log</a>
+      <a class="sb-link on" href="admin-sync.html"><span class="ic">🔄</span> Sync conflicts <span class="ct warn">1</span></a>
+      <a class="sb-link" href="admin-notifications.html"><span class="ic">🔔</span> Notifications</a>
+      <a class="sb-link" href="admin-gateway.html"><span class="ic">💳</span> Gateway</a>
+      <a class="sb-link" href="admin-settings.html"><span class="ic">🛠</span> Settings</a>
+      <a class="sb-link" href="admin-roles.html"><span class="ic">🔑</span> Role templates</a>
+      <div class="sb-group">Disputes & risk</div>
+      <a class="sb-link" href="admin-disputes.html"><span class="ic">⚑</span> Disputes</a>
+      <a class="sb-link" href="admin-idor.html"><span class="ic">🛡</span> Security</a>
+      <a class="sb-link" href="admin-coupons.html"><span class="ic">🏷</span> Coupons</a>
+      <a class="sb-link" href="admin-reschedules.html"><span class="ic">🔁</span> Reschedules</a>
+      <a class="sb-link" href="admin-cutoff.html"><span class="ic">⛔</span> Cutoff</a>
+    </nav>
+    <div class="sb-foot">Signed in as platform staff · UTC+6 (BST)</div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <button class="burger" id="burger" aria-label="Menu">☰</button>
+      <div><div class="pt">Sync conflicts</div><div class="crumb">Offline replay</div></div>
+      <div class="sp"></div>
+      <a class="icon-btn" href="admin-notifications.html" aria-label="Notifications">🔔<span class="dot"></span></a>
+      <button class="icon-btn theme-btn" id="themeToggle" aria-label="Toggle theme"><span class="moon">🌙</span><span class="sun">☀️</span></button>
+      <div class="whoami"><span class="av">RA</span><div><div class="nm">Rafiq Ahmed</div><div class="rl">Finance · Platform</div></div></div>
+    </header>
+
+    <main class="content">
+
+      <div class="page-head">
+        <div><h1>Offline-sync conflicts</h1><p>Replayed intents are re-authorized against permissions as of device time. Failures land here for a human — never silently applied or dropped. A manipulated clock can reorder but never erase.</p></div>
+      </div>
+      <div class="note ok" style="margin-bottom:16px"><span class="ic">✓</span> Last batch: <b>7 actions synced, 1 needs review</b> — device "Manager · Redmi" reconnected 14:05.</div>
+      <div class="filterbar"><div class="seg"><button class="seg-b on">Needs review<span class="ct">1</span></button><button class="seg-b">Clock skew<span class="ct">1</span></button><button class="seg-b">Permission-lost<span class="ct">1</span></button><button class="seg-b">Resolved<span class="ct">6</span></button></div></div>
+      <div class="card2"><div class="cb flush"><div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Intent</th><th>Actor · boat</th><th>Conflict</th><th>Device vs server</th><th></th></tr></thead>
+        <tbody>
+          <tr><td><div class="t1">mark_cash_paid</div><div class="t2">INV-5d14</div></td><td>Manager · Bhela</td><td><span class="pill danger">paid vs void</span></td><td class="t2">09:00 → 14:05</td><td class="rowact"><button class="btn btn-sm btn-o">Reject</button><button class="btn btn-sm btn-b">Resolve</button></td></tr>
+          <tr><td><div class="t1">mark_paid</div><div class="t2">INV-5d14</div></td><td>Ex-manager · Bhela</td><td><span class="pill danger">permission lost</span></td><td class="t2">02:59 → 14:05</td><td class="rowact"><button class="btn btn-sm btn-danger">Discard</button></td></tr>
+          <tr><td><div class="t1">cost_add</div><div class="t2">fuel ৳4,200</div></td><td>Manager · Haor Bilash</td><td><span class="pill warn">clock skew 5h</span></td><td class="t2">09:12 → 14:05</td><td class="rowact"><button class="btn btn-sm btn-ok">Accept</button></td></tr>
+        </tbody>
+      </table></div></div></div>
+
+    </main>
+  </div>
+</div>
+
+<script>
+  // shared admin shell behaviour (copied into every screen)
+  (function(){
+    var root = document.documentElement, stored=null;
+    try{ stored = localStorage.getItem('hb-theme'); }catch(e){}
+    root.setAttribute('data-theme', stored || (window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'));
+    var t=document.getElementById('themeToggle');
+    t&&t.addEventListener('click',function(){
+      var n=root.getAttribute('data-theme')==='dark'?'light':'dark';
+      root.setAttribute('data-theme',n); try{localStorage.setItem('hb-theme',n);}catch(e){}
+    });
+    var b=document.getElementById('burger'), sb=document.getElementById('sidebar');
+    b&&b.addEventListener('click',function(){ sb.classList.toggle('open'); });
+    // segmented filter toggle
+    document.querySelectorAll('.seg').forEach(function(seg){
+      seg.querySelectorAll('.seg-b').forEach(function(x){
+        x.addEventListener('click',function(){
+          seg.querySelectorAll('.seg-b').forEach(function(y){y.classList.remove('on')});
+          x.classList.add('on');
+        });
+      });
+    });
+    // drawer open/close (elements with data-drawer open #drawer; .x / scrim close)
+    document.querySelectorAll('[data-drawer]').forEach(function(el){
+      el.addEventListener('click',function(){
+        document.getElementById('drawer')?.classList.add('open');
+        document.getElementById('drawerScrim')?.classList.add('open');
+      });
+    });
+    function closeDrawer(){ document.getElementById('drawer')?.classList.remove('open'); document.getElementById('drawerScrim')?.classList.remove('open'); }
+    document.getElementById('drawerScrim')?.addEventListener('click',closeDrawer);
+    document.querySelectorAll('[data-drawer-close]').forEach(function(el){ el.addEventListener('click',closeDrawer); });
+  })();
+</script>
+</body>
+</html>
+

@@ -9,13 +9,10 @@ build/
 out/
 
 # env / secrets
-.env
-.env.local
-.env.*.local
-*.pem
+
 
 # prisma
-backend/prisma/*.db
+
 
 # logs
 logs/
