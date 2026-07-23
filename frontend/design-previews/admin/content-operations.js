@@ -196,9 +196,9 @@ module.exports = [
         <div class="acts"><button class="btn btn-o">↻ Recompute all counts</button></div>
       </div>
       <div class="kpis">
-        <div class="kpi"><div class="l">Waitlisted (all)</div><div class="n">37</div><div class="d">across 9 departures</div></div>
-        <div class="kpi"><div class="l">Last notify-all</div><div class="n">12</div><div class="d">sent 17:41 · Jol Kolol</div></div>
-        <div class="kpi alert"><div class="l">Count drift</div><div class="n">1</div><div class="d down">1 departure off by 1</div></div>
+        <div class="kpi"><div class="l"><span class="ic">⏳</span> Waitlisted (all)</div><div class="n">37</div><div class="d">across 9 departures</div></div>
+        <div class="kpi"><div class="l"><span class="ic">📣</span> Last notify-all</div><div class="n">12</div><div class="d">sent 17:41 · Jol Kolol</div></div>
+        <div class="kpi alert"><div class="l"><span class="ic">⚠</span> Count drift</div><div class="n">1</div><div class="d down">1 departure off by 1</div></div>
       </div>
       <div class="card2"><div class="ch"><h3>Departures</h3><span class="sub">denormalized vs recomputed availability</span></div><div class="cb flush"><div class="tbl-wrap"><table class="tbl">
         <thead><tr><th>Departure</th><th class="num">Waitlist</th><th class="num">avail (stored)</th><th class="num">avail (recomputed)</th><th>Status</th><th></th></tr></thead>

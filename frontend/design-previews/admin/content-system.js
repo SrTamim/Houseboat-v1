@@ -92,10 +92,10 @@ module.exports = [
         <div><h1>Payment gateway</h1><p>SSLCommerz. IPN is authoritative — the raw callback is never trusted, only re-validation by val_id. Replays are idempotent no-ops via the unique gateway token.</p></div>
       </div>
       <div class="kpis">
-        <div class="kpi"><div class="l">Mode</div><div class="n" style="font-size:22px"><span class="pill amb">SANDBOX</span></div><div class="d">switch in Settings</div></div>
-        <div class="kpi"><div class="l">IPNs today</div><div class="n">312</div><div class="d up">308 confirmed</div></div>
-        <div class="kpi alert"><div class="l">Failed / unmatched</div><div class="n">4</div><div class="d down">dropped, not recorded</div></div>
-        <div class="kpi"><div class="l">Replay no-ops</div><div class="n">17</div><div class="d">idempotent</div></div>
+        <div class="kpi"><div class="l"><span class="ic">🧪</span> Mode</div><div class="n" style="font-size:22px"><span class="pill amb">SANDBOX</span></div><div class="d">switch in Settings</div></div>
+        <div class="kpi"><div class="l"><span class="ic">📨</span> IPNs today</div><div class="n">312</div><div class="d up">308 confirmed</div></div>
+        <div class="kpi alert"><div class="l"><span class="ic">⚠</span> Failed / unmatched</div><div class="n">4</div><div class="d down">dropped, not recorded</div></div>
+        <div class="kpi"><div class="l"><span class="ic">🔁</span> Replay no-ops</div><div class="n">17</div><div class="d">idempotent</div></div>
       </div>
       <div class="card2"><div class="ch"><h3>Recent IPN events</h3><span class="sub">+5-min hold window covers the gateway round-trip</span></div><div class="cb flush"><div class="tbl-wrap"><table class="tbl">
         <thead><tr><th>val_id</th><th>Invoice</th><th class="num">Amount</th><th>Result</th><th class="num">At</th></tr></thead>

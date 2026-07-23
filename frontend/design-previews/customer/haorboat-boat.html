@@ -6,7 +6,7 @@
 <title>HaorBoat — boat detail (design preview)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Hind+Siliguri:wght@400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@500;600;700&family=Hind+Siliguri:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
     --blue:#1a73e8; --blue-600:#1560d6; --blue-700:#0f56be; --blue-050:#e9f1fe; --blue-100:#d3e5fd;
@@ -347,9 +347,174 @@
     .foot .bot{flex-direction:column;text-align:center}
   }
   @media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+
+/* __V2_APPLIED__ */
+
+  /* ============================================================
+     v2 CRAFT-PASS TOKENS (additive — later declarations win over the
+     page's original :root, so old --surface/--line/--shadow/etc. are
+     re-pointed to v2 values while page-specific extras like --green/
+     --red stay untouched).
+     ============================================================ */
+  :root{
+    --amber:#f5a623; --amber-700:#c77f10;
+    --ok:#12925a; --warn:#c07a00; --danger:#d64242;
+
+    --bg:#f5f6f8;
+    --raise-1:#ffffff; --raise-2:#ffffff;
+    --hair:#e7e9ee; --hair-2:#eef0f4;
+    --ink:#111725; --body:#4b5568; --muted:#8b93a3;
+    --field:#f3f5f8; --hover:#f6f7f9;
+
+    --e1:0 1px 2px rgba(17,23,37,.05), 0 1px 1px rgba(17,23,37,.04);
+    --e2:0 2px 4px rgba(17,23,37,.05), 0 8px 20px -8px rgba(17,23,37,.14);
+    --e3:0 12px 34px -10px rgba(17,23,37,.24), 0 4px 12px rgba(17,23,37,.08);
+    --top-hi:inset 0 1px 0 rgba(255,255,255,.7);
+    --ring:0 0 0 3px rgba(26,115,232,.16);
+
+    --r-2xl:16px; --r-xl:13px; --r:10px; --r-sm:8px;
+    --dur:.22s; --ease:cubic-bezier(.2,.7,.3,1);
+
+    --footer:#0a2a5e; --footer-txt:#c9dcf7; --footer-h:#ffffff; --footer-mut:#9fbbe6;
+    --display:'Space Grotesk','Inter',system-ui,sans-serif;
+
+    /* back-compat aliases (old names → v2) */
+    --surface:var(--raise-1); --line:var(--hair); --bg-2:var(--bg); --chip:#eff1f5;
+    --shadow-sm:var(--e1); --shadow:var(--e2); --shadow-lg:var(--e3);
+    --mono:var(--display); --r-lg:var(--r-2xl);
+  }
+  :root[data-theme="dark"]{
+    --blue:#5aa0ff; --blue-600:#74b0ff; --blue-700:#4a86e6; --blue-050:#17233a; --blue-100:#1f3252;
+    --amber:#f4b45a; --amber-700:#f4b45a;
+    --ok:#42d08a; --warn:#e6b35a; --danger:#ff7b76;
+
+    --bg:#0b0f1a;
+    --raise-1:#141a29; --raise-2:#1a2233;
+    --hair:#28324a; --hair-2:#1e2740;
+    --ink:#eef3fb; --body:#adb8cd; --muted:#727f99;
+    --field:#0f1524; --hover:#1a2233;
+
+    --e1:0 1px 2px rgba(0,0,0,.55), 0 0 0 1px rgba(90,160,255,.04);
+    --e2:0 2px 6px rgba(0,0,0,.5), 0 12px 30px -12px rgba(6,20,52,.9), 0 0 0 1px rgba(90,160,255,.05);
+    --e3:0 18px 46px -14px rgba(3,12,36,.85), 0 4px 16px rgba(0,0,0,.5), 0 0 40px -18px rgba(90,160,255,.45);
+    --top-hi:inset 0 1px 0 rgba(140,180,255,.08);
+    --ring:0 0 0 3px rgba(90,160,255,.28);
+
+    --footer:#081327;
+    --surface:var(--raise-1); --line:var(--hair); --bg-2:var(--bg); --chip:#1b2336;
+    --shadow-sm:var(--e1); --shadow:var(--e2); --shadow-lg:var(--e3);
+  }
+
+  /* body background → v2 canvas (both themes); dark gets ambient aurora wash */
+  body{background:var(--bg)!important}
+  :root[data-theme="dark"] body{
+    background:
+      radial-gradient(120% 70% at 85% -5%, rgba(90,160,255,.10), transparent 55%),
+      radial-gradient(100% 60% at 8% 4%, rgba(120,90,255,.07), transparent 50%),
+      radial-gradient(90% 80% at 50% 120%, rgba(244,180,90,.05), transparent 60%),
+      var(--bg)!important;
+    background-attachment:fixed;
+  }
+
+
+  /* ============================================================
+     v2 CRAFT-PASS OVERRIDES  (appended — win by cascade order)
+     Restyle shared chrome + add premium dark theme + motion layer.
+     Generic selectors only; page-specific components inherit via the
+     back-compat token aliases in :root.
+     ============================================================ */
+  h1,h2,h3,h4{font-family:var(--display);font-weight:600;letter-spacing:-.02em}
+  :focus-visible{outline:none;box-shadow:var(--ring);border-radius:10px}
+  ::selection{background:color-mix(in srgb,var(--blue) 26%,transparent)}
+  .tnum{font-variant-numeric:tabular-nums}
+
+  /* buttons — soft rect, color-mix hovers, inset highlight */
+  .btn{border-radius:var(--r);border-width:1px;box-shadow:var(--e1)}
+  .btn-b{box-shadow:var(--e1),inset 0 1px 0 rgba(255,255,255,.18);position:relative;overflow:hidden}
+  .btn-b:hover{background:var(--blue-600)}
+  .btn-b::after{content:"";position:absolute;top:0;left:-140%;width:60%;height:100%;
+    background:linear-gradient(100deg,transparent,rgba(255,255,255,.5),transparent);transform:skewX(-18deg)}
+  .btn-b:hover::after{animation:sheen .8s ease}
+  @keyframes sheen{to{left:160%}}
+  .btn-o{background:var(--raise-1);border-color:var(--hair);box-shadow:var(--e1)}
+  .btn-o:hover{border-color:color-mix(in srgb,var(--blue) 45%,var(--hair));color:var(--blue);background:color-mix(in srgb,var(--blue) 6%,var(--raise-1))}
+
+  /* nav — glass topbar */
+  .nav{background:color-mix(in srgb,var(--surface) 82%,transparent);backdrop-filter:saturate(180%) blur(16px);-webkit-backdrop-filter:saturate(180%) blur(16px);border-bottom:1px solid var(--hair)}
+  .logo .mark{border-radius:var(--r-xl);box-shadow:0 6px 14px -6px var(--blue),var(--top-hi)}
+  .logo .b{font-style:normal}
+  .theme-btn,.burger{border:1px solid var(--hair);background:var(--raise-1);border-radius:var(--r);box-shadow:var(--e1)}
+  .theme-btn:hover{border-color:color-mix(in srgb,var(--blue) 40%,var(--hair));color:var(--blue)}
+
+  /* ---- premium dark theme polish (generic) ---- */
+  :root[data-theme="dark"] .nav{
+    background:color-mix(in srgb,var(--bg) 62%,transparent);
+    border-bottom-color:color-mix(in srgb,var(--blue) 14%,var(--hair));
+  }
+  :root[data-theme="dark"] .logo .mark{box-shadow:0 6px 18px -4px rgba(90,160,255,.55),var(--top-hi)}
+  /* surfaces get a subtle top-lit brand gradient + glowing brand hairline */
+  :root[data-theme="dark"] .card,
+  :root[data-theme="dark"] .searchcard,
+  :root[data-theme="dark"] .panel,
+  :root[data-theme="dark"] .box,
+  :root[data-theme="dark"] .tile{
+    background:linear-gradient(160deg,color-mix(in srgb,var(--blue) 8%,var(--raise-1)),var(--raise-1) 62%);
+    border-color:color-mix(in srgb,var(--blue) 12%,var(--hair));
+  }
+  :root[data-theme="dark"] .card:hover{border-color:color-mix(in srgb,var(--blue) 34%,var(--hair))}
+
+  /* ============================================================
+     MOTION LAYER — ambient aurora + floating orbs + scroll reveal
+     ============================================================ */
+  .orb,.aurora-move{will-change:transform}
+
+  .aurora-move{position:fixed;inset:-20%;z-index:-3;pointer-events:none;opacity:.9;
+    background:
+      radial-gradient(38% 44% at 20% 30%, color-mix(in srgb,var(--blue) 55%,transparent), transparent 60%),
+      radial-gradient(34% 40% at 82% 22%, color-mix(in srgb,#7a5cff 50%,transparent), transparent 60%),
+      radial-gradient(40% 46% at 62% 82%, color-mix(in srgb,var(--amber) 42%,transparent), transparent 62%);
+    filter:blur(60px) saturate(120%);
+    animation:auroraDrift 26s ease-in-out infinite alternate;mix-blend-mode:screen;
+    -webkit-mask-image:radial-gradient(120% 120% at 50% 0%,#000 40%,transparent 92%);
+            mask-image:radial-gradient(120% 120% at 50% 0%,#000 40%,transparent 92%)}
+  :root[data-theme="light"] .aurora-move{opacity:.5;mix-blend-mode:multiply}
+  @keyframes auroraDrift{
+    0%  {transform:translate3d(-4%,-2%,0) rotate(0deg) scale(1.05)}
+    50% {transform:translate3d(5%,3%,0)   rotate(8deg) scale(1.18)}
+    100%{transform:translate3d(-2%,4%,0)  rotate(-5deg) scale(1.1)}
+  }
+
+  .orbfield{position:fixed;inset:0;z-index:-2;pointer-events:none;overflow:hidden}
+  .orb{position:absolute;border-radius:50%;filter:blur(2px);opacity:.5;
+    background:radial-gradient(circle at 32% 28%,rgba(255,255,255,.5),transparent 42%),
+      radial-gradient(circle at 68% 74%,color-mix(in srgb,var(--blue) 70%,transparent),transparent 60%);
+    box-shadow:0 30px 80px -20px color-mix(in srgb,var(--blue) 60%,transparent)}
+  .orb.o-a{width:220px;height:220px;left:6%;top:16%;animation:float1 18s ease-in-out infinite}
+  .orb.o-b{width:140px;height:140px;right:10%;top:30%;animation:float2 22s ease-in-out infinite;
+    background:radial-gradient(circle at 32% 28%,rgba(255,255,255,.5),transparent 42%),
+      radial-gradient(circle at 68% 74%,color-mix(in srgb,#7a5cff 70%,transparent),transparent 60%)}
+  .orb.o-c{width:90px;height:90px;left:44%;bottom:12%;animation:float3 15s ease-in-out infinite;
+    background:radial-gradient(circle at 32% 28%,rgba(255,255,255,.55),transparent 42%),
+      radial-gradient(circle at 68% 74%,color-mix(in srgb,var(--amber) 70%,transparent),transparent 60%)}
+  @keyframes float1{0%,100%{transform:translate(0,0)}50%{transform:translate(30px,-40px)}}
+  @keyframes float2{0%,100%{transform:translate(0,0)}50%{transform:translate(-40px,30px)}}
+  @keyframes float3{0%,100%{transform:translate(0,0)}50%{transform:translate(20px,26px)}}
+
+  .reveal{opacity:0;transform:translateY(34px) scale(.98);transition:opacity .7s var(--ease),transform .7s var(--ease)}
+  .reveal.in{opacity:1;transform:none}
+
+  @media (prefers-reduced-motion:reduce){
+    .aurora-move,.orb{animation:none!important}
+    .reveal{opacity:1!important;transform:none!important;transition:none!important}
+    .orbfield,.aurora-move{display:none}
+  }
+
 </style>
 </head>
 <body>
+<!-- ambient animated layers (behind everything) — v2 motion -->
+<div class="aurora-move" aria-hidden="true"></div>
+<div class="orbfield" aria-hidden="true"><span class="orb o-a"></span><span class="orb o-b"></span><span class="orb o-c"></span></div>
 
 <!-- ============ HEADER ============ -->
 <header class="nav"><div class="wrap row">
@@ -368,7 +533,7 @@
 </div></header>
 
 <!-- ============ DETAIL ============ -->
-<section class="detail"><div class="wrap">
+<section class="detail"><div class="wrap reveal">
   <div class="crumbs"><a href="haorboat-home.html">Home</a> › <a href="haorboat-search.html">Houseboats</a> › Tanguar Haor › <b>Jolpori Houseboat</b></div>
 
   <div class="dhead">
@@ -918,6 +1083,17 @@
       root.setAttribute('data-theme', next);
       try{ localStorage.setItem('hb-theme', next); }catch(e){}
     });
+  })();
+</script>
+<script>
+  // ---- v2 scroll-reveal motion (self-contained) ----
+  (function(){
+    var reduce = window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+    if(reduce){ document.querySelectorAll('.reveal').forEach(function(el){el.classList.add('in');}); return; }
+    var obs = new IntersectionObserver(function(es){
+      es.forEach(function(en){ if(en.isIntersecting){ en.target.classList.add('in'); obs.unobserve(en.target); } });
+    },{threshold:.12});
+    document.querySelectorAll('.reveal').forEach(function(el){ obs.observe(el); });
   })();
 </script>
 </body>

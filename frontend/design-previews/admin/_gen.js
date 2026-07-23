@@ -83,7 +83,29 @@ function sidebar(activeKey) {
 
 const SCRIPT = shell.slice(shell.indexOf('<script>'));
 
+// ---- upgrade old flat .kpi markup into the v2 stat-card structure ----
+// old:  <div class="kpi[ alert]"><div class="l"><span class="ic">I</span> LABEL</div>
+//         <div class="n">NUM</div><div class="d[ up|down]">DELTA</div></div>
+// new:  <div class="kpi[ alert]"><div class="top"><span class="chip">I</span><span class="l">LABEL</span></div>
+//         <div class="n">NUM</div><div class="d"><span class="delta[ up|down]">DELTA</span></div></div>
+function upgradeKpis(html) {
+  // .kpi block = <div class="kpi[mod]"><div class="l">LBLOCK</div><div class="n"NATT>NUM</div>[<div class="d[DMOD]">DELTA</div>]</div>
+  const block = /<div class="kpi([^"]*)"><div class="l">([\s\S]*?)<\/div><div class="n"([^>]*)>([\s\S]*?)<\/div>(?:<div class="d([^"]*)">([\s\S]*?)<\/div>)?<\/div>/g;
+  return html.replace(block, (_, kmod, lblock, natt, num, dmod, delta) => {
+    let ic = '', label = lblock;
+    const icm = lblock.match(/<span class="ic">([\s\S]*?)<\/span>\s*/);
+    if (icm) { ic = icm[1].trim(); label = lblock.replace(icm[0], ''); }
+    if (!ic) ic = kmod.includes('alert') ? '⚠' : '▪';
+    const deltaCls = dmod ? ` ${dmod.trim()}` : '';
+    const dHtml = (delta !== undefined && delta.trim())
+      ? `<div class="d"><span class="delta${deltaCls}">${delta.trim()}</span></div>` : '';
+    return `<div class="kpi${kmod}"><div class="top"><span class="chip">${ic}</span>`
+      + `<span class="l">${label.trim()}</span></div><div class="n"${natt}>${num}</div>${dHtml}</div>`;
+  });
+}
+
 function page({ key, title, crumb, body }) {
+  body = upgradeKpis(body);
   const head = HEAD_NO_TITLE.replace('{{TITLE}}', `HaorBoat Admin — ${title} (design preview)`);
   const crumbHtml = crumb ? `<div class="crumb">${crumb}</div>` : '';
   return `${head}

@@ -69,11 +69,18 @@ The theme toggle (🌙/☀️) persists via `localStorage['hb-theme']`; the side
 ## Build notes
 
 Screens are generated to guarantee an identical shell / design system across all
-files (same approach as `../admin`):
+files (same approach and **same v2 "craft pass" design system** as `../admin`:
+Space Grotesk display font, warm-neutral light + near-black dark canvas, Soft-UI
+elevation, glass topbar, signature KPI stat cards, page-load motion):
 
 - `_shell.html` — canonical skeleton + full CSS design system (reference; not a nav target)
-- `_gen.js` — holds the shared `<head>`/CSS/sidebar/boat-switcher/script once, stamps each screen
+- `_gen.js` — holds the shared `<head>`/CSS/sidebar/boat-switcher/script once, stamps each
+  screen; `upgradeKpis()` rewrites flat `.kpi` markup into the v2 stat-card structure at build time
 - `content-*.js` — per-group page bodies: overview / bookings / trips / setup / money / people / ops
+
+The content modules keep the compact flat `.kpi` markup; the generator upgrades it.
+Old token names used in custom owner components (cabin grid, bill rows, calendar)
+resolve through a small back-compat alias block in `_shell.html`'s `:root`.
 
 Regenerate after editing any content module or the shell:
 

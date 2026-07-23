@@ -98,9 +98,9 @@ module.exports = [
         <div><h1>Customer-credit ledger</h1><p>Platform liability — money owed to customers as credit toward future bookings. Fed by overpayments and reschedule advances.</p></div>
       </div>
       <div class="kpis">
-        <div class="kpi"><div class="l">Open credit</div><div class="n"><span class="u">৳</span>34,500</div><div class="d">outstanding liability</div></div>
-        <div class="kpi"><div class="l">Used this month</div><div class="n"><span class="u">৳</span>18,000</div><div class="d">6 bookings</div></div>
-        <div class="kpi"><div class="l">Aging &gt; 90d</div><div class="n"><span class="u">৳</span>4,000</div><div class="d">2 credits</div></div>
+        <div class="kpi"><div class="l"><span class="ic">🎫</span> Open credit</div><div class="n"><span class="u">৳</span>34,500</div><div class="d">outstanding liability</div></div>
+        <div class="kpi"><div class="l"><span class="ic">✅</span> Used this month</div><div class="n"><span class="u">৳</span>18,000</div><div class="d">6 bookings</div></div>
+        <div class="kpi"><div class="l"><span class="ic">⏳</span> Aging &gt; 90d</div><div class="n"><span class="u">৳</span>4,000</div><div class="d">2 credits</div></div>
       </div>
       <div class="card2"><div class="cb flush"><div class="tbl-wrap"><table class="tbl">
         <thead><tr><th>Customer</th><th class="num">Amount</th><th>Source</th><th>Used in</th><th>Status</th><th class="num">Age</th></tr></thead>

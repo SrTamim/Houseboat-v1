@@ -36,9 +36,9 @@ module.exports = [
         <div><h1>Security posture</h1><p>Every object fetch re-checks authorization — the role map alone is not enough. IDs are non-enumerable UUIDv7. Denied attempts and separation-of-duties violations land here.</p></div>
       </div>
       <div class="kpis">
-        <div class="kpi"><div class="l">Auth denials (24h)</div><div class="n">23</div><div class="d">cross-boat access blocked</div></div>
-        <div class="kpi alert"><div class="l">SoD violations</div><div class="n">2</div><div class="d down">same-person money chain</div></div>
-        <div class="kpi"><div class="l">Rate-limit hits</div><div class="n">140</div><div class="d">hold spikes absorbed</div></div>
+        <div class="kpi"><div class="l"><span class="ic">🛡</span> Auth denials (24h)</div><div class="n">23</div><div class="d">cross-boat access blocked</div></div>
+        <div class="kpi alert"><div class="l"><span class="ic">⚖</span> SoD violations</div><div class="n">2</div><div class="d down">same-person money chain</div></div>
+        <div class="kpi"><div class="l"><span class="ic">🚦</span> Rate-limit hits</div><div class="n">140</div><div class="d">hold spikes absorbed</div></div>
       </div>
       <div class="card2"><div class="ch"><h3>Blocked attempts</h3></div><div class="cb flush"><div class="tbl-wrap"><table class="tbl">
         <thead><tr><th>Actor</th><th>Attempt</th><th>Reason</th><th class="num">At</th></tr></thead>
@@ -87,9 +87,9 @@ module.exports = [
         <div><h1>Cutoff &amp; finalize</h1><p>When departure time arrives, holds stop; one minute later the invoice freezes and finalizes. Watch for departures stuck past cutoff, unfilled buyouts, and stale quotes.</p></div>
       </div>
       <div class="kpis">
-        <div class="kpi alert"><div class="l">Pending finalize</div><div class="n">2</div><div class="d down">past cutoff +1min</div></div>
-        <div class="kpi"><div class="l">Stuck transitions</div><div class="n">0</div><div class="d">time passed, status ok</div></div>
-        <div class="kpi"><div class="l">Stale quotes</div><div class="n">2</div><div class="d">24h / date-filled</div></div>
+        <div class="kpi alert"><div class="l"><span class="ic">⏹</span> Pending finalize</div><div class="n">2</div><div class="d down">past cutoff +1min</div></div>
+        <div class="kpi"><div class="l"><span class="ic">🔀</span> Stuck transitions</div><div class="n">0</div><div class="d">time passed, status ok</div></div>
+        <div class="kpi"><div class="l"><span class="ic">💬</span> Stale quotes</div><div class="n">2</div><div class="d">24h / date-filled</div></div>
       </div>
       <div class="card2"><div class="ch"><h3>Departures at cutoff</h3></div><div class="cb flush"><div class="tbl-wrap"><table class="tbl">
         <thead><tr><th>Departure</th><th>Cutoff</th><th>Open seats</th><th>State</th><th></th></tr></thead>
