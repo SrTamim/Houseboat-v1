@@ -1,34 +1,39 @@
 /* eslint-disable */
 // Disputes & risk group: disputes, idor (security), coupons, reschedules, cutoff
+const P = require("./partials.js");
 module.exports = [
 
-{ key:'disputes', out:'admin-disputes.html', title:'Disputes', crumb:'Resolution workspace', body:`
+{ key:'disputes', out:'admin-disputes.html', title:'Disputes', crumb:'Reported invoices', body:`
       <div class="page-head">
-        <div><h1>Dispute resolution</h1><p>Disputes cite what was agreed that day — the frozen policy snapshot on the invoice, not the boat's current policy. The full reschedule chain and audit trail sit beside it.</p></div>
+        <div><h1>Reported invoices</h1><p>Invoices flagged by a customer or a boat owner, with their note. <b>View</b> opens the full invoice; <b>Edit</b> lets you correct any invoice field to resolve the dispute — every edit is logged.</p></div>
       </div>
-      <div class="filterbar"><div class="seg"><button class="seg-b on">Open<span class="ct">2</span></button><button class="seg-b">Resolved<span class="ct">11</span></button></div></div>
-      <div class="grid-2">
-        <div class="card2"><div class="cb flush"><div class="tbl-wrap"><table class="tbl">
-          <thead><tr><th>Case</th><th>Invoice</th><th>Type</th><th></th></tr></thead>
-          <tbody>
-            <tr><td class="t1">DP-104</td><td class="t2">INV-5d14 · Bhela</td><td><span class="pill warn">refund %</span></td><td class="rowact"><button class="btn btn-sm btn-o" data-drawer>Open</button></td></tr>
-            <tr><td class="t1">DP-103</td><td class="t2">INV-4b02 · Haor Bilash</td><td><span class="pill warn">reschedule price</span></td><td class="rowact"><button class="btn btn-sm btn-o" data-drawer>Open</button></td></tr>
-          </tbody>
-        </table></div></div></div>
-        <div class="card2"><div class="ch"><h3>DP-104 · snapshot vs live</h3></div><div class="cb stack" style="gap:14px">
-          <div class="note info"><span class="ic">🧾</span> Cite the snapshot, not the current policy.</div>
-          <dl class="kv">
-            <dt>Agreed (snapshot)</dt><dd>Moderate · 50% if &gt;7d</dd>
-            <dt>Live policy now</dt><dd>Strict · 0% if &lt;14d</dd>
-            <dt>Blackout that day</dt><dd><span class="pill danger">Eid → 0%</span></dd>
-            <dt>Amount paid</dt><dd class="money">৳ 7,200</dd>
-          </dl>
-          <div class="note warn"><span class="ic">⚑</span> Blackout overrides the template — refund is 0% regardless of "Moderate".</div>
-          <a href="admin-audit.html" style="color:var(--blue);font-weight:700;font-size:13px">View audit trail →</a>
-        </div></div>
+      <div class="filterbar">
+        <div class="seg"><button class="seg-b on">Open<span class="ct">3</span></button><button class="seg-b">Resolved<span class="ct">11</span></button></div>
+        <div class="search" style="max-width:300px"><span class="mag">🔍</span><input placeholder="Invoice, booking, boat…"></div>
+        <select class="select"><option>Any reporter</option><option>Customer</option><option>Boat owner</option></select>
       </div>
-      <div class="drawer-sc" id="drawerScrim"></div>
-      <aside class="drawer" id="drawer"><div class="dh"><h3>Dispute case</h3><button class="x" data-drawer-close>✕</button></div><div class="db"><p class="muted">Full case — policy snapshot, reschedule chain, audit trail, audited bank-detail reveal.</p></div><div class="df"><button class="btn btn-o" data-drawer-close>Close</button><button class="btn btn-b">Record resolution</button></div></aside>
+      <div class="card2"><div class="cb flush"><div class="tbl-wrap"><table class="tbl" style="min-width:960px">
+        <thead><tr><th>Invoice ID</th><th>Booking ID</th><th>Reported by</th><th>Boat</th><th>Reason note</th><th>Date</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          <tr><td class="t1">INV-5d14</td><td class="t2">BK-5d10</td><td><span class="pill amb">Customer</span></td><td>Bhela</td><td class="t2">"Charged full price but trip was cancelled by the boat."</td><td class="t2">12 Jul</td><td><span class="pill warn">open</span></td><td class="rowact"><button class="btn btn-sm btn-o" data-drawer>View</button><button class="btn btn-sm btn-b" data-edit>Edit</button></td></tr>
+          <tr><td class="t1">INV-4b02</td><td class="t2">BK-4b02</td><td><span class="pill blue">Boat owner</span></td><td>Haor Bilash</td><td class="t2">"Reschedule repriced wrong — customer moved to a cheaper date."</td><td class="t2">11 Jul</td><td><span class="pill warn">open</span></td><td class="rowact"><button class="btn btn-sm btn-o" data-drawer>View</button><button class="btn btn-sm btn-b" data-edit>Edit</button></td></tr>
+          <tr><td class="t1">INV-6a29</td><td class="t2">BK-6a29</td><td><span class="pill amb">Customer</span></td><td>Jol Kolol</td><td class="t2">"Paid extra for an open seat that was later filled — want the surplus back."</td><td class="t2">19 Jul</td><td><span class="pill warn">open</span></td><td class="rowact"><button class="btn btn-sm btn-o" data-drawer>View</button><button class="btn btn-sm btn-b" data-edit>Edit</button></td></tr>
+          <tr><td class="t1">INV-3f80</td><td class="t2">BK-3f80</td><td><span class="pill blue">Boat owner</span></td><td>Meghduar</td><td class="t2">"Commission looks too high on this invoice."</td><td class="t2">04 Jul</td><td><span class="pill ok">resolved</span></td><td class="rowact"><button class="btn btn-sm btn-o" data-drawer>View</button></td></tr>
+        </tbody>
+      </table></div></div></div>
+${P.invoiceDrawer(Object.assign({}, P.SAMPLE_INVOICE, {
+  inv:'INV-5d14', bk:'BK-5d10', status:'Canceled by Boat', boat:'Bhela', trip:'Canceled', date:'12 Jul 2026',
+  customer:{name:'Farhana Islam', phone:'+8801700889900', email:'farhana@example.com', lead:'Farhana Islam'},
+  booking:Object.assign({}, P.SAMPLE_INVOICE.booking, {route:'Nikli Haor · Kishoreganj', dates:'20 Jul 2026', duration:'1 day', notes:'Owner cancelled — weather. Customer reported full charge.'}),
+  money:Object.assign({}, P.SAMPLE_INVOICE.money, {room:'7,073', gatewayFee:'127', shown:'7,200', coupon:'', discount:'0', total:'7,200', advance:'7,200', due:'0', paid:'7,200', commission:'354', dueToBoat:'6,719'}),
+  meta:Object.assign({}, P.SAMPLE_INVOICE.meta, {policy:'Moderate · blackout Eid → 0%'}),
+}), '<button class="btn btn-o" data-drawer-close>Close</button><button class="btn btn-b" data-edit>Edit invoice</button>')}
+${P.invoiceEditDrawer(Object.assign({}, P.SAMPLE_INVOICE, {
+  inv:'INV-5d14', bk:'BK-5d10', status:'Canceled by Boat', boat:'Bhela', trip:'Canceled', method:'Online',
+  customer:{name:'Farhana Islam', phone:'+8801700889900', email:'farhana@example.com', lead:'Farhana Islam'},
+  booking:Object.assign({}, P.SAMPLE_INVOICE.booking, {route:'Nikli Haor · Kishoreganj', dates:'20 Jul 2026', headcount:'2 adults', reference:'—'}),
+  money:Object.assign({}, P.SAMPLE_INVOICE.money, {room:'7,073', gatewayFee:'127', discount:'0', total:'7,200', advance:'7,200', due:'0', paid:'7,200', overpaid:'0', commission:'354', dueToBoat:'6,719'}),
+}), '<button class="btn btn-o" data-edit-close>Cancel</button><button class="btn btn-danger">Mark resolved</button><button class="btn btn-b">Save changes</button>')}
 `},
 
 { key:'idor', out:'admin-idor.html', title:'Security', crumb:'Authorization monitor', body:`
@@ -53,7 +58,25 @@ module.exports = [
 
 { key:'coupons', out:'admin-coupons.html', title:'Coupons', crumb:'Referral abuse', body:`
       <div class="page-head">
-        <div><h1>Coupons &amp; referrals</h1><p>The boat absorbs its own coupon — commission is unaffected. Watch referral coupons and free-text reference names for self-referral and anomaly patterns.</p></div>
+        <div><h1>Coupons &amp; referrals</h1><p>Create coupon codes and watch usage. The boat absorbs its own coupon — commission is unaffected. Referral coupons and free-text reference names are checked for self-referral patterns.</p></div>
+      </div>
+      <div class="card2"><div class="ch"><h3>Create coupon</h3></div><div class="cb">
+        <div class="form-grid">
+          <div class="field"><label>Code</label><input placeholder="e.g. MONSOON25"></div>
+          <div class="field"><label>Boat</label><input placeholder="Search boat…"></div>
+          <div class="field"><label>Kind</label><select><option>Percent</option><option>Flat</option><option>Referral</option></select></div>
+          <div class="field"><label>Value</label><input placeholder="e.g. 10% or ৳500"></div>
+          <div class="field"><label>Valid from</label><input type="date" value="2026-07-01"></div>
+          <div class="field"><label>Valid to</label><input type="date" value="2026-07-31"></div>
+        </div>
+        <div style="margin-top:16px"><button class="btn btn-b">+ Create coupon</button></div>
+      </div></div>
+      <div class="filterbar" style="margin-top:20px">
+        <div class="search" style="max-width:300px"><span class="mag">🔍</span><input placeholder="Code or boat…"></div>
+        <select class="select"><option>All kinds</option><option>Percent</option><option>Flat</option><option>Referral</option></select>
+        <select class="select"><option>Any date</option><option>Active now</option><option>Expired</option></select>
+        <select class="select"><option>Jul</option><option>Jun</option><option>All months</option></select>
+        <select class="select"><option>2026</option><option>2025</option></select>
       </div>
       <div class="card2"><div class="cb flush"><div class="tbl-wrap"><table class="tbl">
         <thead><tr><th>Code</th><th>Boat</th><th>Kind</th><th class="num">Uses</th><th>Reference pattern</th><th>Flag</th></tr></thead>

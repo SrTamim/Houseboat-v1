@@ -1,5 +1,11 @@
 # Platform Admin Console — Design Preview
 
+> **Ported to the app.** These previews are now the *reference*; the live console is
+> React under `frontend/src/app/admin/` (routes `/admin/*`), styled by the global
+> `src/app/admin/admin.css` (this design system, verbatim) with self-hosted Inter +
+> Space Grotesk. Shared UI lives in `src/components/admin/`, data in `src/lib/admin/`.
+> Keep this folder as the design source of truth; update both if the design changes.
+
 Static HTML mockups of the **platform admin console** — the surface the SaaS operator's
 own staff (`account.is_platform = true`) run the whole system from. Design preview only:
 self-contained HTML, inline CSS, **not wired to the backend**. Companion to the customer
@@ -9,7 +15,7 @@ Inter / Hind Siliguri, light + dark), new admin layout (sidebar + dense tables).
 Open any `admin-*.html` directly in a browser. Start at **admin-login.html** →
 **admin-dashboard.html**. The theme toggle (🌙/☀️) persists via `localStorage['hb-theme']`.
 
-## Screens (32)
+## Screens (31)
 
 **Standalone**
 - `admin-login.html` — platform-staff sign in (phone + password)
@@ -36,8 +42,7 @@ Open any `admin-*.html` directly in a browser. Start at **admin-login.html** →
 - `admin-finance-commission.html` — commission-integrity audit (room_total × rate)
 - `admin-billing.html` — subscription invoices (issue/pay), per boat
 - `admin-billing-config.html` — per-boat commission/gateway/monthly/trial editor
-- `admin-debtors.html` — negative platform_balance, access-denial control
-- `admin-trials.html` — trials expiring, first-bill preview
+- `admin-debtors.html` — negative platform_balance, access-denial control (trial dates now live on billing-config)
 
 **System**
 - `admin-jobs.html` — 3 cron jobs health (hold sweeper, departure status, subscription overdue)
@@ -46,14 +51,37 @@ Open any `admin-*.html` directly in a browser. Start at **admin-login.html** →
 - `admin-notifications.html` — delivery monitor, failed SMS/email, resend
 - `admin-gateway.html` — SSLCommerz mode, IPN events, replay no-ops, failed/unmatched
 - `admin-settings.html` — gateway/notification creds, billing grace, secrets present
-- `admin-roles.html` — role-template library, per-module permission map
+- `admin-roles.html` — boat role names (owners set permissions) + platform roles with a per-operation permission matrix
 
 **Disputes & risk**
-- `admin-disputes.html` — policy snapshot vs live, blackout override, audit trail
+- `admin-disputes.html` — invoices reported by customers/owners; View (read-only) + Edit (all fields editable)
 - `admin-idor.html` — authorization-denial & SoD-violation monitor
 - `admin-coupons.html` — coupon/referral abuse oversight
 - `admin-reschedules.html` — repricing trail, advance-as-credit
 - `admin-cutoff.html` — finalize monitor, unfilled buyouts, stale quotes
+
+## Invoice statuses
+
+The four finance queues (verify / refunds / payouts / overpayments) are **one shared
+table + one shared full-invoice drawer** (`partials.js`), each pre-filtered by status.
+Screens show these 11 business labels; the real build maps them onto schema states:
+
+| Display label | Schema `invoice.status` |
+|---|---|
+| Advance Paid | `paid` (partial — deposit only) |
+| Due Paid | `paid` (balance settled) |
+| Canceled | `cancelled` (customer-initiated) |
+| Canceled by Boat | `cancelled` (owner-initiated → refund path) |
+| Refund Requested | `refund_requested` |
+| Refund Verified | `refund_verified` |
+| Refunded | `refund_completed` |
+| Ready for Payout | `payment_verified` |
+| Payout Verified | `in_payout` |
+| Paid to Boat | `bill_cleared` |
+| Over Paid | any state with `amount_overpaid > 0` |
+
+Advance/Due Paid and Over Paid are display sub-states derived from `amount_paid` vs
+`display_total` and `amount_overpaid` — not separate columns in the schema.
 
 ## Build notes
 
@@ -61,6 +89,7 @@ Screens are generated to guarantee an identical shell/design-system across all f
 
 - `_shell.html` — canonical skeleton + full CSS design system (reference; not a nav target)
 - `_gen.js` — holds the shared `<head>`/CSS/sidebar/script once, stamps each screen
+- `partials.js` — shared invoice table + full-invoice drawer (four finance queues), plus the editable invoice drawer (disputes) and the printable subscription-invoice drawer
 - `content-*.js` — per-group page bodies (overview / operations / finance / system / disputes)
 
 Regenerate after editing any content module or the shell:

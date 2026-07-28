@@ -277,6 +277,52 @@
   .drawer .x:hover{border-color:var(--danger);color:var(--danger)}
   .kv{display:grid;grid-template-columns:auto 1fr;gap:10px 16px;font-size:13.5px}
   .kv dt{color:var(--muted);font-weight:500} .kv dd{margin:0;color:var(--ink);font-weight:600;text-align:right}
+  .drawer.wide{width:min(780px,96vw)}
+  /* drawer section header + nested mini-table */
+  .dsec{margin-top:22px}
+  .dsec:first-child{margin-top:0}
+  .dsec > h4{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);
+    margin:0 0 10px;padding-bottom:7px;border-bottom:1px solid var(--hair-2);font-family:var(--font)}
+  .mini{width:100%;border-collapse:separate;border-spacing:0;font-size:12.5px}
+  .mini th{text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:5px 8px}
+  .mini td{padding:7px 8px;border-top:1px solid var(--hair-2);color:var(--body)}
+  .mini td.t1{color:var(--ink);font-weight:600}
+  .mini td.num{text-align:right;font-family:var(--display);font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+  .prose{font-size:13px;color:var(--body);line-height:1.6;margin:0}
+  /* invoice money breakdown rows */
+  .bd{display:grid;grid-template-columns:1fr auto;gap:9px 16px;font-size:13.5px;align-items:baseline}
+  .bd .lbl{color:var(--muted);font-weight:500}
+  .bd .val{font-family:var(--display);font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums;text-align:right}
+  .bd .rule{grid-column:1/-1;height:1px;background:var(--hair-2);margin:3px 0}
+  .bd .sum .lbl,.bd .sum .val{font-weight:700;color:var(--ink)}
+  .bd .neg .val{color:var(--danger)}
+  .bd .pos .val{color:var(--ok)}
+  /* editable invoice field inside a drawer */
+  .bd input,.bd select{width:120px;text-align:right;border:1px solid var(--hair);border-radius:8px;background:var(--field);
+    padding:5px 8px;font-family:var(--display);font-weight:600;font-size:13px;color:var(--ink);font-variant-numeric:tabular-nums}
+  .kv input,.kv select{width:100%;border:1px solid var(--hair);border-radius:8px;background:var(--field);padding:5px 9px;
+    font-family:inherit;font-size:13px;font-weight:600;color:var(--ink)}
+  .bd input:focus,.bd select:focus,.kv input:focus,.kv select:focus{outline:none;border-color:var(--blue);box-shadow:var(--ring)}
+
+  /* permission matrix (role editor) */
+  .perm-grp{margin-top:18px}
+  .perm-grp > h5{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--blue);margin:0 0 8px}
+  .perm{display:grid;grid-template-columns:180px 1fr;gap:8px 16px;align-items:start;padding:10px 0;border-top:1px solid var(--hair-2)}
+  .perm:first-of-type{border-top:none}
+  .perm .tab{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;color:var(--ink)}
+  .perm .ops{display:flex;flex-wrap:wrap;gap:8px 16px}
+  .cbx{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:500;color:var(--body);cursor:pointer}
+  .cbx input{width:15px;height:15px;accent-color:var(--blue);cursor:pointer}
+  .cbx.parent{font-weight:700;color:var(--ink)}
+
+  /* print — isolate the open drawer as the printed invoice */
+  @media print{
+    .sidebar,.topbar,.drawer-sc,.df,.content{display:none!important}
+    .drawer{position:static!important;transform:none!important;width:100%!important;box-shadow:none!important;border:none!important;height:auto!important}
+    .drawer .db{overflow:visible!important;padding:0!important}
+    body{background:#fff!important}
+    :root{--raise-1:#fff;--bg:#fff;--ink:#000;--body:#222;--hair:#ccc;--hair-2:#e5e5e5}
+  }
 
   /* ---------- page-load motion ---------- */
   @keyframes fade{from{opacity:0}to{opacity:1}}
@@ -333,7 +379,6 @@
       <a class="sb-link" href="admin-billing.html"><span class="ic">🧾</span> Subscriptions</a>
       <a class="sb-link" href="admin-billing-config.html"><span class="ic">⚙</span> Billing config</a>
       <a class="sb-link" href="admin-debtors.html"><span class="ic">🔻</span> Debtors <span class="ct warn">1</span></a>
-      <a class="sb-link" href="admin-trials.html"><span class="ic">⏱</span> Trials</a>
       <div class="sb-group">System</div>
       <a class="sb-link" href="admin-jobs.html"><span class="ic">🩺</span> Jobs & health <span class="ct warn">1</span></a>
       <a class="sb-link" href="admin-audit.html"><span class="ic">📜</span> Audit log</a>
@@ -341,7 +386,7 @@
       <a class="sb-link" href="admin-notifications.html"><span class="ic">🔔</span> Notifications</a>
       <a class="sb-link" href="admin-gateway.html"><span class="ic">💳</span> Gateway</a>
       <a class="sb-link" href="admin-settings.html"><span class="ic">🛠</span> Settings</a>
-      <a class="sb-link" href="admin-roles.html"><span class="ic">🔑</span> Role templates</a>
+      <a class="sb-link" href="admin-roles.html"><span class="ic">🔑</span> Roles</a>
       <div class="sb-group">Disputes & risk</div>
       <a class="sb-link" href="admin-disputes.html"><span class="ic">⚑</span> Disputes</a>
       <a class="sb-link" href="admin-idor.html"><span class="ic">🛡</span> Security</a>
@@ -384,23 +429,128 @@
       </table></div></div></div>
 
       <div class="drawer-sc" id="drawerScrim"></div>
-      <aside class="drawer" id="drawer">
-        <div class="dh"><h3>Meghduar</h3><button class="x" data-drawer-close>✕</button></div>
-        <div class="db stack" style="gap:16px">
-          <span class="pill warn">pending approval</span>
-          <div class="note ok"><span class="ic">✓</span> Go-live checklist met — profile 100%, bank account on file.</div>
-          <div>
-            <h4 style="font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:8px">Profile</h4>
+      <aside class="drawer wide" id="drawer">
+        <div class="dh"><h3>Meghduar · boat record</h3><button class="x" data-drawer-close>✕</button></div>
+        <div class="db">
+
+          <div class="dsec">
+            <h4>Status</h4>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><span class="pill warn">pending approval</span><span class="pill ok">profile 100%</span><span class="pill ok">bank on file</span></div>
+            <div class="note ok"><span class="ic">✓</span> Go-live checklist met — profile complete and a bank account is on file.</div>
+          </div>
+
+          <div class="dsec">
+            <h4>Profile</h4>
             <dl class="kv">
-              <dt>Route</dt><dd>Tanguar Haor</dd>
-              <dt>Decks</dt><dd>2</dd>
-              <dt>Cabins</dt><dd>8 · 2 categories</dd>
-              <dt>Cancellation policy</dt><dd>Moderate</dd>
-              <dt>Blackout tiers</dt><dd>Eid 0% · Full-moon 0%</dd>
+              <dt>Name</dt><dd>Meghduar</dd>
+              <dt>Public URL</dt><dd>/houseboat/meghduar</dd>
+              <dt>Status</dt><dd>pending</dd>
+              <dt>Profile complete</dt><dd>100%</dd>
+              <dt>Created</dt><dd>02 Jun 2026</dd>
+            </dl>
+            <p class="prose" style="margin-top:10px"><b>Description:</b> A two-deck houseboat built for Tanguar Haor sunrises, with an open upper deck and eight cabins.</p>
+            <p class="prose" style="margin-top:8px"><b>Safety:</b> 24 life jackets, 2 life buoys, fire extinguisher, first-aid kit, licensed sukani.</p>
+            <p class="prose" style="margin-top:8px"><b>Food menu:</b> Welcome tea · BBQ dinner · hilsa lunch · breakfast khichuri. Vegetarian on request.</p>
+          </div>
+
+          <div class="dsec">
+            <h4>Bank &amp; billing</h4>
+            <dl class="kv">
               <dt>Bank account</dt><dd>City Bank ••4821</dd>
+              <dt>Account name</dt><dd>Meghduar Houseboat</dd>
+              <dt>Commission</dt><dd>5.0%</dd>
+              <dt>Gateway fee</dt><dd>1.8%</dd>
+              <dt>Monthly fee</dt><dd>৳ 5,000</dd>
+              <dt>Trial ends</dt><dd>24 Jul 2026</dd>
+              <dt>Platform balance</dt><dd>৳ 0</dd>
             </dl>
           </div>
-          <div class="note info"><span class="ic">ℹ</span> Blackout dates are set per-boat by the owner. Platform reviews, does not edit.</div>
+
+          <div class="dsec">
+            <h4>Routes</h4>
+            <div style="display:flex;gap:8px;flex-wrap:wrap"><span class="tag">Tanguar Haor · Sunamganj</span><span class="tag">Tahirpur · Sunamganj</span></div>
+          </div>
+
+          <div class="dsec">
+            <h4>Decks &amp; cabins</h4>
+            <table class="mini">
+              <thead><tr><th>Cabin</th><th>Deck</th><th>Category</th><th>AC</th><th>Capacity</th></tr></thead>
+              <tbody>
+                <tr><td class="t1">101</td><td>Lower</td><td>Luxury AC</td><td>Yes</td><td>2 (ext 3)</td></tr>
+                <tr><td class="t1">102</td><td>Lower</td><td>Luxury AC</td><td>Yes</td><td>2 (ext 3)</td></tr>
+                <tr><td class="t1">103</td><td>Lower</td><td>Family</td><td>Yes</td><td>4 (ext 5)</td></tr>
+                <tr><td class="t1">201</td><td>Upper</td><td>Family</td><td>No</td><td>4 (ext 5)</td></tr>
+              </tbody>
+            </table>
+            <p class="prose" style="margin-top:8px"><b>Categories:</b> Luxury AC — attached bath, balcony · Family — attached bath, twin bunk. 2 decks · 8 cabins total.</p>
+          </div>
+
+          <div class="dsec">
+            <h4>Trip packages</h4>
+            <table class="mini">
+              <thead><tr><th>Package</th><th>Duration</th><th>Departure → return</th><th>Policy</th></tr></thead>
+              <tbody>
+                <tr><td class="t1">Tanguar 2D1N</td><td>2 days 1 night</td><td>Tahirpur → Tahirpur</td><td>Moderate</td></tr>
+                <tr><td class="t1">Tanguar day trip</td><td>1 day</td><td>Tahirpur → Tahirpur</td><td>Moderate</td></tr>
+              </tbody>
+            </table>
+            <p class="prose" style="margin-top:8px"><b>Included:</b> all meals, guide, life jackets. <b>Excluded:</b> personal expenses, entry fees.</p>
+          </div>
+
+          <div class="dsec">
+            <h4>Pricing</h4>
+            <table class="mini">
+              <thead><tr><th>Profile</th><th>Category</th><th>Occupancy</th><th class="num">Per person</th></tr></thead>
+              <tbody>
+                <tr><td class="t1">General Day</td><td>Luxury AC</td><td>2</td><td class="num">৳ 5,000</td></tr>
+                <tr><td class="t1">General Day</td><td>Family</td><td>4</td><td class="num">৳ 4,200</td></tr>
+                <tr><td class="t1">Eid</td><td>Luxury AC</td><td>2</td><td class="num">৳ 7,600</td></tr>
+                <tr><td class="t1">Full Moon</td><td>Luxury AC</td><td>2</td><td class="num">৳ 6,400</td></tr>
+              </tbody>
+            </table>
+            <p class="prose" style="margin-top:8px"><b>Group bands:</b> 15–20 people ৳150,000 · 21–28 people ৳195,000 (full-boat buyout).</p>
+          </div>
+
+          <div class="dsec">
+            <h4>Cancellation policy</h4>
+            <dl class="kv">
+              <dt>Template</dt><dd>Moderate</dd>
+              <dt>Deposit</dt><dd>30%</dd>
+              <dt>Shown at checkout</dt><dd>Yes</dd>
+              <dt>Tiers</dt><dd>&gt;7 days 50% · &lt;7 days 0%</dd>
+              <dt>Blackout</dt><dd>Eid 0% · Full moon 0%</dd>
+            </dl>
+            <div class="note info" style="margin-top:10px"><span class="ic">ℹ</span> Blackout dates are set per boat by the owner. The platform reviews them here but does not edit.</div>
+          </div>
+
+          <div class="dsec">
+            <h4>Operating dates</h4>
+            <p class="prose">Jul 2026 — 18, 19, 20, 21, 24, 25, 26, 28, 31 · Aug 2026 — 01, 02, 05, 08, 09. Only these dates generate bookable departures.</p>
+          </div>
+
+          <div class="dsec">
+            <h4>Crew</h4>
+            <table class="mini">
+              <thead><tr><th>Name</th><th>Role</th><th>Pay</th><th>Default crew</th></tr></thead>
+              <tbody>
+                <tr><td class="t1">Abdul Karim</td><td>Sukani</td><td>৳ 1,200 / trip</td><td>Yes</td></tr>
+                <tr><td class="t1">Rustom Ali</td><td>Cook</td><td>৳ 900 / trip</td><td>Yes</td></tr>
+                <tr><td class="t1">Jamal Hossain</td><td>Helper</td><td>৳ 12,000 / month</td><td>Yes</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="dsec">
+            <h4>Members &amp; shareholders</h4>
+            <table class="mini">
+              <thead><tr><th>Member</th><th>Role</th><th class="num">Share</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr><td class="t1">Shahin Alam</td><td>Owner</td><td class="num">60%</td><td>active</td></tr>
+                <tr><td class="t1">Nazmul Haque</td><td>Shareholder</td><td class="num">40%</td><td>active</td></tr>
+              </tbody>
+            </table>
+          </div>
+
         </div>
         <div class="df"><button class="btn btn-o" data-drawer-close>Close</button><button class="btn btn-danger">Reject</button><button class="btn btn-ok">Approve → live</button></div>
       </aside>
@@ -442,6 +592,14 @@
     function closeDrawer(){ var d=document.getElementById('drawer'),s=document.getElementById('drawerScrim'); d&&d.classList.remove('open'); s&&s.classList.remove('open'); }
     var sc=document.getElementById('drawerScrim'); sc&&sc.addEventListener('click',closeDrawer);
     document.querySelectorAll('[data-drawer-close]').forEach(function(el){ el.addEventListener('click',closeDrawer); });
+    // second (edit) drawer — e.g. dispute Edit
+    function openEdit(){ var d=document.getElementById('drawerEdit'),s=document.getElementById('drawerScrimEdit'); d&&d.classList.add('open'); s&&s.classList.add('open'); }
+    function closeEdit(){ var d=document.getElementById('drawerEdit'),s=document.getElementById('drawerScrimEdit'); d&&d.classList.remove('open'); s&&s.classList.remove('open'); }
+    document.querySelectorAll('[data-edit]').forEach(function(el){ el.addEventListener('click',openEdit); });
+    var sce=document.getElementById('drawerScrimEdit'); sce&&sce.addEventListener('click',closeEdit);
+    document.querySelectorAll('[data-edit-close]').forEach(function(el){ el.addEventListener('click',closeEdit); });
+    // print (subscription invoice etc.)
+    document.querySelectorAll('[data-print]').forEach(function(el){ el.addEventListener('click',function(){ window.print(); }); });
   })();
 </script>
 </body>

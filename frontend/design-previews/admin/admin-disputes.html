@@ -277,6 +277,52 @@
   .drawer .x:hover{border-color:var(--danger);color:var(--danger)}
   .kv{display:grid;grid-template-columns:auto 1fr;gap:10px 16px;font-size:13.5px}
   .kv dt{color:var(--muted);font-weight:500} .kv dd{margin:0;color:var(--ink);font-weight:600;text-align:right}
+  .drawer.wide{width:min(780px,96vw)}
+  /* drawer section header + nested mini-table */
+  .dsec{margin-top:22px}
+  .dsec:first-child{margin-top:0}
+  .dsec > h4{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);
+    margin:0 0 10px;padding-bottom:7px;border-bottom:1px solid var(--hair-2);font-family:var(--font)}
+  .mini{width:100%;border-collapse:separate;border-spacing:0;font-size:12.5px}
+  .mini th{text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:5px 8px}
+  .mini td{padding:7px 8px;border-top:1px solid var(--hair-2);color:var(--body)}
+  .mini td.t1{color:var(--ink);font-weight:600}
+  .mini td.num{text-align:right;font-family:var(--display);font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+  .prose{font-size:13px;color:var(--body);line-height:1.6;margin:0}
+  /* invoice money breakdown rows */
+  .bd{display:grid;grid-template-columns:1fr auto;gap:9px 16px;font-size:13.5px;align-items:baseline}
+  .bd .lbl{color:var(--muted);font-weight:500}
+  .bd .val{font-family:var(--display);font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums;text-align:right}
+  .bd .rule{grid-column:1/-1;height:1px;background:var(--hair-2);margin:3px 0}
+  .bd .sum .lbl,.bd .sum .val{font-weight:700;color:var(--ink)}
+  .bd .neg .val{color:var(--danger)}
+  .bd .pos .val{color:var(--ok)}
+  /* editable invoice field inside a drawer */
+  .bd input,.bd select{width:120px;text-align:right;border:1px solid var(--hair);border-radius:8px;background:var(--field);
+    padding:5px 8px;font-family:var(--display);font-weight:600;font-size:13px;color:var(--ink);font-variant-numeric:tabular-nums}
+  .kv input,.kv select{width:100%;border:1px solid var(--hair);border-radius:8px;background:var(--field);padding:5px 9px;
+    font-family:inherit;font-size:13px;font-weight:600;color:var(--ink)}
+  .bd input:focus,.bd select:focus,.kv input:focus,.kv select:focus{outline:none;border-color:var(--blue);box-shadow:var(--ring)}
+
+  /* permission matrix (role editor) */
+  .perm-grp{margin-top:18px}
+  .perm-grp > h5{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--blue);margin:0 0 8px}
+  .perm{display:grid;grid-template-columns:180px 1fr;gap:8px 16px;align-items:start;padding:10px 0;border-top:1px solid var(--hair-2)}
+  .perm:first-of-type{border-top:none}
+  .perm .tab{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;color:var(--ink)}
+  .perm .ops{display:flex;flex-wrap:wrap;gap:8px 16px}
+  .cbx{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:500;color:var(--body);cursor:pointer}
+  .cbx input{width:15px;height:15px;accent-color:var(--blue);cursor:pointer}
+  .cbx.parent{font-weight:700;color:var(--ink)}
+
+  /* print — isolate the open drawer as the printed invoice */
+  @media print{
+    .sidebar,.topbar,.drawer-sc,.df,.content{display:none!important}
+    .drawer{position:static!important;transform:none!important;width:100%!important;box-shadow:none!important;border:none!important;height:auto!important}
+    .drawer .db{overflow:visible!important;padding:0!important}
+    body{background:#fff!important}
+    :root{--raise-1:#fff;--bg:#fff;--ink:#000;--body:#222;--hair:#ccc;--hair-2:#e5e5e5}
+  }
 
   /* ---------- page-load motion ---------- */
   @keyframes fade{from{opacity:0}to{opacity:1}}
@@ -333,7 +379,6 @@
       <a class="sb-link" href="admin-billing.html"><span class="ic">🧾</span> Subscriptions</a>
       <a class="sb-link" href="admin-billing-config.html"><span class="ic">⚙</span> Billing config</a>
       <a class="sb-link" href="admin-debtors.html"><span class="ic">🔻</span> Debtors <span class="ct warn">1</span></a>
-      <a class="sb-link" href="admin-trials.html"><span class="ic">⏱</span> Trials</a>
       <div class="sb-group">System</div>
       <a class="sb-link" href="admin-jobs.html"><span class="ic">🩺</span> Jobs & health <span class="ct warn">1</span></a>
       <a class="sb-link" href="admin-audit.html"><span class="ic">📜</span> Audit log</a>
@@ -341,7 +386,7 @@
       <a class="sb-link" href="admin-notifications.html"><span class="ic">🔔</span> Notifications</a>
       <a class="sb-link" href="admin-gateway.html"><span class="ic">💳</span> Gateway</a>
       <a class="sb-link" href="admin-settings.html"><span class="ic">🛠</span> Settings</a>
-      <a class="sb-link" href="admin-roles.html"><span class="ic">🔑</span> Role templates</a>
+      <a class="sb-link" href="admin-roles.html"><span class="ic">🔑</span> Roles</a>
       <div class="sb-group">Disputes & risk</div>
       <a class="sb-link on" href="admin-disputes.html"><span class="ic">⚑</span> Disputes</a>
       <a class="sb-link" href="admin-idor.html"><span class="ic">🛡</span> Security</a>
@@ -355,7 +400,7 @@
   <div class="main">
     <header class="topbar">
       <button class="burger" id="burger" aria-label="Menu">☰</button>
-      <div><div class="pt">Disputes</div><div class="crumb">Resolution workspace</div></div>
+      <div><div class="pt">Disputes</div><div class="crumb">Reported invoices</div></div>
       <div class="sp"></div>
       <a class="icon-btn" href="admin-notifications.html" aria-label="Notifications">🔔<span class="dot"></span></a>
       <button class="icon-btn theme-btn" id="themeToggle" aria-label="Toggle theme"><span class="moon">🌙</span><span class="sun">☀️</span></button>
@@ -365,31 +410,167 @@
     <main class="content">
 
       <div class="page-head">
-        <div><h1>Dispute resolution</h1><p>Disputes cite what was agreed that day — the frozen policy snapshot on the invoice, not the boat's current policy. The full reschedule chain and audit trail sit beside it.</p></div>
+        <div><h1>Reported invoices</h1><p>Invoices flagged by a customer or a boat owner, with their note. <b>View</b> opens the full invoice; <b>Edit</b> lets you correct any invoice field to resolve the dispute — every edit is logged.</p></div>
       </div>
-      <div class="filterbar"><div class="seg"><button class="seg-b on">Open<span class="ct">2</span></button><button class="seg-b">Resolved<span class="ct">11</span></button></div></div>
-      <div class="grid-2">
-        <div class="card2"><div class="cb flush"><div class="tbl-wrap"><table class="tbl">
-          <thead><tr><th>Case</th><th>Invoice</th><th>Type</th><th></th></tr></thead>
-          <tbody>
-            <tr><td class="t1">DP-104</td><td class="t2">INV-5d14 · Bhela</td><td><span class="pill warn">refund %</span></td><td class="rowact"><button class="btn btn-sm btn-o" data-drawer>Open</button></td></tr>
-            <tr><td class="t1">DP-103</td><td class="t2">INV-4b02 · Haor Bilash</td><td><span class="pill warn">reschedule price</span></td><td class="rowact"><button class="btn btn-sm btn-o" data-drawer>Open</button></td></tr>
-          </tbody>
-        </table></div></div></div>
-        <div class="card2"><div class="ch"><h3>DP-104 · snapshot vs live</h3></div><div class="cb stack" style="gap:14px">
-          <div class="note info"><span class="ic">🧾</span> Cite the snapshot, not the current policy.</div>
-          <dl class="kv">
-            <dt>Agreed (snapshot)</dt><dd>Moderate · 50% if &gt;7d</dd>
-            <dt>Live policy now</dt><dd>Strict · 0% if &lt;14d</dd>
-            <dt>Blackout that day</dt><dd><span class="pill danger">Eid → 0%</span></dd>
-            <dt>Amount paid</dt><dd class="money">৳ 7,200</dd>
-          </dl>
-          <div class="note warn"><span class="ic">⚑</span> Blackout overrides the template — refund is 0% regardless of "Moderate".</div>
-          <a href="admin-audit.html" style="color:var(--blue);font-weight:700;font-size:13px">View audit trail →</a>
-        </div></div>
+      <div class="filterbar">
+        <div class="seg"><button class="seg-b on">Open<span class="ct">3</span></button><button class="seg-b">Resolved<span class="ct">11</span></button></div>
+        <div class="search" style="max-width:300px"><span class="mag">🔍</span><input placeholder="Invoice, booking, boat…"></div>
+        <select class="select"><option>Any reporter</option><option>Customer</option><option>Boat owner</option></select>
       </div>
+      <div class="card2"><div class="cb flush"><div class="tbl-wrap"><table class="tbl" style="min-width:960px">
+        <thead><tr><th>Invoice ID</th><th>Booking ID</th><th>Reported by</th><th>Boat</th><th>Reason note</th><th>Date</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          <tr><td class="t1">INV-5d14</td><td class="t2">BK-5d10</td><td><span class="pill amb">Customer</span></td><td>Bhela</td><td class="t2">"Charged full price but trip was cancelled by the boat."</td><td class="t2">12 Jul</td><td><span class="pill warn">open</span></td><td class="rowact"><button class="btn btn-sm btn-o" data-drawer>View</button><button class="btn btn-sm btn-b" data-edit>Edit</button></td></tr>
+          <tr><td class="t1">INV-4b02</td><td class="t2">BK-4b02</td><td><span class="pill blue">Boat owner</span></td><td>Haor Bilash</td><td class="t2">"Reschedule repriced wrong — customer moved to a cheaper date."</td><td class="t2">11 Jul</td><td><span class="pill warn">open</span></td><td class="rowact"><button class="btn btn-sm btn-o" data-drawer>View</button><button class="btn btn-sm btn-b" data-edit>Edit</button></td></tr>
+          <tr><td class="t1">INV-6a29</td><td class="t2">BK-6a29</td><td><span class="pill amb">Customer</span></td><td>Jol Kolol</td><td class="t2">"Paid extra for an open seat that was later filled — want the surplus back."</td><td class="t2">19 Jul</td><td><span class="pill warn">open</span></td><td class="rowact"><button class="btn btn-sm btn-o" data-drawer>View</button><button class="btn btn-sm btn-b" data-edit>Edit</button></td></tr>
+          <tr><td class="t1">INV-3f80</td><td class="t2">BK-3f80</td><td><span class="pill blue">Boat owner</span></td><td>Meghduar</td><td class="t2">"Commission looks too high on this invoice."</td><td class="t2">04 Jul</td><td><span class="pill ok">resolved</span></td><td class="rowact"><button class="btn btn-sm btn-o" data-drawer>View</button></td></tr>
+        </tbody>
+      </table></div></div></div>
       <div class="drawer-sc" id="drawerScrim"></div>
-      <aside class="drawer" id="drawer"><div class="dh"><h3>Dispute case</h3><button class="x" data-drawer-close>✕</button></div><div class="db"><p class="muted">Full case — policy snapshot, reschedule chain, audit trail, audited bank-detail reveal.</p></div><div class="df"><button class="btn btn-o" data-drawer-close>Close</button><button class="btn btn-b">Record resolution</button></div></aside>
+      <aside class="drawer wide" id="drawer">
+        <div class="dh"><h3>INV-5d14 · full invoice</h3><button class="x" data-drawer-close>✕</button></div>
+        <div class="db">
+
+          <div class="dsec">
+            <h4>Status</h4>
+            <div style="display:flex;gap:8px;flex-wrap:wrap"><span class="pill danger">Canceled by Boat</span><span class="pill mut">Canceled</span><span class="tag">Online</span></div>
+          </div>
+
+          <div class="dsec">
+            <h4>Customer</h4>
+            <dl class="kv">
+              <dt>Name</dt><dd>Farhana Islam</dd>
+              <dt>Phone</dt><dd>+8801700889900</dd>
+              <dt>Email</dt><dd>farhana@example.com</dd>
+              <dt>Lead guest</dt><dd>Farhana Islam</dd>
+            </dl>
+          </div>
+
+          <div class="dsec">
+            <h4>Booking</h4>
+            <dl class="kv">
+              <dt>Booking ID</dt><dd>BK-5d10</dd>
+              <dt>Boat</dt><dd>Bhela</dd>
+              <dt>Route</dt><dd>Nikli Haor · Kishoreganj</dd>
+              <dt>Trip dates</dt><dd>20 Jul 2026</dd>
+              <dt>Duration</dt><dd>1 day</dd>
+              <dt>Booking type</dt><dd>Cabin booking</dd>
+              <dt>Headcount</dt><dd>2 adults</dd>
+              <dt>Booked on</dt><dd>12 Jul 2026</dd>
+              <dt>Reference name</dt><dd>Rakib (referral)</dd>
+            </dl>
+            <table class="mini" style="margin-top:12px">
+              <thead><tr><th>Cabin</th><th>Category</th><th>Adults</th><th>Children</th><th class="num">Room price</th></tr></thead>
+              <tbody>
+                <tr><td class="t1">101</td><td>Luxury AC</td><td>2</td><td>0</td><td class="num">৳ 10,000</td></tr>
+              </tbody>
+            </table>
+            <p class="prose" style="margin-top:10px"><b>Special instructions:</b> Owner cancelled — weather. Customer reported full charge.</p>
+          </div>
+
+          <div class="dsec">
+            <h4>Payment breakdown</h4>
+            <div class="bd">
+              <span class="lbl">Room total</span><span class="val">৳ 7,073</span>
+              <span class="lbl">+ Gateway fee (1.8%)</span><span class="val">৳ 127</span>
+              <div class="rule"></div>
+              <span class="lbl">= Price shown</span><span class="val">৳ 7,200</span>
+              <span class="lbl">− Coupon</span><span class="val">−৳ 0</span>
+              <div class="rule"></div>
+              <span class="lbl">= Customer total</span><span class="val">৳ 7,200</span>
+              <div class="rule"></div>
+              <span class="lbl">Advance paid</span><span class="val">৳ 7,200</span>
+              <span class="lbl">Due</span><span class="val">৳ 0</span>
+              <span class="lbl sum">Total paid</span><span class="val sum">৳ 7,200</span>
+              
+              <div class="rule"></div>
+              <span class="lbl">Platform commission</span><span class="val">৳ 354</span>
+              <span class="lbl sum">Payable to boat</span><span class="val sum">৳ 6,719</span>
+            </div>
+          </div>
+
+          <div class="dsec">
+            <h4>Payments received</h4>
+            <table class="mini">
+              <thead><tr><th>Method</th><th class="num">Amount</th><th>Gateway / txn id</th><th>Verified by</th><th>Paid at</th></tr></thead>
+              <tbody>
+                <tr><td class="t1">Online</td><td class="num">৳ 3,000</td><td>sslcz_a0…4d12</td><td>Nusrat J.</td><td>18 Jul 15:22</td></tr>
+                <tr><td class="t1">Online</td><td class="num">৳ 6,162</td><td>sslcz_b7…9f55</td><td>Nusrat J.</td><td>24 Jul 09:10</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="dsec">
+            <h4>Record</h4>
+            <dl class="kv">
+              <dt>Cancellation policy (snapshot)</dt><dd>Moderate · blackout Eid → 0%</dd>
+              <dt>Payout batch</dt><dd>—</dd>
+              <dt>Invoice created</dt><dd>18 Jul 2026 15:20</dd>
+              <dt>Last updated</dt><dd>24 Jul 2026 09:11</dd>
+            </dl>
+            <div class="note info" style="margin-top:12px"><span class="ic">ℹ</span> Commission is charged on the original room total, never the discounted amount — the boat absorbs its own coupon.</div>
+          </div>
+
+        </div>
+        <div class="df"><button class="btn btn-o" data-drawer-close>Close</button><button class="btn btn-b" data-edit>Edit invoice</button></div>
+      </aside>
+
+      <div class="drawer-sc" id="drawerScrimEdit"></div>
+      <aside class="drawer wide" id="drawerEdit">
+        <div class="dh"><h3>Edit invoice · INV-5d14</h3><button class="x" data-edit-close>✕</button></div>
+        <div class="db">
+          <div class="note warn" style="margin-bottom:6px"><span class="ic">⚑</span> Editing a disputed invoice is logged to the audit trail. Every field below is editable.</div>
+
+          <div class="dsec"><h4>Status</h4>
+            <dl class="kv">
+              <dt>Invoice status</dt><dd><select><option>Advance Paid</option><option>Due Paid</option><option>Canceled</option><option selected>Canceled by Boat</option><option>Refund Requested</option><option>Refund Verified</option><option>Refunded</option><option>Ready for Payout</option><option>Payout Verified</option><option>Paid to Boat</option><option>Over Paid</option></select></dd>
+              <dt>Trip status</dt><dd><select><option>Completed</option><option selected>Canceled</option></select></dd>
+              <dt>Payment method</dt><dd><select><option selected>Online</option><option>Cash</option></select></dd>
+            </dl>
+          </div>
+
+          <div class="dsec"><h4>Customer</h4>
+            <dl class="kv">
+              <dt>Name</dt><dd><input value="Farhana Islam"></dd>
+              <dt>Phone</dt><dd><input value="+8801700889900"></dd>
+              <dt>Email</dt><dd><input value="farhana@example.com"></dd>
+              <dt>Lead guest</dt><dd><input value="Farhana Islam"></dd>
+            </dl>
+          </div>
+
+          <div class="dsec"><h4>Booking</h4>
+            <dl class="kv">
+              <dt>Booking ID</dt><dd><input value="BK-5d10"></dd>
+              <dt>Boat</dt><dd><input value="Bhela"></dd>
+              <dt>Route</dt><dd><input value="Nikli Haor · Kishoreganj"></dd>
+              <dt>Trip dates</dt><dd><input value="20 Jul 2026"></dd>
+              <dt>Headcount</dt><dd><input value="2 adults"></dd>
+              <dt>Reference name</dt><dd><input value="—"></dd>
+            </dl>
+          </div>
+
+          <div class="dsec"><h4>Payment breakdown</h4>
+            <div class="bd">
+              <span class="lbl">Room total</span><span class="val "><input value="7,073"></span>
+              <span class="lbl">Gateway fee</span><span class="val "><input value="127"></span>
+              <span class="lbl">Discount / coupon</span><span class="val neg"><input value="0"></span>
+              <span class="lbl">Customer total</span><span class="val "><input value="7,200"></span>
+              <span class="lbl">Advance paid</span><span class="val "><input value="7,200"></span>
+              <span class="lbl">Due</span><span class="val "><input value="0"></span>
+              <span class="lbl">Total paid</span><span class="val "><input value="7,200"></span>
+              <span class="lbl">Overpaid</span><span class="val "><input value="0"></span>
+              <span class="lbl">Commission</span><span class="val "><input value="354"></span>
+              <span class="lbl">Payable to boat</span><span class="val "><input value="6,719"></span>
+            </div>
+          </div>
+
+          <div class="dsec"><h4>Resolution note</h4>
+            <div class="field"><label>Why this invoice is being edited</label><input value="Refund % corrected after owner-cancel dispute."></div>
+          </div>
+        </div>
+        <div class="df"><button class="btn btn-o" data-edit-close>Cancel</button><button class="btn btn-danger">Mark resolved</button><button class="btn btn-b">Save changes</button></div>
+      </aside>
+
 
     </main>
   </div>
@@ -428,6 +609,14 @@
     function closeDrawer(){ var d=document.getElementById('drawer'),s=document.getElementById('drawerScrim'); d&&d.classList.remove('open'); s&&s.classList.remove('open'); }
     var sc=document.getElementById('drawerScrim'); sc&&sc.addEventListener('click',closeDrawer);
     document.querySelectorAll('[data-drawer-close]').forEach(function(el){ el.addEventListener('click',closeDrawer); });
+    // second (edit) drawer — e.g. dispute Edit
+    function openEdit(){ var d=document.getElementById('drawerEdit'),s=document.getElementById('drawerScrimEdit'); d&&d.classList.add('open'); s&&s.classList.add('open'); }
+    function closeEdit(){ var d=document.getElementById('drawerEdit'),s=document.getElementById('drawerScrimEdit'); d&&d.classList.remove('open'); s&&s.classList.remove('open'); }
+    document.querySelectorAll('[data-edit]').forEach(function(el){ el.addEventListener('click',openEdit); });
+    var sce=document.getElementById('drawerScrimEdit'); sce&&sce.addEventListener('click',closeEdit);
+    document.querySelectorAll('[data-edit-close]').forEach(function(el){ el.addEventListener('click',closeEdit); });
+    // print (subscription invoice etc.)
+    document.querySelectorAll('[data-print]').forEach(function(el){ el.addEventListener('click',function(){ window.print(); }); });
   })();
 </script>
 </body>

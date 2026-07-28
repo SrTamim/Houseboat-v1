@@ -40,7 +40,6 @@ const NAV = [
     ['billing', '🧾', 'Subscriptions', 'admin-billing.html'],
     ['billing-config', '⚙', 'Billing config', 'admin-billing-config.html'],
     ['debtors', '🔻', 'Debtors', 'admin-debtors.html', {warn:'1'}],
-    ['trials', '⏱', 'Trials', 'admin-trials.html'],
   ]],
   ['System', [
     ['jobs', '🩺', 'Jobs & health', 'admin-jobs.html', {warn:'1'}],
@@ -49,7 +48,7 @@ const NAV = [
     ['notifications', '🔔', 'Notifications', 'admin-notifications.html'],
     ['gateway', '💳', 'Gateway', 'admin-gateway.html'],
     ['settings', '🛠', 'Settings', 'admin-settings.html'],
-    ['roles', '🔑', 'Role templates', 'admin-roles.html'],
+    ['roles', '🔑', 'Roles', 'admin-roles.html'],
   ]],
   ['Disputes & risk', [
     ['disputes', '⚑', 'Disputes', 'admin-disputes.html'],

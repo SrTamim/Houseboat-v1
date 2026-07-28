@@ -23,23 +23,128 @@ module.exports = [
       </table></div></div></div>
 
       <div class="drawer-sc" id="drawerScrim"></div>
-      <aside class="drawer" id="drawer">
-        <div class="dh"><h3>Meghduar</h3><button class="x" data-drawer-close>✕</button></div>
-        <div class="db stack" style="gap:16px">
-          <span class="pill warn">pending approval</span>
-          <div class="note ok"><span class="ic">✓</span> Go-live checklist met — profile 100%, bank account on file.</div>
-          <div>
-            <h4 style="font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:8px">Profile</h4>
+      <aside class="drawer wide" id="drawer">
+        <div class="dh"><h3>Meghduar · boat record</h3><button class="x" data-drawer-close>✕</button></div>
+        <div class="db">
+
+          <div class="dsec">
+            <h4>Status</h4>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><span class="pill warn">pending approval</span><span class="pill ok">profile 100%</span><span class="pill ok">bank on file</span></div>
+            <div class="note ok"><span class="ic">✓</span> Go-live checklist met — profile complete and a bank account is on file.</div>
+          </div>
+
+          <div class="dsec">
+            <h4>Profile</h4>
             <dl class="kv">
-              <dt>Route</dt><dd>Tanguar Haor</dd>
-              <dt>Decks</dt><dd>2</dd>
-              <dt>Cabins</dt><dd>8 · 2 categories</dd>
-              <dt>Cancellation policy</dt><dd>Moderate</dd>
-              <dt>Blackout tiers</dt><dd>Eid 0% · Full-moon 0%</dd>
+              <dt>Name</dt><dd>Meghduar</dd>
+              <dt>Public URL</dt><dd>/houseboat/meghduar</dd>
+              <dt>Status</dt><dd>pending</dd>
+              <dt>Profile complete</dt><dd>100%</dd>
+              <dt>Created</dt><dd>02 Jun 2026</dd>
+            </dl>
+            <p class="prose" style="margin-top:10px"><b>Description:</b> A two-deck houseboat built for Tanguar Haor sunrises, with an open upper deck and eight cabins.</p>
+            <p class="prose" style="margin-top:8px"><b>Safety:</b> 24 life jackets, 2 life buoys, fire extinguisher, first-aid kit, licensed sukani.</p>
+            <p class="prose" style="margin-top:8px"><b>Food menu:</b> Welcome tea · BBQ dinner · hilsa lunch · breakfast khichuri. Vegetarian on request.</p>
+          </div>
+
+          <div class="dsec">
+            <h4>Bank &amp; billing</h4>
+            <dl class="kv">
               <dt>Bank account</dt><dd>City Bank ••4821</dd>
+              <dt>Account name</dt><dd>Meghduar Houseboat</dd>
+              <dt>Commission</dt><dd>5.0%</dd>
+              <dt>Gateway fee</dt><dd>1.8%</dd>
+              <dt>Monthly fee</dt><dd>৳ 5,000</dd>
+              <dt>Trial ends</dt><dd>24 Jul 2026</dd>
+              <dt>Platform balance</dt><dd>৳ 0</dd>
             </dl>
           </div>
-          <div class="note info"><span class="ic">ℹ</span> Blackout dates are set per-boat by the owner. Platform reviews, does not edit.</div>
+
+          <div class="dsec">
+            <h4>Routes</h4>
+            <div style="display:flex;gap:8px;flex-wrap:wrap"><span class="tag">Tanguar Haor · Sunamganj</span><span class="tag">Tahirpur · Sunamganj</span></div>
+          </div>
+
+          <div class="dsec">
+            <h4>Decks &amp; cabins</h4>
+            <table class="mini">
+              <thead><tr><th>Cabin</th><th>Deck</th><th>Category</th><th>AC</th><th>Capacity</th></tr></thead>
+              <tbody>
+                <tr><td class="t1">101</td><td>Lower</td><td>Luxury AC</td><td>Yes</td><td>2 (ext 3)</td></tr>
+                <tr><td class="t1">102</td><td>Lower</td><td>Luxury AC</td><td>Yes</td><td>2 (ext 3)</td></tr>
+                <tr><td class="t1">103</td><td>Lower</td><td>Family</td><td>Yes</td><td>4 (ext 5)</td></tr>
+                <tr><td class="t1">201</td><td>Upper</td><td>Family</td><td>No</td><td>4 (ext 5)</td></tr>
+              </tbody>
+            </table>
+            <p class="prose" style="margin-top:8px"><b>Categories:</b> Luxury AC — attached bath, balcony · Family — attached bath, twin bunk. 2 decks · 8 cabins total.</p>
+          </div>
+
+          <div class="dsec">
+            <h4>Trip packages</h4>
+            <table class="mini">
+              <thead><tr><th>Package</th><th>Duration</th><th>Departure → return</th><th>Policy</th></tr></thead>
+              <tbody>
+                <tr><td class="t1">Tanguar 2D1N</td><td>2 days 1 night</td><td>Tahirpur → Tahirpur</td><td>Moderate</td></tr>
+                <tr><td class="t1">Tanguar day trip</td><td>1 day</td><td>Tahirpur → Tahirpur</td><td>Moderate</td></tr>
+              </tbody>
+            </table>
+            <p class="prose" style="margin-top:8px"><b>Included:</b> all meals, guide, life jackets. <b>Excluded:</b> personal expenses, entry fees.</p>
+          </div>
+
+          <div class="dsec">
+            <h4>Pricing</h4>
+            <table class="mini">
+              <thead><tr><th>Profile</th><th>Category</th><th>Occupancy</th><th class="num">Per person</th></tr></thead>
+              <tbody>
+                <tr><td class="t1">General Day</td><td>Luxury AC</td><td>2</td><td class="num">৳ 5,000</td></tr>
+                <tr><td class="t1">General Day</td><td>Family</td><td>4</td><td class="num">৳ 4,200</td></tr>
+                <tr><td class="t1">Eid</td><td>Luxury AC</td><td>2</td><td class="num">৳ 7,600</td></tr>
+                <tr><td class="t1">Full Moon</td><td>Luxury AC</td><td>2</td><td class="num">৳ 6,400</td></tr>
+              </tbody>
+            </table>
+            <p class="prose" style="margin-top:8px"><b>Group bands:</b> 15–20 people ৳150,000 · 21–28 people ৳195,000 (full-boat buyout).</p>
+          </div>
+
+          <div class="dsec">
+            <h4>Cancellation policy</h4>
+            <dl class="kv">
+              <dt>Template</dt><dd>Moderate</dd>
+              <dt>Deposit</dt><dd>30%</dd>
+              <dt>Shown at checkout</dt><dd>Yes</dd>
+              <dt>Tiers</dt><dd>&gt;7 days 50% · &lt;7 days 0%</dd>
+              <dt>Blackout</dt><dd>Eid 0% · Full moon 0%</dd>
+            </dl>
+            <div class="note info" style="margin-top:10px"><span class="ic">ℹ</span> Blackout dates are set per boat by the owner. The platform reviews them here but does not edit.</div>
+          </div>
+
+          <div class="dsec">
+            <h4>Operating dates</h4>
+            <p class="prose">Jul 2026 — 18, 19, 20, 21, 24, 25, 26, 28, 31 · Aug 2026 — 01, 02, 05, 08, 09. Only these dates generate bookable departures.</p>
+          </div>
+
+          <div class="dsec">
+            <h4>Crew</h4>
+            <table class="mini">
+              <thead><tr><th>Name</th><th>Role</th><th>Pay</th><th>Default crew</th></tr></thead>
+              <tbody>
+                <tr><td class="t1">Abdul Karim</td><td>Sukani</td><td>৳ 1,200 / trip</td><td>Yes</td></tr>
+                <tr><td class="t1">Rustom Ali</td><td>Cook</td><td>৳ 900 / trip</td><td>Yes</td></tr>
+                <tr><td class="t1">Jamal Hossain</td><td>Helper</td><td>৳ 12,000 / month</td><td>Yes</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="dsec">
+            <h4>Members &amp; shareholders</h4>
+            <table class="mini">
+              <thead><tr><th>Member</th><th>Role</th><th class="num">Share</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr><td class="t1">Shahin Alam</td><td>Owner</td><td class="num">60%</td><td>active</td></tr>
+                <tr><td class="t1">Nazmul Haque</td><td>Shareholder</td><td class="num">40%</td><td>active</td></tr>
+              </tbody>
+            </table>
+          </div>
+
         </div>
         <div class="df"><button class="btn btn-o" data-drawer-close>Close</button><button class="btn btn-danger">Reject</button><button class="btn btn-ok">Approve → live</button></div>
       </aside>
@@ -140,9 +245,10 @@ module.exports = [
         <div class="card2"><div class="cb flush"><div class="tbl-wrap"><table class="tbl">
           <thead><tr><th>Account</th><th>Phone</th><th>Verified</th><th>Roles</th><th></th></tr></thead>
           <tbody>
-            <tr><td class="t1">Tanvir Hasan</td><td class="t2">+8801711002200</td><td><span class="pill ok">verified</span></td><td class="t2">customer</td><td class="rowact"><button class="btn btn-sm btn-o" data-drawer>Open</button></td></tr>
-            <tr><td class="t1">Kamrul Owner</td><td class="t2">+8801711554433</td><td><span class="pill ok">verified</span></td><td class="t2">owner ×2 · crew ×1</td><td class="rowact"><button class="btn btn-sm btn-o" data-drawer>Open</button></td></tr>
-            <tr><td class="t1">Rina Akter</td><td class="t2">+8801711778899</td><td><span class="pill warn">pending</span></td><td class="t2">customer</td><td class="rowact"><button class="btn btn-sm btn-o" data-drawer>Open</button></td></tr>
+            <tr><td class="t1">Tanvir Hasan</td><td class="t2">+8801711002200</td><td><span class="pill ok">verified</span></td><td class="t2">customer</td><td class="rowact"><button class="btn btn-sm btn-o" data-drawer>Open</button><button class="btn btn-sm btn-danger">Remove</button></td></tr>
+            <tr><td class="t1">Kamrul Owner</td><td class="t2">+8801711554433</td><td><span class="pill ok">verified</span></td><td class="t2">owner ×2 · crew ×1</td><td class="rowact"><button class="btn btn-sm btn-o" data-drawer>Open</button><button class="btn btn-sm btn-danger">Remove</button></td></tr>
+            <tr><td class="t1">Rina Akter</td><td class="t2">+8801711778899</td><td><span class="pill warn">pending</span></td><td class="t2">customer</td><td class="rowact"><button class="btn btn-sm btn-o" data-drawer>Open</button><button class="btn btn-sm btn-danger">Remove</button></td></tr>
+            <tr><td class="t1">Sohel Rana</td><td class="t2">+8801711334455</td><td><span class="pill danger">access revoked</span></td><td class="t2">— (was manager)</td><td class="rowact"><button class="btn btn-sm btn-o" data-drawer>Open</button><button class="btn btn-sm btn-ok">Restore</button></td></tr>
           </tbody>
         </table></div></div></div>
         <div class="card2">
@@ -157,7 +263,8 @@ module.exports = [
                 <tr><td class="t1">Meghduar</td><td><span class="pill amb">Crew · sukani</span></td></tr>
               </tbody></table>
             </div>
-            <div class="acts" style="display:flex;gap:10px"><button class="btn btn-o">Resend verification</button><button class="btn btn-o">Force-verify phone</button></div>
+            <div class="acts" style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn btn-o">Resend verification</button><button class="btn btn-o">Force-verify phone</button><button class="btn btn-danger">Remove access</button></div>
+            <div class="note warn"><span class="ic">⚑</span> Removing access revokes every boat role and blocks sign-in. The account and its booking history are kept for audit.</div>
           </div>
         </div>
       </div>
@@ -168,7 +275,10 @@ module.exports = [
 { key:'memberships', out:'admin-memberships.html', title:'Memberships', crumb:'Co-owner oversight', body:`
       <div class="page-head">
         <div><h1>Membership oversight</h1><p>Per-boat co-owners for dispute support. An exited shareholder keeps read access to their own period only. Distributions are recorded, never auto-split.</p></div>
-        <div class="acts"><select class="select"><option>Jol Kolol</option><option>Haor Bilash</option></select></div>
+      </div>
+      <div class="filterbar">
+        <div class="search" style="max-width:320px"><span class="mag">🔍</span><input placeholder="Search by boat name…" value="Jol Kolol"></div>
+        <select class="select"><option>All members</option><option>Active only</option><option>Exited only</option></select>
       </div>
       <div class="grid-2">
         <div class="card2"><div class="ch"><h3>Members · Jol Kolol</h3></div><div class="cb flush"><div class="tbl-wrap"><table class="tbl">
@@ -179,7 +289,13 @@ module.exports = [
             <tr><td class="t1">Jahid Uddin</td><td><span class="pill mut">Shareholder</span></td><td class="num">20%</td><td class="t2">Mar–Jun 26</td><td><span class="pill warn">exited · read-only</span></td></tr>
           </tbody>
         </table></div></div></div>
-        <div class="card2"><div class="ch"><h3>Distributions</h3><span class="sub">recorded withdrawals</span></div><div class="cb flush"><div class="tbl-wrap"><table class="tbl">
+        <div class="card2">
+          <div class="ch"><h3>Distributions</h3>
+            <div style="display:flex;gap:8px">
+              <select class="select" style="height:34px;font-size:12.5px"><option>Jun</option><option>Jul</option><option>All months</option></select>
+              <select class="select" style="height:34px;font-size:12.5px"><option>2026</option><option>2025</option></select>
+            </div>
+          </div><div class="cb flush"><div class="tbl-wrap"><table class="tbl">
           <thead><tr><th>Member</th><th class="num">Amount</th><th>Note</th><th class="num">Date</th></tr></thead>
           <tbody>
             <tr><td class="t1">Kamrul Owner</td><td class="num">৳ 1,20,000</td><td class="t2">Jun profit</td><td class="num">30 Jun</td></tr>

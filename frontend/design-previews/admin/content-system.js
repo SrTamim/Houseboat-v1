@@ -148,31 +148,92 @@ module.exports = [
       </div>
 `},
 
-{ key:'roles', out:'admin-roles.html', title:'Role templates', crumb:'Permission library', body:`
+{ key:'roles', out:'admin-roles.html', title:'Roles', crumb:'Names & permissions', body:`
       <div class="page-head">
-        <div><h1>Role templates</h1><p>Platform-seeded starter roles owners clone via the role generator. Permissions are a per-module view/edit map across the 10 fixed modules.</p></div>
-        <div class="acts"><button class="btn btn-b">+ New template</button></div>
+        <div><h1>Roles</h1><p>The platform defines role <b>names</b> for boats — each boat owner sets what those roles can do. For <b>platform</b> staff, the platform sets both the name and the exact permissions.</p></div>
       </div>
-      <div class="card2"><div class="cb flush"><div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th>Template</th><th>Summary</th><th class="num">Cloned by</th><th></th></tr></thead>
-        <tbody>
-          <tr><td class="t1">Owner</td><td class="t2">Full view + edit on all modules</td><td class="num">28 boats</td><td class="rowact"><button class="btn btn-sm btn-o">Edit</button></td></tr>
-          <tr><td class="t1">Shareholder</td><td class="t2">View all · edit money &amp; reports</td><td class="num">19 boats</td><td class="rowact"><button class="btn btn-sm btn-o">Edit</button></td></tr>
-          <tr><td class="t1">Manager</td><td class="t2">Edit bookings/trips/staff/costs · view money</td><td class="num">24 boats</td><td class="rowact"><button class="btn btn-sm btn-o">Edit</button></td></tr>
-          <tr><td class="t1">Accountant</td><td class="t2">Money + reports only</td><td class="num">7 boats</td><td class="rowact"><button class="btn btn-sm btn-o">Edit</button></td></tr>
-        </tbody>
-      </table></div></div></div>
-      <div class="card2" style="margin-top:20px"><div class="ch"><h3>Manager · permission map</h3></div><div class="cb flush"><div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th>Module</th><th>View</th><th>Edit</th></tr></thead>
-        <tbody>
-          <tr><td class="t1">bookings</td><td><span class="pill ok">yes</span></td><td><span class="pill ok">yes</span></td></tr>
-          <tr><td class="t1">trips</td><td><span class="pill ok">yes</span></td><td><span class="pill ok">yes</span></td></tr>
-          <tr><td class="t1">pricing</td><td><span class="pill ok">yes</span></td><td><span class="pill mut">no</span></td></tr>
-          <tr><td class="t1">money</td><td><span class="pill ok">yes</span></td><td><span class="pill mut">no</span></td></tr>
-          <tr><td class="t1">staff</td><td><span class="pill ok">yes</span></td><td><span class="pill ok">yes</span></td></tr>
-          <tr><td class="t1">settings</td><td><span class="pill mut">no</span></td><td><span class="pill mut">no</span></td></tr>
-        </tbody>
-      </table></div></div></div>
+
+      <div class="card2">
+        <div class="ch"><h3>Boat role names</h3><span class="sub">names only · owners set the permissions</span></div>
+        <div class="cb">
+          <div class="note info" style="margin-bottom:14px"><span class="ic">ℹ</span> These names appear in every boat's role generator. Each owner decides the permissions per boat — the platform never sets a boat's permissions.</div>
+          <div class="filterbar" style="margin-bottom:14px">
+            <div class="field" style="flex:1;max-width:320px"><label>New role name</label><input placeholder="e.g. Reservations Desk"></div>
+            <button class="btn btn-b" style="align-self:flex-end">+ Add role name</button>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px">
+            <span class="pill mut">Owner</span><span class="pill mut">Shareholder</span><span class="pill mut">Manager</span>
+            <span class="pill mut">Accountant</span><span class="pill mut">Reservations Desk</span><span class="pill mut">Crew Lead</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card2" style="margin-top:20px">
+        <div class="ch"><h3>Platform roles</h3><div style="display:flex;gap:8px"><select class="select" style="height:34px;font-size:12.5px"><option>Finance Officer</option><option>Moderator</option><option>Read-only Auditor</option><option>+ New platform role…</option></select></div></div>
+        <div class="cb">
+          <div class="filterbar" style="margin-bottom:6px">
+            <div class="field" style="flex:1;max-width:320px"><label>Role name</label><input value="Finance Officer"></div>
+          </div>
+          <div class="note info" style="margin:6px 0 4px"><span class="ic">🔑</span> Tick a whole tab, or individual operations under it. Grouped by the console's sections.</div>
+${permMatrix()}
+          <div style="margin-top:16px;display:flex;gap:10px"><button class="btn btn-b">Save role &amp; permissions</button><button class="btn btn-o">Duplicate</button></div>
+        </div>
+      </div>
 `},
 
 ];
+
+// ---- platform permission matrix: nav groups -> tabs -> real operations ----
+function permMatrix(){
+  // [tab, [ops...], defaultChecked(ops that start ticked for the sample "Finance Officer")]
+  const groups = [
+    ['Overview', [
+      ['Dashboard', ['view'], ['view']],
+      ['Analytics', ['view','export'], ['view']],
+    ]],
+    ['Operations', [
+      ['Boats', ['view','approve','suspend','reinstate'], ['view']],
+      ['Routes', ['view','create','retire'], []],
+      ['Bookings', ['view','cancel','reschedule'], ['view']],
+      ['Reviews', ['view','hide','takedown'], []],
+      ['Accounts', ['view','remove-access','force-verify'], ['view']],
+      ['Memberships', ['view'], ['view']],
+      ['Waitlist', ['view','reconcile'], []],
+    ]],
+    ['Finance', [
+      ['Verify', ['view','mark-verified','flag-fraud'], ['view','mark-verified']],
+      ['Refunds', ['view','verify','complete','reveal-bank'], ['view','verify']],
+      ['Payouts', ['view','prepare','approve','pay','pull-from-batch'], ['view','prepare','approve']],
+      ['Overpayments', ['view','refund','credit'], ['view','credit']],
+      ['Credits', ['view','process'], ['view','process']],
+      ['Commission', ['view','export'], ['view']],
+      ['Subscriptions', ['view','issue','mark-paid'], ['view','issue','mark-paid']],
+      ['Billing config', ['view','edit'], ['view','edit']],
+      ['Debtors', ['view','deny','restore'], ['view']],
+    ]],
+    ['System', [
+      ['Jobs & health', ['view','run'], []],
+      ['Audit log', ['view','export'], ['view']],
+      ['Sync conflicts', ['view','resolve','discard'], []],
+      ['Notifications', ['view','resend'], []],
+      ['Gateway', ['view'], ['view']],
+      ['Settings', ['view','edit'], []],
+      ['Roles', ['view','edit'], []],
+    ]],
+    ['Disputes & risk', [
+      ['Disputes', ['view','edit-invoice','resolve'], ['view','edit-invoice']],
+      ['Security', ['view'], ['view']],
+      ['Coupons', ['view','create'], []],
+      ['Reschedules', ['view'], ['view']],
+      ['Cutoff', ['view','finalize'], []],
+    ]],
+  ];
+  return groups.map(([g, tabs]) => `          <div class="perm-grp"><h5>${g}</h5>
+${tabs.map(([tab, ops, on]) => {
+    const allOn = ops.every(o => on.includes(o));
+    const parent = `<label class="cbx parent"><input type="checkbox"${allOn ? ' checked' : ''}> ${tab}</label>`;
+    const subs = ops.map(o => `<label class="cbx"><input type="checkbox"${on.includes(o) ? ' checked' : ''}> ${o}</label>`).join('');
+    return `            <div class="perm"><div class="tab">${parent}</div><div class="ops">${subs}</div></div>`;
+  }).join('\n')}
+          </div>`).join('\n');
+}

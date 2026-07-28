@@ -277,6 +277,52 @@
   .drawer .x:hover{border-color:var(--danger);color:var(--danger)}
   .kv{display:grid;grid-template-columns:auto 1fr;gap:10px 16px;font-size:13.5px}
   .kv dt{color:var(--muted);font-weight:500} .kv dd{margin:0;color:var(--ink);font-weight:600;text-align:right}
+  .drawer.wide{width:min(780px,96vw)}
+  /* drawer section header + nested mini-table */
+  .dsec{margin-top:22px}
+  .dsec:first-child{margin-top:0}
+  .dsec > h4{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);
+    margin:0 0 10px;padding-bottom:7px;border-bottom:1px solid var(--hair-2);font-family:var(--font)}
+  .mini{width:100%;border-collapse:separate;border-spacing:0;font-size:12.5px}
+  .mini th{text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:5px 8px}
+  .mini td{padding:7px 8px;border-top:1px solid var(--hair-2);color:var(--body)}
+  .mini td.t1{color:var(--ink);font-weight:600}
+  .mini td.num{text-align:right;font-family:var(--display);font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+  .prose{font-size:13px;color:var(--body);line-height:1.6;margin:0}
+  /* invoice money breakdown rows */
+  .bd{display:grid;grid-template-columns:1fr auto;gap:9px 16px;font-size:13.5px;align-items:baseline}
+  .bd .lbl{color:var(--muted);font-weight:500}
+  .bd .val{font-family:var(--display);font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums;text-align:right}
+  .bd .rule{grid-column:1/-1;height:1px;background:var(--hair-2);margin:3px 0}
+  .bd .sum .lbl,.bd .sum .val{font-weight:700;color:var(--ink)}
+  .bd .neg .val{color:var(--danger)}
+  .bd .pos .val{color:var(--ok)}
+  /* editable invoice field inside a drawer */
+  .bd input,.bd select{width:120px;text-align:right;border:1px solid var(--hair);border-radius:8px;background:var(--field);
+    padding:5px 8px;font-family:var(--display);font-weight:600;font-size:13px;color:var(--ink);font-variant-numeric:tabular-nums}
+  .kv input,.kv select{width:100%;border:1px solid var(--hair);border-radius:8px;background:var(--field);padding:5px 9px;
+    font-family:inherit;font-size:13px;font-weight:600;color:var(--ink)}
+  .bd input:focus,.bd select:focus,.kv input:focus,.kv select:focus{outline:none;border-color:var(--blue);box-shadow:var(--ring)}
+
+  /* permission matrix (role editor) */
+  .perm-grp{margin-top:18px}
+  .perm-grp > h5{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--blue);margin:0 0 8px}
+  .perm{display:grid;grid-template-columns:180px 1fr;gap:8px 16px;align-items:start;padding:10px 0;border-top:1px solid var(--hair-2)}
+  .perm:first-of-type{border-top:none}
+  .perm .tab{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;color:var(--ink)}
+  .perm .ops{display:flex;flex-wrap:wrap;gap:8px 16px}
+  .cbx{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:500;color:var(--body);cursor:pointer}
+  .cbx input{width:15px;height:15px;accent-color:var(--blue);cursor:pointer}
+  .cbx.parent{font-weight:700;color:var(--ink)}
+
+  /* print — isolate the open drawer as the printed invoice */
+  @media print{
+    .sidebar,.topbar,.drawer-sc,.df,.content{display:none!important}
+    .drawer{position:static!important;transform:none!important;width:100%!important;box-shadow:none!important;border:none!important;height:auto!important}
+    .drawer .db{overflow:visible!important;padding:0!important}
+    body{background:#fff!important}
+    :root{--raise-1:#fff;--bg:#fff;--ink:#000;--body:#222;--hair:#ccc;--hair-2:#e5e5e5}
+  }
 
   /* ---------- page-load motion ---------- */
   @keyframes fade{from{opacity:0}to{opacity:1}}
@@ -333,7 +379,6 @@
       <a class="sb-link" href="admin-billing.html"><span class="ic">🧾</span> Subscriptions</a>
       <a class="sb-link" href="admin-billing-config.html"><span class="ic">⚙</span> Billing config</a>
       <a class="sb-link" href="admin-debtors.html"><span class="ic">🔻</span> Debtors <span class="ct warn">1</span></a>
-      <a class="sb-link" href="admin-trials.html"><span class="ic">⏱</span> Trials</a>
       <div class="sb-group">System</div>
       <a class="sb-link" href="admin-jobs.html"><span class="ic">🩺</span> Jobs & health <span class="ct warn">1</span></a>
       <a class="sb-link" href="admin-audit.html"><span class="ic">📜</span> Audit log</a>
@@ -341,7 +386,7 @@
       <a class="sb-link" href="admin-notifications.html"><span class="ic">🔔</span> Notifications</a>
       <a class="sb-link" href="admin-gateway.html"><span class="ic">💳</span> Gateway</a>
       <a class="sb-link" href="admin-settings.html"><span class="ic">🛠</span> Settings</a>
-      <a class="sb-link" href="admin-roles.html"><span class="ic">🔑</span> Role templates</a>
+      <a class="sb-link" href="admin-roles.html"><span class="ic">🔑</span> Roles</a>
       <div class="sb-group">Disputes & risk</div>
       <a class="sb-link" href="admin-disputes.html"><span class="ic">⚑</span> Disputes</a>
       <a class="sb-link" href="admin-idor.html"><span class="ic">🛡</span> Security</a>
@@ -355,7 +400,7 @@
   <div class="main">
     <header class="topbar">
       <button class="burger" id="burger" aria-label="Menu">☰</button>
-      <div><div class="pt">Refunds</div><div class="crumb">Owner-cancel · 6-day window</div></div>
+      <div><div class="pt">Refunds</div><div class="crumb">Refund requested · 6-day window</div></div>
       <div class="sp"></div>
       <a class="icon-btn" href="admin-notifications.html" aria-label="Notifications">🔔<span class="dot"></span></a>
       <button class="icon-btn theme-btn" id="themeToggle" aria-label="Toggle theme"><span class="moon">🌙</span><span class="sun">☀️</span></button>
@@ -365,26 +410,168 @@
     <main class="content">
 
       <div class="page-head">
-        <div><h1>Refunds</h1><p>Only reachable when the owner cancelled a trip, within 6 days. Three-person separation of duties: request → verify → complete must be different people. Bank details are encrypted and revealed under an audited gate.</p></div>
+        <div><h1>Refunds</h1><p>Invoices with <b>Refund Requested</b>. Reachable when the owner cancelled a trip, within 6 days. Three-person separation of duties: request → verify → complete must be different people.</p></div>
       </div>
-      <div class="card2"><div class="cb flush"><div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th>Refund</th><th>Boat</th><th class="num">Amount</th><th>Stage</th><th>Claim deadline</th><th></th></tr></thead>
+      <div class="filterbar">
+        <div class="search" style="max-width:360px"><span class="mag">🔍</span><input placeholder="Invoice ID, booking ID, boat, txn id…"></div>
+        <select class="select"><option>All statuses</option><option>Refund Requested</option><option>Refund Verified</option><option>Refunded</option></select>
+        <select class="select"><option>Any date</option><option>Today</option><option>Last 7 days</option><option>Last 30 days</option></select>
+        <select class="select"><option>Jan</option><option>Feb</option><option>Mar</option><option>Apr</option><option>May</option><option>Jun</option><option selected>Jul</option><option>Aug</option><option>Sep</option><option>Oct</option><option>Nov</option><option>Dec</option></select>
+        <select class="select"><option>2026</option><option>2025</option><option>2024</option></select>
+      </div>
+      <div class="card2"><div class="cb flush"><div class="tbl-wrap"><table class="tbl" style="min-width:1100px">
+        <thead><tr>
+          <th>Invoice ID</th><th>Booking ID</th><th>Invoice status</th><th>Boat</th><th>Booking date</th>
+          <th>Trip status</th><th>Payment</th><th class="num">Amount</th><th>Gateway / txn id</th><th></th>
+        </tr></thead>
         <tbody>
-          <tr><td class="t1">RF-3311</td><td>Haor Bilash</td><td class="num">৳ 7,200</td><td><span class="pill warn">requested</span></td><td><span class="pill danger">1 day left</span></td><td class="rowact"><button class="btn btn-sm btn-b" data-drawer>Verify</button></td></tr>
-          <tr><td class="t1">RF-3298</td><td>Bhela</td><td class="num">৳ 5,400</td><td><span class="pill blue">verified</span></td><td class="t2">3 days left</td><td class="rowact"><button class="btn btn-sm btn-o" data-drawer>Complete</button></td></tr>
-          <tr><td class="t1">RF-3270</td><td>Jol Kolol</td><td class="num">৳ 11,000</td><td><span class="pill lock blue">in_payout</span></td><td class="t2">4 days left</td><td class="rowact"><button class="btn btn-sm btn-danger">Pull from batch</button></td></tr>
-          <tr><td class="t1">RF-3250</td><td>Meghduar</td><td class="num">৳ 3,000</td><td><span class="pill ok">completed</span></td><td class="t2">—</td><td class="rowact"><button class="btn btn-sm btn-o">Receipt</button></td></tr>
+          <tr>
+            <td class="t1">INV-5d14</td>
+            <td class="t2">BK-5d10</td>
+            <td><span class="pill warn">Refund Requested</span></td>
+            <td>Haor Bilash</td>
+            <td class="t2">12 Jul 2026</td>
+            <td><span class="pill mut">Canceled</span></td>
+            <td><span class="tag">Online</span></td>
+            <td class="num">৳ 7,200</td>
+            <td class="t2">sslcz_3e…7711</td>
+            <td class="rowact"><button class="btn btn-sm btn-b" data-drawer>Verify</button></td>
+          </tr>
+          <tr>
+            <td class="t1">INV-5c98</td>
+            <td class="t2">BK-5c90</td>
+            <td><span class="pill warn">Refund Requested</span></td>
+            <td>Bhela</td>
+            <td class="t2">11 Jul 2026</td>
+            <td><span class="pill mut">Canceled</span></td>
+            <td><span class="tag">Online</span></td>
+            <td class="num">৳ 5,400</td>
+            <td class="t2">sslcz_9a…22b0</td>
+            <td class="rowact"><button class="btn btn-sm btn-b" data-drawer>Verify</button></td>
+          </tr>
+          <tr>
+            <td class="t1">INV-5a70</td>
+            <td class="t2">BK-5a70</td>
+            <td><span class="pill blue">Refund Verified</span></td>
+            <td>Jol Kolol</td>
+            <td class="t2">09 Jul 2026</td>
+            <td><span class="pill mut">Canceled</span></td>
+            <td><span class="tag">Online</span></td>
+            <td class="num">৳ 11,000</td>
+            <td class="t2">sslcz_4d…8c31</td>
+            <td class="rowact"><button class="btn btn-sm btn-o" data-drawer>Verify</button></td>
+          </tr>
+          <tr>
+            <td class="t1">INV-5920</td>
+            <td class="t2">BK-5920</td>
+            <td><span class="pill ok">Refunded</span></td>
+            <td>Meghduar</td>
+            <td class="t2">06 Jul 2026</td>
+            <td><span class="pill mut">Canceled</span></td>
+            <td><span class="tag">Online</span></td>
+            <td class="num">৳ 3,000</td>
+            <td class="t2">sslcz_7b…04ff</td>
+            <td class="rowact"><button class="btn btn-sm btn-o" data-drawer>Verify</button></td>
+          </tr>
+          <tr>
+            <td class="t1">INV-58f0</td>
+            <td class="t2">BK-58f0</td>
+            <td><span class="pill danger">Canceled by Boat</span></td>
+            <td>Bhela</td>
+            <td class="t2">05 Jul 2026</td>
+            <td><span class="pill mut">Canceled</span></td>
+            <td><span class="tag">Cash</span></td>
+            <td class="num">৳ 4,200</td>
+            <td class="t2">— (cash)</td>
+            <td class="rowact"><button class="btn btn-sm btn-o" data-drawer>Verify</button></td>
+          </tr>
         </tbody>
       </table></div></div></div>
-
       <div class="drawer-sc" id="drawerScrim"></div>
-      <aside class="drawer" id="drawer">
-        <div class="dh"><h3>Verify RF-3311</h3><button class="x" data-drawer-close>✕</button></div>
-        <div class="db stack" style="gap:16px">
-          <div class="note danger"><span class="ic">⏳</span> 1 day left to claim. After the deadline the refund option disappears entirely.</div>
-          <dl class="kv"><dt>Requested by</dt><dd>Farhana Islam (customer)</dd><dt>Amount</dt><dd class="money">৳ 7,200</dd><dt>Reason</dt><dd>Owner cancelled — weather</dd></dl>
-          <div class="note info"><span class="ic">🔒</span> Bank details encrypted at rest. <a href="#" style="color:inherit;text-decoration:underline">Reveal (audited)</a> — logs who decrypted and when.</div>
-          <div class="note warn"><span class="ic">⚑</span> You cannot also be the completer. <b>verified_by ≠ completed_by</b>.</div>
+      <aside class="drawer wide" id="drawer">
+        <div class="dh"><h3>INV-5d14 · full invoice</h3><button class="x" data-drawer-close>✕</button></div>
+        <div class="db">
+
+          <div class="dsec">
+            <h4>Status</h4>
+            <div style="display:flex;gap:8px;flex-wrap:wrap"><span class="pill warn">Refund Requested</span><span class="pill mut">Canceled</span><span class="tag">Online</span></div>
+          </div>
+
+          <div class="dsec">
+            <h4>Customer</h4>
+            <dl class="kv">
+              <dt>Name</dt><dd>Farhana Islam</dd>
+              <dt>Phone</dt><dd>+8801700889900</dd>
+              <dt>Email</dt><dd>farhana@example.com</dd>
+              <dt>Lead guest</dt><dd>Farhana Islam</dd>
+            </dl>
+          </div>
+
+          <div class="dsec">
+            <h4>Booking</h4>
+            <dl class="kv">
+              <dt>Booking ID</dt><dd>BK-5d10</dd>
+              <dt>Boat</dt><dd>Haor Bilash</dd>
+              <dt>Route</dt><dd>Nikli Haor · Kishoreganj</dd>
+              <dt>Trip dates</dt><dd>20 Jul 2026</dd>
+              <dt>Duration</dt><dd>1 day</dd>
+              <dt>Booking type</dt><dd>Cabin booking</dd>
+              <dt>Headcount</dt><dd>2 adults</dd>
+              <dt>Booked on</dt><dd>12 Jul 2026</dd>
+              <dt>Reference name</dt><dd>Rakib (referral)</dd>
+            </dl>
+            <table class="mini" style="margin-top:12px">
+              <thead><tr><th>Cabin</th><th>Category</th><th>Adults</th><th>Children</th><th class="num">Room price</th></tr></thead>
+              <tbody>
+                <tr><td class="t1">101</td><td>Luxury AC</td><td>2</td><td>0</td><td class="num">৳ 10,000</td></tr>
+              </tbody>
+            </table>
+            <p class="prose" style="margin-top:10px"><b>Special instructions:</b> Owner cancelled — weather warning.</p>
+          </div>
+
+          <div class="dsec">
+            <h4>Payment breakdown</h4>
+            <div class="bd">
+              <span class="lbl">Room total</span><span class="val">৳ 7,073</span>
+              <span class="lbl">+ Gateway fee (1.8%)</span><span class="val">৳ 127</span>
+              <div class="rule"></div>
+              <span class="lbl">= Price shown</span><span class="val">৳ 7,200</span>
+              <span class="lbl">− Coupon</span><span class="val">−৳ 0</span>
+              <div class="rule"></div>
+              <span class="lbl">= Customer total</span><span class="val">৳ 7,200</span>
+              <div class="rule"></div>
+              <span class="lbl">Advance paid</span><span class="val">৳ 7,200</span>
+              <span class="lbl">Due</span><span class="val">৳ 0</span>
+              <span class="lbl sum">Total paid</span><span class="val sum">৳ 7,200</span>
+              
+              <div class="rule"></div>
+              <span class="lbl">Platform commission</span><span class="val">৳ 354</span>
+              <span class="lbl sum">Payable to boat</span><span class="val sum">৳ 6,719</span>
+            </div>
+          </div>
+
+          <div class="dsec">
+            <h4>Payments received</h4>
+            <table class="mini">
+              <thead><tr><th>Method</th><th class="num">Amount</th><th>Gateway / txn id</th><th>Verified by</th><th>Paid at</th></tr></thead>
+              <tbody>
+                <tr><td class="t1">Online</td><td class="num">৳ 3,000</td><td>sslcz_a0…4d12</td><td>Nusrat J.</td><td>18 Jul 15:22</td></tr>
+                <tr><td class="t1">Online</td><td class="num">৳ 6,162</td><td>sslcz_b7…9f55</td><td>Nusrat J.</td><td>24 Jul 09:10</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="dsec">
+            <h4>Record</h4>
+            <dl class="kv">
+              <dt>Cancellation policy (snapshot)</dt><dd>Moderate · blackout Eid → 0%</dd>
+              <dt>Payout batch</dt><dd>—</dd>
+              <dt>Invoice created</dt><dd>18 Jul 2026 15:20</dd>
+              <dt>Last updated</dt><dd>24 Jul 2026 09:11</dd>
+            </dl>
+            <div class="note info" style="margin-top:12px"><span class="ic">ℹ</span> Commission is charged on the original room total, never the discounted amount — the boat absorbs its own coupon.</div>
+          </div>
+
         </div>
         <div class="df"><button class="btn btn-o" data-drawer-close>Close</button><button class="btn btn-ok">Mark verified</button></div>
       </aside>
@@ -426,6 +613,14 @@
     function closeDrawer(){ var d=document.getElementById('drawer'),s=document.getElementById('drawerScrim'); d&&d.classList.remove('open'); s&&s.classList.remove('open'); }
     var sc=document.getElementById('drawerScrim'); sc&&sc.addEventListener('click',closeDrawer);
     document.querySelectorAll('[data-drawer-close]').forEach(function(el){ el.addEventListener('click',closeDrawer); });
+    // second (edit) drawer — e.g. dispute Edit
+    function openEdit(){ var d=document.getElementById('drawerEdit'),s=document.getElementById('drawerScrimEdit'); d&&d.classList.add('open'); s&&s.classList.add('open'); }
+    function closeEdit(){ var d=document.getElementById('drawerEdit'),s=document.getElementById('drawerScrimEdit'); d&&d.classList.remove('open'); s&&s.classList.remove('open'); }
+    document.querySelectorAll('[data-edit]').forEach(function(el){ el.addEventListener('click',openEdit); });
+    var sce=document.getElementById('drawerScrimEdit'); sce&&sce.addEventListener('click',closeEdit);
+    document.querySelectorAll('[data-edit-close]').forEach(function(el){ el.addEventListener('click',closeEdit); });
+    // print (subscription invoice etc.)
+    document.querySelectorAll('[data-print]').forEach(function(el){ el.addEventListener('click',function(){ window.print(); }); });
   })();
 </script>
 </body>
