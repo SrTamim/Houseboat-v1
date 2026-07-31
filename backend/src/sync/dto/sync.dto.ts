@@ -1,10 +1,10 @@
 import {
+  ArrayMaxSize,
   IsArray,
   IsIn,
   IsISO8601,
   IsObject,
-  IsOptional,
-  IsString,
+  IsUUID,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -21,17 +21,23 @@ export type OfflineAction = (typeof OFFLINE_ALLOWED)[number];
 
 export class SyncIntentDto {
   /** Client-generated id so replays of the same intent are idempotent. */
-  @IsString() intentId!: string;
-  @IsString() houseboatId!: string;
+  @IsUUID() intentId!: string;
+  @IsUUID() houseboatId!: string;
   @IsIn(OFFLINE_ALLOWED as unknown as string[]) action!: OfflineAction;
   @IsObject() payload!: Record<string, unknown>;
   /** Device clock when the action was taken (may be manipulated). */
   @IsISO8601() deviceTime!: string;
 }
 
+/**
+ * One offline device's queued actions. The batch is bounded so a single
+ * request can't force unbounded work; a device with more than this replays
+ * across several calls, which the intentId idempotency already supports.
+ */
 export class SyncBatchDto {
   @ValidateNested({ each: true })
   @Type(() => SyncIntentDto)
   @IsArray()
+  @ArrayMaxSize(200)
   intents!: SyncIntentDto[];
 }

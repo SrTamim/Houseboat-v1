@@ -43,7 +43,9 @@ export class PermissionGuard implements CanActivate {
     const bag = (req as unknown as Record<string, Record<string, string>>)[from];
     const houseboatId = bag?.[key];
     if (!houseboatId) {
-      throw new BadRequestException(`Missing ${key} in request ${from}`);
+      // Don't echo the internal lookup location (params/body/query) back to
+      // the caller — that describes our routing, not their mistake.
+      throw new BadRequestException(`Missing ${key}`);
     }
 
     const ctx = await this.rbac.assert(

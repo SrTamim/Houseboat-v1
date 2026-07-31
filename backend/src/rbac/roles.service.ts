@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { newId } from '../common/uuid';
 import { FULL_PERMISSIONS, PermissionMap } from './permission.types';
@@ -46,7 +46,21 @@ export class RolesService {
     return this.prisma.role.findMany({ where: { houseboatId } });
   }
 
-  update(roleId: string, name: string, permissions: PermissionMap) {
+  /**
+   * Scoped by houseboatId: the guard authorizes the boat in the URL, so a
+   * bare roleId update would let a member of boat A edit boat B's roles.
+   */
+  async update(
+    houseboatId: string,
+    roleId: string,
+    name: string,
+    permissions: PermissionMap,
+  ) {
+    const existing = await this.prisma.role.findFirst({
+      where: { id: roleId, houseboatId },
+      select: { id: true },
+    });
+    if (!existing) throw new NotFoundException('Role not found');
     return this.prisma.role.update({
       where: { id: roleId },
       data: { name, permissions: permissions as never },

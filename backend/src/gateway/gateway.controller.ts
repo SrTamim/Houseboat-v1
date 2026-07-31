@@ -33,6 +33,9 @@ import { InitiatePaymentDto, SslcommerzIpnDto } from './dto/gateway.dto';
  * The IPN is server-to-server and unauthenticated by cookie — we re-validate
  * every notification against SSLCommerz before trusting it.
  */
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 @Controller('gateway/sslcommerz')
 export class GatewayController {
   constructor(
@@ -49,8 +52,17 @@ export class GatewayController {
     return `${invoiceId}:${randomUUID()}`;
   }
 
+  /**
+   * Recover the invoice id from a gateway transaction id.
+   *
+   * tran_id round-trips through the payment provider and comes back as
+   * attacker-influenceable input, so the extracted value is validated as a
+   * UUID before it is used in a lookup or reflected into a redirect URL.
+   * Returns '' when it doesn't look like one.
+   */
   private invoiceIdFromTran(tranId: string): string {
-    return tranId.split(':')[0];
+    const candidate = tranId.split(':')[0] ?? '';
+    return UUID_RE.test(candidate) ? candidate : '';
   }
 
   /** Start a hosted payment for an invoice. Returns the URL to redirect to. */

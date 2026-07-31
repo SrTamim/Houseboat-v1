@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { newId } from '../common/uuid';
 
@@ -13,6 +13,32 @@ export interface AuditEntry {
   /** device clock for offline-synced actions; server stamps server_time itself */
   deviceTime?: Date;
   syncedOffline?: boolean;
+  /** request origin — needed to tell a normal action from a hijacked session */
+  ip?: string | null;
+  userAgent?: string | null;
+}
+
+/** Request shape we need for audit context — avoids importing express here. */
+export interface AuditRequestLike {
+  ip?: string;
+  headers?: Record<string, unknown>;
+}
+
+/**
+ * Pull IP + user agent off a request for an AuditEntry.
+ *
+ * req.ip is only trustworthy because main.ts sets `trust proxy` — otherwise
+ * every request behind the platform proxy reports the same address.
+ */
+export function auditContext(req?: AuditRequestLike): {
+  ip: string | null;
+  userAgent: string | null;
+} {
+  const ua = req?.headers?.['user-agent'];
+  return {
+    ip: req?.ip ?? null,
+    userAgent: typeof ua === 'string' ? ua : null,
+  };
 }
 
 /**
@@ -24,8 +50,39 @@ export interface AuditEntry {
  * rolls back) atomically with the action it records.
  */
 @Injectable()
-export class AuditService {
+export class AuditService implements OnModuleInit {
+  private readonly logger = new Logger(AuditService.name);
+
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * Pre-create the current and next month's audit_log partitions on boot.
+   *
+   * Partitioning migration 00000000000003 used to auto-create the month
+   * partition from a BEFORE INSERT trigger, but `CREATE TABLE ... PARTITION OF`
+   * cannot run while that same INSERT holds the parent lock — the first insert
+   * of every new month failed with SQLSTATE 55006 and turned successful logins
+   * into 500s. We create partitions here instead, outside any insert, so the
+   * error is impossible. Idempotent (audit_log_ensure_partition is a no-op if
+   * the partition exists) and best-effort: the DEFAULT partition still catches
+   * any month we miss, so a failure here must not block startup.
+   */
+  async onModuleInit(): Promise<void> {
+    try {
+      await this.prisma.$executeRawUnsafe(
+        `SELECT audit_log_ensure_partition(date_trunc('month', now())::timestamptz)`,
+      );
+      await this.prisma.$executeRawUnsafe(
+        `SELECT audit_log_ensure_partition((date_trunc('month', now()) + interval '1 month')::timestamptz)`,
+      );
+    } catch (e) {
+      this.logger.error(
+        'Failed to pre-create audit_log month partitions on boot; ' +
+          'new rows will land in audit_log_default until fixed',
+        e instanceof Error ? e.stack : String(e),
+      );
+    }
+  }
 
   async log(
     entry: AuditEntry,
@@ -44,7 +101,103 @@ export class AuditService {
         after: (entry.after ?? undefined) as never,
         deviceTime: entry.deviceTime,
         syncedOffline: entry.syncedOffline ?? false,
+        ip: entry.ip ?? null,
+        // Bound it: User-Agent is attacker-controlled free text.
+        userAgent: entry.userAgent?.slice(0, 512) ?? null,
       },
     });
+  }
+
+  /**
+   * Read the trail for one boat, newest first.
+   *
+   * Keyset-paged on (server_time, id) rather than the shared id-only cursor in
+   * common/paginate: audit_log is partitioned by month and its PK is composite,
+   * so an id alone does not identify a row. The cursor is "<ISO>|<id>".
+   */
+  async list(
+    houseboatId: string,
+    opts: { action?: string; cursor?: string; limit?: number } = {},
+  ) {
+    const limit = Math.min(Math.max(opts.limit ?? 50, 1), 200);
+
+    let before: { serverTime: Date; id: string } | null = null;
+    if (opts.cursor) {
+      const [time, id] = opts.cursor.split('|');
+      const parsed = new Date(time);
+      if (!Number.isNaN(parsed.getTime()) && id) {
+        before = { serverTime: parsed, id };
+      }
+    }
+
+    const rows = await this.prisma.auditLog.findMany({
+      where: {
+        houseboatId,
+        ...(opts.action ? { action: opts.action } : {}),
+        ...(before
+          ? {
+              OR: [
+                { serverTime: { lt: before.serverTime } },
+                {
+                  serverTime: before.serverTime,
+                  id: { lt: before.id },
+                },
+              ],
+            }
+          : {}),
+      },
+      orderBy: [{ serverTime: 'desc' }, { id: 'desc' }],
+      take: limit + 1,
+      select: {
+        id: true,
+        action: true,
+        entityType: true,
+        entityId: true,
+        deviceTime: true,
+        serverTime: true,
+        syncedOffline: true,
+        actor: { select: { id: true, name: true, phone: true } },
+      },
+    });
+
+    const hasMore = rows.length > limit;
+    const items = hasMore ? rows.slice(0, limit) : rows;
+    const last = items[items.length - 1];
+    return {
+      items,
+      nextCursor:
+        hasMore && last ? `${last.serverTime.toISOString()}|${last.id}` : null,
+    };
+  }
+
+  /** Distinct actions present for a boat — populates the audit filter dropdown. */
+  async actions(houseboatId: string): Promise<string[]> {
+    const rows = await this.prisma.auditLog.findMany({
+      where: { houseboatId },
+      distinct: ['action'],
+      select: { action: true },
+      orderBy: { action: 'asc' },
+      take: 100,
+    });
+    return rows.map((r) => r.action);
+  }
+
+  /**
+   * Best-effort variant for paths where the audit row must not be able to fail
+   * the request — notably failed logins, where throwing would turn a wrong
+   * password into a 500 and hand an attacker a way to distinguish accounts.
+   *
+   * Never use this inside a transaction: there `log()` must throw so the audit
+   * row and the action it records commit or roll back together.
+   */
+  async tryLog(entry: AuditEntry): Promise<void> {
+    try {
+      await this.log(entry);
+    } catch (e) {
+      this.logger.error(
+        `Failed to write audit row for "${entry.action}"`,
+        e instanceof Error ? e.stack : String(e),
+      );
+    }
   }
 }

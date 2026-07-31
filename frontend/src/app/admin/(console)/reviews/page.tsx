@@ -1,34 +1,93 @@
-import { PageHead, Card, TableWrap, Search } from '@/components/admin/ui';
-import { Pill } from '@/components/admin/Pill';
+'use client';
+
+import {
+  PageHead,
+  Card,
+  TableWrap,
+  TableSkeleton,
+  EmptyState,
+  ErrorState,
+} from '@/components/admin/ui';
+import { useAdminList } from '@/lib/admin/useAdminList';
+
+interface ReviewRow {
+  id: string;
+  rating: number;
+  text: string | null;
+  ownerReply: string | null;
+  houseboat: { id: string; name: string };
+  customer: { id: string; name: string | null };
+  booking: { id: string; createdAt: string };
+}
+
+function Stars({ rating }: { rating: number }) {
+  const full = Math.max(0, Math.min(5, rating));
+  return (
+    <span>
+      <span style={{ color: 'var(--amber)' }}>{'★'.repeat(full)}</span>
+      {'☆'.repeat(5 - full)}
+    </span>
+  );
+}
 
 export default function Reviews() {
+  const { items, error, isInitialLoading, hasMore, loadMore, mutate } =
+    useAdminList<ReviewRow>('/platform/ops/reviews', { limit: 25 });
+
   return (
     <>
       <PageHead
-        title="Reviews moderation"
-        desc="Reviews come only from verified, completed bookings. Hide abuse; the eligibility gate blocks fakes at the source."
+        title="Reviews"
+        desc="Reviews come only from verified, completed bookings — the eligibility gate blocks fakes at the source."
       />
-      <div className="filterbar">
-        <div className="seg">
-          <button className="seg-b on">All<span className="ct">214</span></button>
-          <button className="seg-b">Flagged<span className="ct">3</span></button>
-          <button className="seg-b">Hidden<span className="ct">1</span></button>
-          <button className="seg-b">No reply<span className="ct">40</span></button>
-        </div>
-        <Search placeholder="Search text or boat…" />
-      </div>
       <Card flush>
-        <TableWrap>
-          <thead>
-            <tr><th>Boat</th><th>Rating</th><th>Review</th><th>Owner reply</th><th></th></tr>
-          </thead>
-          <tbody>
-            <tr><td className="t1">Jol Kolol</td><td><span style={{ color: 'var(--amber)' }}>★★★★★</span></td><td>Crew was fantastic, sunrise over the haor was unreal.<div className="t2">Tanvir H. · verified</div></td><td className="t2">Thank you!</td><td className="rowact"><button className="btn btn-sm btn-o">Hide</button></td></tr>
-            <tr><td className="t1">Haor Bilash</td><td><span style={{ color: 'var(--amber)' }}>★★★★</span>☆</td><td>Good food, cabin AC was weak on day 2.<div className="t2">Sadia R. · verified</div></td><td className="t2">—</td><td className="rowact"><button className="btn btn-sm btn-o">Hide</button></td></tr>
-            <tr><td className="t1">Bhela</td><td><span style={{ color: 'var(--amber)' }}>★</span>☆☆☆☆</td><td>Contact me on WhatsApp 013… for cheaper direct booking.<div className="t2"><Pill tone="danger">flagged · spam</Pill></div></td><td className="t2">—</td><td className="rowact"><button className="btn btn-sm btn-danger">Take down</button></td></tr>
-            <tr><td className="t1">Meghduar</td><td><span style={{ color: 'var(--amber)' }}>★★★★★</span></td><td>Best trip of the year. Highly recommend the upper deck.<div className="t2">Imran K. · verified</div></td><td className="t2">🙏</td><td className="rowact"><button className="btn btn-sm btn-o">Hide</button></td></tr>
-          </tbody>
-        </TableWrap>
+        {error ? (
+          <ErrorState error={error} onRetry={() => mutate()} />
+        ) : !isInitialLoading && items.length === 0 ? (
+          <EmptyState
+            title="No reviews yet"
+            desc="Reviews appear here once customers complete trips and rate them."
+          />
+        ) : (
+          <>
+            <TableWrap>
+              <thead>
+                <tr>
+                  <th>Boat</th>
+                  <th>Rating</th>
+                  <th>Review</th>
+                  <th>Owner reply</th>
+                </tr>
+              </thead>
+              {isInitialLoading ? (
+                <TableSkeleton rows={5} cols={4} />
+              ) : (
+                <tbody>
+                  {items.map((r) => (
+                    <tr key={r.id}>
+                      <td className="t1">{r.houseboat.name}</td>
+                      <td><Stars rating={r.rating} /></td>
+                      <td>
+                        {r.text ?? <span className="t2">no text</span>}
+                        <div className="t2">
+                          {r.customer.name ?? 'Customer'} · verified booking
+                        </div>
+                      </td>
+                      <td className="t2">{r.ownerReply ?? '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              )}
+            </TableWrap>
+            {hasMore ? (
+              <div style={{ padding: 12, textAlign: 'center' }}>
+                <button className="btn btn-o btn-sm" onClick={loadMore}>
+                  Load more
+                </button>
+              </div>
+            ) : null}
+          </>
+        )}
       </Card>
     </>
   );

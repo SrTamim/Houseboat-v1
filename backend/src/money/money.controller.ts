@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { PaymentsService } from './payments.service';
 import { RefundsService } from './refunds.service';
 import { PayoutsService } from './payouts.service';
@@ -14,8 +15,20 @@ import {
   CreatePolicyDto,
   RecordDistributionDto,
   IssueSubscriptionDto,
+  SuggestSplitQueryDto,
+  OwnerInvoicesQueryDto,
 } from './dto/money.dto';
 
+/**
+ * Tighter than the global 120/min. These routes move money — recording
+ * payments, issuing refunds, releasing payouts — so they get a lower ceiling
+ * than ordinary reads. Applied at the class level so routes added later
+ * inherit it rather than being forgotten.
+ *
+ * AccountThrottlerGuard keys authenticated requests per account, so one
+ * compromised session can't exhaust the limit for everyone.
+ */
+@Throttle({ default: { ttl: 60_000, limit: 40 } })
 @Controller()
 export class MoneyController {
   constructor(
@@ -52,7 +65,25 @@ export class MoneyController {
     return this.payments.listPayments(invoiceId, user.id, user.isPlatform);
   }
 
+  /** The boat's invoices (owner console). Read-only view of the money list. */
+  @Get('houseboats/:houseboatId/invoices')
+  @RequirePermission({ module: 'money', action: 'view' })
+  listInvoices(
+    @Param('houseboatId') houseboatId: string,
+    @Query() query: OwnerInvoicesQueryDto,
+  ) {
+    return this.payments.listForBoat(houseboatId, query);
+  }
+
   // ── Refunds (owner-cancel path; separation of duties enforced) ─
+
+  /** Refunds raised against this boat's invoices, for the owner's queue. */
+  @Get('houseboats/:houseboatId/refunds')
+  @RequirePermission({ module: 'money', action: 'view' })
+  listRefunds(@Param('houseboatId') houseboatId: string) {
+    return this.refunds.listForBoat(houseboatId);
+  }
+
   @Post('invoices/:invoiceId/refunds')
   requestRefund(
     @Param('invoiceId') invoiceId: string,
@@ -83,6 +114,16 @@ export class MoneyController {
   @Get('houseboats/:houseboatId/due-payments')
   duePayments(@Param('houseboatId') houseboatId: string) {
     return this.payouts.duePayments(houseboatId);
+  }
+
+  /**
+   * Payout history, owner-readable. Preparing/approving/paying stay
+   * platform-only above — an owner sees what they were paid, they don't move it.
+   */
+  @Get('houseboats/:houseboatId/payout-batches')
+  @RequirePermission({ module: 'money', action: 'view' })
+  listPayoutBatches(@Param('houseboatId') houseboatId: string) {
+    return this.payouts.listForBoat(houseboatId);
   }
 
   @PlatformOnly()
@@ -119,10 +160,11 @@ export class MoneyController {
   @Post('houseboats/:houseboatId/coupons')
   @RequirePermission({ module: 'money', action: 'edit' })
   createCoupon(
+    @CurrentUser() user: AuthUser,
     @Param('houseboatId') houseboatId: string,
     @Body() dto: CreateCouponDto,
   ) {
-    return this.coupons.createCoupon(houseboatId, dto);
+    return this.coupons.createCoupon(houseboatId, dto, user.id);
   }
 
   @Get('houseboats/:houseboatId/cancellation-policies')
@@ -151,9 +193,9 @@ export class MoneyController {
   @RequirePermission({ module: 'money', action: 'view' })
   suggestSplit(
     @Param('houseboatId') houseboatId: string,
-    @Query('amount') amount: string,
+    @Query() query: SuggestSplitQueryDto,
   ) {
-    return this.finance.suggestSplit(houseboatId, Number(amount));
+    return this.finance.suggestSplit(houseboatId, query.amount);
   }
 
   @Post('houseboats/:houseboatId/distributions')

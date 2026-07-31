@@ -1,13 +1,22 @@
-import { Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { newId } from '../common/uuid';
 
 /** Coupons + cancellation policies — owner-set money config. */
 @Injectable()
 export class CouponsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
-  createCoupon(
+  async createCoupon(
     houseboatId: string,
     input: {
       code: string;
@@ -16,8 +25,38 @@ export class CouponsService {
       validFrom?: string;
       validTo?: string;
     },
+    actorId: string,
   ) {
-    return this.prisma.coupon.create({
+    // Platform callers bypass PermissionGuard's boat scoping, so a bogus id
+    // would otherwise surface as a raw Prisma FK error.
+    const boat = await this.prisma.houseboat.findUnique({
+      where: { id: houseboatId },
+      select: { id: true },
+    });
+    if (!boat) throw new NotFoundException('Houseboat not found');
+
+    if (input.kind === 'percent' && input.value > 100) {
+      throw new BadRequestException('Percent coupon cannot exceed 100');
+    }
+    if (
+      input.validFrom &&
+      input.validTo &&
+      new Date(input.validFrom) > new Date(input.validTo)
+    ) {
+      throw new BadRequestException('validFrom must not be after validTo');
+    }
+
+    // Service-level check, not a unique index: an index migration would fail
+    // on any pre-existing duplicate rows.
+    const duplicate = await this.prisma.coupon.findFirst({
+      where: { houseboatId, code: input.code },
+      select: { id: true },
+    });
+    if (duplicate) {
+      throw new ConflictException('Coupon code already exists for this boat');
+    }
+
+    const coupon = await this.prisma.coupon.create({
       data: {
         id: newId(),
         houseboatId,
@@ -28,6 +67,23 @@ export class CouponsService {
         validTo: input.validTo ? new Date(input.validTo) : undefined,
       },
     });
+
+    await this.audit.log({
+      houseboatId,
+      actorAccountId: actorId,
+      action: 'coupon_create',
+      entityType: 'coupon',
+      entityId: coupon.id,
+      after: {
+        code: coupon.code,
+        kind: coupon.kind,
+        value: coupon.value.toString(),
+        validFrom: input.validFrom ?? null,
+        validTo: input.validTo ?? null,
+      },
+    });
+
+    return coupon;
   }
 
   listCoupons(houseboatId: string) {

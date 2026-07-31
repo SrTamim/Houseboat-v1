@@ -11,6 +11,7 @@ import { HouseboatAdminService } from './houseboat-admin.service';
 import { RoutesService } from './routes.service';
 import { PlatformBoatsService } from './platform-boats.service';
 import { CurrentUser, PlatformOnly } from '../auth/decorators';
+import { PlatformPermission } from '../platform/rbac/platform-permission.decorator';
 import { RequirePermission } from '../rbac/require-permission.decorator';
 import { AuthUser } from '../auth/auth.types';
 import {
@@ -21,6 +22,7 @@ import {
   CreateCabinDto,
   CreateRouteDto,
   LinkRouteDto,
+  ListBoatsQueryDto,
 } from './dto/assets.dto';
 
 @Controller()
@@ -97,6 +99,7 @@ export class AssetsController {
   }
 
   @PlatformOnly()
+  @PlatformPermission('ops', 'edit')
   @Post('routes')
   createRoute(@Body() dto: CreateRouteDto) {
     return this.routes.create(dto.name, dto.region);
@@ -104,12 +107,14 @@ export class AssetsController {
 
   // ── Platform moderation ────────────────────────────────────
   @PlatformOnly()
+  @PlatformPermission('boats', 'view')
   @Get('platform/houseboats')
-  listForModeration(@Query('status') status?: string) {
-    return this.platform.listByStatus(status);
+  listForModeration(@Query() query: ListBoatsQueryDto) {
+    return this.platform.listByStatus(query.status);
   }
 
   @PlatformOnly()
+  @PlatformPermission('boats', 'edit')
   @Post('platform/houseboats/:houseboatId/approve')
   approve(
     @Param('houseboatId') houseboatId: string,
@@ -119,6 +124,7 @@ export class AssetsController {
   }
 
   @PlatformOnly()
+  @PlatformPermission('boats', 'edit')
   @Patch('platform/houseboats/:houseboatId/status')
   setStatus(
     @Param('houseboatId') houseboatId: string,

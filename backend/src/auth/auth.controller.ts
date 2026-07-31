@@ -82,9 +82,11 @@ export class AuthController {
   @Post('login')
   async login(
     @Body() dto: LoginDto,
+    @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const { account, tokens } = await this.auth.login(dto);
+    // Pass the request so successes AND failures are audited with origin.
+    const { account, tokens } = await this.auth.login(dto, req);
     this.setAuthCookies(res, tokens.access, tokens.refresh);
     this.setSessionCookie(res);
     return { account };
@@ -94,10 +96,30 @@ export class AuthController {
    * Hand the SPA a CSRF token (and set its matching cookie). Call right after
    * login and reuse the token for the session's state-changing requests. Safe
    * (GET) so it isn't itself CSRF-protected.
+   *
+   * @Public() because the token is needed BEFORE a session exists — the login
+   * POST itself carries it. Requiring auth here deadlocks the sign-in form:
+   * it can't get a token without a session, and can't get a session without
+   * submitting. Handing an anonymous caller a CSRF token is harmless; the
+   * token proves the request came from our page, not that anyone is logged in.
    */
+  @Public()
   @Get('csrf')
   getCsrf(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    return { csrfToken: this.csrf.generateToken(req, res) };
+    // overwrite=true is required, not optional.
+    //
+    // The CSRF cookie's hash is bound to hb_sid (see getSessionIdentifier in
+    // security/csrf.ts). With the default overwrite=false, generateToken tries
+    // to REUSE an existing hb_csrf cookie and — because validateOnReuse
+    // defaults to true — throws 'invalid csrf token' when the hash no longer
+    // matches the current session id.
+    //
+    // Logging in sets a fresh hb_sid, which invalidates every token minted
+    // before it. That made this endpoint throw 403 for the rest of the
+    // session: the only route that can issue a token refused to, so the SPA
+    // could never recover and every subsequent login POST failed. Always mint
+    // against the CURRENT session instead.
+    return { csrfToken: this.csrf.generateToken(req, res, true) };
   }
 
   @Throttle({ default: { ttl: 60_000, limit: 30 } })

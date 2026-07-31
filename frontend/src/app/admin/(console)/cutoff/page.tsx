@@ -1,38 +1,101 @@
-import { PageHead, Card, TableWrap, Note } from '@/components/admin/ui';
-import { StatRow } from '@/components/admin/StatCard';
+'use client';
+
+import useSWR from 'swr';
+import { fetcher } from '@/lib/api';
+import {
+  PageHead,
+  Card,
+  TableWrap,
+  TableSkeleton,
+  EmptyState,
+  ErrorState,
+  Note,
+} from '@/components/admin/ui';
 import { Pill } from '@/components/admin/Pill';
 
+interface DueDeparture {
+  id: string;
+  startDate: string;
+  endDate: string | null;
+  status: 'scheduled' | 'in_progress';
+  availableCount: number;
+  package: {
+    durationLabel: string | null;
+    houseboat: { id: string; name: string };
+  };
+  _count: { bookings: number; holds: number };
+}
+
 export default function Cutoff() {
+  const { data, error, isLoading, mutate } = useSWR<DueDeparture[]>(
+    '/platform/ops/departures/due',
+    fetcher,
+    { revalidateOnFocus: false, refreshInterval: 60_000 },
+  );
+
+  const rows = data ?? [];
+
   return (
     <>
       <PageHead
         title="Cutoff & finalize"
-        desc="When departure time arrives, holds stop; one minute later the invoice freezes and finalizes. Watch for departures stuck past cutoff, unfilled buyouts, and stale quotes."
+        desc="Departures whose date has arrived but whose status has not finished advancing. The status-advance job normally clears this list — a lingering row means it is stuck."
       />
-
-      <StatRow
-        stats={[
-          { icon: '⏹', label: 'Pending finalize', value: '2', delta: 'past cutoff +1min', deltaDir: 'down', alert: true },
-          { icon: '🔀', label: 'Stuck transitions', value: '0', delta: 'time passed, status ok' },
-          { icon: '💬', label: 'Stale quotes', value: '2', delta: '24h / date-filled' },
-        ]}
-      />
-
-      <Card title="Departures at cutoff" flush>
-        <TableWrap>
-          <thead>
-            <tr><th>Departure</th><th>Cutoff</th><th>Open seats</th><th>State</th><th></th></tr>
-          </thead>
-          <tbody>
-            <tr><td><div className="t1">Jol Kolol · 21 Jul</div><div className="t2">2d1n</div></td><td className="t2">18:00</td><td className="t2">1 unfilled buyout</td><td><Pill tone="warn">awaiting finalize</Pill></td><td className="rowact"><button className="btn btn-sm btn-b">Finalize now</button></td></tr>
-            <tr><td><div className="t1">Haor Bilash · 21 Jul</div><div className="t2">1d</div></td><td className="t2">17:30</td><td className="t2">0</td><td><Pill tone="warn">awaiting finalize</Pill></td><td className="rowact"><button className="btn btn-sm btn-b">Finalize now</button></td></tr>
-            <tr><td><div className="t1">Meghduar · 20 Jul</div><div className="t2">2d1n</div></td><td className="t2">18:00</td><td className="t2">—</td><td><Pill tone="ok">finalized</Pill></td><td></td></tr>
-          </tbody>
-        </TableWrap>
+      <Card title="Departures at/past cutoff" flush>
+        {error ? (
+          <ErrorState error={error} onRetry={() => mutate()} />
+        ) : !isLoading && rows.length === 0 ? (
+          <EmptyState
+            title="Nothing stuck"
+            desc="All departures have advanced on time. Rows appear here when a departure's date passes while it is still scheduled or in progress."
+          />
+        ) : (
+          <TableWrap>
+            <thead>
+              <tr>
+                <th>Departure</th>
+                <th>Start</th>
+                <th>Status</th>
+                <th className="num">Bookings</th>
+                <th className="num">Holds</th>
+                <th className="num">Available</th>
+              </tr>
+            </thead>
+            {isLoading ? (
+              <TableSkeleton rows={3} cols={6} />
+            ) : (
+              <tbody>
+                {rows.map((d) => (
+                  <tr key={d.id}>
+                    <td>
+                      <div className="t1">{d.package.houseboat.name}</div>
+                      <div className="t2">{d.package.durationLabel ?? '—'}</div>
+                    </td>
+                    <td className="t2">
+                      {new Date(d.startDate).toLocaleDateString('en-GB', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
+                    </td>
+                    <td>
+                      <Pill tone={d.status === 'scheduled' ? 'warn' : 'blue'}>
+                        {d.status}
+                      </Pill>
+                    </td>
+                    <td className="num">{d._count.bookings}</td>
+                    <td className="num">{d._count.holds}</td>
+                    <td className="num">{d.availableCount}</td>
+                  </tr>
+                ))}
+              </tbody>
+            )}
+          </TableWrap>
+        )}
       </Card>
-
       <Note kind="info" icon="ℹ" style={{ marginTop: 16 }}>
-        Unfilled buyout stands — nothing is refunded because the full amount was never charged. Whatever the invoice reads at finalize is final.
+        An unfilled buyout stands — nothing is refunded because the full amount
+        was never charged. Whatever the invoice reads at finalize is final.
       </Note>
     </>
   );

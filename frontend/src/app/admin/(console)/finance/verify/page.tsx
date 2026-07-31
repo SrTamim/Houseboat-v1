@@ -1,41 +1,65 @@
 'use client';
 
 import { useState } from 'react';
+import { api } from '@/lib/api';
 import { PageHead } from '@/components/admin/ui';
-import { InvoiceFilters, InvoiceTable } from '@/components/admin/InvoiceTable';
-import { InvoiceDrawer } from '@/components/admin/InvoiceDrawer';
-import { SAMPLE_INVOICE, type InvoiceRow } from '@/lib/admin/mock';
-
-const rows: InvoiceRow[] = [
-  { inv: 'INV-9a11', bk: 'BK-9c02', status: 'Advance Paid', boat: 'Meghduar', date: '21 Jul 2026', trip: 'Completed', method: 'Online', amount: '1,84,000', token: 'sslcz_7f…c204', primary: true },
-  { inv: 'INV-88f2', bk: 'BK-88a1', status: 'Due Paid', boat: 'Jol Kolol', date: '20 Jul 2026', trip: 'Completed', method: 'Online', amount: '96,500', token: 'sslcz_2b…9a71', primary: true },
-  { inv: 'INV-8410', bk: 'BK-8f3a', status: 'Due Paid', boat: 'Jol Kolol', date: '18 Jul 2026', trip: 'Completed', method: 'Online', amount: '9,162', token: 'sslcz_a0…4d12', primary: true },
-  { inv: 'INV-7d55', bk: 'BK-7d10', status: 'Advance Paid', boat: 'Haor Bilash', date: '17 Jul 2026', trip: 'Completed', method: 'Cash', amount: '18,340', token: '— (cash)' },
-  { inv: 'INV-7c02', bk: 'BK-7c00', status: 'Due Paid', boat: 'Haor Bilash', date: '16 Jul 2026', trip: 'Completed', method: 'Online', amount: '12,700', token: 'sslcz_11…2f30', primary: true },
-  { inv: 'INV-6b44', bk: 'BK-6b40', status: 'Canceled', boat: 'Jol Kolol', date: '14 Jul 2026', trip: 'Canceled', method: 'Online', amount: '7,400', token: 'sslcz_cc…10a4' },
-];
+import { PlatformInvoiceTable } from '@/components/admin/PlatformInvoiceTable';
+import { useAdminList } from '@/lib/admin/useAdminList';
+import type { ApiInvoice } from '@/lib/admin/invoices';
 
 export default function VerifyPayments() {
-  const [open, setOpen] = useState(false);
+  const { items, error, isInitialLoading, hasMore, loadMore, mutate } =
+    useAdminList<ApiInvoice>('/platform/finance/invoices', {
+      status: 'paid',
+      limit: 20,
+    });
+
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  async function verify(invoice: ApiInvoice) {
+    if (busyId) return;
+    setBusyId(invoice.id);
+    setActionError(null);
+    try {
+      await api.post(`/invoices/${invoice.id}/verify`);
+      await mutate();
+    } catch (e) {
+      const message =
+        (e as { response?: { data?: { message?: unknown } } })?.response?.data
+          ?.message;
+      setActionError(
+        typeof message === 'string' ? message : 'Could not verify this payment.',
+      );
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   return (
     <>
       <PageHead
         title="Payment verification"
-        desc="A deliberate human check against the gateway portal — it catches gateway bugs and fraud. Cash payments are verified by the boat manager, not here."
+        desc="Invoices whose payment landed but has not been human-checked against the gateway portal. Verifying moves an invoice to Ready for Payout."
       />
-      <InvoiceFilters statusOptions={['Advance Paid', 'Due Paid', 'Over Paid']} />
-      <InvoiceTable rows={rows} actionLabel="View" onAction={() => setOpen(true)} />
-      <InvoiceDrawer
-        inv={SAMPLE_INVOICE}
-        open={open}
-        onClose={() => setOpen(false)}
-        footer={
-          <>
-            <button className="btn btn-o" onClick={() => setOpen(false)}>Close</button>
-            <button className="btn btn-danger">Flag fraud</button>
-            <button className="btn btn-ok">Mark verified</button>
-          </>
-        }
+      {actionError ? (
+        <div className="note danger" role="alert" style={{ marginBottom: 12 }}>
+          <span className="ic">⚠</span>
+          <span>{actionError}</span>
+        </div>
+      ) : null}
+      <PlatformInvoiceTable
+        items={items}
+        error={error}
+        isLoading={isInitialLoading}
+        onRetry={() => mutate()}
+        emptyTitle="Nothing to verify"
+        emptyDesc="Invoices appear here when a customer payment is recorded and awaits verification."
+        actionLabel="Mark verified"
+        actionBusyId={busyId}
+        onAction={verify}
+        hasMore={hasMore}
+        onLoadMore={loadMore}
       />
     </>
   );

@@ -1,91 +1,1433 @@
 import { PrismaClient } from '@prisma/client';
 import { v7 as uuidv7 } from 'uuid';
+import * as bcrypt from 'bcryptjs';
+import { FULL_PERMISSIONS } from '../src/rbac/permission.types';
 
 const prisma = new PrismaClient();
 const id = () => uuidv7();
 
+/** Same cost factor as AuthService.register — keep in sync. */
+const BCRYPT_ROUNDS = 12;
+
 /**
- * Minimal demo data to make the vertical slice show something:
- * one platform admin, two routes, two LIVE houseboats with a deck,
- * a cabin category and a couple of cabins each.
+ * Read a required env var. Seeding an account with a default password would
+ * put a known credential on every environment that ever ran the seed, so this
+ * refuses rather than falling back.
  */
-async function main() {
-  // Platform admin
-  await prisma.account.upsert({
-    where: { phone: '+8801700000000' },
-    update: {},
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(
+      `${name} is required to seed accounts. Set it in backend/.env (see .env.example).`,
+    );
+  }
+  return value;
+}
+
+/**
+ * Platform staff are seeded in pairs on purpose. Refunds and payouts enforce
+ * separation of duties — refunds.service.ts:115,167 and payouts.service.ts:117
+ * reject the same account performing both steps, and refund completion is also
+ * a DB CHECK constraint. With a single admin those flows cannot be completed
+ * at all, so the seed always provisions a maker and a checker.
+ */
+async function seedAccount(opts: {
+  phone: string;
+  password: string;
+  name: string;
+  email?: string;
+  isPlatform: boolean;
+}) {
+  const passwordHash = await bcrypt.hash(opts.password, BCRYPT_ROUNDS);
+  return prisma.account.upsert({
+    where: { phone: opts.phone },
+    // Re-seeding resets the password so a rotated env var actually takes
+    // effect; without this the upsert is a no-op on an existing row.
+    update: { passwordHash, isPlatform: opts.isPlatform },
     create: {
       id: id(),
-      name: 'Platform Admin',
-      email: 'admin@houseboat.test',
-      phone: '+8801700000000',
-      isPlatform: true,
+      name: opts.name,
+      email: opts.email,
+      phone: opts.phone,
+      passwordHash,
+      isPlatform: opts.isPlatform,
       phoneVerified: true,
     },
   });
+}
 
-  // Routes (platform-curated)
-  const tanguar = await prisma.route.create({
-    data: { id: id(), name: 'Tanguar Haor', region: 'Sunamganj', active: true },
+/** Route has no unique key, so match on name to stay idempotent. */
+async function findOrCreateRoute(name: string, region: string) {
+  const existing = await prisma.route.findFirst({ where: { name } });
+  if (existing) return existing;
+  return prisma.route.create({
+    data: { id: id(), name, region, active: true },
   });
-  const nikli = await prisma.route.create({
-    data: { id: id(), name: 'Nikli Haor', region: 'Kishoreganj', active: true },
+}
+
+/** Next `days` dates starting today, as midnight UTC Dates (for @db.Date). */
+function upcomingDates(days: number): Date[] {
+  const out: Date[] = [];
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  for (let i = 0; i < days; i++) {
+    out.push(new Date(today.getTime() + i * 86_400_000));
+  }
+  return out;
+}
+
+/** Midnight-UTC Date `offset` days from today (negative = past). For @db.Date. */
+function dayOffset(offset: number): Date {
+  const d = new Date();
+  d.setUTCHours(0, 0, 0, 0);
+  return new Date(d.getTime() + offset * 86_400_000);
+}
+
+/**
+ * Full teardown of one boat and every row that hangs off it, deepest child
+ * first so no FK ever blocks. Used by the Jol Kolol reseed: the demo boat is
+ * rebuilt from scratch on every seed so its rich showcase data is deterministic
+ * and never fights the idempotency guards elsewhere. No-op if the boat is gone.
+ *
+ * Deliberately does NOT touch shared Route rows or owner/admin/crew/customer
+ * Accounts — those are re-linked on recreate (accounts are upserted by phone).
+ */
+async function deleteBoatCascade(slug: string) {
+  const boat = await prisma.houseboat.findUnique({
+    where: { slug },
+    select: { id: true },
+  });
+  if (!boat) return;
+  const houseboatId = boat.id;
+
+  // audit_log is append-only (a BEFORE UPDATE/DELETE trigger raises). The boat's
+  // audit rows reference it via an ON DELETE SET NULL FK, so deleting the boat
+  // would fire an UPDATE on audit_log and be rejected. Detach those rows first
+  // by briefly disabling the guard trigger, nulling the FK, then restoring it.
+  // Demo audit rows carry no value; this only runs for the reseeded demo boat.
+  await prisma.$transaction([
+    prisma.$executeRawUnsafe(
+      'ALTER TABLE audit_log DISABLE TRIGGER trg_audit_no_update',
+    ),
+    prisma.$executeRawUnsafe(
+      'UPDATE audit_log SET houseboat_id = NULL WHERE houseboat_id = $1::uuid',
+      houseboatId,
+    ),
+    prisma.$executeRawUnsafe(
+      'ALTER TABLE audit_log ENABLE TRIGGER trg_audit_no_update',
+    ),
+  ]);
+
+  // Booking-side rows key off the boat through departure → package.
+  const bookingWhere = {
+    booking: { departure: { package: { houseboatId } } },
+  } as const;
+  const invoiceWhere = { invoice: { houseboatId } } as const;
+
+  // Money leaves first (payments/refunds/credits) → invoices.
+  await prisma.invoicePayment.deleteMany({ where: invoiceWhere });
+  await prisma.invoiceRefund.deleteMany({ where: invoiceWhere });
+  await prisma.customerCredit.deleteMany({
+    where: { sourceInvoice: { houseboatId } },
+  });
+  await prisma.invoice.deleteMany({ where: { houseboatId } });
+
+  // Booking children → bookings.
+  await prisma.bookingCabin.deleteMany({ where: bookingWhere });
+  await prisma.bookingGuest.deleteMany({ where: bookingWhere });
+  await prisma.bookingRescheduleHistory.deleteMany({ where: bookingWhere });
+  await prisma.review.deleteMany({ where: { houseboatId } });
+  await prisma.booking.deleteMany({
+    where: { departure: { package: { houseboatId } } },
   });
 
-  const boats = [
-    { name: 'Jol Kolol', slug: 'jol-kolol', route: tanguar.id },
-    { name: 'Haor Bilash', slug: 'haor-bilash', route: nikli.id },
-  ];
+  // Departure children → departures.
+  const depWhere = { departure: { package: { houseboatId } } } as const;
+  await prisma.cabinHold.deleteMany({ where: depWhere });
+  await prisma.bookingWaitlist.deleteMany({ where: depWhere });
+  await prisma.tripCrew.deleteMany({ where: depWhere });
+  await prisma.stockMovement.deleteMany({
+    where: { trip: { package: { houseboatId } } },
+  });
+  await prisma.tripDeparture.deleteMany({
+    where: { package: { houseboatId } },
+  });
 
-  for (const b of boats) {
-    const boat = await prisma.houseboat.create({
+  // Pricing + packages. Null the package→policy FK before dropping policies.
+  await prisma.pricingRule.deleteMany({
+    where: { profile: { houseboatId } },
+  });
+  await prisma.pricingProfile.deleteMany({ where: { houseboatId } });
+  await prisma.tripPackage.deleteMany({ where: { houseboatId } });
+  await prisma.groupPriceBand.deleteMany({ where: { houseboatId } });
+  await prisma.quoteRequest.deleteMany({ where: { houseboatId } });
+  await prisma.cancellationPolicy.deleteMany({ where: { houseboatId } });
+
+  // Staff tree.
+  await prisma.staffPayroll.deleteMany({
+    where: { staff: { houseboatId } },
+  });
+  await prisma.staffLeave.deleteMany({
+    where: { staff: { houseboatId } },
+  });
+  await prisma.houseboatStaff.deleteMany({ where: { houseboatId } });
+
+  // Cabins → decks / categories.
+  await prisma.houseboatCabin.deleteMany({
+    where: { deck: { houseboatId } },
+  });
+  await prisma.houseboatDeck.deleteMany({ where: { houseboatId } });
+  await prisma.houseboatCabinCategory.deleteMany({ where: { houseboatId } });
+
+  // Maintenance + inventory + costs.
+  await prisma.maintenanceServiceLog.deleteMany({ where: { houseboatId } });
+  await prisma.maintenanceTask.deleteMany({ where: { houseboatId } });
+  await prisma.damageLog.deleteMany({ where: { houseboatId } });
+  await prisma.inventoryItem.deleteMany({ where: { houseboatId } });
+  await prisma.cost.deleteMany({ where: { houseboatId } });
+
+  // Platform-side billing artifacts (not created by the base seed, but drop
+  // them defensively so a re-run over any prior state stays FK-safe).
+  await prisma.houseboatSubscriptionInvoice.deleteMany({
+    where: { houseboatId },
+  });
+  await prisma.houseboatPayoutBatch.deleteMany({ where: { houseboatId } });
+  await prisma.ownerDistribution.deleteMany({ where: { houseboatId } });
+
+  // Ownership + billing + the boat itself. Detach billingConfigId first so the
+  // self-referential FK doesn't block deleting the config rows.
+  await prisma.houseboatRoute.deleteMany({ where: { houseboatId } });
+  await prisma.houseboatMember.deleteMany({ where: { houseboatId } });
+  await prisma.role.deleteMany({ where: { houseboatId } });
+  await prisma.houseboat.update({
+    where: { id: houseboatId },
+    data: { billingConfigId: null },
+  });
+  await prisma.houseboatBillingConfig.deleteMany({ where: { houseboatId } });
+  await prisma.houseboat.delete({ where: { id: houseboatId } });
+}
+
+/**
+ * Ensure the demo houseboat exists and return its id. Creation happens once;
+ * re-running the seed leaves an existing boat (and any bookings against it)
+ * untouched — but owner/demo enrichment below still runs, so environments
+ * seeded before the owner console existed get the owner artifacts on re-run.
+ */
+async function ensureBoat(b: { name: string; slug: string; route: string }) {
+  const existing = await prisma.houseboat.findUnique({
+    where: { slug: b.slug },
+    select: { id: true },
+  });
+  if (existing) return existing.id;
+
+  const boat = await prisma.houseboat.create({
+    data: {
+      id: id(),
+      name: b.name,
+      slug: b.slug,
+      description: `${b.name} — a comfortable houseboat cruising the haor.`,
+      safetyFeatures: 'Life jackets for all guests, trained crew, first-aid kit.',
+      foodMenu: 'Local Bangladeshi cuisine, fresh fish, breakfast included.',
+      status: 'live',
+      profileCompletePct: 100,
+      operatingDates: [],
+      defaultCrew: [],
+    },
+  });
+
+  await prisma.houseboatRoute.create({
+    data: { id: id(), houseboatId: boat.id, routeId: b.route },
+  });
+
+  const deck = await prisma.houseboatDeck.create({
+    data: { id: id(), houseboatId: boat.id, name: 'Upper Deck', position: 1 },
+  });
+
+  const category = await prisma.houseboatCabinCategory.create({
+    data: {
+      id: id(),
+      houseboatId: boat.id,
+      name: 'Luxury AC',
+      isAc: true,
+      baseCapacity: 2,
+      extendedCapacity: 3,
+      facilities: 'AC, attached bath, balcony view.',
+    },
+  });
+
+  for (const name of ['101', '102']) {
+    await prisma.houseboatCabin.create({
       data: {
         id: id(),
-        name: b.name,
-        slug: b.slug,
-        description: `${b.name} — a comfortable houseboat cruising the haor.`,
-        safetyFeatures: 'Life jackets for all guests, trained crew, first-aid kit.',
-        foodMenu: 'Local Bangladeshi cuisine, fresh fish, breakfast included.',
-        status: 'live',
-        profileCompletePct: 100,
-        operatingDates: [],
-        defaultCrew: [],
+        deckId: deck.id,
+        cabinCategoryId: category.id,
+        name,
       },
     });
+  }
 
-    await prisma.houseboatRoute.create({
-      data: { id: id(), houseboatId: boat.id, routeId: b.route },
-    });
+  return boat.id;
+}
 
-    const deck = await prisma.houseboatDeck.create({
-      data: { id: id(), houseboatId: boat.id, name: 'Upper Deck', position: 1 },
-    });
-
-    const category = await prisma.houseboatCabinCategory.create({
+/**
+ * Owner artifacts — role + membership — matching what the app itself creates
+ * on POST /houseboats (HouseboatAdminService / RolesService.createOwnerRole).
+ * Idempotent: matched before create, runs even for pre-existing boats.
+ */
+async function ensureOwnerMembership(houseboatId: string, accountId: string) {
+  let role = await prisma.role.findFirst({
+    where: { houseboatId, name: 'Owner' },
+  });
+  if (!role) {
+    role = await prisma.role.create({
       data: {
         id: id(),
-        houseboatId: boat.id,
-        name: 'Luxury AC',
-        isAc: true,
-        baseCapacity: 2,
-        extendedCapacity: 3,
-        facilities: 'AC, attached bath, balcony view.',
+        houseboatId,
+        name: 'Owner',
+        isTemplate: false,
+        permissions: FULL_PERMISSIONS as object,
       },
     });
+  }
 
-    for (const name of ['101', '102']) {
-      await prisma.houseboatCabin.create({
+  const membership = await prisma.houseboatMember.findFirst({
+    where: { accountId, houseboatId },
+  });
+  if (!membership) {
+    await prisma.houseboatMember.create({
+      data: {
+        id: id(),
+        accountId,
+        houseboatId,
+        roleId: role.id,
+        status: 'active',
+        shareholderPct: 100,
+        startDate: new Date(),
+      },
+    });
+  }
+}
+
+/** Platform billing config so billing-status / subscription pages have data. */
+async function ensureBillingConfig(houseboatId: string) {
+  const existing = await prisma.houseboatBillingConfig.findFirst({
+    where: { houseboatId },
+  });
+  if (existing) return;
+  const trialEnds = new Date();
+  trialEnds.setUTCDate(trialEnds.getUTCDate() + 30);
+  const cfg = await prisma.houseboatBillingConfig.create({
+    data: {
+      id: id(),
+      houseboatId,
+      commissionPct: 5,
+      monthlyFee: 2000,
+      gatewayFeePct: 1.8,
+      platformBalance: 0,
+      trialEnds,
+    },
+  });
+  await prisma.houseboat.update({
+    where: { id: houseboatId },
+    data: { billingConfigId: cfg.id },
+  });
+}
+
+/**
+ * Demo operating data so the owner console isn't empty: package, pricing,
+ * departures, maintenance, inventory, staff, costs, one cash booking.
+ * Every block is guarded find-first so re-runs are no-ops.
+ */
+async function ensureDemoData(
+  houseboatId: string,
+  ownerAccountId: string,
+  boatIndex: number,
+) {
+  const routeLink = await prisma.houseboatRoute.findFirst({
+    where: { houseboatId },
+  });
+  const category = await prisma.houseboatCabinCategory.findFirst({
+    where: { houseboatId },
+  });
+  const cabins = await prisma.houseboatCabin.findMany({
+    where: { deck: { houseboatId } },
+    orderBy: { name: 'asc' },
+  });
+  if (!routeLink || !category || cabins.length === 0) return;
+
+  // Operating dates: next 30 days, only when currently empty.
+  const boat = await prisma.houseboat.findUniqueOrThrow({
+    where: { id: houseboatId },
+    select: { operatingDates: true, engineHours: true },
+  });
+  if (boat.operatingDates.length === 0) {
+    await prisma.houseboat.update({
+      where: { id: houseboatId },
+      data: { operatingDates: upcomingDates(30) },
+    });
+  }
+
+  // Trip package + default pricing profile + rules + group band.
+  let pkg = await prisma.tripPackage.findFirst({ where: { houseboatId } });
+  if (!pkg) {
+    pkg = await prisma.tripPackage.create({
+      data: {
+        id: id(),
+        houseboatId,
+        routeId: routeLink.routeId,
+        durationDays: 2,
+        durationLabel: '2 days 1 night',
+        departureGhat: 'Tahirpur ghat',
+        returnGhat: 'Tahirpur ghat',
+        meals: 'Breakfast, lunch, dinner, evening snacks',
+        included: 'Guide, life jackets, generator, BBQ night',
+        excluded: 'Transport to ghat, entry fees',
+      },
+    });
+  }
+
+  let profile = await prisma.pricingProfile.findFirst({
+    where: { houseboatId, isDefault: true },
+  });
+  if (!profile) {
+    profile = await prisma.pricingProfile.create({
+      data: {
+        id: id(),
+        houseboatId,
+        name: 'General Day',
+        isDefault: true,
+        dates: [],
+      },
+    });
+    for (const [occupancy, price] of [
+      [1, 6000],
+      [2, 5000],
+      [3, 4500],
+    ] as const) {
+      await prisma.pricingRule.create({
         data: {
           id: id(),
-          deckId: deck.id,
+          pricingProfileId: profile.id,
           cabinCategoryId: category.id,
-          name,
+          occupancy,
+          pricePerPerson: price,
         },
       });
     }
   }
 
-  console.log('Seed complete: 2 live houseboats, 2 routes, 1 admin.');
+  const band = await prisma.groupPriceBand.findFirst({ where: { houseboatId } });
+  if (!band) {
+    await prisma.groupPriceBand.create({
+      data: {
+        id: id(),
+        houseboatId,
+        minPeople: 10,
+        maxPeople: 16,
+        totalPrice: 60000,
+      },
+    });
+  }
+
+  // Departures over the next week.
+  let firstDeparture = await prisma.tripDeparture.findFirst({
+    where: { packageId: pkg.id },
+    orderBy: { startDate: 'asc' },
+  });
+  if (!firstDeparture) {
+    const dates = upcomingDates(8);
+    for (const offset of [1, 3, 6]) {
+      const startDate = dates[offset];
+      const endDate = new Date(startDate.getTime() + 86_400_000);
+      const dep = await prisma.tripDeparture.create({
+        data: {
+          id: id(),
+          packageId: pkg.id,
+          startDate,
+          endDate,
+          pricingProfileId: profile.id,
+          availableCount: cabins.length,
+          status: 'scheduled',
+        },
+      });
+      firstDeparture ??= dep;
+    }
+  }
+
+  // Maintenance: meter + tasks + one log + damage entries.
+  if (boat.engineHours === 0) {
+    await prisma.houseboat.update({
+      where: { id: houseboatId },
+      data: { engineHours: 1284, engineHoursUpdatedAt: new Date() },
+    });
+  }
+  const task = await prisma.maintenanceTask.findFirst({ where: { houseboatId } });
+  if (!task) {
+    const oil = await prisma.maintenanceTask.create({
+      data: {
+        id: id(),
+        houseboatId,
+        title: 'Engine oil change',
+        intervalKind: 'engine_hours',
+        intervalValue: 100,
+        dueAtHours: 1300,
+        lastDoneHours: 1200,
+        lastDoneAt: new Date(Date.now() - 20 * 86_400_000),
+        status: 'active',
+      },
+    });
+    const due = new Date();
+    due.setUTCDate(due.getUTCDate() + 14);
+    await prisma.maintenanceTask.create({
+      data: {
+        id: id(),
+        houseboatId,
+        title: 'Hull inspection',
+        intervalKind: 'calendar',
+        intervalValue: 30,
+        dueDate: due,
+        status: 'active',
+      },
+    });
+    await prisma.maintenanceServiceLog.create({
+      data: {
+        id: id(),
+        houseboatId,
+        taskId: oil.id,
+        serviceDate: new Date(Date.now() - 20 * 86_400_000),
+        engineHours: 1200,
+        cost: 2500,
+        note: 'Oil + filter changed at ghat workshop.',
+        loggedBy: ownerAccountId,
+      },
+    });
+    await prisma.damageLog.create({
+      data: {
+        id: id(),
+        houseboatId,
+        title: 'Railing loose on upper deck',
+        detail: 'Port-side railing bracket needs re-bolting.',
+        status: 'open',
+        reportedBy: ownerAccountId,
+      },
+    });
+    await prisma.damageLog.create({
+      data: {
+        id: id(),
+        houseboatId,
+        title: 'Cabin 102 door latch',
+        status: 'fixed',
+        repairCost: 800,
+        reportedBy: ownerAccountId,
+        fixedAt: new Date(Date.now() - 5 * 86_400_000),
+      },
+    });
+  }
+
+  // Inventory: one consumable below threshold, one durable.
+  const item = await prisma.inventoryItem.findFirst({ where: { houseboatId } });
+  if (!item) {
+    await prisma.inventoryItem.create({
+      data: {
+        id: id(),
+        houseboatId,
+        name: 'Rice',
+        kind: 'consumable',
+        unit: 'kg',
+        reorderThreshold: 10,
+        currentQty: 5,
+      },
+    });
+    await prisma.inventoryItem.create({
+      data: {
+        id: id(),
+        houseboatId,
+        name: 'Life jackets',
+        kind: 'durable',
+        unit: 'pcs',
+        currentQty: 20,
+      },
+    });
+  }
+
+  // Crew: two staff with their own login accounts (deterministic phones).
+  const staff = await prisma.houseboatStaff.findFirst({ where: { houseboatId } });
+  if (!staff) {
+    const crew = [
+      { name: 'Rahim Mia', role: 'Sukani', suffix: '0', perTrip: 1500 },
+      { name: 'Karim Sheikh', role: 'Cook', suffix: '1', salary: 18000 },
+    ];
+    for (const c of crew) {
+      const phone = `+88017200000${boatIndex}${c.suffix}`;
+      // Crew logins get a random password — reset via admin flow when needed.
+      const account = await prisma.account.upsert({
+        where: { phone },
+        update: {},
+        create: {
+          id: id(),
+          name: c.name,
+          phone,
+          passwordHash: await bcrypt.hash(uuidv7(), BCRYPT_ROUNDS),
+          phoneVerified: true,
+        },
+      });
+      await prisma.houseboatStaff.create({
+        data: {
+          id: id(),
+          accountId: account.id,
+          houseboatId,
+          perTripRate: c.perTrip,
+          monthlySalary: c.salary,
+          emergencyContact: '+8801799999999',
+        },
+      });
+    }
+  }
+
+  // A couple of costs.
+  const cost = await prisma.cost.findFirst({ where: { houseboatId } });
+  if (!cost) {
+    await prisma.cost.create({
+      data: {
+        id: id(),
+        houseboatId,
+        date: new Date(),
+        description: 'Bazar — fish, vegetables',
+        amount: 3500,
+        paidBy: ownerAccountId,
+      },
+    });
+    await prisma.cost.create({
+      data: {
+        id: id(),
+        houseboatId,
+        date: new Date(Date.now() - 86_400_000),
+        description: 'Diesel',
+        amount: 8000,
+        paidBy: ownerAccountId,
+      },
+    });
+  }
+
+  // One confirmed cash booking with an unverified payment — lights up the
+  // dashboard "cash to verify" KPI and the Payments page.
+  if (firstDeparture) {
+    const existingBooking = await prisma.booking.findFirst({
+      where: { departure: { package: { houseboatId } } },
+    });
+    if (!existingBooking) {
+      const customer = await prisma.account.upsert({
+        where: { phone: '+8801755555555' },
+        update: {},
+        create: {
+          id: id(),
+          name: 'Demo Customer',
+          phone: '+8801755555555',
+          passwordHash: await bcrypt.hash(uuidv7(), BCRYPT_ROUNDS),
+          phoneVerified: true,
+        },
+      });
+      const booking = await prisma.booking.create({
+        data: {
+          id: id(),
+          departureId: firstDeparture.id,
+          customerId: customer.id,
+          bookedBy: ownerAccountId, // POS-style: owner booked at the counter
+          type: 'cabin',
+          status: 'confirmed',
+        },
+      });
+      await prisma.bookingCabin.create({
+        data: {
+          id: id(),
+          bookingId: booking.id,
+          cabinId: cabins[0].id,
+          adults: 2,
+          children: 0,
+          occupancy: 2,
+          roomPrice: 10000,
+        },
+      });
+      await prisma.bookingGuest.create({
+        data: {
+          id: id(),
+          bookingId: booking.id,
+          name: 'Demo Customer',
+          phone: '+8801755555555',
+        },
+      });
+      await prisma.tripDeparture.update({
+        where: { id: firstDeparture.id },
+        data: { availableCount: { decrement: 1 } },
+      });
+      // Bill order per plan §1: room 10,000 + gateway 1.8% = 10,180 shown;
+      // commission 5% of room = 500; cash taken in full, not yet verified.
+      const invoice = await prisma.invoice.create({
+        data: {
+          id: id(),
+          bookingId: booking.id,
+          houseboatId,
+          customerId: customer.id,
+          roomTotal: 10000,
+          gatewayFee: 180,
+          priceShown: 10180,
+          discountAmount: 0,
+          displayTotal: 10180,
+          commission: 500,
+          dueToBoat: 9500,
+          amountPaid: 10180,
+          status: 'paid',
+        },
+      });
+      await prisma.invoicePayment.create({
+        data: {
+          id: id(),
+          invoiceId: invoice.id,
+          amount: 10180,
+          method: 'cash',
+          receivedBy: ownerAccountId,
+          verifiedBy: null,
+          paidAt: new Date(),
+        },
+      });
+    }
+  }
+}
+
+/**
+ * Ensure a passwordless-ish demo Account exists by phone (upsert), for crew
+ * and customers. Random password — reset via admin flow when needed.
+ */
+async function ensureDemoAccount(phone: string, name: string) {
+  return prisma.account.upsert({
+    where: { phone },
+    update: {},
+    create: {
+      id: id(),
+      name,
+      phone,
+      passwordHash: await bcrypt.hash(uuidv7(), BCRYPT_ROUNDS),
+      phoneVerified: true,
+    },
+  });
+}
+
+/**
+ * The showcase boat. Fully rebuilt from scratch on every seed (see
+ * deleteBoatCascade) so its data is deterministic and demonstrates a 100%
+ * complete profile plus the full booking/status matrix. Distinct from the
+ * generic Haor Bilash boat.
+ *
+ * ids passed in: the owner (console login) and the two platform admins, used as
+ * maker/checker for verified payments and refunds (separation of duties).
+ */
+async function reseedJolKolol(opts: {
+  routeId: string;
+  ownerAccountId: string;
+  makerAdminId: string; // ADMIN_PHONE  — receives/verifies, refund checker
+  checkerAdminId: string; // ADMIN2_PHONE — verifies/completes (must differ)
+}) {
+  const { routeId, ownerAccountId, makerAdminId, checkerAdminId } = opts;
+
+  // ---- Boat: all completeness checks genuinely pass, rich detail prose. ----
+  const boat = await prisma.houseboat.create({
+    data: {
+      id: id(),
+      name: 'Jol Kolol',
+      slug: 'jol-kolol',
+      description:
+        'Jol Kolol is a premium two-deck houseboat cruising the wetlands of ' +
+        'Tanguar Haor. Spacious sun deck, air-conditioned cabins, on-board ' +
+        'kitchen and a trained local crew make it ideal for families and ' +
+        'group getaways across the monsoon season.',
+      safetyFeatures:
+        'Coast-guard approved life jackets for every guest (adult & child ' +
+        'sizes), two lifebuoys, fire extinguisher, first-aid kit, trained ' +
+        'sukani and swimmer crew, GPS and mobile network coverage on route.',
+      foodMenu:
+        'Full-board local Bangladeshi cuisine — fresh haor fish, chicken, ' +
+        'rice, dal, seasonal vegetables and bhorta; BBQ night; morning ' +
+        'breakfast with paratha, egg and tea; evening snacks and unlimited ' +
+        'filtered water.',
+      bankAccount: {
+        bankName: 'Dutch-Bangla Bank Ltd',
+        accountName: 'Jol Kolol Houseboat',
+        accountNumber: '1011200456789',
+        branch: 'Sunamganj Branch',
+        routingNumber: '090900123',
+      },
+      childPolicy: [
+        { min: 0, max: 4, charge_pct: 0 },
+        { min: 5, max: 11, charge_pct: 50 },
+        { min: 12, max: 120, charge_pct: 100 },
+      ],
+      status: 'live',
+      profileCompletePct: 100,
+      operatingDates: upcomingDates(45),
+      defaultCrew: [], // filled after staff are created
+      engineHours: 1284,
+      engineHoursUpdatedAt: new Date(),
+    },
+  });
+  const houseboatId = boat.id;
+
+  await prisma.houseboatRoute.create({
+    data: { id: id(), houseboatId, routeId },
+  });
+
+  // ---- Decks, cabin categories, cabins. ----
+  const lowerDeck = await prisma.houseboatDeck.create({
+    data: { id: id(), houseboatId, name: 'Lower Deck', position: 1 },
+  });
+  const upperDeck = await prisma.houseboatDeck.create({
+    data: { id: id(), houseboatId, name: 'Upper Deck', position: 2 },
+  });
+
+  const luxuryAc = await prisma.houseboatCabinCategory.create({
+    data: {
+      id: id(),
+      houseboatId,
+      name: 'Luxury AC',
+      isAc: true,
+      baseCapacity: 2,
+      extendedCapacity: 3,
+      facilities: 'AC, attached bath, private balcony, haor view, king bed.',
+    },
+  });
+  const familyNonAc = await prisma.houseboatCabinCategory.create({
+    data: {
+      id: id(),
+      houseboatId,
+      name: 'Family Non-AC',
+      isAc: false,
+      baseCapacity: 4,
+      extendedCapacity: 6,
+      facilities: 'Ceiling fan, shared bath, two double beds, window view.',
+    },
+  });
+
+  // 5 cabins: L1/L2 family on lower deck, U1/U2/U3 luxury on upper deck.
+  const cabinSpecs = [
+    { name: 'L1', deckId: lowerDeck.id, categoryId: familyNonAc.id },
+    { name: 'L2', deckId: lowerDeck.id, categoryId: familyNonAc.id },
+    { name: 'U1', deckId: upperDeck.id, categoryId: luxuryAc.id },
+    { name: 'U2', deckId: upperDeck.id, categoryId: luxuryAc.id },
+    { name: 'U3', deckId: upperDeck.id, categoryId: luxuryAc.id },
+  ];
+  const cabins: { id: string; name: string; categoryId: string }[] = [];
+  for (const c of cabinSpecs) {
+    const cabin = await prisma.houseboatCabin.create({
+      data: {
+        id: id(),
+        deckId: c.deckId,
+        cabinCategoryId: c.categoryId,
+        name: c.name,
+      },
+    });
+    cabins.push({ id: cabin.id, name: c.name, categoryId: c.categoryId });
+  }
+  const cabinCount = cabins.length;
+
+  // ---- Cancellation policy (cited by cancel scenarios) + trip package. ----
+  const cancelPolicy = await prisma.cancellationPolicy.create({
+    data: {
+      id: id(),
+      houseboatId,
+      policyTemplate: 'moderate',
+      depositPct: 30,
+      shownAtCheckout: true,
+      tiers: [
+        { days_before: 7, refund_pct: 100, is_blackout: false },
+        { days_before: 3, refund_pct: 50, is_blackout: false },
+        { days_before: 0, refund_pct: 0, is_blackout: false },
+      ],
+    },
+  });
+
+  const pkg = await prisma.tripPackage.create({
+    data: {
+      id: id(),
+      houseboatId,
+      routeId,
+      durationDays: 2,
+      durationLabel: '2 days 1 night',
+      departureGhat: 'Tahirpur ghat, Sunamganj',
+      returnGhat: 'Tahirpur ghat, Sunamganj',
+      meals: 'Breakfast, lunch, dinner, evening snacks (full board)',
+      included:
+        'Guide, life jackets, generator, BBQ night, drinking water, cabin stay',
+      excluded: 'Transport to ghat, entry/permit fees, personal expenses',
+      cancellationPolicyId: cancelPolicy.id,
+    },
+  });
+
+  // ---- Pricing: default + weekend profiles, full rule table each. ----
+  const generalProfile = await prisma.pricingProfile.create({
+    data: {
+      id: id(),
+      houseboatId,
+      name: 'General Day',
+      isDefault: true,
+      dates: [],
+    },
+  });
+  const weekendProfile = await prisma.pricingProfile.create({
+    data: {
+      id: id(),
+      houseboatId,
+      name: 'Weekend',
+      isDefault: false,
+      // Next two Fridays as weekend-priced dates.
+      dates: [dayOffset(4), dayOffset(11)],
+    },
+  });
+
+  // Full independent price table per profile × category × occupancy.
+  const priceTable: {
+    profileId: string;
+    categoryId: string;
+    occupancy: number;
+    price: number;
+  }[] = [
+    // General Day — Luxury AC
+    { profileId: generalProfile.id, categoryId: luxuryAc.id, occupancy: 1, price: 6000 },
+    { profileId: generalProfile.id, categoryId: luxuryAc.id, occupancy: 2, price: 5000 },
+    { profileId: generalProfile.id, categoryId: luxuryAc.id, occupancy: 3, price: 4500 },
+    // General Day — Family Non-AC
+    { profileId: generalProfile.id, categoryId: familyNonAc.id, occupancy: 2, price: 4000 },
+    { profileId: generalProfile.id, categoryId: familyNonAc.id, occupancy: 4, price: 3200 },
+    { profileId: generalProfile.id, categoryId: familyNonAc.id, occupancy: 6, price: 2800 },
+    // Weekend — Luxury AC (higher)
+    { profileId: weekendProfile.id, categoryId: luxuryAc.id, occupancy: 1, price: 7500 },
+    { profileId: weekendProfile.id, categoryId: luxuryAc.id, occupancy: 2, price: 6500 },
+    { profileId: weekendProfile.id, categoryId: luxuryAc.id, occupancy: 3, price: 6000 },
+    // Weekend — Family Non-AC (higher)
+    { profileId: weekendProfile.id, categoryId: familyNonAc.id, occupancy: 2, price: 5000 },
+    { profileId: weekendProfile.id, categoryId: familyNonAc.id, occupancy: 4, price: 4200 },
+    { profileId: weekendProfile.id, categoryId: familyNonAc.id, occupancy: 6, price: 3800 },
+  ];
+  for (const r of priceTable) {
+    await prisma.pricingRule.create({
+      data: {
+        id: id(),
+        pricingProfileId: r.profileId,
+        cabinCategoryId: r.categoryId,
+        occupancy: r.occupancy,
+        pricePerPerson: r.price,
+      },
+    });
+  }
+
+  // Group buyout bands.
+  for (const b of [
+    { minPeople: 10, maxPeople: 16, totalPrice: 60000 },
+    { minPeople: 17, maxPeople: 24, totalPrice: 88000 },
+  ]) {
+    await prisma.groupPriceBand.create({
+      data: { id: id(), houseboatId, ...b },
+    });
+  }
+
+  // ---- Crew: named roles, staff with roleId, leave, payroll. ----
+  const crewSpecs = [
+    { name: 'Rahim Mia', role: 'Sukani', phone: '+8801720001001', nid: '1990123456789', perTrip: 1500 },
+    { name: 'Karim Sheikh', role: 'Cook', phone: '+8801720001002', nid: '1988123456789', salary: 18000 },
+    { name: 'Jamal Hossain', role: 'Cleaner', phone: '+8801720001003', nid: '1995123456789', salary: 12000 },
+    { name: 'Sohel Rana', role: 'Guide', phone: '+8801720001004', nid: '1992123456789', perTrip: 1200 },
+  ];
+  const staffIds: string[] = [];
+  for (const c of crewSpecs) {
+    const role = await prisma.role.create({
+      data: {
+        id: id(),
+        houseboatId,
+        name: c.role,
+        isTemplate: false,
+        permissions: { bookings: { view: true }, trips: { view: true } },
+      },
+    });
+    const account = await ensureDemoAccount(c.phone, c.name);
+    const staff = await prisma.houseboatStaff.create({
+      data: {
+        id: id(),
+        accountId: account.id,
+        houseboatId,
+        roleId: role.id,
+        nid: c.nid,
+        emergencyContact: '+8801799999999',
+        perTripRate: c.perTrip,
+        monthlySalary: c.salary,
+      },
+    });
+    staffIds.push(staff.id);
+  }
+
+  // Assign all crew as the boat's default crew.
+  await prisma.houseboat.update({
+    where: { id: houseboatId },
+    data: { defaultCrew: staffIds },
+  });
+
+  // Cleaner (index 2) on leave next week.
+  await prisma.staffLeave.create({
+    data: {
+      id: id(),
+      staffId: staffIds[2],
+      state: 'on_leave',
+      fromDate: dayOffset(5),
+      toDate: dayOffset(9),
+      note: 'Family emergency — back next week.',
+    },
+  });
+
+  // Payroll: sukani paid last month, cook unpaid this month.
+  await prisma.staffPayroll.create({
+    data: {
+      id: id(),
+      staffId: staffIds[0],
+      period: '2026-07',
+      tripsWorked: 6,
+      baseAmount: 9000,
+      bonus: 1000,
+      deduction: 0,
+      totalAmount: 10000,
+      paid: true,
+      paidAt: dayOffset(-10),
+      paidBy: ownerAccountId,
+    },
+  });
+  await prisma.staffPayroll.create({
+    data: {
+      id: id(),
+      staffId: staffIds[1],
+      period: '2026-08',
+      baseAmount: 18000,
+      bonus: 0,
+      deduction: 500,
+      totalAmount: 17500,
+      paid: false,
+    },
+  });
+
+  // ---- Departure schedule. ----
+  const mkDeparture = async (
+    startOffset: number,
+    status: string,
+    profileId: string,
+  ) => {
+    const startDate = dayOffset(startOffset);
+    const dep = await prisma.tripDeparture.create({
+      data: {
+        id: id(),
+        packageId: pkg.id,
+        startDate,
+        endDate: dayOffset(startOffset + 1),
+        pricingProfileId: profileId,
+        availableCount: cabinCount,
+        status,
+      },
+    });
+    // Attendance: default crew on every departure.
+    for (const staffId of staffIds) {
+      await prisma.tripCrew.create({
+        data: { id: id(), departureId: dep.id, staffId, present: true },
+      });
+    }
+    return dep;
+  };
+
+  const futureA = await mkDeparture(2, 'scheduled', generalProfile.id);
+  const futureB = await mkDeparture(5, 'scheduled', generalProfile.id);
+  const futureC = await mkDeparture(9, 'scheduled', generalProfile.id);
+  const weekendDep = await mkDeparture(4, 'scheduled', weekendProfile.id);
+  const groupDep = await mkDeparture(14, 'scheduled', generalProfile.id);
+  const rescheduleDst = await mkDeparture(20, 'scheduled', generalProfile.id);
+  const rescheduleSrc = await mkDeparture(6, 'scheduled', generalProfile.id);
+  const pastCompleted = await mkDeparture(-14, 'completed', generalProfile.id);
+  const pastNoShowDep = await mkDeparture(-7, 'completed', generalProfile.id);
+  const cancelledDep = await mkDeparture(-3, 'cancelled', generalProfile.id);
+
+  // ---- Booking scenarios (full status matrix). ----
+  // Reusable builder: booking + cabin(s) + lead guest + invoice + payment.
+  const luxuryCabins = cabins.filter((c) => c.categoryId === luxuryAc.id);
+  const familyCabins = cabins.filter((c) => c.categoryId === familyNonAc.id);
+  const GATEWAY_PCT = 0.018;
+  const COMMISSION_PCT = 0.05;
+
+  // Helper that wires one full booking chain. `decrementAvail` controls whether
+  // the departure's available_count is reduced (active future holds only).
+  const makeBooking = async (b: {
+    departureId: string;
+    cabinId: string;
+    customerName: string;
+    customerPhone: string;
+    type: string;
+    bookingStatus: string;
+    adults: number;
+    children?: number;
+    roomTotal: number;
+    headcount?: number;
+    invoiceStatus: string;
+    payment?: { method: string; verifiedById: string | null; gatewayToken?: string };
+    decrementAvail: boolean;
+    referenceName?: string;
+  }) => {
+    const customer = await ensureDemoAccount(b.customerPhone, b.customerName);
+    const booking = await prisma.booking.create({
+      data: {
+        id: id(),
+        departureId: b.departureId,
+        customerId: customer.id,
+        bookedBy: ownerAccountId, // POS-style, owner booked at the counter
+        type: b.type,
+        headcount: b.headcount,
+        status: b.bookingStatus,
+        referenceName: b.referenceName,
+      },
+    });
+    const occupancy = b.adults + (b.children ?? 0);
+    await prisma.bookingCabin.create({
+      data: {
+        id: id(),
+        bookingId: booking.id,
+        cabinId: b.cabinId,
+        adults: b.adults,
+        children: b.children ?? 0,
+        occupancy,
+        roomPrice: b.roomTotal,
+      },
+    });
+    await prisma.bookingGuest.create({
+      data: {
+        id: id(),
+        bookingId: booking.id,
+        name: b.customerName,
+        phone: b.customerPhone,
+      },
+    });
+    if (b.decrementAvail) {
+      await prisma.tripDeparture.update({
+        where: { id: b.departureId },
+        data: { availableCount: { decrement: 1 } },
+      });
+    }
+    const gatewayFee = Math.round(b.roomTotal * GATEWAY_PCT);
+    const priceShown = b.roomTotal + gatewayFee;
+    const commission = Math.round(b.roomTotal * COMMISSION_PCT);
+    const paid = b.payment ? priceShown : 0;
+    const invoice = await prisma.invoice.create({
+      data: {
+        id: id(),
+        bookingId: booking.id,
+        houseboatId,
+        customerId: customer.id,
+        roomTotal: b.roomTotal,
+        gatewayFee,
+        priceShown,
+        discountAmount: 0,
+        displayTotal: priceShown,
+        commission,
+        dueToBoat: b.roomTotal - commission,
+        amountPaid: paid,
+        status: b.invoiceStatus,
+        policySnapshot: { policyTemplate: 'moderate', depositPct: 30 },
+      },
+    });
+    if (b.payment) {
+      await prisma.invoicePayment.create({
+        data: {
+          id: id(),
+          invoiceId: invoice.id,
+          amount: priceShown,
+          method: b.payment.method,
+          gatewayToken: b.payment.gatewayToken,
+          receivedBy: ownerAccountId,
+          verifiedBy: b.payment.verifiedById,
+          paidAt: new Date(),
+        },
+      });
+    }
+    return { booking, invoice, customer };
+  };
+
+  // 1. Confirmed, paid + verified (cash).
+  await makeBooking({
+    departureId: futureA.id,
+    cabinId: luxuryCabins[0].id,
+    customerName: 'Arif Rahman',
+    customerPhone: '+8801755550001',
+    type: 'cabin',
+    bookingStatus: 'confirmed',
+    adults: 2,
+    roomTotal: 10000,
+    invoiceStatus: 'paid',
+    payment: { method: 'cash', verifiedById: checkerAdminId },
+    decrementAvail: true,
+    referenceName: 'Facebook page',
+  });
+
+  // 2. Confirmed, cash taken but NOT verified — cash-to-verify KPI.
+  await makeBooking({
+    departureId: futureB.id,
+    cabinId: luxuryCabins[1].id,
+    customerName: 'Nusrat Jahan',
+    customerPhone: '+8801755550002',
+    type: 'cabin',
+    bookingStatus: 'confirmed',
+    adults: 2,
+    roomTotal: 10000,
+    invoiceStatus: 'paid',
+    payment: { method: 'cash', verifiedById: null },
+    decrementAvail: true,
+  });
+
+  // 3. Confirmed, unpaid (customer_due) — no payment row.
+  await makeBooking({
+    departureId: futureC.id,
+    cabinId: familyCabins[0].id,
+    customerName: 'Tanvir Ahmed',
+    customerPhone: '+8801755550003',
+    type: 'cabin',
+    bookingStatus: 'confirmed',
+    adults: 4,
+    roomTotal: 12800,
+    invoiceStatus: 'customer_due',
+    decrementAvail: true,
+  });
+
+  // 4. Group buyout, paid via gateway (verified by finance/maker admin).
+  await makeBooking({
+    departureId: groupDep.id,
+    cabinId: luxuryCabins[0].id,
+    customerName: 'Corporate Retreat Ltd',
+    customerPhone: '+8801755550004',
+    type: 'group',
+    bookingStatus: 'confirmed',
+    adults: 14,
+    headcount: 14,
+    roomTotal: 60000,
+    invoiceStatus: 'paid',
+    payment: {
+      method: 'gateway',
+      verifiedById: makerAdminId,
+      gatewayToken: `gw_jolkolol_${id()}`,
+    },
+    decrementAvail: true,
+  });
+
+  // 5. Completed past trip + review.
+  const completedWithReview = await makeBooking({
+    departureId: pastCompleted.id,
+    cabinId: luxuryCabins[2].id,
+    customerName: 'Sadia Islam',
+    customerPhone: '+8801755550005',
+    type: 'cabin',
+    bookingStatus: 'completed',
+    adults: 2,
+    roomTotal: 10000,
+    invoiceStatus: 'paid',
+    payment: { method: 'cash', verifiedById: checkerAdminId },
+    decrementAvail: false,
+  });
+  await prisma.review.create({
+    data: {
+      id: id(),
+      bookingId: completedWithReview.booking.id,
+      houseboatId,
+      customerId: completedWithReview.customer.id,
+      rating: 5,
+      text: 'Amazing trip! Clean cabins, great food and very friendly crew.',
+      ownerReply: 'Thank you Sadia! We hope to host you again next season.',
+    },
+  });
+
+  // 6. Completed past trip, no review.
+  await makeBooking({
+    departureId: pastCompleted.id,
+    cabinId: familyCabins[1].id,
+    customerName: 'Mizanur Rahman',
+    customerPhone: '+8801755550006',
+    type: 'cabin',
+    bookingStatus: 'completed',
+    adults: 4,
+    roomTotal: 12800,
+    invoiceStatus: 'paid',
+    payment: { method: 'gateway', verifiedById: makerAdminId, gatewayToken: `gw_jolkolol_${id()}` },
+    decrementAvail: false,
+  });
+
+  // 7. Not arrived (no-show) — paid but forfeited.
+  await makeBooking({
+    departureId: pastNoShowDep.id,
+    cabinId: luxuryCabins[0].id,
+    customerName: 'Rakib Hasan',
+    customerPhone: '+8801755550007',
+    type: 'cabin',
+    bookingStatus: 'not_arrived',
+    adults: 2,
+    roomTotal: 10000,
+    invoiceStatus: 'paid',
+    payment: { method: 'cash', verifiedById: checkerAdminId },
+    decrementAvail: false,
+  });
+
+  // 8. Cancelled by customer — refunded per policy, NO owner refund row.
+  await makeBooking({
+    departureId: futureA.id,
+    cabinId: familyCabins[0].id,
+    customerName: 'Farhana Akter',
+    customerPhone: '+8801755550008',
+    type: 'cabin',
+    bookingStatus: 'cancelled',
+    adults: 4,
+    roomTotal: 12800,
+    invoiceStatus: 'refunded',
+    payment: { method: 'cash', verifiedById: checkerAdminId },
+    decrementAvail: false, // cabin freed on cancel, count unchanged
+  });
+
+  // 9. Cancelled by boat (owner-cancel) + full InvoiceRefund (separation of duties).
+  const ownerCancel = await makeBooking({
+    departureId: cancelledDep.id,
+    cabinId: luxuryCabins[1].id,
+    customerName: 'Imran Kabir',
+    customerPhone: '+8801755550009',
+    type: 'cabin',
+    bookingStatus: 'cancelled',
+    adults: 2,
+    roomTotal: 10000,
+    invoiceStatus: 'refunded',
+    payment: { method: 'gateway', verifiedById: makerAdminId, gatewayToken: `gw_jolkolol_${id()}` },
+    decrementAvail: false,
+  });
+  await prisma.invoiceRefund.create({
+    data: {
+      id: id(),
+      invoiceId: ownerCancel.invoice.id,
+      amount: 10180, // full displayTotal returned
+      reason: 'Owner cancelled the trip (weather).',
+      bankDetails: { bankName: 'bKash', accountNumber: '+8801755550009' },
+      requestedBy: ownerAccountId,
+      verifiedBy: makerAdminId,
+      completedBy: checkerAdminId, // must differ from verifiedBy
+      status: 'completed',
+      claimDeadline: dayOffset(3),
+      completedAt: dayOffset(-1),
+    },
+  });
+
+  // 10. Rescheduled: original marked rescheduled, history row, new confirmed booking.
+  const original = await makeBooking({
+    departureId: rescheduleSrc.id,
+    cabinId: luxuryCabins[2].id,
+    customerName: 'Shamima Nasrin',
+    customerPhone: '+8801755550010',
+    type: 'cabin',
+    bookingStatus: 'rescheduled',
+    adults: 2,
+    roomTotal: 10000,
+    invoiceStatus: 'paid',
+    payment: { method: 'cash', verifiedById: checkerAdminId },
+    decrementAvail: false,
+  });
+  const rebooked = await makeBooking({
+    departureId: rescheduleDst.id,
+    cabinId: luxuryCabins[2].id,
+    customerName: 'Shamima Nasrin',
+    customerPhone: '+8801755550010',
+    type: 'cabin',
+    bookingStatus: 'confirmed',
+    adults: 2,
+    roomTotal: 11000, // repriced at the new date
+    invoiceStatus: 'paid',
+    payment: { method: 'cash', verifiedById: checkerAdminId },
+    decrementAvail: true,
+  });
+  await prisma.bookingRescheduleHistory.create({
+    data: {
+      id: id(),
+      bookingId: rebooked.booking.id,
+      prevDepartureId: rescheduleSrc.id,
+      changedToDepartureId: rescheduleDst.id,
+      oldPrice: 10000,
+      newPrice: 11000,
+      reason: 'Customer requested a later date.',
+      changedBy: ownerAccountId,
+    },
+  });
+  void original;
+  void futureB;
+  void weekendDep;
+
+  return houseboatId;
+}
+
+/**
+ * Demo data: two platform admins, one boat owner, two routes, two LIVE
+ * houseboats with owner membership, pricing, departures, maintenance,
+ * inventory, crew, costs and one cash booking each.
+ *
+ * Safe to re-run: accounts upsert, everything else is matched before create.
+ * Owner enrichment runs even for boats created by an older seed.
+ */
+async function main() {
+  // Platform admins — a maker/checker pair (see seedAccount doc).
+  const admin1 = await seedAccount({
+    phone: requireEnv('ADMIN_PHONE'),
+    password: requireEnv('ADMIN_PASSWORD'),
+    name: 'Platform Admin',
+    email: 'admin@houseboat.test',
+    isPlatform: true,
+  });
+  const admin2 = await seedAccount({
+    phone: requireEnv('ADMIN2_PHONE'),
+    password: requireEnv('ADMIN2_PASSWORD'),
+    name: 'Platform Admin (Checker)',
+    email: 'admin2@houseboat.test',
+    isPlatform: true,
+  });
+
+  // Boat owner for the demo boats (owner console login).
+  const owner = await seedAccount({
+    phone: requireEnv('OWNER_PHONE'),
+    password: requireEnv('OWNER_PASSWORD'),
+    name: 'Kamal Uddin',
+    email: 'owner@houseboat.test',
+    isPlatform: false,
+  });
+
+  // Routes (platform-curated). Route has no unique constraint to upsert on,
+  // so look up by name to keep the seed re-runnable.
+  const tanguar = await findOrCreateRoute('Tanguar Haor', 'Sunamganj');
+  const nikli = await findOrCreateRoute('Nikli Haor', 'Kishoreganj');
+
+  // Jol Kolol is the showcase boat: fully torn down and rebuilt from scratch
+  // every seed so its rich 100%-complete profile and full booking/status
+  // matrix are deterministic. Haor Bilash stays on the generic idempotent path.
+  console.log('Reseeding Jol Kolol (full teardown + rebuild)...');
+  await deleteBoatCascade('jol-kolol');
+  const jolKololId = await reseedJolKolol({
+    routeId: tanguar.id,
+    ownerAccountId: owner.id,
+    makerAdminId: admin1.id,
+    checkerAdminId: admin2.id,
+  });
+  await ensureOwnerMembership(jolKololId, owner.id);
+  await ensureBillingConfig(jolKololId);
+
+  // Haor Bilash — generic demo boat via the idempotent helpers.
+  const haorBilashId = await ensureBoat({
+    name: 'Haor Bilash',
+    slug: 'haor-bilash',
+    route: nikli.id,
+  });
+  await ensureOwnerMembership(haorBilashId, owner.id);
+  await ensureBillingConfig(haorBilashId);
+  await ensureDemoData(haorBilashId, owner.id, 1);
+
+  console.log(
+    'Seed complete: 2 live houseboats (owner: Kamal Uddin), Jol Kolol fully populated, 2 routes, 2 platform admins.',
+  );
 }
 
 main()

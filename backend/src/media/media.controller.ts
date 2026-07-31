@@ -18,7 +18,11 @@ import { MediaService } from './media.service';
 import { RequirePermission } from '../rbac/require-permission.decorator';
 import { Public, CurrentUser } from '../auth/decorators';
 import { AuthUser } from '../auth/auth.types';
-import { UploadImageDto, CreateVideoDto } from './dto/media.dto';
+import {
+  UploadImageDto,
+  CreateVideoDto,
+  ListMediaQueryDto,
+} from './dto/media.dto';
 
 /** Hard ceiling on the raw upload before sharp compresses it. */
 const MAX_UPLOAD_BYTES = 15 * 1024 * 1024; // 15 MB
@@ -36,9 +40,9 @@ export class MediaController {
   @Get()
   list(
     @Param('houseboatId') houseboatId: string,
-    @Query('cabinId') cabinId?: string,
+    @Query() query: ListMediaQueryDto,
   ) {
-    return this.media.list(houseboatId, cabinId);
+    return this.media.list(houseboatId, query.cabinId);
   }
 
   @Post('images')

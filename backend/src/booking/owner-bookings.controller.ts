@@ -1,0 +1,66 @@
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
+import { OwnerBookingsService } from './owner-bookings.service';
+import { RequirePermission } from '../rbac/require-permission.decorator';
+import { CurrentUser } from '../auth/decorators';
+import { AuthUser } from '../auth/auth.types';
+import { OwnerBookingsQueryDto, PosCheckoutDto } from './dto/owner-bookings.dto';
+
+/**
+ * Owner-side bookings: every booking on a boat you operate, the waitlist for
+ * its departures, and counter sales.
+ *
+ * Separate from BookingController because that one is customer-scoped ("my
+ * bookings") and unguarded by boat permissions; everything here is gated on
+ * the caller's membership of :houseboatId.
+ */
+@Controller('houseboats/:houseboatId')
+export class OwnerBookingsController {
+  constructor(private readonly bookings: OwnerBookingsService) {}
+
+  @Get('bookings')
+  @RequirePermission({ module: 'bookings', action: 'view' })
+  list(
+    @Param('houseboatId') houseboatId: string,
+    @Query() query: OwnerBookingsQueryDto,
+  ) {
+    return this.bookings.list(houseboatId, query);
+  }
+
+  @Get('bookings/counts')
+  @RequirePermission({ module: 'bookings', action: 'view' })
+  counts(@Param('houseboatId') houseboatId: string) {
+    return this.bookings.statusCounts(houseboatId);
+  }
+
+  @Get('waitlist')
+  @RequirePermission({ module: 'bookings', action: 'view' })
+  waitlist(@Param('houseboatId') houseboatId: string) {
+    return this.bookings.waitlist(houseboatId);
+  }
+
+  @Post('waitlist/:departureId/notify')
+  @RequirePermission({ module: 'bookings', action: 'edit' })
+  notifyWaitlist(
+    @Param('houseboatId') houseboatId: string,
+    @Param('departureId') departureId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.bookings.notifyWaitlist(houseboatId, departureId, user.id);
+  }
+
+  /**
+   * Counter sale. Throttled harder than ordinary reads: it creates accounts
+   * and takes holds, so a runaway client here consumes cabin inventory.
+   */
+  @Throttle({ default: { ttl: 60_000, limit: 20 } })
+  @Post('pos/bookings')
+  @RequirePermission({ module: 'bookings', action: 'edit' })
+  posCheckout(
+    @Param('houseboatId') houseboatId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() dto: PosCheckoutDto,
+  ) {
+    return this.bookings.posCheckout(houseboatId, user.id, dto);
+  }
+}

@@ -19,6 +19,13 @@ const REQUIRED_IN_PROD = [
   'CSRF_SECRET',
   'ENCRYPTION_KEY',
   'DATABASE_URL',
+  // Backs the refresh-token deny-list and rate limiting. Dev falls back to an
+  // in-memory store, which is per-process and lost on restart — if that ever
+  // ran in production, revoked refresh tokens would become valid again after a
+  // deploy and limits would reset per instance. Required so it cannot.
+  'REDIS_URL',
+  // Without it CORS silently falls back to http://localhost:3000.
+  'WEB_ORIGIN',
 ] as const;
 
 /**
@@ -56,6 +63,21 @@ export function validateEnv(env: NodeJS.ProcessEnv = process.env): void {
 
   if (env.COOKIE_SECURE !== 'true') {
     problems.push('COOKIE_SECURE must be "true" in production (cookies over HTTPS)');
+  }
+
+  // DB connection hygiene. Warn-level concerns, but silent in production is
+  // worse: unencrypted transport leaks credentials, and an unbounded pool lets
+  // a few replicas exhaust Postgres' max_connections.
+  const dbUrl = env.DATABASE_URL ?? '';
+  if (dbUrl && !/sslmode=(require|verify-ca|verify-full)/.test(dbUrl)) {
+    problems.push(
+      'DATABASE_URL must set sslmode=require (or stricter) in production',
+    );
+  }
+  if (dbUrl && !/connection_limit=\d+/.test(dbUrl)) {
+    problems.push(
+      'DATABASE_URL must set connection_limit in production (Prisma defaults to cpus*2+1 per instance)',
+    );
   }
 
   if (problems.length > 0) {

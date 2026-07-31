@@ -9,7 +9,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { RbacService } from '../rbac/rbac.service';
 import { newId } from '../common/uuid';
-import { money } from '../common/money';
 import { encryptJson } from '../common/crypto';
 import { assertTransition, InvoiceStatus } from './invoice-state';
 
@@ -34,6 +33,62 @@ export class RefundsService {
   ) {}
 
   /** Customer requests a refund after an owner cancellation. */
+  /**
+   * Refunds against this boat's invoices, newest first, for the owner console.
+   *
+   * bankDetails is deliberately omitted: it is encrypted at rest and only the
+   * finance step that actually sends the money needs it.
+   */
+  async listForBoat(houseboatId: string) {
+    const rows = await this.prisma.invoiceRefund.findMany({
+      where: { invoice: { houseboatId } },
+      orderBy: { id: 'desc' },
+      select: {
+        id: true,
+        amount: true,
+        reason: true,
+        status: true,
+        claimDeadline: true,
+        completedAt: true,
+        requestedByAccount: { select: { name: true } },
+        verifiedByAccount: { select: { name: true } },
+        completedByAccount: { select: { name: true } },
+        invoice: {
+          select: {
+            id: true,
+            displayTotal: true,
+            amountPaid: true,
+            customer: { select: { name: true, phone: true } },
+            booking: {
+              select: {
+                id: true,
+                status: true,
+                departure: { select: { startDate: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return rows.map((r) => ({
+      id: r.id,
+      amount: r.amount.toFixed(2),
+      reason: r.reason,
+      status: r.status,
+      claimDeadline: r.claimDeadline,
+      completedAt: r.completedAt,
+      requestedBy: r.requestedByAccount?.name ?? null,
+      verifiedBy: r.verifiedByAccount?.name ?? null,
+      completedBy: r.completedByAccount?.name ?? null,
+      invoiceId: r.invoice.id,
+      customer: r.invoice.customer,
+      paid: r.invoice.amountPaid.toFixed(2),
+      bookingStatus: r.invoice.booking.status,
+      departureDate: r.invoice.booking.departure.startDate,
+    }));
+  }
+
   async request(
     invoiceId: string,
     requesterId: string,

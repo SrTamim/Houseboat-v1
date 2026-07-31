@@ -18,8 +18,8 @@ export class PlatformBoatsService {
     private readonly audit: AuditService,
   ) {}
 
-  listByStatus(status?: string) {
-    return this.prisma.houseboat.findMany({
+  async listByStatus(status?: string) {
+    const rows = await this.prisma.houseboat.findMany({
       where: status ? { status } : undefined,
       select: {
         id: true,
@@ -28,9 +28,18 @@ export class PlatformBoatsService {
         status: true,
         profileCompletePct: true,
         createdAt: true,
+        // Selected only to derive hasBankAccount below — the account details
+        // themselves are payout PII and stay out of the list payload.
+        bankAccount: true,
+        routes: { select: { route: { select: { name: true } } } },
       },
       orderBy: { createdAt: 'desc' },
     });
+    return rows.map(({ bankAccount, routes, ...boat }) => ({
+      ...boat,
+      hasBankAccount: bankAccount !== null,
+      routeNames: routes.map((r) => r.route.name),
+    }));
   }
 
   async approve(houseboatId: string, actorId: string) {

@@ -1,44 +1,112 @@
-import { PageHead, Card, TableWrap, Search, Select } from '@/components/admin/ui';
-import { StatRow } from '@/components/admin/StatCard';
+'use client';
+
+import { useState } from 'react';
+import {
+  PageHead,
+  Card,
+  TableWrap,
+  TableSkeleton,
+  EmptyState,
+  ErrorState,
+  Select,
+} from '@/components/admin/ui';
 import { Pill } from '@/components/admin/Pill';
+import { useAdminList } from '@/lib/admin/useAdminList';
+import { formatBDT } from '@/lib/admin/money';
+import { shortId } from '@/lib/admin/invoices';
+
+interface CreditRow {
+  id: string;
+  amount: string;
+  status: 'open' | 'used';
+  account: { id: string; name: string | null; phone: string };
+  sourceInvoice: { id: string; houseboat: { name: string } } | null;
+  usedInInvoice: { id: string } | null;
+}
+
+const STATUS_OPTIONS = [
+  { value: '', label: 'All credits' },
+  { value: 'open', label: 'Open only' },
+  { value: 'used', label: 'Used only' },
+];
 
 export default function Credits() {
+  const [status, setStatus] = useState('');
+  const { items, error, isInitialLoading, hasMore, loadMore, mutate } =
+    useAdminList<CreditRow>('/platform/finance/credits', {
+      status: status || undefined,
+      limit: 25,
+    });
+
   return (
     <>
       <PageHead
         title="Customer-credit ledger"
         desc="Platform liability — money owed to customers as credit toward future bookings. Fed by overpayments and reschedule advances."
       />
-      <StatRow
-        stats={[
-          { icon: '🎫', label: 'Open credit', value: <><span className="u">৳</span>34,500</>, delta: 'outstanding liability' },
-          { icon: '✅', label: 'Used this month', value: <><span className="u">৳</span>18,000</>, delta: '6 bookings' },
-          { icon: '⏳', label: 'Aging > 90d', value: <><span className="u">৳</span>4,000</>, delta: '2 credits' },
-        ]}
-      />
       <div className="filterbar">
-        <div className="seg">
-          <button className="seg-b on">All<span className="ct">4</span></button>
-          <button className="seg-b">Credited<span className="ct">2</span></button>
-          <button className="seg-b">Withdraw requested<span className="ct">1</span></button>
-          <button className="seg-b">Withdrawn<span className="ct">1</span></button>
-        </div>
-        <Search placeholder="Customer, invoice id…" maxWidth={300} />
-        <Select options={['Jul', 'Jun', 'All months']} />
-        <Select options={['2026', '2025']} />
+        <Select options={STATUS_OPTIONS} value={status} onChange={setStatus} />
       </div>
       <Card flush>
-        <TableWrap minWidth={820}>
-          <thead>
-            <tr><th>Customer</th><th className="num">Amount</th><th>Source</th><th>Used in</th><th>Status</th><th className="num">Age</th><th></th></tr>
-          </thead>
-          <tbody>
-            <tr><td className="t1">Imran Kabir</td><td className="num">৳ 5,000</td><td className="t2">INV-6a29 · overpay</td><td className="t2">—</td><td><Pill tone="blue">Credited</Pill></td><td className="num">3d</td><td className="rowact"><button className="btn btn-sm btn-o">View</button></td></tr>
-            <tr><td className="t1">Sultana Begum</td><td className="num">৳ 2,000</td><td className="t2">INV-6110 · reschedule</td><td className="t2">—</td><td><Pill tone="warn">Withdraw Requested</Pill></td><td className="num">9d</td><td className="rowact"><button className="btn btn-sm btn-b">Process</button></td></tr>
-            <tr><td className="t1">Nadia Haque</td><td className="num">৳ 3,000</td><td className="t2">INV-5m20 · overpay</td><td className="t2">INV-7c02</td><td><Pill tone="ok">Withdrawn</Pill></td><td className="num">—</td><td className="rowact"><button className="btn btn-sm btn-o">Receipt</button></td></tr>
-            <tr><td className="t1">Rezaul Karim</td><td className="num">৳ 2,000</td><td className="t2">INV-4b90 · overpay</td><td className="t2">—</td><td><Pill tone="blue">Credited</Pill></td><td className="num">104d</td><td className="rowact"><button className="btn btn-sm btn-o">View</button></td></tr>
-          </tbody>
-        </TableWrap>
+        {error ? (
+          <ErrorState error={error} onRetry={() => mutate()} />
+        ) : !isInitialLoading && items.length === 0 ? (
+          <EmptyState
+            title="No customer credits"
+            desc="Credits appear here when an overpayment is converted instead of refunded."
+          />
+        ) : (
+          <>
+            <TableWrap>
+              <thead>
+                <tr>
+                  <th>Customer</th>
+                  <th className="num">Amount</th>
+                  <th>Source</th>
+                  <th>Used in</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              {isInitialLoading ? (
+                <TableSkeleton rows={4} cols={5} />
+              ) : (
+                <tbody>
+                  {items.map((c) => (
+                    <tr key={c.id}>
+                      <td>
+                        <div className="t1">{c.account.name ?? '—'}</div>
+                        <div className="t2">{c.account.phone}</div>
+                      </td>
+                      <td className="num">
+                        <span className="u">৳</span> {formatBDT(c.amount)}
+                      </td>
+                      <td className="t2">
+                        {c.sourceInvoice
+                          ? `${shortId(c.sourceInvoice.id, 'INV')} · ${c.sourceInvoice.houseboat.name}`
+                          : '—'}
+                      </td>
+                      <td className="t2">
+                        {c.usedInInvoice ? shortId(c.usedInInvoice.id, 'INV') : '—'}
+                      </td>
+                      <td>
+                        <Pill tone={c.status === 'open' ? 'blue' : 'ok'}>
+                          {c.status}
+                        </Pill>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              )}
+            </TableWrap>
+            {hasMore ? (
+              <div style={{ padding: 12, textAlign: 'center' }}>
+                <button className="btn btn-o btn-sm" onClick={loadMore}>
+                  Load more
+                </button>
+              </div>
+            ) : null}
+          </>
+        )}
       </Card>
     </>
   );

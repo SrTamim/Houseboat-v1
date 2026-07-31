@@ -16,6 +16,15 @@ export class UploadImageDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) sortOrder?: number;
 }
 
+/**
+ * Gallery filter. This route is @Public(), and a primitive @Query param skips
+ * the global ValidationPipe entirely — so validate the UUID rather than
+ * passing an arbitrary string to Prisma.
+ */
+export class ListMediaQueryDto {
+  @IsOptional() @IsUUID() cabinId?: string;
+}
+
 /** Add a YouTube video to a boat/cabin gallery. */
 export class CreateVideoDto {
   @IsOptional() @IsUUID() cabinId?: string;

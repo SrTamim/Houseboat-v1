@@ -16,6 +16,34 @@ export class MembershipService {
     private readonly audit: AuditService,
   ) {}
 
+  /**
+   * The caller's own membership row on a boat, exited ones included — an exited
+   * shareholder keeps read access, so they must still be able to load (and
+   * silence) their notifications.
+   */
+  findOwn(accountId: string, houseboatId: string) {
+    return this.prisma.houseboatMember.findFirst({
+      where: { accountId, houseboatId },
+      orderBy: { startDate: 'desc' },
+    });
+  }
+
+  /** Replace a member's notification preferences with the supplied map. */
+  async updateNotificationPrefs(
+    membershipId: string,
+    prefs: Record<string, boolean>,
+  ) {
+    const updated = await this.prisma.houseboatMember.update({
+      where: { id: membershipId },
+      data: { notificationPrefs: prefs },
+      select: { id: true, notificationPrefs: true },
+    });
+    return {
+      membershipId: updated.id,
+      notificationPrefs: updated.notificationPrefs ?? {},
+    };
+  }
+
   /** Add an existing account (by phone) to a boat with a role + share %. */
   async addMember(
     houseboatId: string,

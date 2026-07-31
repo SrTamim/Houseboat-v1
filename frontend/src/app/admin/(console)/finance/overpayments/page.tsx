@@ -1,49 +1,116 @@
 'use client';
 
-import { useState } from 'react';
-import { PageHead, Note } from '@/components/admin/ui';
-import { InvoiceFilters, InvoiceTable } from '@/components/admin/InvoiceTable';
-import { InvoiceDrawer } from '@/components/admin/InvoiceDrawer';
-import { makeInvoice, type InvoiceRow } from '@/lib/admin/mock';
+import {
+  PageHead,
+  Card,
+  TableWrap,
+  TableSkeleton,
+  EmptyState,
+  ErrorState,
+  Note,
+} from '@/components/admin/ui';
+import { Pill } from '@/components/admin/Pill';
+import { useAdminList } from '@/lib/admin/useAdminList';
+import { formatBDT } from '@/lib/admin/money';
+import {
+  shortId,
+  wireStatusLabel,
+  wireStatusTone,
+} from '@/lib/admin/invoices';
 
-const rows: InvoiceRow[] = [
-  { inv: 'INV-6a29', bk: 'BK-6a29', status: 'Over Paid', boat: 'Jol Kolol', date: '19 Jul 2026', trip: 'Completed', method: 'Online', amount: '5,000', token: 'sslcz_5f…9021', primary: true },
-  { inv: 'INV-6110', bk: 'BK-6110', status: 'Over Paid', boat: 'Haor Bilash', date: '15 Jul 2026', trip: 'Completed', method: 'Online', amount: '2,000', token: 'sslcz_2c…7788', primary: true },
-  { inv: 'INV-5m20', bk: 'BK-5m20', status: 'Over Paid', boat: 'Meghduar', date: '08 Jul 2026', trip: 'Completed', method: 'Cash', amount: '3,000', token: '— (cash)', primary: true },
-];
-
-const invoice = makeInvoice({
-  inv: 'INV-6a29', bk: 'BK-6a29', status: 'Over Paid', date: '19 Jul 2026',
-  customer: { name: 'Imran Kabir', phone: '+8801933220011', email: 'imran@example.com', lead: 'Imran Kabir' },
-  booking: { type: 'Cabin booking · open seat', headcount: '1 adult (capacity 3)', notes: 'Open seat later filled by another party — invoice reduced.' },
-  money: { room: '15,000', gatewayFee: '270', shown: '15,270', coupon: '', discount: '0', total: '10,270', advance: '5,000', due: '0', paid: '15,270', overpaid: '5,000', commission: '500', dueToBoat: '9,770' },
-});
+interface OverpaymentRow {
+  id: string;
+  status: string;
+  displayTotal: string;
+  amountPaid: string;
+  amountOverpaid: string;
+  houseboat: { id: string; name: string };
+  customer: { id: string; name: string | null; phone: string };
+  booking: { id: string; createdAt: string };
+}
 
 export default function Overpayments() {
-  const [open, setOpen] = useState(false);
+  const { items, error, isInitialLoading, hasMore, loadMore, mutate } =
+    useAdminList<OverpaymentRow>('/platform/finance/overpayments', {
+      limit: 25,
+    });
+
   return (
     <>
       <PageHead
         title="Overpayments"
-        desc={<>Invoices with <b>Over Paid</b> — an open-seat buyout filled after payment, or a reschedule surplus. A human decides: convert to customer credit, or refund.</>}
+        desc={<>Invoices where the customer paid more than the final bill — an open-seat buyout filled after payment, or a reschedule surplus. The surplus becomes customer credit or a refund.</>}
       />
-      <InvoiceFilters statusOptions={['Over Paid']} />
-      <InvoiceTable rows={rows} actionLabel="Verify" onAction={() => setOpen(true)} />
-      <Note kind="info" icon="ℹ" style={{ marginTop: 16 }}>
-        An open-seat invoice only ever moves down. The surplus lands here first — it never becomes a negative payable to the boat.
-      </Note>
-      <InvoiceDrawer
-        inv={invoice}
-        open={open}
-        onClose={() => setOpen(false)}
-        footer={
+      <Card flush>
+        {error ? (
+          <ErrorState error={error} onRetry={() => mutate()} />
+        ) : !isInitialLoading && items.length === 0 ? (
+          <EmptyState
+            title="No overpayments"
+            desc="Invoices land here when amount paid exceeds the adjusted bill."
+          />
+        ) : (
           <>
-            <button className="btn btn-o" onClick={() => setOpen(false)}>Close</button>
-            <button className="btn btn-o">Refund surplus</button>
-            <button className="btn btn-b">Convert to credit</button>
+            <TableWrap>
+              <thead>
+                <tr>
+                  <th>Invoice</th>
+                  <th>Boat</th>
+                  <th>Customer</th>
+                  <th>Status</th>
+                  <th className="num">Bill</th>
+                  <th className="num">Paid</th>
+                  <th className="num">Overpaid</th>
+                </tr>
+              </thead>
+              {isInitialLoading ? (
+                <TableSkeleton rows={4} cols={7} />
+              ) : (
+                <tbody>
+                  {items.map((inv) => (
+                    <tr key={inv.id}>
+                      <td>
+                        <div className="t1">{shortId(inv.id, 'INV')}</div>
+                        <div className="t2">{shortId(inv.booking.id, 'BK')}</div>
+                      </td>
+                      <td>{inv.houseboat.name}</td>
+                      <td>
+                        <div className="t1">{inv.customer.name ?? '—'}</div>
+                        <div className="t2">{inv.customer.phone}</div>
+                      </td>
+                      <td>
+                        <Pill tone={wireStatusTone(inv.status)}>
+                          {wireStatusLabel(inv.status)}
+                        </Pill>
+                      </td>
+                      <td className="num">
+                        <span className="u">৳</span> {formatBDT(inv.displayTotal)}
+                      </td>
+                      <td className="num">
+                        <span className="u">৳</span> {formatBDT(inv.amountPaid)}
+                      </td>
+                      <td className="num" style={{ color: 'var(--danger)' }}>
+                        <span className="u">৳</span> {formatBDT(inv.amountOverpaid)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              )}
+            </TableWrap>
+            {hasMore ? (
+              <div style={{ padding: 12, textAlign: 'center' }}>
+                <button className="btn btn-o btn-sm" onClick={loadMore}>
+                  Load more
+                </button>
+              </div>
+            ) : null}
           </>
-        }
-      />
+        )}
+      </Card>
+      <Note kind="info" icon="ℹ" style={{ marginTop: 16 }}>
+        An open-seat invoice only ever moves down. The surplus lands here first —
+        it never becomes a negative payable to the boat.
+      </Note>
     </>
   );
 }

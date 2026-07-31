@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
   Param,
   Patch,
@@ -17,6 +18,7 @@ import {
   UpdateRoleDto,
   AddMemberDto,
   ChangeRoleDto,
+  MySettingsDto,
 } from './dto/rbac.dto';
 
 @Controller()
@@ -31,6 +33,51 @@ export class RbacController {
   @Get('me/boats')
   myBoats(@CurrentUser() user: AuthUser) {
     return this.rbac.listBoats(user.id);
+  }
+
+  /**
+   * The caller's own preferences on a boat (notification toggles).
+   *
+   * Deliberately NOT decorated with @RequirePermission: a member with no
+   * `settings` permission must still be able to manage their own notifications.
+   * Because PermissionGuard skips undecorated routes, this handler does its own
+   * membership check — without it the route would be authenticated but
+   * unscoped, and anyone could read any boat's membership row.
+   */
+  @Get('houseboats/:houseboatId/my-settings')
+  async mySettings(
+    @Param('houseboatId') houseboatId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const membership = await this.requireOwnMembership(user.id, houseboatId);
+    return {
+      membershipId: membership.id,
+      houseboatId,
+      notificationPrefs: membership.notificationPrefs ?? {},
+      isExited: membership.status === 'exited' || membership.endDate != null,
+    };
+  }
+
+  @Patch('houseboats/:houseboatId/my-settings')
+  async updateMySettings(
+    @Param('houseboatId') houseboatId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() dto: MySettingsDto,
+  ) {
+    const membership = await this.requireOwnMembership(user.id, houseboatId);
+    return this.members.updateNotificationPrefs(
+      membership.id,
+      dto.notificationPrefs ?? {},
+    );
+  }
+
+  /** Resolve the caller's own membership row, or 403. */
+  private async requireOwnMembership(accountId: string, houseboatId: string) {
+    const membership = await this.members.findOwn(accountId, houseboatId);
+    if (!membership) {
+      throw new ForbiddenException('You have no access to this houseboat');
+    }
+    return membership;
   }
 
   // ── Roles (settings:edit) ──────────────────────────────────
@@ -51,8 +98,12 @@ export class RbacController {
 
   @Patch('houseboats/:houseboatId/roles/:roleId')
   @RequirePermission({ module: 'settings', action: 'edit' })
-  updateRole(@Param('roleId') roleId: string, @Body() dto: UpdateRoleDto) {
-    return this.roles.update(roleId, dto.name, dto.permissions);
+  updateRole(
+    @Param('houseboatId') houseboatId: string,
+    @Param('roleId') roleId: string,
+    @Body() dto: UpdateRoleDto,
+  ) {
+    return this.roles.update(houseboatId, roleId, dto.name, dto.permissions);
   }
 
   // ── Members (settings:edit) ────────────────────────────────

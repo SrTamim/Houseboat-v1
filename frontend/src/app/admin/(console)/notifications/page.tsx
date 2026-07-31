@@ -1,38 +1,163 @@
-import { PageHead, Card, TableWrap, Note } from '@/components/admin/ui';
+'use client';
+
+import { useState } from 'react';
+import { api } from '@/lib/api';
+import {
+  PageHead,
+  Card,
+  TableWrap,
+  TableSkeleton,
+  EmptyState,
+  ErrorState,
+} from '@/components/admin/ui';
 import { Pill, Tag } from '@/components/admin/Pill';
+import { useAdminList } from '@/lib/admin/useAdminList';
+import { apiErrorMessage } from '@/lib/admin/api-error';
+
+interface NotificationRow {
+  id: string;
+  event: string;
+  channel: 'sms' | 'email';
+  delivered: boolean;
+  hasPayload: boolean;
+  at: string;
+  account: { id: string; name: string | null; phone: string };
+}
+
+const SEGMENTS = [
+  { key: 'all', label: 'All' },
+  { key: 'failed', label: 'Undelivered' },
+  { key: 'sms', label: 'SMS' },
+  { key: 'email', label: 'Email' },
+] as const;
 
 export default function Notifications() {
+  const [segment, setSegment] = useState<(typeof SEGMENTS)[number]['key']>('all');
+
+  const { items, error, isInitialLoading, hasMore, loadMore, mutate } =
+    useAdminList<NotificationRow>('/platform/ops/notifications', {
+      delivered: segment === 'failed' ? 'false' : undefined,
+      channel: segment === 'sms' || segment === 'email' ? segment : undefined,
+      limit: 25,
+    });
+
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  async function resend(row: NotificationRow) {
+    if (busyId) return;
+    setBusyId(row.id);
+    setActionError(null);
+    try {
+      await api.post(`/platform/ops/notifications/${row.id}/resend`);
+      await mutate();
+    } catch (e) {
+      setActionError(apiErrorMessage(e, 'Could not resend this notification.'));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   return (
     <>
       <PageHead
         title="Notifications"
-        desc="Platform feed and delivery monitor. Undelivered SMS/email — especially e-tickets and waitlist blasts — surface here to resend. Sending is best-effort with no automatic retry today."
+        desc="Platform delivery monitor. Undelivered SMS/email — especially e-tickets and waitlist blasts — surface here; resend replays the stored message and records a fresh attempt."
       />
-
+      {actionError ? (
+        <div className="note danger" role="alert" style={{ marginBottom: 12 }}>
+          <span className="ic">⚠</span>
+          <span>{actionError}</span>
+        </div>
+      ) : null}
       <div className="filterbar">
         <div className="seg">
-          <button className="seg-b on">All<span className="ct">1,204</span></button>
-          <button className="seg-b">Failed<span className="ct">4</span></button>
-          <button className="seg-b">SMS</button>
-          <button className="seg-b">Email</button>
+          {SEGMENTS.map((s) => (
+            <button
+              key={s.key}
+              className={`seg-b${segment === s.key ? ' on' : ''}`}
+              onClick={() => setSegment(s.key)}
+            >
+              {s.label}
+            </button>
+          ))}
         </div>
       </div>
-
-      <Note kind="warn" icon="⚑" style={{ marginBottom: 16 }}>SMS provider healthy · SMTP healthy. 4 messages failed on the customer side (invalid number / bounce).</Note>
-
       <Card flush>
-        <TableWrap>
-          <thead>
-            <tr><th>Event</th><th>Recipient</th><th>Channel</th><th>Status</th><th className="num">At</th><th></th></tr>
-          </thead>
-          <tbody>
-            <tr><td className="t1">e-ticket</td><td className="t2">+8801933220011</td><td><Tag>SMS</Tag></td><td><Pill tone="danger">failed</Pill></td><td className="num">18:40</td><td className="rowact"><button className="btn btn-sm btn-b">Resend</button></td></tr>
-            <tr><td className="t1">waitlist_open</td><td className="t2">+8801822114455</td><td><Tag>SMS</Tag></td><td><Pill tone="danger">failed</Pill></td><td className="num">17:41</td><td className="rowact"><button className="btn btn-sm btn-b">Resend</button></td></tr>
-            <tr><td className="t1">refund_sent</td><td className="t2">farhana@example.com</td><td><Tag>Email</Tag></td><td><Pill tone="danger">bounced</Pill></td><td className="num">16:50</td><td className="rowact"><button className="btn btn-sm btn-b">Resend</button></td></tr>
-            <tr><td className="t1">payment_due</td><td className="t2">+8801711002200</td><td><Tag>SMS</Tag></td><td><Pill tone="ok">delivered</Pill></td><td className="num">15:22</td><td></td></tr>
-            <tr><td className="t1">booking</td><td className="t2">tanvir@example.com</td><td><Tag>Email</Tag></td><td><Pill tone="ok">delivered</Pill></td><td className="num">15:22</td><td></td></tr>
-          </tbody>
-        </TableWrap>
+        {error ? (
+          <ErrorState error={error} onRetry={() => mutate()} />
+        ) : !isInitialLoading && items.length === 0 ? (
+          <EmptyState
+            title="No notifications"
+            desc="Messages appear here as the system sends SMS and email."
+          />
+        ) : (
+          <>
+            <TableWrap>
+              <thead>
+                <tr>
+                  <th>Event</th>
+                  <th>Recipient</th>
+                  <th>Channel</th>
+                  <th>Status</th>
+                  <th>At</th>
+                  <th />
+                </tr>
+              </thead>
+              {isInitialLoading ? (
+                <TableSkeleton rows={5} cols={6} />
+              ) : (
+                <tbody>
+                  {items.map((n) => (
+                    <tr key={n.id}>
+                      <td className="t1">{n.event}</td>
+                      <td>
+                        <div className="t1">{n.account.name ?? '—'}</div>
+                        <div className="t2">{n.account.phone}</div>
+                      </td>
+                      <td><Tag>{n.channel.toUpperCase()}</Tag></td>
+                      <td>
+                        <Pill tone={n.delivered ? 'ok' : 'danger'}>
+                          {n.delivered ? 'delivered' : 'undelivered'}
+                        </Pill>
+                      </td>
+                      <td className="t2">
+                        {new Date(n.at).toLocaleString('en-GB', {
+                          day: '2-digit',
+                          month: 'short',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </td>
+                      <td className="rowact">
+                        {!n.delivered && n.hasPayload ? (
+                          <button
+                            className="btn btn-sm btn-b"
+                            disabled={busyId === n.id}
+                            onClick={() => resend(n)}
+                          >
+                            {busyId === n.id ? '…' : 'Resend'}
+                          </button>
+                        ) : !n.delivered ? (
+                          <span className="t2" title="Row predates stored payloads">
+                            no payload
+                          </span>
+                        ) : null}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              )}
+            </TableWrap>
+            {hasMore ? (
+              <div style={{ padding: 12, textAlign: 'center' }}>
+                <button className="btn btn-o btn-sm" onClick={loadMore}>
+                  Load more
+                </button>
+              </div>
+            ) : null}
+          </>
+        )}
       </Card>
     </>
   );

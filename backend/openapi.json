@@ -10,7 +10,7 @@
             "description": ""
           }
         },
-        "summary": "Liveness + DB reachability. Used by Railway health checks.",
+        "summary": "Liveness + dependency reachability. Used by Railway health checks, which\nkey on the HTTP status code — so an unhealthy instance must answer 503,\nnot a 200 with a sad body, or it never gets restarted or pulled.\n\nRedis is checked because production runs it fail-closed: the refresh-token\ndeny-list treats \"store unreachable\" as revoked, so a Redis outage silently\nbreaks session refresh platform-wide. Without REDIS_URL (dev) it reports\n'disabled' and does not fail the check; validate-env.ts guarantees the URL\nexists in production.\n\nNever throttled: the throttler fails closed in production, so a Redis\noutage would otherwise make this return 429, the platform would read that\nas an unhealthy instance, and a cache blip would become a restart loop.",
         "tags": [
           "Health"
         ]
@@ -73,7 +73,7 @@
             "description": ""
           }
         },
-        "summary": "Hand the SPA a CSRF token (and set its matching cookie). Call right after\nlogin and reuse the token for the session's state-changing requests. Safe\n(GET) so it isn't itself CSRF-protected.",
+        "summary": "Hand the SPA a CSRF token (and set its matching cookie). Call right after\nlogin and reuse the token for the session's state-changing requests. Safe\n(GET) so it isn't itself CSRF-protected.\n\n@Public() because the token is needed BEFORE a session exists — the login\nPOST itself carries it. Requiring auth here deadlocks the sign-in form:\nit can't get a token without a session, and can't get a session without\nsubmitting. Handing an anonymous caller a CSRF token is harmless; the\ntoken proves the request came from our page, not that anyone is logged in.",
         "tags": [
           "Auth"
         ]
@@ -143,6 +143,61 @@
         ]
       }
     },
+    "/api/houseboats/{houseboatId}/my-settings": {
+      "get": {
+        "operationId": "RbacController_mySettings",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "The caller's own preferences on a boat (notification toggles).\n\nDeliberately NOT decorated with @RequirePermission: a member with no\n`settings` permission must still be able to manage their own notifications.\nBecause PermissionGuard skips undecorated routes, this handler does its own\nmembership check — without it the route would be authenticated but\nunscoped, and anyone could read any boat's membership row.",
+        "tags": [
+          "Rbac"
+        ]
+      },
+      "patch": {
+        "operationId": "RbacController_updateMySettings",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MySettingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Rbac"
+        ]
+      }
+    },
     "/api/houseboats/{houseboatId}/roles": {
       "get": {
         "operationId": "RbacController_listRoles",
@@ -201,6 +256,14 @@
       "patch": {
         "operationId": "RbacController_updateRole",
         "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "roleId",
             "required": true,
@@ -641,9 +704,15 @@
         "parameters": [
           {
             "name": "status",
-            "required": true,
+            "required": false,
             "in": "query",
             "schema": {
+              "enum": [
+                "draft",
+                "pending",
+                "live",
+                "suspended"
+              ],
               "type": "string"
             }
           }
@@ -718,7 +787,7 @@
           },
           {
             "name": "cabinId",
-            "required": true,
+            "required": false,
             "in": "query",
             "schema": {
               "type": "string"
@@ -1360,6 +1429,210 @@
         ]
       }
     },
+    "/api/houseboats/{houseboatId}/bookings": {
+      "get": {
+        "operationId": "OwnerBookingsController_list",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "confirmed",
+                "rescheduled",
+                "cancelled",
+                "not_arrived",
+                "completed"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Guest name or phone.",
+            "schema": {
+              "maxLength": 120,
+              "type": "string"
+            }
+          },
+          {
+            "name": "departureId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "id of the last row from the previous page.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "OwnerBookings"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/bookings/counts": {
+      "get": {
+        "operationId": "OwnerBookingsController_counts",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "OwnerBookings"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/waitlist": {
+      "get": {
+        "operationId": "OwnerBookingsController_waitlist",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "OwnerBookings"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/waitlist/{departureId}/notify": {
+      "post": {
+        "operationId": "OwnerBookingsController_notifyWaitlist",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "departureId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "OwnerBookings"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/pos/bookings": {
+      "post": {
+        "operationId": "OwnerBookingsController_posCheckout",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PosCheckoutDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Counter sale. Throttled harder than ordinary reads: it creates accounts\nand takes holds, so a runaway client here consumes cabin inventory.",
+        "tags": [
+          "OwnerBookings"
+        ]
+      }
+    },
     "/api/invoices/{invoiceId}/payments": {
       "post": {
         "operationId": "MoneyController_recordPayment",
@@ -1429,6 +1702,106 @@
         ],
         "responses": {
           "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Money"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/invoices": {
+      "get": {
+        "operationId": "MoneyController_listInvoices",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "customer_due",
+                "paid",
+                "payment_verified",
+                "in_payout",
+                "bill_cleared"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "cashPending",
+            "required": false,
+            "in": "query",
+            "description": "Only invoices with a cash payment nobody has verified yet — the queue the\nPayments page works through.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 120,
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "id of the last row from the previous page.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "The boat's invoices (owner console). Read-only view of the money list.",
+        "tags": [
+          "Money"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/refunds": {
+      "get": {
+        "operationId": "MoneyController_listRefunds",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
             "description": ""
           }
         },
@@ -1550,6 +1923,28 @@
       }
     },
     "/api/houseboats/{houseboatId}/payout-batches": {
+      "get": {
+        "operationId": "MoneyController_listPayoutBatches",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Payout history, owner-readable. Preparing/approving/paying stay\nplatform-only above — an owner sees what they were paid, they don't move it.",
+        "tags": [
+          "Money"
+        ]
+      },
       "post": {
         "operationId": "MoneyController_prepareBatch",
         "parameters": [
@@ -1797,7 +2192,8 @@
             "required": true,
             "in": "query",
             "schema": {
-              "type": "string"
+              "minimum": 1,
+              "type": "number"
             }
           }
         ],
@@ -2627,6 +3023,1759 @@
           "Sync"
         ]
       }
+    },
+    "/api/platform/finance/payout-batches": {
+      "get": {
+        "operationId": "PlatformFinanceController_listPayoutBatches",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "id of the last row from the previous page.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PlatformFinance"
+        ]
+      }
+    },
+    "/api/platform/finance/invoices": {
+      "get": {
+        "operationId": "PlatformFinanceController_listInvoices",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "customer_due",
+                "paid",
+                "payment_verified",
+                "in_payout",
+                "bill_cleared",
+                "cancelled",
+                "refund_requested",
+                "refund_verified",
+                "refund_completed"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "houseboatId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "id of the last row from the previous page.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PlatformFinance"
+        ]
+      }
+    },
+    "/api/platform/finance/refunds": {
+      "get": {
+        "operationId": "PlatformFinanceController_listRefunds",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "requested",
+                "verified",
+                "completed"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "id of the last row from the previous page.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PlatformFinance"
+        ]
+      }
+    },
+    "/api/platform/finance/overpayments": {
+      "get": {
+        "operationId": "PlatformFinanceController_listOverpayments",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "customer_due",
+                "paid",
+                "payment_verified",
+                "in_payout",
+                "bill_cleared",
+                "cancelled",
+                "refund_requested",
+                "refund_verified",
+                "refund_completed"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "houseboatId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "id of the last row from the previous page.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PlatformFinance"
+        ]
+      }
+    },
+    "/api/platform/finance/credits": {
+      "get": {
+        "operationId": "PlatformFinanceController_listCredits",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "open",
+                "used"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "id of the last row from the previous page.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PlatformFinance"
+        ]
+      }
+    },
+    "/api/platform/finance/subscription-invoices": {
+      "get": {
+        "operationId": "PlatformFinanceController_listSubscriptionInvoices",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "issued",
+                "paid",
+                "overdue"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "houseboatId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "id of the last row from the previous page.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PlatformFinance"
+        ]
+      }
+    },
+    "/api/platform/finance/billing-configs": {
+      "get": {
+        "operationId": "PlatformFinanceController_listBillingConfigs",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PlatformFinance"
+        ]
+      }
+    },
+    "/api/platform/finance/billing-configs/{houseboatId}": {
+      "put": {
+        "operationId": "PlatformFinanceController_upsertBillingConfig",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertBillingConfigDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PlatformFinance"
+        ]
+      }
+    },
+    "/api/platform/finance/debtors": {
+      "get": {
+        "operationId": "PlatformFinanceController_listDebtors",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PlatformFinance"
+        ]
+      }
+    },
+    "/api/platform/finance/coupons": {
+      "get": {
+        "operationId": "PlatformFinanceController_listCoupons",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "id of the last row from the previous page.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PlatformFinance"
+        ]
+      }
+    },
+    "/api/platform/finance/analytics": {
+      "get": {
+        "operationId": "PlatformFinanceController_analyticsSummary",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PlatformFinance"
+        ]
+      }
+    },
+    "/api/platform/ops/overview": {
+      "get": {
+        "operationId": "PlatformOpsController_overview",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Live counts for the dashboard KPIs and sidebar badges.",
+        "tags": [
+          "PlatformOps"
+        ]
+      }
+    },
+    "/api/platform/ops/settings": {
+      "get": {
+        "operationId": "PlatformOpsController_settingsStatus",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Non-secret config status — presence booleans, never secret values.",
+        "tags": [
+          "PlatformOps"
+        ]
+      }
+    },
+    "/api/platform/ops/waitlist": {
+      "get": {
+        "operationId": "PlatformOpsController_listWaitlist",
+        "parameters": [
+          {
+            "name": "departureId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "id of the last row from the previous page.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PlatformOps"
+        ]
+      }
+    },
+    "/api/platform/ops/bookings": {
+      "get": {
+        "operationId": "PlatformOpsController_listBookings",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "confirmed",
+                "rescheduled",
+                "cancelled",
+                "not_arrived",
+                "completed"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "houseboatId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "id of the last row from the previous page.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PlatformOps"
+        ]
+      }
+    },
+    "/api/platform/ops/reviews": {
+      "get": {
+        "operationId": "PlatformOpsController_listReviews",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "id of the last row from the previous page.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PlatformOps"
+        ]
+      }
+    },
+    "/api/platform/ops/accounts": {
+      "get": {
+        "operationId": "PlatformOpsController_listAccounts",
+        "parameters": [
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 100,
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "id of the last row from the previous page.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PlatformOps"
+        ]
+      }
+    },
+    "/api/platform/ops/memberships": {
+      "get": {
+        "operationId": "PlatformOpsController_listMemberships",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "active",
+                "exited"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "id of the last row from the previous page.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PlatformOps"
+        ]
+      }
+    },
+    "/api/platform/ops/reschedules": {
+      "get": {
+        "operationId": "PlatformOpsController_listReschedules",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "id of the last row from the previous page.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PlatformOps"
+        ]
+      }
+    },
+    "/api/platform/ops/notifications": {
+      "get": {
+        "operationId": "PlatformOpsController_listNotifications",
+        "parameters": [
+          {
+            "name": "channel",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "sms",
+                "email"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "delivered",
+            "required": false,
+            "in": "query",
+            "description": "'true' | 'false' — @Query params arrive as strings.",
+            "schema": {
+              "enum": [
+                "true",
+                "false"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "id of the last row from the previous page.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PlatformOps"
+        ]
+      }
+    },
+    "/api/platform/ops/notifications/{notificationId}/resend": {
+      "post": {
+        "operationId": "PlatformOpsController_resendNotification",
+        "parameters": [
+          {
+            "name": "notificationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Re-dispatch a recorded notification from its stored payload (422 for legacy rows).",
+        "tags": [
+          "PlatformOps"
+        ]
+      }
+    },
+    "/api/platform/ops/audit": {
+      "get": {
+        "operationId": "PlatformOpsController_listAudit",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "action",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 100,
+              "type": "string"
+            }
+          },
+          {
+            "name": "before",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "id of the last row from the previous page.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PlatformOps"
+        ]
+      }
+    },
+    "/api/platform/ops/roles": {
+      "get": {
+        "operationId": "PlatformOpsController_listRoles",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "id of the last row from the previous page.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PlatformOps"
+        ]
+      }
+    },
+    "/api/platform/ops/departures/due": {
+      "get": {
+        "operationId": "PlatformOpsController_listDueDepartures",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Departures at/past their date still awaiting status advance or finalize.",
+        "tags": [
+          "PlatformOps"
+        ]
+      }
+    },
+    "/api/platform/ops/routes": {
+      "get": {
+        "operationId": "PlatformOpsController_listRoutes",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "All routes including retired ones, with boat counts.\n\nDistinct from the public GET /api/routes, which is active-only.",
+        "tags": [
+          "PlatformOps"
+        ]
+      }
+    },
+    "/api/platform/ops/routes/{routeId}/active": {
+      "patch": {
+        "operationId": "PlatformOpsController_setRouteActive",
+        "parameters": [
+          {
+            "name": "routeId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetRouteActiveDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Activate/deactivate a platform-curated route.\n\nRoutesService.setActive already existed but had no HTTP route, so routes\ncould be created and never retired.",
+        "tags": [
+          "PlatformOps"
+        ]
+      }
+    },
+    "/api/platform/rbac/roles": {
+      "get": {
+        "operationId": "PlatformRbacController_listRoles",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PlatformRbac"
+        ]
+      },
+      "post": {
+        "operationId": "PlatformRbacController_createRole",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePlatformRoleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PlatformRbac"
+        ]
+      }
+    },
+    "/api/platform/rbac/roles/{roleId}": {
+      "patch": {
+        "operationId": "PlatformRbacController_updateRole",
+        "parameters": [
+          {
+            "name": "roleId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePlatformRoleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PlatformRbac"
+        ]
+      },
+      "delete": {
+        "operationId": "PlatformRbacController_deleteRole",
+        "parameters": [
+          {
+            "name": "roleId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PlatformRbac"
+        ]
+      }
+    },
+    "/api/platform/rbac/accounts/{accountId}/platform-role": {
+      "patch": {
+        "operationId": "PlatformRbacController_assignRole",
+        "parameters": [
+          {
+            "name": "accountId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignPlatformRoleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PlatformRbac"
+        ]
+      }
+    },
+    "/api/platform/rbac/accounts/{accountId}/platform-staff": {
+      "patch": {
+        "operationId": "PlatformRbacController_setStaff",
+        "parameters": [
+          {
+            "name": "accountId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetPlatformStaffDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PlatformRbac"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/dashboard": {
+      "get": {
+        "operationId": "OwnerController_getDashboard",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Home screen: KPIs, today's departures, week summary, sidebar badges.",
+        "tags": [
+          "Owner"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/calendar": {
+      "get": {
+        "operationId": "OwnerController_getCalendar",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "month",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "pattern": "MONTH_RE",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Owner"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/reports/trips": {
+      "get": {
+        "operationId": "OwnerController_tripReport",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "month",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "pattern": "MONTH_RE",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Owner"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/reports/monthly": {
+      "get": {
+        "operationId": "OwnerController_monthlyReport",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "months",
+            "required": false,
+            "in": "query",
+            "description": "How many months back to summarise, ending with the current one.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 24,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Owner"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/earnings": {
+      "get": {
+        "operationId": "OwnerController_earnings",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "month",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "pattern": "MONTH_RE",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Earnings statement — money view, since it reports on settlement.",
+        "tags": [
+          "Owner"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/guests": {
+      "get": {
+        "operationId": "OwnerController_listGuests",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 120,
+              "type": "string"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "description": "Offset paging, not a cursor: the guest list is a groupBy aggregate and\nPrisma cursors don't apply to grouped rows. Guest counts per boat are\nsmall (hundreds), so the offset scan cost is not a concern here.",
+            "schema": {
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 200,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Owner"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/audit": {
+      "get": {
+        "operationId": "OwnerController_listAudit",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "action",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "Keyset cursor: \"<serverTime ISO>|<id>\". audit_log is partitioned by month\nwith a composite PK, so the generic id-only cursor in common/paginate\ncannot address a row uniquely.",
+            "schema": {
+              "maxLength": 128,
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 200,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Audit trail. Gated on settings:view — it exposes role and money actions.",
+        "tags": [
+          "Owner"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/audit/actions": {
+      "get": {
+        "operationId": "OwnerController_auditActions",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Owner"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/maintenance": {
+      "get": {
+        "operationId": "MaintenanceController_summary",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Maintenance"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/maintenance/tasks": {
+      "post": {
+        "operationId": "MaintenanceController_createTask",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMaintenanceTaskDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Maintenance"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/maintenance/tasks/{taskId}": {
+      "patch": {
+        "operationId": "MaintenanceController_updateTask",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "taskId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMaintenanceTaskDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Maintenance"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/maintenance/tasks/{taskId}/complete": {
+      "post": {
+        "operationId": "MaintenanceController_completeTask",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "taskId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompleteTaskDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Maintenance"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/maintenance/service-logs": {
+      "post": {
+        "operationId": "MaintenanceController_addServiceLog",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateServiceLogDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Maintenance"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/maintenance/damage": {
+      "get": {
+        "operationId": "MaintenanceController_listDamage",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Maintenance"
+        ]
+      },
+      "post": {
+        "operationId": "MaintenanceController_reportDamage",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDamageDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Maintenance"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/maintenance/damage/{damageId}": {
+      "patch": {
+        "operationId": "MaintenanceController_updateDamage",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "damageId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDamageDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Maintenance"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/maintenance/engine-hours": {
+      "post": {
+        "operationId": "MaintenanceController_setEngineHours",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetEngineHoursDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Maintenance"
+        ]
+      }
     }
   },
   "info": {
@@ -2655,13 +4804,16 @@
           },
           "password": {
             "type": "string",
-            "minLength": 8
+            "minLength": 8,
+            "maxLength": 72
           },
           "name": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 120
           },
           "email": {
             "type": "string",
+            "maxLength": 254,
             "format": "email"
           }
         },
@@ -2678,7 +4830,8 @@
             "pattern": "BD_PHONE"
           },
           "password": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 72
           }
         },
         "required": [
@@ -2686,11 +4839,21 @@
           "password"
         ]
       },
+      "MySettingsDto": {
+        "type": "object",
+        "properties": {
+          "notificationPrefs": {
+            "type": "object",
+            "description": "Per-event notification toggles: {\"booking\":true,\"payment_due\":false,…}.\nLeft open rather than a fixed DTO so adding an event type needs no\nmigration; the console owns which keys it renders."
+          }
+        }
+      },
       "CreateRoleDto": {
         "type": "object",
         "properties": {
           "name": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 120
           },
           "permissions": {
             "type": "object"
@@ -2708,7 +4871,8 @@
         "type": "object",
         "properties": {
           "name": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 120
           },
           "permissions": {
             "type": "object"
@@ -2723,10 +4887,12 @@
         "type": "object",
         "properties": {
           "phone": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           },
           "roleId": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           },
           "shareholderPct": {
             "type": "number",
@@ -2743,7 +4909,8 @@
         "type": "object",
         "properties": {
           "roleId": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           }
         },
         "required": [
@@ -2754,16 +4921,20 @@
         "type": "object",
         "properties": {
           "name": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 120
           },
           "description": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 5000
           },
           "safetyFeatures": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 5000
           },
           "foodMenu": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 5000
           }
         },
         "required": [
@@ -2774,34 +4945,43 @@
         "type": "object",
         "properties": {
           "name": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 120
           },
           "description": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 5000
           },
           "safetyFeatures": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 5000
           },
           "foodMenu": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 5000
           },
           "bankAccount": {
-            "type": "object"
+            "type": "object",
+            "description": "Payout destination; shape is bank-dependent."
           },
           "childPolicy": {
             "type": "object"
           },
           "operatingDates": {
             "description": "ISO date strings — only these dates generate bookable departures.",
+            "maxItems": 400,
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 64
             }
           },
           "defaultCrew": {
+            "maxItems": 100,
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 64
             }
           }
         }
@@ -2810,7 +4990,8 @@
         "type": "object",
         "properties": {
           "name": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 120
           },
           "position": {
             "type": "number"
@@ -2824,7 +5005,8 @@
         "type": "object",
         "properties": {
           "name": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 120
           },
           "isAc": {
             "type": "boolean"
@@ -2838,7 +5020,8 @@
             "minimum": 1
           },
           "facilities": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 500
           }
         },
         "required": [
@@ -2850,13 +5033,16 @@
         "type": "object",
         "properties": {
           "deckId": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           },
           "cabinCategoryId": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           },
           "name": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 120
           },
           "gridRow": {
             "type": "number"
@@ -2875,7 +5061,8 @@
         "type": "object",
         "properties": {
           "routeId": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           }
         },
         "required": [
@@ -2886,10 +5073,12 @@
         "type": "object",
         "properties": {
           "name": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 120
           },
           "region": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 120
           }
         },
         "required": [
@@ -2931,32 +5120,41 @@
         "type": "object",
         "properties": {
           "routeId": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           },
           "durationDays": {
             "type": "number",
-            "minimum": 1
+            "minimum": 1,
+            "maximum": 365
           },
           "durationLabel": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 120
           },
           "departureGhat": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 120
           },
           "returnGhat": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 120
           },
           "meals": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 5000
           },
           "included": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 5000
           },
           "excluded": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 5000
           },
           "cancellationPolicyId": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           }
         },
         "required": [
@@ -2968,19 +5166,23 @@
         "type": "object",
         "properties": {
           "packageId": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           },
           "startDate": {
             "type": "string"
           },
           "departureTime": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           },
           "arrivalTime": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           },
           "pricingProfileId": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           }
         },
         "required": [
@@ -2992,7 +5194,8 @@
         "type": "object",
         "properties": {
           "cabinCategoryId": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           },
           "occupancy": {
             "type": "number",
@@ -3013,20 +5216,24 @@
         "type": "object",
         "properties": {
           "name": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 120
           },
           "isDefault": {
             "type": "boolean"
           },
           "dates": {
             "description": "ISO date strings the profile applies to. Empty for the default profile.",
+            "maxItems": 400,
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 64
             }
           },
           "rules": {
             "description": "Full independent price table for this profile.",
+            "maxItems": 500,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/PriceRuleDto"
@@ -3064,10 +5271,12 @@
         "type": "object",
         "properties": {
           "cabinId": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           },
           "departureId": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           }
         },
         "required": [
@@ -3079,10 +5288,12 @@
         "type": "object",
         "properties": {
           "cabinId": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           },
           "holdId": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           },
           "adults": {
             "type": "number",
@@ -3094,9 +5305,11 @@
           },
           "childAges": {
             "description": "Ages of the children, so each is charged per the boat's child_policy age\nbands. If omitted, children are charged full. Length should match children.",
+            "maxItems": 20,
             "type": "array",
             "items": {
               "type": "number",
+              "maximum": 120,
               "minimum": 0
             }
           },
@@ -3115,32 +5328,40 @@
         "type": "object",
         "properties": {
           "departureId": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           },
           "cabins": {
+            "maxItems": 50,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/CabinSelectionDto"
             }
           },
           "leadGuestName": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 120
           },
           "leadGuestPhone": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           },
           "specialInstructions": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 500
           },
           "couponCode": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           },
           "referenceName": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 120
           },
           "paymentChoice": {
             "type": "string",
-            "description": "'deposit' | 'full'"
+            "description": "'deposit' | 'full'",
+            "maxLength": 64
           },
           "useCredit": {
             "type": "boolean",
@@ -3157,7 +5378,8 @@
         "type": "object",
         "properties": {
           "departureId": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           },
           "headcount": {
             "type": "number",
@@ -3165,16 +5387,20 @@
             "minimum": 1
           },
           "leadGuestName": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 120
           },
           "leadGuestPhone": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           },
           "specialInstructions": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 500
           },
           "referenceName": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 120
           },
           "useCredit": {
             "type": "boolean"
@@ -3190,7 +5416,8 @@
         "type": "object",
         "properties": {
           "departureId": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           },
           "partySize": {
             "type": "number",
@@ -3206,7 +5433,8 @@
         "type": "object",
         "properties": {
           "openSeatCabinId": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           },
           "adults": {
             "type": "number",
@@ -3226,14 +5454,80 @@
         "type": "object",
         "properties": {
           "newDepartureId": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           },
           "reason": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 500
           }
         },
         "required": [
           "newDepartureId"
+        ]
+      },
+      "PosCabinDto": {
+        "type": "object",
+        "properties": {
+          "cabinId": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "adults": {
+            "type": "number",
+            "minimum": 1
+          },
+          "children": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "cabinId",
+          "adults"
+        ]
+      },
+      "PosCheckoutDto": {
+        "type": "object",
+        "properties": {
+          "departureId": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "customerName": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "customerPhone": {
+            "type": "string",
+            "description": "E.164. Used to find-or-create the walk-in guest's account.",
+            "maxLength": 64
+          },
+          "cabins": {
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PosCabinDto"
+            }
+          },
+          "couponCode": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "referenceName": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "specialInstructions": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "departureId",
+          "customerName",
+          "customerPhone",
+          "cabins"
         ]
       },
       "RecordPaymentDto": {
@@ -3251,10 +5545,12 @@
             ]
           },
           "gatewayToken": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           },
           "receivedBy": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 120
           }
         },
         "required": [
@@ -3270,10 +5566,12 @@
             "minimum": 0
           },
           "reason": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 500
           },
           "bankDetails": {
-            "type": "object"
+            "type": "object",
+            "description": "Encrypted at rest (AES-256-GCM) before storage — see refunds.service.ts.\nShape is provider-dependent, so it stays an object rather than a fixed DTO;\n@IsObject at least rejects scalars and arrays."
           }
         },
         "required": [
@@ -3284,7 +5582,8 @@
         "type": "object",
         "properties": {
           "code": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           },
           "kind": {
             "type": "string",
@@ -3329,7 +5628,8 @@
             "minimum": 0
           },
           "tiers": {
-            "type": "object"
+            "type": "object",
+            "description": "Refund tier table; shape varies by template."
           }
         },
         "required": [
@@ -3340,14 +5640,16 @@
         "type": "object",
         "properties": {
           "membershipId": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           },
           "amount": {
             "type": "number",
             "minimum": 0
           },
           "note": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 500
           }
         },
         "required": [
@@ -3360,7 +5662,8 @@
         "properties": {
           "period": {
             "type": "string",
-            "description": "YYYY-MM"
+            "description": "YYYY-MM",
+            "maxLength": 64
           }
         },
         "required": [
@@ -3378,7 +5681,8 @@
             "minimum": 1
           },
           "specialNeeds": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 5000
           }
         }
       },
@@ -3414,16 +5718,20 @@
         "type": "object",
         "properties": {
           "val_id": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           },
           "tran_id": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           },
           "status": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           },
           "amount": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           }
         }
       },
@@ -3431,16 +5739,20 @@
         "type": "object",
         "properties": {
           "phone": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           },
           "roleId": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           },
           "nid": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           },
           "emergencyContact": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 120
           },
           "perTripRate": {
             "type": "number",
@@ -3467,13 +5779,16 @@
             ]
           },
           "fromDate": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           },
           "toDate": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           },
           "note": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 500
           }
         },
         "required": [
@@ -3484,7 +5799,8 @@
         "type": "object",
         "properties": {
           "period": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           },
           "bonus": {
             "type": "number",
@@ -3503,7 +5819,8 @@
         "type": "object",
         "properties": {
           "staffId": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           },
           "present": {
             "type": "boolean"
@@ -3517,17 +5834,20 @@
         "type": "object",
         "properties": {
           "date": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           },
           "description": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 500
           },
           "amount": {
             "type": "number",
             "minimum": 0
           },
           "tripId": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           },
           "dueToVendor": {
             "type": "number",
@@ -3543,7 +5863,8 @@
         "type": "object",
         "properties": {
           "name": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 120
           },
           "kind": {
             "type": "string",
@@ -3553,7 +5874,8 @@
             ]
           },
           "unit": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           },
           "reorderThreshold": {
             "type": "number",
@@ -3584,7 +5906,8 @@
             "type": "number"
           },
           "tripId": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           }
         },
         "required": [
@@ -3601,7 +5924,8 @@
             "maximum": 5
           },
           "text": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 5000
           }
         },
         "required": [
@@ -3648,6 +5972,7 @@
         "type": "object",
         "properties": {
           "intents": {
+            "maxItems": 200,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/SyncIntentDto"
@@ -3656,6 +5981,260 @@
         },
         "required": [
           "intents"
+        ]
+      },
+      "UpsertBillingConfigDto": {
+        "type": "object",
+        "properties": {
+          "commissionPct": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 0,
+            "maximum": 100
+          },
+          "monthlyFee": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 0
+          },
+          "gatewayFeePct": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 0,
+            "maximum": 100
+          },
+          "trialEnds": {
+            "type": "string",
+            "nullable": true,
+            "description": "YYYY-MM-DD — the column is a date, not a timestamp."
+          }
+        }
+      },
+      "SetRouteActiveDto": {
+        "type": "object",
+        "properties": {
+          "active": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "active"
+        ]
+      },
+      "CreatePlatformRoleDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "permissions": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "name",
+          "permissions"
+        ]
+      },
+      "UpdatePlatformRoleDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "permissions": {
+            "type": "object"
+          }
+        }
+      },
+      "AssignPlatformRoleDto": {
+        "type": "object",
+        "properties": {
+          "platformRoleId": {
+            "type": "string",
+            "nullable": true,
+            "description": "null = superadmin (no role restriction)."
+          }
+        }
+      },
+      "SetPlatformStaffDto": {
+        "type": "object",
+        "properties": {
+          "isPlatform": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "isPlatform"
+        ]
+      },
+      "CreateMaintenanceTaskDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "intervalKind": {
+            "type": "string",
+            "enum": [
+              "engine_hours",
+              "calendar",
+              "per_trip"
+            ]
+          },
+          "intervalValue": {
+            "type": "number",
+            "description": "hours for engine_hours, days for calendar; ignored for per_trip.",
+            "minimum": 1,
+            "maximum": 1000000
+          },
+          "dueAtHours": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "dueDate": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "title",
+          "intervalKind"
+        ]
+      },
+      "UpdateMaintenanceTaskDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "intervalValue": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 1000000
+          },
+          "dueAtHours": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "dueDate": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "paused"
+            ]
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
+      },
+      "CompleteTaskDto": {
+        "type": "object",
+        "properties": {
+          "serviceDate": {
+            "type": "string"
+          },
+          "engineHours": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "cost": {
+            "type": "number",
+            "minimum": 0
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
+      },
+      "CreateServiceLogDto": {
+        "type": "object",
+        "properties": {
+          "serviceDate": {
+            "type": "string"
+          },
+          "engineHours": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "cost": {
+            "type": "number",
+            "minimum": 0
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "taskId": {
+            "type": "string",
+            "maxLength": 120
+          }
+        }
+      },
+      "CreateDamageDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "detail": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "title"
+        ]
+      },
+      "UpdateDamageDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "fixed"
+            ]
+          },
+          "repairCost": {
+            "type": "number",
+            "minimum": 0
+          },
+          "detail": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
+      },
+      "SetEngineHoursDto": {
+        "type": "object",
+        "properties": {
+          "hours": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000000
+          }
+        },
+        "required": [
+          "hours"
         ]
       }
     }

@@ -1,55 +1,96 @@
-import { PageHead, Card } from '@/components/admin/ui';
+'use client';
+
+import useSWR from 'swr';
+import { fetcher } from '@/lib/api';
+import { PageHead, Card, ErrorState, Note } from '@/components/admin/ui';
 import { Pill } from '@/components/admin/Pill';
 
+interface SettingsStatus {
+  gateway: { provider: string | null; sandbox: boolean; storeConfigured: boolean };
+  sms: { configured: boolean; senderId: string | null };
+  email: { configured: boolean; from: string | null };
+  storage: { configured: boolean; bucket: string | null };
+  push: { configured: boolean };
+  swaggerEnabled: boolean;
+  env: string;
+  webOrigin: string | null;
+  apiPublicUrl: string | null;
+}
+
+function StatusPill({ on, onLabel = 'configured', offLabel = 'not configured' }: {
+  on: boolean;
+  onLabel?: string;
+  offLabel?: string;
+}) {
+  return <Pill tone={on ? 'ok' : 'warn'}>{on ? onLabel : offLabel}</Pill>;
+}
+
 export default function Settings() {
+  const { data, error, mutate } = useSWR<SettingsStatus>(
+    '/platform/ops/settings',
+    fetcher,
+    { revalidateOnFocus: false },
+  );
+
   return (
     <>
       <PageHead
         title="Platform settings"
-        desc="Provider credentials and platform-wide knobs. These live in environment config today — this editor is the intended in-app surface."
+        desc="Live, non-secret status of the runtime configuration. Values are env vars validated at boot — secrets never leave the backend, so editing happens in the deployment environment."
       />
-
-      <div className="stack">
-        <Card title="Payment gateway" head={<Pill tone="amb">sandbox</Pill>}>
-          <div className="form-grid">
-            <div className="field"><label>Provider</label><input defaultValue="SSLCommerz" /></div>
-            <div className="field"><label>Mode</label><select><option>Sandbox</option><option>Live</option></select></div>
-            <div className="field"><label>Store ID</label><input defaultValue="haorboat_test" /></div>
-            <div className="field"><label>Store password</label><input type="password" defaultValue="••••••••" /></div>
-          </div>
-        </Card>
-
-        <Card title="Notifications" head={<Pill tone="ok">live</Pill>}>
-          <div className="form-grid">
-            <div className="field"><label>SMS API URL</label><input defaultValue="https://sms.bd-provider.com/send" /></div>
-            <div className="field"><label>SMS sender ID</label><input defaultValue="HAORBOAT" /></div>
-            <div className="field"><label>SMTP URL</label><input defaultValue="smtp://mail.haorboat.app:587" /></div>
-            <div className="field"><label>Email from</label><input defaultValue="tickets@haorboat.app" /></div>
-          </div>
-        </Card>
-
-        <div className="grid-2">
-          <Card title="Billing & security">
-            <div className="form-grid">
-              <div className="field"><label>Billing grace (days)</label><input defaultValue="14" /></div>
-              <div className="field"><label>Access token TTL</label><input defaultValue="15m" /></div>
-              <div className="field"><label>Refresh token TTL</label><input defaultValue="30d" /></div>
-              <div className="field"><label>Refund claim window</label><input defaultValue="6 days" /></div>
-            </div>
-          </Card>
-          <Card title="Secrets present">
+      {error ? (
+        <ErrorState error={error} onRetry={() => mutate()} />
+      ) : !data ? (
+        <Card><p className="t2">Loading configuration status…</p></Card>
+      ) : (
+        <div className="stack">
+          <Card
+            title="Payment gateway"
+            head={<Pill tone={data.gateway.sandbox ? 'amb' : 'ok'}>{data.gateway.sandbox ? 'sandbox' : 'live'}</Pill>}
+          >
             <dl className="kv">
-              <dt>JWT secret</dt><dd><Pill tone="ok">set</Pill></dd>
-              <dt>Refresh secret</dt><dd><Pill tone="ok">set</Pill></dd>
-              <dt>CSRF secret</dt><dd><Pill tone="ok">set</Pill></dd>
-              <dt>Encryption key (PII)</dt><dd><Pill tone="ok">set</Pill></dd>
-              <dt>R2 / S3 storage</dt><dd><Pill tone="ok">set</Pill></dd>
+              <dt>Provider</dt><dd>{data.gateway.provider ?? '—'}</dd>
+              <dt>Store credentials</dt>
+              <dd><StatusPill on={data.gateway.storeConfigured} onLabel="set" offLabel="missing" /></dd>
             </dl>
           </Card>
-        </div>
 
-        <div><button className="btn btn-b">Save settings</button></div>
-      </div>
+          <div className="grid-2">
+            <Card title="Notifications">
+              <dl className="kv">
+                <dt>SMS provider</dt><dd><StatusPill on={data.sms.configured} /></dd>
+                <dt>SMS sender ID</dt><dd>{data.sms.senderId ?? '—'}</dd>
+                <dt>SMTP</dt><dd><StatusPill on={data.email.configured} /></dd>
+                <dt>Email from</dt><dd>{data.email.from ?? '—'}</dd>
+              </dl>
+            </Card>
+            <Card title="Storage & push">
+              <dl className="kv">
+                <dt>Object storage (R2/S3)</dt><dd><StatusPill on={data.storage.configured} /></dd>
+                <dt>Bucket</dt><dd>{data.storage.bucket ?? '—'}</dd>
+                <dt>Web push (VAPID)</dt><dd><StatusPill on={data.push.configured} /></dd>
+              </dl>
+            </Card>
+          </div>
+
+          <Card title="Environment">
+            <dl className="kv">
+              <dt>Mode</dt><dd><Pill tone={data.env === 'production' ? 'ok' : 'amb'}>{data.env}</Pill></dd>
+              <dt>Web origin</dt><dd>{data.webOrigin ?? '—'}</dd>
+              <dt>API public URL</dt><dd>{data.apiPublicUrl ?? '—'}</dd>
+              <dt>Swagger docs</dt>
+              <dd><Pill tone={data.swaggerEnabled ? 'amb' : 'mut'}>{data.swaggerEnabled ? 'enabled' : 'disabled'}</Pill></dd>
+            </dl>
+          </Card>
+
+          <Note kind="info" icon="ℹ">
+            To change any of these, update the backend environment
+            (backend/.env locally; deployment variables in production) and
+            restart. Production refuses to boot with missing or default secrets
+            — see backend/src/config/validate-env.ts.
+          </Note>
+        </div>
+      )}
     </>
   );
 }

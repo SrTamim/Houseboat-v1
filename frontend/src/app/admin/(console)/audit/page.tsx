@@ -1,36 +1,141 @@
-import { PageHead, Card, TableWrap, Note, Search, Select } from '@/components/admin/ui';
+'use client';
+
+import { useState } from 'react';
+import useSWR from 'swr';
+import { fetcher } from '@/lib/api';
+import {
+  PageHead,
+  Card,
+  TableWrap,
+  TableSkeleton,
+  EmptyState,
+  ErrorState,
+} from '@/components/admin/ui';
 import { Pill } from '@/components/admin/Pill';
 
+interface AuditRow {
+  id: string;
+  action: string;
+  entityType: string | null;
+  entityId: string | null;
+  serverTime: string;
+  syncedOffline: boolean;
+  houseboat: { id: string; name: string } | null;
+  actor: { id: string; name: string | null; phone: string } | null;
+}
+
+interface AuditPage {
+  items: AuditRow[];
+  nextBefore: string | null;
+}
+
+const ACTION_TONE = (action: string): 'ok' | 'warn' | 'danger' | 'blue' | 'mut' => {
+  if (action.includes('paid') || action.includes('approve')) return 'ok';
+  if (action.includes('price') || action.includes('void')) return 'warn';
+  if (action.includes('role') || action.includes('status')) return 'blue';
+  return 'mut';
+};
+
+function formatTime(iso: string) {
+  return new Date(iso).toLocaleString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+}
+
 export default function Audit() {
+  // Older pages are keyed by server_time — the audit log can't cursor on id
+  // because its primary key is composite (partitioned table).
+  const [before, setBefore] = useState<string | null>(null);
+  const [accumulated, setAccumulated] = useState<AuditRow[]>([]);
+
+  const key = before
+    ? `/platform/ops/audit?limit=50&before=${encodeURIComponent(before)}`
+    : '/platform/ops/audit?limit=50';
+  const { data, error, isLoading, mutate } = useSWR<AuditPage>(key, fetcher, {
+    revalidateOnFocus: false,
+    keepPreviousData: true,
+  });
+
+  const items = before ? [...accumulated, ...(data?.items ?? [])] : (data?.items ?? []);
+  const initialLoading = isLoading && !before;
+
   return (
     <>
       <PageHead
         title="Audit log"
-        desc="Append-only fraud evidence — nobody, not even the platform, can rewrite it. Device time may be manipulated; server time is authoritative. PII is masked; bank details are stored as references."
-        actions={<button className="btn btn-o">⤓ Export evidence bundle</button>}
+        desc="Append-only fraud evidence — nobody, not even the platform, can rewrite it (enforced by a DB trigger). Server time is authoritative; device time may be manipulated."
       />
-
-      <div className="filterbar">
-        <Select options={['All boats', 'Platform-level (null)', 'Jol Kolol']} />
-        <Select options={['All actions', 'mark_paid', 'price_change', 'role_change', 'void']} />
-        <Search placeholder="Actor or entity…" />
-      </div>
-
-      <Note kind="ok" icon="✓" style={{ marginBottom: 16 }}>Integrity check passed — no UPDATE or DELETE detected on this partition.</Note>
-
       <Card flush>
-        <TableWrap>
-          <thead>
-            <tr><th>Actor</th><th>Action</th><th>Entity</th><th>Boat</th><th>Device time</th><th>Server time</th><th>Src</th></tr>
-          </thead>
-          <tbody>
-            <tr><td className="t1">Nusrat J.</td><td><Pill tone="ok">mark_paid</Pill></td><td className="t2">invoice INV-8410</td><td>Jol Kolol</td><td className="t2">18:41:05</td><td className="num">18:41:07</td><td><Pill tone="mut">online</Pill></td></tr>
-            <tr><td className="t1">Owner</td><td><Pill tone="amb">price_change</Pill></td><td className="t2">pricing_rule</td><td>Jol Kolol</td><td className="t2">17:35:38</td><td className="num">17:35:40</td><td><Pill tone="mut">online</Pill></td></tr>
-            <tr><td className="t1">Manager</td><td><Pill tone="blue">cost_add</Pill></td><td className="t2">cost · fuel</td><td>Haor Bilash</td><td className="t2">09:12:00</td><td className="num">14:05:33</td><td><Pill tone="amb">offline</Pill></td></tr>
-            <tr><td className="t1">Ex-manager</td><td><Pill tone="danger">mark_paid (rejected)</Pill></td><td className="t2">invoice</td><td>Bhela</td><td className="t2">02:59:00</td><td className="num">14:05:34</td><td><Pill tone="danger">offline · perm-lost</Pill></td></tr>
-            <tr><td className="t1">Rafiq A.</td><td><Pill tone="blue">role_change</Pill></td><td className="t2">membership</td><td>Jol Kolol</td><td className="t2">—</td><td className="num">11:20:01</td><td><Pill tone="mut">platform</Pill></td></tr>
-          </tbody>
-        </TableWrap>
+        {error ? (
+          <ErrorState error={error} onRetry={() => mutate()} />
+        ) : !initialLoading && items.length === 0 ? (
+          <EmptyState
+            title="No audit entries yet"
+            desc="Every money-moving and permission-changing action lands here automatically."
+          />
+        ) : (
+          <>
+            <TableWrap>
+              <thead>
+                <tr>
+                  <th>Actor</th>
+                  <th>Action</th>
+                  <th>Entity</th>
+                  <th>Boat</th>
+                  <th>Server time</th>
+                  <th>Src</th>
+                </tr>
+              </thead>
+              {initialLoading ? (
+                <TableSkeleton rows={8} cols={6} />
+              ) : (
+                <tbody>
+                  {items.map((row) => (
+                    <tr key={`${row.id}-${row.serverTime}`}>
+                      <td>
+                        <div className="t1">{row.actor?.name ?? 'system'}</div>
+                        {row.actor ? (
+                          <div className="t2">{row.actor.phone}</div>
+                        ) : null}
+                      </td>
+                      <td>
+                        <Pill tone={ACTION_TONE(row.action)}>{row.action}</Pill>
+                      </td>
+                      <td className="t2">
+                        {row.entityType ?? '—'}
+                        {row.entityId ? ` · ${row.entityId.slice(0, 8)}` : ''}
+                      </td>
+                      <td>{row.houseboat?.name ?? <span className="t2">platform</span>}</td>
+                      <td className="num">{formatTime(row.serverTime)}</td>
+                      <td>
+                        <Pill tone={row.syncedOffline ? 'amb' : 'mut'}>
+                          {row.syncedOffline ? 'offline' : 'online'}
+                        </Pill>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              )}
+            </TableWrap>
+            {data?.nextBefore ? (
+              <div style={{ padding: 12, textAlign: 'center' }}>
+                <button
+                  className="btn btn-o btn-sm"
+                  onClick={() => {
+                    setAccumulated(items);
+                    setBefore(data.nextBefore);
+                  }}
+                >
+                  Load older
+                </button>
+              </div>
+            ) : null}
+          </>
+        )}
       </Card>
     </>
   );

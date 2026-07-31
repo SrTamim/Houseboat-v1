@@ -260,7 +260,6 @@ export class FinanceService {
       data: { status: 'overdue' },
     });
     if (res.count > 0) {
-      // eslint-disable-next-line no-console
       console.log(`Marked ${res.count} subscription invoice(s) overdue`);
     }
   }

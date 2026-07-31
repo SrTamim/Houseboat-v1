@@ -26,7 +26,12 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  // Runtime connection. Should be a non-superuser role with CRUD and no DDL —
+  // a superuser can DROP the append-only audit trigger. See .env.example.
   url      = env("DATABASE_URL")
+  // Migrations need DDL (and a non-pooled connection when using pgbouncer),
+  // so they run as a separate owner role.
+  directUrl = env("DIRECT_DATABASE_URL")
 }
 
 // ---------- IDENTITY, RBAC & AUDIT ----------
@@ -42,6 +47,8 @@ model Account {
   phoneVerified Boolean  @default(false) @map("phone_verified")
   /// true = platform admin/finance staff. NO type enum: what a person IS derives from relations.
   isPlatform    Boolean  @default(false) @map("is_platform")
+  /// NULL on a platform account = unrestricted superadmin. Only meaningful when is_platform.
+  platformRoleId String? @map("platform_role_id") @db.Uuid
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   memberships          HouseboatMember[]
@@ -68,8 +75,28 @@ model Account {
   stockLogged          StockMovement[]
   reviews              Review[]
   notifications        Notification[]
+  // Restrict, not the default SetNull: deleting a role must not silently
+  // promote its assigned staff to unrestricted superadmin.
+  platformRole         PlatformRole?            @relation(fields: [platformRoleId], references: [id], onDelete: Restrict)
 
+  @@index([platformRoleId])
   @@map("account")
+}
+
+/// Granular permissions for PLATFORM staff (console sections), separate from
+/// the per-boat Role model. Accounts with is_platform and a NULL role are
+/// unrestricted superadmins — see platform/rbac/platform-permission.guard.ts.
+model PlatformRole {
+  id          String   @id @db.Uuid
+  name        String   @unique
+  /// {module:{view:bool,edit:bool}} over PLATFORM_MODULES — validated in
+  /// platform/rbac/platform-permission.types.ts, never trusted raw.
+  permissions Json
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  accounts Account[]
+
+  @@map("platform_role")
 }
 
 /// Per-boat permissions. Same person can be admin on one boat, restricted shareholder on another.
@@ -85,6 +112,8 @@ model HouseboatMember {
   endDate        DateTime? @map("end_date") @db.Date
   /// active / exited
   status         String    @default("active")
+  /// per-boat notification preferences: {"booking":true,"payment_due":true,…}
+  notificationPrefs Json? @map("notification_prefs")
 
   account   Account   @relation(fields: [accountId], references: [id])
   houseboat Houseboat @relation(fields: [houseboatId], references: [id])
@@ -133,6 +162,9 @@ model AuditLog {
   /// authoritative
   serverTime     DateTime  @default(now()) @map("server_time") @db.Timestamptz
   syncedOffline  Boolean   @default(false) @map("synced_offline")
+  /// request origin — without these an audit row can't answer "who, from where"
+  ip             String?   @db.Inet
+  userAgent      String?   @map("user_agent")
 
   houseboat Houseboat? @relation(fields: [houseboatId], references: [id])
   actor     Account?   @relation(fields: [actorAccountId], references: [id])
@@ -166,6 +198,9 @@ model Houseboat {
   defaultCrew       String[]  @map("default_crew") @db.Uuid
   /// age bands: [{min,max,charge_pct}]
   childPolicy       Json?     @map("child_policy")
+  /// single meter per boat — owner logs readings; drives maintenance due-ness
+  engineHours          Int       @default(0) @map("engine_hours")
+  engineHoursUpdatedAt DateTime? @map("engine_hours_updated_at") @db.Timestamptz
   createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
   billingConfig        HouseboatBillingConfig?       @relation("HouseboatBillingConfig", fields: [billingConfigId], references: [id])
@@ -191,6 +226,9 @@ model Houseboat {
   inventoryItems       InventoryItem[]
   reviews              Review[]
   media                HouseboatMedia[]
+  maintenanceTasks     MaintenanceTask[]
+  maintenanceLogs      MaintenanceServiceLog[]
+  damageLogs           DamageLog[]
 
   @@map("houseboat")
 }
@@ -915,6 +953,70 @@ model StockMovement {
   @@map("stock_movement")
 }
 
+/// Recurring upkeep: oil change every 100h, hull inspection monthly, per-trip checks.
+model MaintenanceTask {
+  id            String    @id @db.Uuid
+  houseboatId   String    @map("houseboat_id") @db.Uuid
+  title         String
+  /// engine_hours | calendar | per_trip
+  intervalKind  String    @map("interval_kind")
+  /// hours (engine_hours) or days (calendar); null for per_trip
+  intervalValue Int?      @map("interval_value")
+  /// next-due markers — one of the two, per interval_kind
+  dueAtHours    Int?      @map("due_at_hours")
+  dueDate       DateTime? @map("due_date") @db.Date
+  lastDoneAt    DateTime? @map("last_done_at") @db.Timestamptz
+  lastDoneHours Int?      @map("last_done_hours")
+  /// active | paused
+  status        String    @default("active")
+  notes         String?
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  houseboat Houseboat               @relation(fields: [houseboatId], references: [id])
+  logs      MaintenanceServiceLog[]
+
+  @@index([houseboatId])
+  @@map("maintenance_task")
+}
+
+/// One completed service — history row, linked to a task or ad-hoc.
+model MaintenanceServiceLog {
+  id          String   @id @db.Uuid
+  houseboatId String   @map("houseboat_id") @db.Uuid
+  taskId      String?  @map("task_id") @db.Uuid
+  serviceDate DateTime @map("service_date") @db.Date
+  engineHours Int?     @map("engine_hours")
+  cost        Decimal? @db.Decimal(12, 2)
+  note        String?
+  loggedBy    String?  @map("logged_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  houseboat Houseboat        @relation(fields: [houseboatId], references: [id])
+  task      MaintenanceTask? @relation(fields: [taskId], references: [id])
+
+  @@index([houseboatId])
+  @@map("maintenance_service_log")
+}
+
+/// Damage / defect on the boat itself. Not inventory (that's durable counts).
+model DamageLog {
+  id          String    @id @db.Uuid
+  houseboatId String    @map("houseboat_id") @db.Uuid
+  title       String
+  detail      String?
+  /// open | fixed
+  status      String    @default("open")
+  repairCost  Decimal?  @map("repair_cost") @db.Decimal(12, 2)
+  reportedBy  String?   @map("reported_by") @db.Uuid
+  reportedAt  DateTime  @default(now()) @map("reported_at") @db.Timestamptz
+  fixedAt     DateTime? @map("fixed_at") @db.Timestamptz
+
+  houseboat Houseboat @relation(fields: [houseboatId], references: [id])
+
+  @@index([houseboatId])
+  @@map("damage_log")
+}
+
 /// Only from verified completed bookings.
 model Review {
   id          String  @id @db.Uuid
@@ -941,6 +1043,9 @@ model Notification {
   /// sms / email
   channel   String
   delivered Boolean  @default(false)
+  /// minimal replay payload for console resend: {phone?, email?, subject?, html?, message?, bookingId?}.
+  /// NULL = row predates this column and cannot be resent.
+  payload   Json?
   at        DateTime @default(now()) @db.Timestamptz
 
   account Account @relation(fields: [accountId], references: [id])

@@ -1,0 +1,146 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel superseded runs on the same branch — the newest commit is the one
+# that matters.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  build:
+    name: Build, typecheck & test
+    runs-on: ubuntu-latest
+
+    # The backend talks to Postgres and Redis. Real services rather than mocks
+    # so migrations and the throttler store are exercised the way they run in
+    # production.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: houseboat_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/houseboat_test?schema=public
+      DIRECT_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/houseboat_test?schema=public
+      REDIS_URL: redis://localhost:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      # --frozen-lockfile: a PR that edits package.json without the lockfile
+      # should fail here rather than silently resolving different versions.
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter backend prisma:generate
+
+      - name: Apply migrations
+        run: pnpm --filter backend prisma:deploy
+
+      - name: Typecheck (backend)
+        run: pnpm --filter backend exec tsc --noEmit
+
+      - name: Typecheck (frontend)
+        run: pnpm --filter frontend exec tsc --noEmit
+
+      - name: Test
+        run: pnpm --filter backend test
+
+      - name: Build
+        run: pnpm build
+
+      # The frontend's types are generated from the backend's OpenAPI spec. If
+      # a DTO changed without regenerating, `Schema<'...'>` silently resolves to
+      # `never` and the frontend compiles against a stale contract. Regenerate
+      # and fail if anything moved.
+      - name: Check OpenAPI contract is current
+        run: |
+          pnpm --filter backend openapi
+          pnpm --filter frontend gen:api
+          if ! git diff --quiet -- backend/openapi.json frontend/src/lib/api-types.ts; then
+            echo "::error::OpenAPI spec or generated types are stale."
+            echo "Run: pnpm --filter backend openapi && pnpm --filter frontend gen:api"
+            git diff --stat -- backend/openapi.json frontend/src/lib/api-types.ts
+            exit 1
+          fi
+
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      # Fail on high/critical only. Moderate advisories in dev-only tooling
+      # would otherwise block every PR without improving what ships.
+      - name: pnpm audit
+        run: pnpm audit --audit-level=high --prod
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history: a secret committed earlier and removed later is still
+          # exposed, so scanning only the tip would miss it.
+          fetch-depth: 0
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  codeql:
+    name: CodeQL
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          queries: security-extended
+      - uses: github/codeql-action/analyze@v3

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { THEME_SCRIPT } from '@/lib/theme-script';
 // Self-hosted admin fonts (Inter + Space Grotesk Variable) — matches the approved preview.
 import '@fontsource/inter/400.css';
 import '@fontsource/inter/500.css';
@@ -13,14 +14,20 @@ export const metadata: Metadata = {
   title: 'HaorBoat Admin',
 };
 
-// Sets the persisted theme before paint to avoid a light/dark flash.
-const themeScript = `(function(){try{var t=localStorage.getItem('hb-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','light');}})();`;
-
 // Applies to every /admin/* route (console pages AND the bare login).
-export default function AdminRootLayout({ children }: { children: React.ReactNode }) {
+//
+// No nonce on the theme script: it's allowed by hash instead (see
+// lib/theme-script.ts). Setting a nonce here caused a hydration mismatch —
+// the server can read request headers and rendered nonce="abc…", the client
+// re-render cannot and produced nonce="", so React refused to patch the tree.
+export default function AdminRootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <>
-      <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       {children}
     </>
   );

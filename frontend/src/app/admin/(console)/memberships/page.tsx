@@ -1,7 +1,59 @@
-import { PageHead, Card, TableWrap, Search, Select } from '@/components/admin/ui';
+'use client';
+
+import { useState } from 'react';
+import {
+  PageHead,
+  Card,
+  TableWrap,
+  TableSkeleton,
+  EmptyState,
+  ErrorState,
+  Select,
+} from '@/components/admin/ui';
 import { Pill } from '@/components/admin/Pill';
+import { useAdminList } from '@/lib/admin/useAdminList';
+
+interface MembershipRow {
+  id: string;
+  shareholderPct: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  status: string;
+  account: { id: string; name: string | null; phone: string };
+  houseboat: { id: string; name: string };
+  role: { id: string; name: string };
+}
+
+const STATUS_OPTIONS = [
+  { value: '', label: 'All members' },
+  { value: 'active', label: 'Active only' },
+  { value: 'exited', label: 'Exited only' },
+];
+
+function formatMonth(iso: string | null) {
+  if (!iso) return null;
+  return new Date(iso).toLocaleDateString('en-GB', {
+    month: 'short',
+    year: '2-digit',
+  });
+}
+
+function period(m: MembershipRow): string {
+  const from = formatMonth(m.startDate);
+  const to = formatMonth(m.endDate);
+  if (from && to) return `${from} – ${to}`;
+  if (from) return `since ${from}`;
+  return '—';
+}
 
 export default function Memberships() {
+  const [status, setStatus] = useState('');
+  const { items, error, isInitialLoading, hasMore, loadMore, mutate } =
+    useAdminList<MembershipRow>('/platform/ops/memberships', {
+      status: status || undefined,
+      limit: 25,
+    });
+
   return (
     <>
       <PageHead
@@ -9,44 +61,69 @@ export default function Memberships() {
         desc="Per-boat co-owners for dispute support. An exited shareholder keeps read access to their own period only. Distributions are recorded, never auto-split."
       />
       <div className="filterbar">
-        <Search placeholder="Search by boat name…" defaultValue="Jol Kolol" maxWidth={320} />
-        <Select options={['All members', 'Active only', 'Exited only']} />
+        <Select options={STATUS_OPTIONS} value={status} onChange={setStatus} />
       </div>
-      <div className="grid-2">
-        <Card title="Members · Jol Kolol" flush>
-          <TableWrap>
-            <thead>
-              <tr><th>Member</th><th>Role</th><th className="num">Share</th><th>Period</th><th>Status</th></tr>
-            </thead>
-            <tbody>
-              <tr><td className="t1">Kamrul Owner</td><td><Pill tone="blue">Owner</Pill></td><td className="num">50%</td><td className="t2">since Mar 26</td><td><Pill tone="ok">active</Pill></td></tr>
-              <tr><td className="t1">Selim Mia</td><td><Pill tone="mut">Shareholder</Pill></td><td className="num">30%</td><td className="t2">since Mar 26</td><td><Pill tone="ok">active</Pill></td></tr>
-              <tr><td className="t1">Jahid Uddin</td><td><Pill tone="mut">Shareholder</Pill></td><td className="num">20%</td><td className="t2">Mar–Jun 26</td><td><Pill tone="warn">exited · read-only</Pill></td></tr>
-            </tbody>
-          </TableWrap>
-        </Card>
-        <Card
-          title="Distributions"
-          head={
-            <div style={{ display: 'flex', gap: 8 }}>
-              <Select options={['Jun', 'Jul', 'All months']} style={{ height: 34, fontSize: 12.5 }} />
-              <Select options={['2026', '2025']} style={{ height: 34, fontSize: 12.5 }} />
-            </div>
-          }
-          flush
-        >
-          <TableWrap>
-            <thead>
-              <tr><th>Member</th><th className="num">Amount</th><th>Note</th><th className="num">Date</th></tr>
-            </thead>
-            <tbody>
-              <tr><td className="t1">Kamrul Owner</td><td className="num">৳ 1,20,000</td><td className="t2">Jun profit</td><td className="num">30 Jun</td></tr>
-              <tr><td className="t1">Selim Mia</td><td className="num">৳ 72,000</td><td className="t2">Jun profit</td><td className="num">30 Jun</td></tr>
-              <tr><td className="t1">Jahid Uddin</td><td className="num">৳ 48,000</td><td className="t2">exit settlement</td><td className="num">30 Jun</td></tr>
-            </tbody>
-          </TableWrap>
-        </Card>
-      </div>
+      <Card flush>
+        {error ? (
+          <ErrorState error={error} onRetry={() => mutate()} />
+        ) : !isInitialLoading && items.length === 0 ? (
+          <EmptyState
+            title="No memberships yet"
+            desc="Members appear here when owners add co-owners and staff to their boats."
+          />
+        ) : (
+          <>
+            <TableWrap>
+              <thead>
+                <tr>
+                  <th>Member</th>
+                  <th>Boat</th>
+                  <th>Role</th>
+                  <th className="num">Share</th>
+                  <th>Period</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              {isInitialLoading ? (
+                <TableSkeleton rows={5} cols={6} />
+              ) : (
+                <tbody>
+                  {items.map((m) => (
+                    <tr key={m.id}>
+                      <td>
+                        <div className="t1">{m.account.name ?? '—'}</div>
+                        <div className="t2">{m.account.phone}</div>
+                      </td>
+                      <td>{m.houseboat.name}</td>
+                      <td>
+                        <Pill tone={m.role.name === 'Owner' ? 'blue' : 'mut'}>
+                          {m.role.name}
+                        </Pill>
+                      </td>
+                      <td className="num">
+                        {m.shareholderPct !== null ? `${m.shareholderPct}%` : '—'}
+                      </td>
+                      <td className="t2">{period(m)}</td>
+                      <td>
+                        <Pill tone={m.status === 'active' ? 'ok' : 'warn'}>
+                          {m.status === 'active' ? 'active' : 'exited · read-only'}
+                        </Pill>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              )}
+            </TableWrap>
+            {hasMore ? (
+              <div style={{ padding: 12, textAlign: 'center' }}>
+                <button className="btn btn-o btn-sm" onClick={loadMore}>
+                  Load more
+                </button>
+              </div>
+            ) : null}
+          </>
+        )}
+      </Card>
     </>
   );
 }

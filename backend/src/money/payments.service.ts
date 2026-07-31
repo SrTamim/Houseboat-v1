@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -9,7 +8,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { RbacService } from '../rbac/rbac.service';
 import { newId } from '../common/uuid';
-import { money, add, gte } from '../common/money';
+import { money, add } from '../common/money';
+import { cursorArgs, toPage } from '../common/paginate';
 import {
   assertTransition,
   InvoiceStatus,
@@ -29,6 +29,76 @@ export class PaymentsService {
     private readonly audit: AuditService,
     private readonly rbac: RbacService,
   ) {}
+
+  /**
+   * The boat's invoices, for the owner's Invoices and Payments pages.
+   *
+   * `cashPending` narrows to invoices carrying a cash payment nobody has
+   * verified — the queue an owner works through. Verification of cash is the
+   * boat manager's job (gateway money is finance's), so this is the one money
+   * list an owner acts on rather than just reads.
+   */
+  async listForBoat(
+    houseboatId: string,
+    query: {
+      status?: string;
+      cashPending?: boolean;
+      q?: string;
+      cursor?: string;
+      limit?: number;
+    },
+  ) {
+    const rows = await this.prisma.invoice.findMany({
+      ...cursorArgs(query),
+      where: {
+        houseboatId,
+        ...(query.status ? { status: query.status } : {}),
+        ...(query.cashPending
+          ? { payments: { some: { method: 'cash', verifiedBy: null } } }
+          : {}),
+        ...(query.q
+          ? {
+              customer: {
+                OR: [
+                  { name: { contains: query.q, mode: 'insensitive' } },
+                  { phone: { contains: query.q } },
+                ],
+              },
+            }
+          : {}),
+      },
+      include: {
+        customer: { select: { id: true, name: true, phone: true } },
+        booking: {
+          select: {
+            id: true,
+            type: true,
+            status: true,
+            departure: {
+              select: {
+                startDate: true,
+                package: { select: { durationLabel: true } },
+              },
+            },
+          },
+        },
+        payments: {
+          select: {
+            id: true,
+            amount: true,
+            method: true,
+            paidAt: true,
+            receivedBy: true,
+            verifiedBy: true,
+            receivedByAccount: { select: { name: true } },
+            verifiedByAccount: { select: { name: true } },
+          },
+        },
+      },
+    });
+
+    return toPage(rows, query);
+  }
 
   /** Record a payment against an invoice (cash or gateway). Moves to 'paid'. */
   async recordPayment(

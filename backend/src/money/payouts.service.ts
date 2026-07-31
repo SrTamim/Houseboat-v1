@@ -7,7 +7,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { newId } from '../common/uuid';
-import { Money, money, ZERO, add, sub } from '../common/money';
+import { Money, money, ZERO, add } from '../common/money';
 import { dueToBoat } from '../common/billing';
 
 /**
@@ -31,6 +31,42 @@ export class PayoutsService {
       where: { houseboatId, status: 'payment_verified', payoutBatchId: null },
       include: { payments: true },
     });
+  }
+
+  /**
+   * Payout history for the boat's own console (owner-readable).
+   *
+   * Preparing, approving and paying stay platform-only — this is the read side,
+   * so an owner can see what they were paid and when without being able to move
+   * money. Includes the invoice ids in each batch so the owner can reconcile.
+   */
+  async listForBoat(houseboatId: string) {
+    const batches = await this.prisma.houseboatPayoutBatch.findMany({
+      where: { houseboatId },
+      orderBy: { id: 'desc' },
+      include: {
+        preparedByAccount: { select: { name: true } },
+        approvedByAccount: { select: { name: true } },
+        invoices: {
+          select: { id: true, dueToBoat: true, bookingId: true },
+        },
+      },
+    });
+
+    return batches.map((b) => ({
+      id: b.id,
+      totalAmount: b.totalAmount.toFixed(2),
+      status: b.status,
+      paidAt: b.paidAt,
+      preparedBy: b.preparedByAccount?.name ?? null,
+      approvedBy: b.approvedByAccount?.name ?? null,
+      invoiceCount: b.invoices.length,
+      invoices: b.invoices.map((i) => ({
+        id: i.id,
+        bookingId: i.bookingId,
+        dueToBoat: i.dueToBoat.toFixed(2),
+      })),
+    }));
   }
 
   /**

@@ -1,44 +1,126 @@
-import { PageHead, Card, TableWrap, Search, Select, Note } from '@/components/admin/ui';
+'use client';
+
+import useSWR from 'swr';
+import { fetcher } from '@/lib/api';
+import {
+  PageHead,
+  Card,
+  TableWrap,
+  EmptyState,
+  ErrorState,
+  Note,
+} from '@/components/admin/ui';
 import { StatRow } from '@/components/admin/StatCard';
-import { Pill } from '@/components/admin/Pill';
+import { formatBDT } from '@/lib/admin/money';
+
+interface Analytics {
+  totals: {
+    gmv: string | number;
+    commission: string | number;
+    gatewayFees: string | number;
+    collected: string | number;
+    dueToBoats: string | number;
+    invoiceCount: number;
+    bookingCount: number;
+    liveBoats: number;
+  };
+  revenueByBoat: {
+    houseboatId: string;
+    name: string;
+    gmv: string | number;
+    commission: string | number;
+    invoiceCount: number;
+  }[];
+}
 
 export default function Commission() {
+  const { data, error, isLoading, mutate } = useSWR<Analytics>(
+    '/platform/finance/analytics',
+    fetcher,
+    { revalidateOnFocus: false },
+  );
+
   return (
     <>
       <PageHead
-        title="Commission integrity"
-        desc={<>Commission must equal room_total × rate — on the <b>original</b> price, never the discounted amount. This catches coupon-gaming and computation bugs.</>}
+        title="Commission"
+        desc={<>Commission is charged on the <b>original</b> room total, never the discounted amount — the boat absorbs its own coupon.</>}
       />
-      <StatRow
-        stats={[
-          { icon: '৳', label: 'Commission earned', value: <><span className="u">৳</span>12.1L</>, delta: '▲ 11% vs last month', deltaDir: 'up' },
-          { icon: '📅', label: 'This month', value: <><span className="u">৳</span>3,12,025</>, delta: '1,284 invoices' },
-          { icon: '%', label: 'Average rate', value: <>4.9<span className="u">%</span></>, delta: 'across 28 boats' },
-          { icon: '⚠', label: 'Mismatches', value: '1', delta: '৳90 short · 1 boat', deltaDir: 'down', alert: true },
-        ]}
-      />
-      <div className="filterbar">
-        <Search placeholder="Invoice id or boat…" maxWidth={300} />
-        <Select options={['All checks', 'Mismatches only', 'Matches only']} />
-        <Select options={['Any date', 'Last 7 days', 'Last 30 days']} />
-        <Select options={['Jul', 'Jun', 'All months']} />
-        <Select options={['2026', '2025']} />
-      </div>
-      <Card flush>
-        <TableWrap>
-          <thead>
-            <tr><th>Invoice</th><th>Boat</th><th className="num">Room total</th><th className="num">Rate</th><th className="num">Expected</th><th className="num">Recorded</th><th>Check</th></tr>
-          </thead>
-          <tbody>
-            <tr><td className="t1">INV-8410</td><td>Jol Kolol</td><td className="num">৳ 10,000</td><td className="num">5%</td><td className="num">৳ 500</td><td className="num">৳ 500</td><td><Pill tone="ok">match</Pill></td></tr>
-            <tr><td className="t1">INV-7d55</td><td>Haor Bilash</td><td className="num">৳ 20,000</td><td className="num">5%</td><td className="num">৳ 1,000</td><td className="num">৳ 1,000</td><td><Pill tone="ok">match</Pill></td></tr>
-            <tr><td className="t1">INV-80a2</td><td>Jol Kolol</td><td className="num">৳ 12,000</td><td className="num">5%</td><td className="num">৳ 600</td><td className="num neg">৳ 510</td><td><Pill tone="danger">short −৳90</Pill></td></tr>
-          </tbody>
-        </TableWrap>
-      </Card>
-      <Note kind="warn" icon="⚑" style={{ marginTop: 16 }}>
-        INV-80a2 recorded commission on the discounted total, not room_total — a coupon-gaming signature. Jol Kolol flagged coupon-heavy this week.
-      </Note>
+      {error ? (
+        <ErrorState error={error} onRetry={() => mutate()} />
+      ) : (
+        <>
+          <StatRow
+            stats={[
+              {
+                icon: '৳',
+                label: 'Commission earned',
+                value: data ? (
+                  <><span className="u">৳</span>{formatBDT(data.totals.commission)}</>
+                ) : '…',
+                delta: data ? `${data.totals.invoiceCount} invoices all-time` : undefined,
+              },
+              {
+                icon: '💳',
+                label: 'Gateway fees',
+                value: data ? (
+                  <><span className="u">৳</span>{formatBDT(data.totals.gatewayFees)}</>
+                ) : '…',
+              },
+              {
+                icon: '📈',
+                label: 'GMV',
+                value: data ? (
+                  <><span className="u">৳</span>{formatBDT(data.totals.gmv)}</>
+                ) : '…',
+              },
+              {
+                icon: '🚤',
+                label: 'Live boats',
+                value: data ? String(data.totals.liveBoats) : '…',
+              },
+            ]}
+          />
+          <Card title="Commission by boat" sub="top boats by revenue" flush>
+            {!isLoading && data && data.revenueByBoat.length === 0 ? (
+              <EmptyState
+                title="No invoices yet"
+                desc="Commission accrues here as bookings generate invoices."
+              />
+            ) : (
+              <TableWrap>
+                <thead>
+                  <tr>
+                    <th>Boat</th>
+                    <th className="num">Invoices</th>
+                    <th className="num">GMV</th>
+                    <th className="num">Commission</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(data?.revenueByBoat ?? []).map((b) => (
+                    <tr key={b.houseboatId}>
+                      <td className="t1">{b.name}</td>
+                      <td className="num">{b.invoiceCount}</td>
+                      <td className="num">
+                        <span className="u">৳</span> {formatBDT(b.gmv)}
+                      </td>
+                      <td className="num">
+                        <span className="u">৳</span> {formatBDT(b.commission)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </TableWrap>
+            )}
+          </Card>
+          <Note kind="info" icon="ℹ" style={{ marginTop: 16 }}>
+            Per-invoice commission integrity checks (expected vs recorded) will
+            land with the reconciliation job — the DB already stores commission
+            per invoice, so any mismatch is auditable.
+          </Note>
+        </>
+      )}
     </>
   );
 }

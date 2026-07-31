@@ -11,7 +11,21 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Liveness + DB reachability. Used by Railway health checks. */
+        /**
+         * Liveness + dependency reachability. Used by Railway health checks, which
+         *     key on the HTTP status code — so an unhealthy instance must answer 503,
+         *     not a 200 with a sad body, or it never gets restarted or pulled.
+         *
+         *     Redis is checked because production runs it fail-closed: the refresh-token
+         *     deny-list treats "store unreachable" as revoked, so a Redis outage silently
+         *     breaks session refresh platform-wide. Without REDIS_URL (dev) it reports
+         *     'disabled' and does not fail the check; validate-env.ts guarantees the URL
+         *     exists in production.
+         *
+         *     Never throttled: the throttler fails closed in production, so a Redis
+         *     outage would otherwise make this return 429, the platform would read that
+         *     as an unhealthy instance, and a cache blip would become a restart loop.
+         */
         get: operations["HealthController_check"];
         put?: never;
         post?: never;
@@ -64,6 +78,12 @@ export interface paths {
          * Hand the SPA a CSRF token (and set its matching cookie). Call right after
          *     login and reuse the token for the session's state-changing requests. Safe
          *     (GET) so it isn't itself CSRF-protected.
+         *
+         *     @Public() because the token is needed BEFORE a session exists — the login
+         *     POST itself carries it. Requiring auth here deadlocks the sign-in form:
+         *     it can't get a token without a session, and can't get a session without
+         *     submitting. Handing an anonymous caller a CSRF token is harmless; the
+         *     token proves the request came from our page, not that anyone is logged in.
          */
         get: operations["AuthController_getCsrf"];
         put?: never;
@@ -137,6 +157,31 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/houseboats/{houseboatId}/my-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The caller's own preferences on a boat (notification toggles).
+         *
+         *     Deliberately NOT decorated with @RequirePermission: a member with no
+         *     `settings` permission must still be able to manage their own notifications.
+         *     Because PermissionGuard skips undecorated routes, this handler does its own
+         *     membership check — without it the route would be authenticated but
+         *     unscoped, and anyone could read any boat's membership row.
+         */
+        get: operations["RbacController_mySettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["RbacController_updateMySettings"];
         trace?: never;
     };
     "/api/houseboats/{houseboatId}/roles": {
@@ -723,6 +768,90 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/houseboats/{houseboatId}/bookings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["OwnerBookingsController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/houseboats/{houseboatId}/bookings/counts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["OwnerBookingsController_counts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/houseboats/{houseboatId}/waitlist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["OwnerBookingsController_waitlist"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/houseboats/{houseboatId}/waitlist/{departureId}/notify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["OwnerBookingsController_notifyWaitlist"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/houseboats/{houseboatId}/pos/bookings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Counter sale. Throttled harder than ordinary reads: it creates accounts
+         *     and takes holds, so a runaway client here consumes cabin inventory.
+         */
+        post: operations["OwnerBookingsController_posCheckout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/invoices/{invoiceId}/payments": {
         parameters: {
             query?: never;
@@ -749,6 +878,39 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["MoneyController_verifyPayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/houseboats/{houseboatId}/invoices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The boat's invoices (owner console). Read-only view of the money list. */
+        get: operations["MoneyController_listInvoices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/houseboats/{houseboatId}/refunds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["MoneyController_listRefunds"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -826,7 +988,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Payout history, owner-readable. Preparing/approving/paying stay
+         *     platform-only above — an owner sees what they were paid, they don't move it.
+         */
+        get: operations["MoneyController_listPayoutBatches"];
         put?: never;
         post: operations["MoneyController_prepareBatch"];
         delete?: never;
@@ -1332,6 +1498,760 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/platform/finance/payout-batches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PlatformFinanceController_listPayoutBatches"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/finance/invoices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PlatformFinanceController_listInvoices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/finance/refunds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PlatformFinanceController_listRefunds"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/finance/overpayments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PlatformFinanceController_listOverpayments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/finance/credits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PlatformFinanceController_listCredits"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/finance/subscription-invoices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PlatformFinanceController_listSubscriptionInvoices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/finance/billing-configs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PlatformFinanceController_listBillingConfigs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/finance/billing-configs/{houseboatId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["PlatformFinanceController_upsertBillingConfig"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/finance/debtors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PlatformFinanceController_listDebtors"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/finance/coupons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PlatformFinanceController_listCoupons"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/finance/analytics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PlatformFinanceController_analyticsSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/ops/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Live counts for the dashboard KPIs and sidebar badges. */
+        get: operations["PlatformOpsController_overview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/ops/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Non-secret config status — presence booleans, never secret values. */
+        get: operations["PlatformOpsController_settingsStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/ops/waitlist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PlatformOpsController_listWaitlist"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/ops/bookings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PlatformOpsController_listBookings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/ops/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PlatformOpsController_listReviews"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/ops/accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PlatformOpsController_listAccounts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/ops/memberships": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PlatformOpsController_listMemberships"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/ops/reschedules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PlatformOpsController_listReschedules"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/ops/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PlatformOpsController_listNotifications"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/ops/notifications/{notificationId}/resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Re-dispatch a recorded notification from its stored payload (422 for legacy rows). */
+        post: operations["PlatformOpsController_resendNotification"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/ops/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PlatformOpsController_listAudit"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/ops/roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PlatformOpsController_listRoles"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/ops/departures/due": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Departures at/past their date still awaiting status advance or finalize. */
+        get: operations["PlatformOpsController_listDueDepartures"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/ops/routes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * All routes including retired ones, with boat counts.
+         *
+         *     Distinct from the public GET /api/routes, which is active-only.
+         */
+        get: operations["PlatformOpsController_listRoutes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/ops/routes/{routeId}/active": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Activate/deactivate a platform-curated route.
+         *
+         *     RoutesService.setActive already existed but had no HTTP route, so routes
+         *     could be created and never retired.
+         */
+        patch: operations["PlatformOpsController_setRouteActive"];
+        trace?: never;
+    };
+    "/api/platform/rbac/roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PlatformRbacController_listRoles"];
+        put?: never;
+        post: operations["PlatformRbacController_createRole"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/rbac/roles/{roleId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["PlatformRbacController_deleteRole"];
+        options?: never;
+        head?: never;
+        patch: operations["PlatformRbacController_updateRole"];
+        trace?: never;
+    };
+    "/api/platform/rbac/accounts/{accountId}/platform-role": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["PlatformRbacController_assignRole"];
+        trace?: never;
+    };
+    "/api/platform/rbac/accounts/{accountId}/platform-staff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["PlatformRbacController_setStaff"];
+        trace?: never;
+    };
+    "/api/houseboats/{houseboatId}/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Home screen: KPIs, today's departures, week summary, sidebar badges. */
+        get: operations["OwnerController_getDashboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/houseboats/{houseboatId}/calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["OwnerController_getCalendar"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/houseboats/{houseboatId}/reports/trips": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["OwnerController_tripReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/houseboats/{houseboatId}/reports/monthly": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["OwnerController_monthlyReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/houseboats/{houseboatId}/earnings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Earnings statement — money view, since it reports on settlement. */
+        get: operations["OwnerController_earnings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/houseboats/{houseboatId}/guests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["OwnerController_listGuests"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/houseboats/{houseboatId}/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Audit trail. Gated on settings:view — it exposes role and money actions. */
+        get: operations["OwnerController_listAudit"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/houseboats/{houseboatId}/audit/actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["OwnerController_auditActions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/houseboats/{houseboatId}/maintenance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["MaintenanceController_summary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/houseboats/{houseboatId}/maintenance/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["MaintenanceController_createTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/houseboats/{houseboatId}/maintenance/tasks/{taskId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["MaintenanceController_updateTask"];
+        trace?: never;
+    };
+    "/api/houseboats/{houseboatId}/maintenance/tasks/{taskId}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["MaintenanceController_completeTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/houseboats/{houseboatId}/maintenance/service-logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["MaintenanceController_addServiceLog"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/houseboats/{houseboatId}/maintenance/damage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["MaintenanceController_listDamage"];
+        put?: never;
+        post: operations["MaintenanceController_reportDamage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/houseboats/{houseboatId}/maintenance/damage/{damageId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["MaintenanceController_updateDamage"];
+        trace?: never;
+    };
+    "/api/houseboats/{houseboatId}/maintenance/engine-hours": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["MaintenanceController_setEngineHours"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1346,6 +2266,14 @@ export interface components {
         LoginDto: {
             phone: string;
             password: string;
+        };
+        MySettingsDto: {
+            /**
+             * @description Per-event notification toggles: {"booking":true,"payment_due":false,…}.
+             *     Left open rather than a fixed DTO so adding an event type needs no
+             *     migration; the console owns which keys it renders.
+             */
+            notificationPrefs?: Record<string, never>;
         };
         CreateRoleDto: {
             name: string;
@@ -1375,6 +2303,7 @@ export interface components {
             description?: string;
             safetyFeatures?: string;
             foodMenu?: string;
+            /** @description Payout destination; shape is bank-dependent. */
             bankAccount?: Record<string, never>;
             childPolicy?: Record<string, never>;
             /** @description ISO date strings — only these dates generate bookable departures. */
@@ -1509,6 +2438,21 @@ export interface components {
             newDepartureId: string;
             reason?: string;
         };
+        PosCabinDto: {
+            cabinId: string;
+            adults: number;
+            children?: number;
+        };
+        PosCheckoutDto: {
+            departureId: string;
+            customerName: string;
+            /** @description E.164. Used to find-or-create the walk-in guest's account. */
+            customerPhone: string;
+            cabins: components["schemas"]["PosCabinDto"][];
+            couponCode?: string;
+            referenceName?: string;
+            specialInstructions?: string;
+        };
         RecordPaymentDto: {
             amount: number;
             /** @enum {string} */
@@ -1519,6 +2463,11 @@ export interface components {
         RefundRequestDto: {
             amount: number;
             reason?: string;
+            /**
+             * @description Encrypted at rest (AES-256-GCM) before storage — see refunds.service.ts.
+             *     Shape is provider-dependent, so it stays an object rather than a fixed DTO;
+             *     @IsObject at least rejects scalars and arrays.
+             */
             bankDetails?: Record<string, never>;
         };
         CreateCouponDto: {
@@ -1533,6 +2482,7 @@ export interface components {
             /** @enum {string} */
             policyTemplate: "flexible" | "moderate" | "strict" | "non_refundable" | "custom";
             depositPct?: number;
+            /** @description Refund tier table; shape varies by template. */
             tiers?: Record<string, never>;
         };
         RecordDistributionDto: {
@@ -1624,6 +2574,76 @@ export interface components {
         };
         SyncBatchDto: {
             intents: components["schemas"]["SyncIntentDto"][];
+        };
+        UpsertBillingConfigDto: {
+            commissionPct?: number | null;
+            monthlyFee?: number | null;
+            gatewayFeePct?: number | null;
+            /** @description YYYY-MM-DD — the column is a date, not a timestamp. */
+            trialEnds?: string | null;
+        };
+        SetRouteActiveDto: {
+            active: boolean;
+        };
+        CreatePlatformRoleDto: {
+            name: string;
+            permissions: Record<string, never>;
+        };
+        UpdatePlatformRoleDto: {
+            name?: string;
+            permissions?: Record<string, never>;
+        };
+        AssignPlatformRoleDto: {
+            /** @description null = superadmin (no role restriction). */
+            platformRoleId?: string | null;
+        };
+        SetPlatformStaffDto: {
+            isPlatform: boolean;
+        };
+        CreateMaintenanceTaskDto: {
+            title: string;
+            /** @enum {string} */
+            intervalKind: "engine_hours" | "calendar" | "per_trip";
+            /** @description hours for engine_hours, days for calendar; ignored for per_trip. */
+            intervalValue?: number;
+            dueAtHours?: number;
+            dueDate?: string;
+            notes?: string;
+        };
+        UpdateMaintenanceTaskDto: {
+            title?: string;
+            intervalValue?: number;
+            dueAtHours?: number;
+            dueDate?: string;
+            /** @enum {string} */
+            status?: "active" | "paused";
+            notes?: string;
+        };
+        CompleteTaskDto: {
+            serviceDate?: string;
+            engineHours?: number;
+            cost?: number;
+            note?: string;
+        };
+        CreateServiceLogDto: {
+            serviceDate?: string;
+            engineHours?: number;
+            cost?: number;
+            note?: string;
+            taskId?: string;
+        };
+        CreateDamageDto: {
+            title: string;
+            detail?: string;
+        };
+        UpdateDamageDto: {
+            /** @enum {string} */
+            status?: "open" | "fixed";
+            repairCost?: number;
+            detail?: string;
+        };
+        SetEngineHoursDto: {
+            hours: number;
         };
     };
     responses: never;
@@ -1780,6 +2800,48 @@ export interface operations {
             };
         };
     };
+    RbacController_mySettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    RbacController_updateMySettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MySettingsDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     RbacController_listRoles: {
         parameters: {
             query?: never;
@@ -1827,6 +2889,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                houseboatId: string;
                 roleId: string;
             };
             cookie?: never;
@@ -2162,8 +3225,8 @@ export interface operations {
     };
     AssetsController_listForModeration: {
         parameters: {
-            query: {
-                status: string;
+            query?: {
+                status?: "draft" | "pending" | "live" | "suspended";
             };
             header?: never;
             path?: never;
@@ -2219,8 +3282,8 @@ export interface operations {
     };
     MediaController_list: {
         parameters: {
-            query: {
-                cabinId: string;
+            query?: {
+                cabinId?: string;
             };
             header?: never;
             path: {
@@ -2703,6 +3766,116 @@ export interface operations {
             };
         };
     };
+    OwnerBookingsController_list: {
+        parameters: {
+            query?: {
+                status?: "confirmed" | "rescheduled" | "cancelled" | "not_arrived" | "completed";
+                /** @description Guest name or phone. */
+                q?: string;
+                departureId?: string;
+                from?: string;
+                to?: string;
+                limit?: number;
+                /** @description id of the last row from the previous page. */
+                cursor?: string;
+            };
+            header?: never;
+            path: {
+                houseboatId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OwnerBookingsController_counts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OwnerBookingsController_waitlist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OwnerBookingsController_notifyWaitlist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+                departureId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OwnerBookingsController_posCheckout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PosCheckoutDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     MoneyController_listPayments: {
         parameters: {
             query?: never;
@@ -2757,6 +3930,55 @@ export interface operations {
         requestBody?: never;
         responses: {
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MoneyController_listInvoices: {
+        parameters: {
+            query?: {
+                status?: "customer_due" | "paid" | "payment_verified" | "in_payout" | "bill_cleared";
+                /**
+                 * @description Only invoices with a cash payment nobody has verified yet — the queue the
+                 *     Payments page works through.
+                 */
+                cashPending?: boolean;
+                q?: string;
+                limit?: number;
+                /** @description id of the last row from the previous page. */
+                cursor?: string;
+            };
+            header?: never;
+            path: {
+                houseboatId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MoneyController_listRefunds: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2843,6 +4065,25 @@ export interface operations {
                 content: {
                     "application/json": Record<string, never>[];
                 };
+            };
+        };
+    };
+    MoneyController_listPayoutBatches: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -3032,7 +4273,7 @@ export interface operations {
     MoneyController_suggestSplit: {
         parameters: {
             query: {
-                amount: string;
+                amount: number;
             };
             header?: never;
             path: {
@@ -3678,6 +4919,1061 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["SyncBatchDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformFinanceController_listPayoutBatches: {
+        parameters: {
+            query?: {
+                houseboatId?: string;
+                limit?: number;
+                /** @description id of the last row from the previous page. */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformFinanceController_listInvoices: {
+        parameters: {
+            query?: {
+                status?: "customer_due" | "paid" | "payment_verified" | "in_payout" | "bill_cleared" | "cancelled" | "refund_requested" | "refund_verified" | "refund_completed";
+                houseboatId?: string;
+                limit?: number;
+                /** @description id of the last row from the previous page. */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformFinanceController_listRefunds: {
+        parameters: {
+            query?: {
+                status?: "requested" | "verified" | "completed";
+                limit?: number;
+                /** @description id of the last row from the previous page. */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformFinanceController_listOverpayments: {
+        parameters: {
+            query?: {
+                status?: "customer_due" | "paid" | "payment_verified" | "in_payout" | "bill_cleared" | "cancelled" | "refund_requested" | "refund_verified" | "refund_completed";
+                houseboatId?: string;
+                limit?: number;
+                /** @description id of the last row from the previous page. */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformFinanceController_listCredits: {
+        parameters: {
+            query?: {
+                status?: "open" | "used";
+                limit?: number;
+                /** @description id of the last row from the previous page. */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformFinanceController_listSubscriptionInvoices: {
+        parameters: {
+            query?: {
+                status?: "issued" | "paid" | "overdue";
+                houseboatId?: string;
+                limit?: number;
+                /** @description id of the last row from the previous page. */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformFinanceController_listBillingConfigs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformFinanceController_upsertBillingConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpsertBillingConfigDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformFinanceController_listDebtors: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformFinanceController_listCoupons: {
+        parameters: {
+            query?: {
+                houseboatId?: string;
+                limit?: number;
+                /** @description id of the last row from the previous page. */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformFinanceController_analyticsSummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformOpsController_overview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformOpsController_settingsStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformOpsController_listWaitlist: {
+        parameters: {
+            query?: {
+                departureId?: string;
+                limit?: number;
+                /** @description id of the last row from the previous page. */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformOpsController_listBookings: {
+        parameters: {
+            query?: {
+                status?: "confirmed" | "rescheduled" | "cancelled" | "not_arrived" | "completed";
+                houseboatId?: string;
+                limit?: number;
+                /** @description id of the last row from the previous page. */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformOpsController_listReviews: {
+        parameters: {
+            query?: {
+                houseboatId?: string;
+                limit?: number;
+                /** @description id of the last row from the previous page. */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformOpsController_listAccounts: {
+        parameters: {
+            query?: {
+                q?: string;
+                limit?: number;
+                /** @description id of the last row from the previous page. */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformOpsController_listMemberships: {
+        parameters: {
+            query?: {
+                houseboatId?: string;
+                status?: "active" | "exited";
+                limit?: number;
+                /** @description id of the last row from the previous page. */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformOpsController_listReschedules: {
+        parameters: {
+            query?: {
+                limit?: number;
+                /** @description id of the last row from the previous page. */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformOpsController_listNotifications: {
+        parameters: {
+            query?: {
+                channel?: "sms" | "email";
+                /** @description 'true' | 'false' — @Query params arrive as strings. */
+                delivered?: "true" | "false";
+                limit?: number;
+                /** @description id of the last row from the previous page. */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformOpsController_resendNotification: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notificationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformOpsController_listAudit: {
+        parameters: {
+            query?: {
+                houseboatId?: string;
+                action?: string;
+                before?: string;
+                limit?: number;
+                /** @description id of the last row from the previous page. */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformOpsController_listRoles: {
+        parameters: {
+            query?: {
+                houseboatId?: string;
+                limit?: number;
+                /** @description id of the last row from the previous page. */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformOpsController_listDueDepartures: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformOpsController_listRoutes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+        };
+    };
+    PlatformOpsController_setRouteActive: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                routeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetRouteActiveDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformRbacController_listRoles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformRbacController_createRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePlatformRoleDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformRbacController_deleteRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformRbacController_updateRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePlatformRoleDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformRbacController_assignRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                accountId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssignPlatformRoleDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformRbacController_setStaff: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                accountId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetPlatformStaffDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OwnerController_getDashboard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OwnerController_getCalendar: {
+        parameters: {
+            query?: {
+                month?: string;
+            };
+            header?: never;
+            path: {
+                houseboatId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OwnerController_tripReport: {
+        parameters: {
+            query?: {
+                month?: string;
+            };
+            header?: never;
+            path: {
+                houseboatId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OwnerController_monthlyReport: {
+        parameters: {
+            query?: {
+                /** @description How many months back to summarise, ending with the current one. */
+                months?: number;
+            };
+            header?: never;
+            path: {
+                houseboatId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OwnerController_earnings: {
+        parameters: {
+            query?: {
+                month?: string;
+            };
+            header?: never;
+            path: {
+                houseboatId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OwnerController_listGuests: {
+        parameters: {
+            query?: {
+                q?: string;
+                /**
+                 * @description Offset paging, not a cursor: the guest list is a groupBy aggregate and
+                 *     Prisma cursors don't apply to grouped rows. Guest counts per boat are
+                 *     small (hundreds), so the offset scan cost is not a concern here.
+                 */
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                houseboatId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OwnerController_listAudit: {
+        parameters: {
+            query?: {
+                action?: string;
+                /**
+                 * @description Keyset cursor: "<serverTime ISO>|<id>". audit_log is partitioned by month
+                 *     with a composite PK, so the generic id-only cursor in common/paginate
+                 *     cannot address a row uniquely.
+                 */
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                houseboatId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OwnerController_auditActions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string[];
+                };
+            };
+        };
+    };
+    MaintenanceController_summary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MaintenanceController_createTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateMaintenanceTaskDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MaintenanceController_updateTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+                taskId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateMaintenanceTaskDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MaintenanceController_completeTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+                taskId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompleteTaskDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MaintenanceController_addServiceLog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateServiceLogDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MaintenanceController_listDamage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MaintenanceController_reportDamage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateDamageDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MaintenanceController_updateDamage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+                damageId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateDamageDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MaintenanceController_setEngineHours: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetEngineHoursDto"];
             };
         };
         responses: {

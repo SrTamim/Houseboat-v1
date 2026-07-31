@@ -1,137 +1,275 @@
+'use client';
+
+import useSWR from 'swr';
+import { fetcher } from '@/lib/api';
 import { Drawer } from './Drawer';
 import { Pill } from './Pill';
+import { ErrorState } from './ui';
 
-// Full boat record drawer (everything except booking data). Ported from content-operations.js.
-export function BoatDetailDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
+interface BoatDetail {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  safetyFeatures: string | null;
+  foodMenu: string | null;
+  bankAccount: Record<string, unknown> | null;
+  profileCompletePct: number;
+  status: string;
+  operatingDates: string[];
+  createdAt: string;
+  decks: {
+    id: string;
+    name: string;
+    position: number;
+    cabins: {
+      id: string;
+      name: string;
+      cabinCategoryId: string;
+      gridRow: number | null;
+      gridCol: number | null;
+    }[];
+  }[];
+  cabinCategories: {
+    id: string;
+    name: string;
+    isAc: boolean;
+    baseCapacity: number;
+    extendedCapacity: number | null;
+    facilities: string | null;
+  }[];
+  routes: {
+    id: string;
+    route: { id: string; name: string; region: string | null; active: boolean };
+  }[];
+}
+
+const STATUS_TONE: Record<string, 'ok' | 'warn' | 'danger' | 'mut'> = {
+  live: 'ok',
+  pending: 'warn',
+  suspended: 'danger',
+  draft: 'mut',
+};
+
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+/** Render whatever fields the bank JSON has, masking anything number-like. */
+function bankLines(bank: Record<string, unknown>): [string, string][] {
+  return Object.entries(bank).map(([key, value]) => {
+    const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase());
+    const raw = String(value ?? '');
+    const masked = /(number|account|iban)/i.test(key) && raw.length > 4
+      ? `••${raw.slice(-4)}`
+      : raw;
+    return [label, masked];
+  });
+}
+
+export function BoatDetailDrawer({
+  boatId,
+  onClose,
+  onApprove,
+  approving,
+}: {
+  /** null = closed. */
+  boatId: string | null;
+  onClose: () => void;
+  /** Present only when the caller allows approving from the drawer. */
+  onApprove?: (boatId: string) => void;
+  approving?: boolean;
+}) {
+  const { data: boat, error, isLoading } = useSWR<BoatDetail>(
+    boatId ? `/houseboats/${boatId}/manage` : null,
+    fetcher,
+    { revalidateOnFocus: false },
+  );
+
+  const checklistMet =
+    boat != null && boat.profileCompletePct === 100 && boat.bankAccount != null;
+
   const footer = (
     <>
       <button className="btn btn-o" onClick={onClose}>Close</button>
-      <button className="btn btn-danger">Reject</button>
-      <button className="btn btn-ok">Approve → live</button>
+      {boat && boat.status === 'pending' && onApprove ? (
+        <button
+          className="btn btn-ok"
+          disabled={!checklistMet || approving}
+          title={checklistMet ? undefined : 'Profile must be 100% with a bank account on file'}
+          onClick={() => onApprove(boat.id)}
+        >
+          {approving ? 'Approving…' : 'Approve → live'}
+        </button>
+      ) : null}
     </>
   );
+
+  const categoryById = new Map(
+    (boat?.cabinCategories ?? []).map((c) => [c.id, c]),
+  );
+
   return (
-    <Drawer open={open} onClose={onClose} wide title="Meghduar · boat record" footer={footer}>
-      <div className="dsec">
-        <h4>Status</h4>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-          <Pill tone="warn">pending approval</Pill><Pill tone="ok">profile 100%</Pill><Pill tone="ok">bank on file</Pill>
-        </div>
-        <div className="note ok"><span className="ic">✓</span><span>Go-live checklist met — profile complete and a bank account is on file.</span></div>
-      </div>
+    <Drawer
+      open={boatId !== null}
+      onClose={onClose}
+      wide
+      title={boat ? `${boat.name} · boat record` : 'Boat record'}
+      footer={footer}
+    >
+      {error ? (
+        <ErrorState error={error} />
+      ) : isLoading || !boat ? (
+        <p className="t2" style={{ padding: 16 }}>Loading boat record…</p>
+      ) : (
+        <>
+          <div className="dsec">
+            <h4>Status</h4>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+              <Pill tone={STATUS_TONE[boat.status] ?? 'mut'}>{boat.status}</Pill>
+              <Pill tone={boat.profileCompletePct === 100 ? 'ok' : 'warn'}>
+                profile {boat.profileCompletePct}%
+              </Pill>
+              <Pill tone={boat.bankAccount ? 'ok' : 'danger'}>
+                {boat.bankAccount ? 'bank on file' : 'no bank account'}
+              </Pill>
+            </div>
+            {checklistMet ? (
+              <div className="note ok">
+                <span className="ic">✓</span>
+                <span>Go-live checklist met — profile complete and a bank account is on file.</span>
+              </div>
+            ) : (
+              <div className="note warn">
+                <span className="ic">⚠</span>
+                <span>
+                  Go-live checklist not met —
+                  {boat.profileCompletePct < 100 ? ` profile ${boat.profileCompletePct}%` : ''}
+                  {boat.bankAccount ? '' : ' · bank account missing'}
+                </span>
+              </div>
+            )}
+          </div>
 
-      <div className="dsec">
-        <h4>Profile</h4>
-        <dl className="kv">
-          <dt>Name</dt><dd>Meghduar</dd>
-          <dt>Public URL</dt><dd>/houseboat/meghduar</dd>
-          <dt>Status</dt><dd>pending</dd>
-          <dt>Profile complete</dt><dd>100%</dd>
-          <dt>Created</dt><dd>02 Jun 2026</dd>
-        </dl>
-        <p className="prose" style={{ marginTop: 10 }}><b>Description:</b> A two-deck houseboat built for Tanguar Haor sunrises, with an open upper deck and eight cabins.</p>
-        <p className="prose" style={{ marginTop: 8 }}><b>Safety:</b> 24 life jackets, 2 life buoys, fire extinguisher, first-aid kit, licensed sukani.</p>
-        <p className="prose" style={{ marginTop: 8 }}><b>Food menu:</b> Welcome tea · BBQ dinner · hilsa lunch · breakfast khichuri. Vegetarian on request.</p>
-      </div>
+          <div className="dsec">
+            <h4>Profile</h4>
+            <dl className="kv">
+              <dt>Name</dt><dd>{boat.name}</dd>
+              <dt>Public URL</dt><dd>/houseboat/{boat.slug}</dd>
+              <dt>Status</dt><dd>{boat.status}</dd>
+              <dt>Profile complete</dt><dd>{boat.profileCompletePct}%</dd>
+              <dt>Created</dt><dd>{formatDate(boat.createdAt)}</dd>
+            </dl>
+            {boat.description ? (
+              <p className="prose" style={{ marginTop: 10 }}><b>Description:</b> {boat.description}</p>
+            ) : null}
+            {boat.safetyFeatures ? (
+              <p className="prose" style={{ marginTop: 8 }}><b>Safety:</b> {boat.safetyFeatures}</p>
+            ) : null}
+            {boat.foodMenu ? (
+              <p className="prose" style={{ marginTop: 8 }}><b>Food menu:</b> {boat.foodMenu}</p>
+            ) : null}
+          </div>
 
-      <div className="dsec">
-        <h4>Bank &amp; billing</h4>
-        <dl className="kv">
-          <dt>Bank account</dt><dd>City Bank ••4821</dd>
-          <dt>Account name</dt><dd>Meghduar Houseboat</dd>
-          <dt>Commission</dt><dd>5.0%</dd>
-          <dt>Monthly fee</dt><dd>৳ 5,000</dd>
-          <dt>Trial</dt><dd>01–30 Jun 2026</dd>
-          <dt>Platform balance</dt><dd>৳ 0</dd>
-        </dl>
-      </div>
+          <div className="dsec">
+            <h4>Bank</h4>
+            {boat.bankAccount ? (
+              <dl className="kv">
+                {bankLines(boat.bankAccount).map(([label, value]) => (
+                  <FragmentRow key={label} label={label} value={value} />
+                ))}
+              </dl>
+            ) : (
+              <div className="note danger">
+                <span className="ic">⚠</span>
+                <span>No bank account on file — payouts cannot run and the boat cannot go live.</span>
+              </div>
+            )}
+          </div>
 
-      <div className="dsec">
-        <h4>Routes</h4>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <span className="tag">Tanguar Haor · Sunamganj</span><span className="tag">Tahirpur · Sunamganj</span>
-        </div>
-      </div>
+          <div className="dsec">
+            <h4>Routes</h4>
+            {boat.routes.length ? (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {boat.routes.map((r) => (
+                  <span key={r.id} className="tag">
+                    {r.route.name}
+                    {r.route.region ? ` · ${r.route.region}` : ''}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="t2">No routes linked yet.</p>
+            )}
+          </div>
 
-      <div className="dsec">
-        <h4>Decks &amp; cabins</h4>
-        <table className="mini">
-          <thead><tr><th>Cabin</th><th>Deck</th><th>Category</th><th>AC</th><th>Capacity</th></tr></thead>
-          <tbody>
-            <tr><td className="t1">101</td><td>Lower</td><td>Luxury AC</td><td>Yes</td><td>2 (ext 3)</td></tr>
-            <tr><td className="t1">102</td><td>Lower</td><td>Luxury AC</td><td>Yes</td><td>2 (ext 3)</td></tr>
-            <tr><td className="t1">103</td><td>Lower</td><td>Family</td><td>Yes</td><td>4 (ext 5)</td></tr>
-            <tr><td className="t1">201</td><td>Upper</td><td>Family</td><td>No</td><td>4 (ext 5)</td></tr>
-          </tbody>
-        </table>
-        <p className="prose" style={{ marginTop: 8 }}><b>Categories:</b> Luxury AC — attached bath, balcony · Family — attached bath, twin bunk. 2 decks · 8 cabins total.</p>
-      </div>
+          <div className="dsec">
+            <h4>Decks &amp; cabins</h4>
+            {boat.decks.some((d) => d.cabins.length) ? (
+              <table className="mini">
+                <thead>
+                  <tr><th>Cabin</th><th>Deck</th><th>Category</th><th>AC</th><th>Capacity</th></tr>
+                </thead>
+                <tbody>
+                  {boat.decks.flatMap((deck) =>
+                    deck.cabins.map((cabin) => {
+                      const cat = categoryById.get(cabin.cabinCategoryId);
+                      return (
+                        <tr key={cabin.id}>
+                          <td className="t1">{cabin.name}</td>
+                          <td>{deck.name}</td>
+                          <td>{cat?.name ?? '—'}</td>
+                          <td>{cat ? (cat.isAc ? 'Yes' : 'No') : '—'}</td>
+                          <td>
+                            {cat
+                              ? `${cat.baseCapacity}${cat.extendedCapacity ? ` (ext ${cat.extendedCapacity})` : ''}`
+                              : '—'}
+                          </td>
+                        </tr>
+                      );
+                    }),
+                  )}
+                </tbody>
+              </table>
+            ) : (
+              <p className="t2">No cabins added yet.</p>
+            )}
+            {boat.cabinCategories.length ? (
+              <p className="prose" style={{ marginTop: 8 }}>
+                <b>Categories:</b>{' '}
+                {boat.cabinCategories
+                  .map((c) => `${c.name}${c.facilities ? ` — ${c.facilities}` : ''}`)
+                  .join(' · ')}
+              </p>
+            ) : null}
+          </div>
 
-      <div className="dsec">
-        <h4>Trip packages</h4>
-        <table className="mini">
-          <thead><tr><th>Package</th><th>Duration</th><th>Departure → return</th><th>Policy</th></tr></thead>
-          <tbody>
-            <tr><td className="t1">Tanguar 2D1N</td><td>2 days 1 night</td><td>Tahirpur → Tahirpur</td><td>Moderate</td></tr>
-            <tr><td className="t1">Tanguar day trip</td><td>1 day</td><td>Tahirpur → Tahirpur</td><td>Moderate</td></tr>
-          </tbody>
-        </table>
-        <p className="prose" style={{ marginTop: 8 }}><b>Included:</b> all meals, guide, life jackets. <b>Excluded:</b> personal expenses, entry fees.</p>
-      </div>
-
-      <div className="dsec">
-        <h4>Pricing</h4>
-        <table className="mini">
-          <thead><tr><th>Profile</th><th>Category</th><th>Occupancy</th><th className="num">Per person</th></tr></thead>
-          <tbody>
-            <tr><td className="t1">General Day</td><td>Luxury AC</td><td>2</td><td className="num">৳ 5,000</td></tr>
-            <tr><td className="t1">General Day</td><td>Family</td><td>4</td><td className="num">৳ 4,200</td></tr>
-            <tr><td className="t1">Eid</td><td>Luxury AC</td><td>2</td><td className="num">৳ 7,600</td></tr>
-            <tr><td className="t1">Full Moon</td><td>Luxury AC</td><td>2</td><td className="num">৳ 6,400</td></tr>
-          </tbody>
-        </table>
-        <p className="prose" style={{ marginTop: 8 }}><b>Group bands:</b> 15–20 people ৳150,000 · 21–28 people ৳195,000 (full-boat buyout).</p>
-      </div>
-
-      <div className="dsec">
-        <h4>Cancellation policy</h4>
-        <dl className="kv">
-          <dt>Template</dt><dd>Moderate</dd>
-          <dt>Deposit</dt><dd>30%</dd>
-          <dt>Shown at checkout</dt><dd>Yes</dd>
-          <dt>Tiers</dt><dd>&gt;7 days 50% · &lt;7 days 0%</dd>
-          <dt>Blackout</dt><dd>Eid 0% · Full moon 0%</dd>
-        </dl>
-        <div className="note info" style={{ marginTop: 10 }}><span className="ic">ℹ</span><span>Blackout dates are set per boat by the owner. The platform reviews them here but does not edit.</span></div>
-      </div>
-
-      <div className="dsec">
-        <h4>Operating dates</h4>
-        <p className="prose">Jul 2026 — 18, 19, 20, 21, 24, 25, 26, 28, 31 · Aug 2026 — 01, 02, 05, 08, 09. Only these dates generate bookable departures.</p>
-      </div>
-
-      <div className="dsec">
-        <h4>Crew</h4>
-        <table className="mini">
-          <thead><tr><th>Name</th><th>Role</th><th>Pay</th><th>Default crew</th></tr></thead>
-          <tbody>
-            <tr><td className="t1">Abdul Karim</td><td>Sukani</td><td>৳ 1,200 / trip</td><td>Yes</td></tr>
-            <tr><td className="t1">Rustom Ali</td><td>Cook</td><td>৳ 900 / trip</td><td>Yes</td></tr>
-            <tr><td className="t1">Jamal Hossain</td><td>Helper</td><td>৳ 12,000 / month</td><td>Yes</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div className="dsec">
-        <h4>Members &amp; shareholders</h4>
-        <table className="mini">
-          <thead><tr><th>Member</th><th>Role</th><th className="num">Share</th><th>Status</th></tr></thead>
-          <tbody>
-            <tr><td className="t1">Shahin Alam</td><td>Owner</td><td className="num">60%</td><td>active</td></tr>
-            <tr><td className="t1">Nazmul Haque</td><td>Shareholder</td><td className="num">40%</td><td>active</td></tr>
-          </tbody>
-        </table>
-      </div>
+          <div className="dsec">
+            <h4>Operating dates</h4>
+            {boat.operatingDates.length ? (
+              <p className="prose">
+                {boat.operatingDates.map((d) => formatDate(d)).join(' · ')}. Only these
+                dates generate bookable departures.
+              </p>
+            ) : (
+              <p className="t2">No operating dates set — no departures can be generated.</p>
+            )}
+          </div>
+        </>
+      )}
     </Drawer>
+  );
+}
+
+function FragmentRow({ label, value }: { label: string; value: string }) {
+  return (
+    <>
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </>
   );
 }

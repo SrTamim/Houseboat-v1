@@ -6,8 +6,6 @@ export type NavItem = {
   icon: string;
   label: string;
   href: string;
-  count?: string;
-  countWarn?: boolean;
 };
 
 export type NavGroup = {
@@ -26,7 +24,7 @@ export const NAV: NavGroup[] = [
   {
     group: 'Operations',
     items: [
-      { key: 'boats', icon: '🚤', label: 'Boats', href: '/admin/boats', count: '3', countWarn: true },
+      { key: 'boats', icon: '🚤', label: 'Boats', href: '/admin/boats' },
       { key: 'routes', icon: '🗺️', label: 'Routes', href: '/admin/routes' },
       { key: 'bookings', icon: '🎟️', label: 'Bookings', href: '/admin/bookings' },
       { key: 'reviews', icon: '★', label: 'Reviews', href: '/admin/reviews' },
@@ -38,23 +36,23 @@ export const NAV: NavGroup[] = [
   {
     group: 'Finance',
     items: [
-      { key: 'verify', icon: '✓', label: 'Verify', href: '/admin/finance/verify', count: '5', countWarn: true },
-      { key: 'refunds', icon: '↩', label: 'Refunds', href: '/admin/finance/refunds', count: '2' },
+      { key: 'verify', icon: '✓', label: 'Verify', href: '/admin/finance/verify' },
+      { key: 'refunds', icon: '↩', label: 'Refunds', href: '/admin/finance/refunds' },
       { key: 'payouts', icon: '💸', label: 'Payouts', href: '/admin/finance/payouts' },
       { key: 'overpayments', icon: '⚖', label: 'Overpayments', href: '/admin/finance/overpayments' },
       { key: 'credits', icon: '🎫', label: 'Credits', href: '/admin/finance/credits' },
       { key: 'commission', icon: '%', label: 'Commission', href: '/admin/finance/commission' },
       { key: 'billing', icon: '🧾', label: 'Subscriptions', href: '/admin/billing' },
       { key: 'billing-config', icon: '⚙', label: 'Billing config', href: '/admin/billing-config' },
-      { key: 'debtors', icon: '🔻', label: 'Debtors', href: '/admin/debtors', count: '1', countWarn: true },
+      { key: 'debtors', icon: '🔻', label: 'Debtors', href: '/admin/debtors' },
     ],
   },
   {
     group: 'System',
     items: [
-      { key: 'jobs', icon: '🩺', label: 'Jobs & health', href: '/admin/jobs', count: '1', countWarn: true },
+      { key: 'jobs', icon: '🩺', label: 'Jobs & health', href: '/admin/jobs' },
       { key: 'audit', icon: '📜', label: 'Audit log', href: '/admin/audit' },
-      { key: 'sync', icon: '🔄', label: 'Sync conflicts', href: '/admin/sync', count: '1', countWarn: true },
+      { key: 'sync', icon: '🔄', label: 'Sync conflicts', href: '/admin/sync' },
       { key: 'notifications', icon: '🔔', label: 'Notifications', href: '/admin/notifications' },
       { key: 'gateway', icon: '💳', label: 'Gateway', href: '/admin/gateway' },
       { key: 'settings', icon: '🛠', label: 'Settings', href: '/admin/settings' },

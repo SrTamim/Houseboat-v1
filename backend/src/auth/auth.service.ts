@@ -7,7 +7,11 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
-import { AuditService } from '../audit/audit.service';
+import {
+  AuditService,
+  auditContext,
+  type AuditRequestLike,
+} from '../audit/audit.service';
 import { RedisService } from '../redis/redis.service';
 import { newId } from '../common/uuid';
 import { randomUUID } from 'crypto';
@@ -81,14 +85,35 @@ export class AuthService {
     return { account, tokens };
   }
 
-  async login(dto: LoginDto) {
+  async login(dto: LoginDto, ctx?: AuditRequestLike) {
+    const where = auditContext(ctx);
     const phone = normalizePhone(dto.phone);
     const account = await this.prisma.account.findUnique({ where: { phone } });
+
+    /**
+     * Record failures too — without them there is no server-side evidence of
+     * a brute-force or credential-stuffing attempt, only a silent 401.
+     * actorAccountId stays null for an unknown phone (there is no account to
+     * point at, and the FK would reject a fabricated id); the attempted phone
+     * goes in `after` so the attempt is still attributable.
+     */
+    const logFailure = (reason: string) =>
+      this.audit.tryLog({
+        actorAccountId: account?.id ?? null,
+        action: 'account_login_failed',
+        entityType: 'account',
+        entityId: account?.id,
+        after: { phone, reason },
+        ...where,
+      });
+
     if (!account || !account.passwordHash) {
+      await logFailure('unknown_account');
       throw new UnauthorizedException('Invalid phone or password');
     }
     const ok = await bcrypt.compare(dto.password, account.passwordHash);
     if (!ok) {
+      await logFailure('bad_password');
       throw new UnauthorizedException('Invalid phone or password');
     }
 
@@ -97,6 +122,7 @@ export class AuthService {
       action: 'account_login',
       entityType: 'account',
       entityId: account.id,
+      ...where,
     });
 
     const tokens = await this.signTokens(account.id, account.isPlatform);
