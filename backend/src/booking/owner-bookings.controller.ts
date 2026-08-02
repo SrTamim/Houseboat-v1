@@ -1,10 +1,14 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { OwnerBookingsService } from './owner-bookings.service';
 import { RequirePermission } from '../rbac/require-permission.decorator';
 import { CurrentUser } from '../auth/decorators';
 import { AuthUser } from '../auth/auth.types';
-import { OwnerBookingsQueryDto, PosCheckoutDto } from './dto/owner-bookings.dto';
+import {
+  CheckinDto,
+  OwnerBookingsQueryDto,
+  PosCheckoutDto,
+} from './dto/owner-bookings.dto';
 
 /**
  * Owner-side bookings: every booking on a boat you operate, the waitlist for
@@ -31,6 +35,18 @@ export class OwnerBookingsController {
   @RequirePermission({ module: 'bookings', action: 'view' })
   counts(@Param('houseboatId') houseboatId: string) {
     return this.bookings.statusCounts(houseboatId);
+  }
+
+  /** Mark departure attendance for one booking from the manifest (§4). */
+  @Patch('bookings/:bookingId/checkin')
+  @RequirePermission({ module: 'bookings', action: 'edit' })
+  setCheckin(
+    @Param('houseboatId') houseboatId: string,
+    @Param('bookingId') bookingId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() dto: CheckinDto,
+  ) {
+    return this.bookings.setCheckin(houseboatId, bookingId, user.id, dto.status);
   }
 
   @Get('waitlist')

@@ -4,12 +4,13 @@ import {
   IsBoolean,
   IsIn,
   IsInt,
-  IsObject,
   IsOptional,
   IsString,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import {
   LEN_CODE,
   LEN_LONG_TEXT,
@@ -17,21 +18,53 @@ import {
   LEN_TEXT,
 } from '../../common/field-limits';
 
+/** Separate meal inputs (§9). Any field may be blank. */
+export class FoodMenuDto {
+  @IsOptional() @IsString() @MaxLength(LEN_LONG_TEXT) breakfast?: string;
+  @IsOptional() @IsString() @MaxLength(LEN_LONG_TEXT) brunch?: string;
+  @IsOptional() @IsString() @MaxLength(LEN_LONG_TEXT) lunch?: string;
+  @IsOptional() @IsString() @MaxLength(LEN_LONG_TEXT) snacks?: string;
+  @IsOptional() @IsString() @MaxLength(LEN_LONG_TEXT) dinner?: string;
+}
+
+/** Structured payout destination (§9). */
+export class BankAccountDto {
+  @IsOptional() @IsString() @MaxLength(LEN_NAME) bankName?: string;
+  @IsOptional() @IsString() @MaxLength(LEN_CODE) accountNo?: string;
+  @IsOptional() @IsString() @MaxLength(LEN_NAME) accountHolder?: string;
+  @IsOptional() @IsString() @MaxLength(LEN_NAME) district?: string;
+  @IsOptional() @IsString() @MaxLength(LEN_NAME) branch?: string;
+  @IsOptional() @IsString() @MaxLength(LEN_CODE) routingNumber?: string;
+}
+
+/** One child-policy age band. Shape MUST match common/child-policy.ts ChildBand. */
+export class ChildBandDto {
+  @IsInt() @Min(0) min!: number;
+  @IsInt() @Min(0) max!: number;
+  @IsInt() @Min(0) chargePct!: number;
+}
+
 export class CreateHouseboatDto {
   @IsString() @MaxLength(LEN_NAME) name!: string;
   @IsOptional() @IsString() @MaxLength(LEN_LONG_TEXT) description?: string;
   @IsOptional() @IsString() @MaxLength(LEN_LONG_TEXT) safetyFeatures?: string;
-  @IsOptional() @IsString() @MaxLength(LEN_LONG_TEXT) foodMenu?: string;
+  @IsOptional() @ValidateNested() @Type(() => FoodMenuDto) foodMenu?: FoodMenuDto;
 }
 
 export class UpdateHouseboatDto {
   @IsOptional() @IsString() @MaxLength(LEN_NAME) name?: string;
   @IsOptional() @IsString() @MaxLength(LEN_LONG_TEXT) description?: string;
   @IsOptional() @IsString() @MaxLength(LEN_LONG_TEXT) safetyFeatures?: string;
-  @IsOptional() @IsString() @MaxLength(LEN_LONG_TEXT) foodMenu?: string;
-  /** Payout destination; shape is bank-dependent. */
-  @IsOptional() @IsObject() bankAccount?: Record<string, unknown>;
-  @IsOptional() @IsObject() childPolicy?: Record<string, unknown>;
+  @IsOptional() @ValidateNested() @Type(() => FoodMenuDto) foodMenu?: FoodMenuDto;
+  /** Payout destination — structured bank fields (§9). */
+  @IsOptional() @ValidateNested() @Type(() => BankAccountDto) bankAccount?: BankAccountDto;
+  /** Age bands; empty/omitted → children pay full. Order matters (first match wins). */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @ValidateNested({ each: true })
+  @Type(() => ChildBandDto)
+  childPolicy?: ChildBandDto[];
   /** ISO date strings — only these dates generate bookable departures. */
   @IsOptional()
   @IsArray()

@@ -1,4 +1,5 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Controller, Get, Param, Query, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { OwnerDashboardService } from './owner-dashboard.service';
 import { OwnerReportsService } from './owner-reports.service';
 import { OwnerGuestsService } from './owner-guests.service';
@@ -79,6 +80,20 @@ export class OwnerController {
     @Query() query: GuestsQueryDto,
   ) {
     return this.guests.list(houseboatId, query);
+  }
+
+  /** Download the guest directory as CSV (§8). */
+  @Get('guests/export')
+  @RequirePermission({ module: 'bookings', action: 'view' })
+  async exportGuests(
+    @Param('houseboatId') houseboatId: string,
+    @Query() query: GuestsQueryDto,
+    @Res() res: Response,
+  ) {
+    const csv = await this.guests.exportCsv(houseboatId, query.q);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="guests.csv"');
+    res.send(csv);
   }
 
   /** Audit trail. Gated on settings:view — it exposes role and money actions. */

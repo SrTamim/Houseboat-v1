@@ -10,11 +10,11 @@ import {
   Card,
   Field,
   Note,
-  Seg,
   FilterBar,
   AsyncBlock,
 } from '@/components/owner/ui';
-import { CabGrid, type CabTile } from '@/components/owner/CabGrid';
+import { BoatCabinMap, type MapDeck } from '@/components/owner/BoatCabinMap';
+import type { CabState } from '@/components/owner/CabGrid';
 import { apiErrorMessage, formatDate, toE164, weekday } from '@/lib/owner/format';
 
 interface Departure {
@@ -26,8 +26,17 @@ interface Departure {
 }
 
 interface BoatDetail {
-  decks: { id: string; name: string; cabins: { id: string; name: string; cabinCategoryId: string }[] }[];
-  cabinCategories: { id: string; name: string; baseCapacity: number; extendedCapacity: number | null }[];
+  decks: {
+    id: string;
+    name: string;
+    cabins: { id: string; name: string; cabinCategoryId: string }[];
+  }[];
+  cabinCategories: {
+    id: string;
+    name: string;
+    baseCapacity: number;
+    extendedCapacity: number | null;
+  }[];
 }
 
 interface Booking {
@@ -42,6 +51,18 @@ interface Selection {
   children: number;
 }
 
+const PAYMENT_METHODS = [
+  { value: 'cash', label: 'Cash' },
+  { value: 'bkash', label: 'bKash' },
+  { value: 'bank', label: 'Bank' },
+  { value: 'online', label: 'Online' },
+] as const;
+
+/** "YYYY-MM" of a date string. */
+function monthOf(iso: string): string {
+  return iso.slice(0, 7);
+}
+
 /**
  * Counter sale.
  *
@@ -52,12 +73,15 @@ interface Selection {
  */
 export default function OwnerPosPage() {
   const { boatId } = useActiveBoat();
+  const [month, setMonth] = useState('');
   const [departureId, setDepartureId] = useState('');
   const [picked, setPicked] = useState<Selection[]>([]);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [couponCode, setCouponCode] = useState('');
   const [referenceName, setReferenceName] = useState('');
+  const [note, setNote] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<string>('cash');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
@@ -69,11 +93,15 @@ export default function OwnerPosPage() {
     revalidateOnFocus: false,
   });
 
-  const bookable = useMemo(
-    () => (departures.data ?? []).filter((d) => d.status === 'scheduled'),
-    [departures.data],
-  );
-  const activeId = departureId || bookable[0]?.id || '';
+  // Bookable departures from the schedule, optionally narrowed to a month.
+  const bookable = useMemo(() => {
+    const all = (departures.data ?? []).filter((d) => d.status === 'scheduled');
+    return month ? all.filter((d) => monthOf(d.startDate) === month) : all;
+  }, [departures.data, month]);
+
+  const activeId = departureId && bookable.some((d) => d.id === departureId)
+    ? departureId
+    : bookable[0]?.id || '';
   const active = bookable.find((d) => d.id === activeId);
 
   const taken = useOwnerList<Booking>(
@@ -81,28 +109,39 @@ export default function OwnerPosPage() {
     { departureId: activeId, status: 'confirmed' },
   );
 
-  const tiles: CabTile[] = useMemo(() => {
-    const cabins = (boat.data?.decks ?? []).flatMap((d) => d.cabins);
+  // Cabins grouped by deck for the boat-shaped map.
+  const decks: MapDeck[] = useMemo(() => {
     const categories = new Map((boat.data?.cabinCategories ?? []).map((c) => [c.id, c]));
     const sold = new Set(taken.items.flatMap((b) => b.cabins.map((c) => c.cabin.id)));
     const chosen = new Set(picked.map((p) => p.cabinId));
 
-    return cabins.map((c) => {
-      const category = categories.get(c.cabinCategoryId);
-      return {
-        id: c.id,
-        name: c.name,
-        caption: category ? `${category.name} · ${category.baseCapacity}p` : null,
-        state: sold.has(c.id) ? 'booked' : chosen.has(c.id) ? 'selected' : 'free',
-      };
-    });
+    return (boat.data?.decks ?? []).map((d) => ({
+      id: d.id,
+      name: d.name,
+      cabins: d.cabins.map((c) => {
+        const category = categories.get(c.cabinCategoryId);
+        const state: CabState = sold.has(c.id)
+          ? 'booked'
+          : chosen.has(c.id)
+            ? 'selected'
+            : 'free';
+        return {
+          id: c.id,
+          name: c.name,
+          caption: category ? `${category.name} · ${category.baseCapacity}p` : null,
+          state,
+        };
+      }),
+    }));
   }, [boat.data, taken.items, picked]);
 
-  function toggle(tile: CabTile) {
+  const hasCabins = decks.some((d) => d.cabins.length > 0);
+
+  function toggle(cabin: { id: string; name: string }) {
     setPicked((prev) => {
-      const existing = prev.find((p) => p.cabinId === tile.id);
-      if (existing) return prev.filter((p) => p.cabinId !== tile.id);
-      return [...prev, { cabinId: tile.id, name: tile.name, adults: 2, children: 0 }];
+      const existing = prev.find((p) => p.cabinId === cabin.id);
+      if (existing) return prev.filter((p) => p.cabinId !== cabin.id);
+      return [...prev, { cabinId: cabin.id, name: cabin.name, adults: 2, children: 0 }];
     });
   }
 
@@ -130,6 +169,8 @@ export default function OwnerPosPage() {
         })),
         couponCode: couponCode || undefined,
         referenceName: referenceName || undefined,
+        specialInstructions: note || undefined,
+        paymentMethod,
       });
       setDone(res.data.id);
       setPicked([]);
@@ -137,12 +178,14 @@ export default function OwnerPosPage() {
       setCustomerPhone('');
       setCouponCode('');
       setReferenceName('');
+      setNote('');
+      setPaymentMethod('cash');
       await Promise.all([taken.mutate(), departures.mutate()]);
     } catch (err) {
       setError(
         apiErrorMessage(
           err,
-          'Could not complete the sale. A cabin may have just been taken — re-check the grid.',
+          'Could not complete the sale. A cabin may have just been taken — re-check the layout.',
         ),
       );
     } finally {
@@ -159,7 +202,7 @@ export default function OwnerPosPage() {
 
       {done ? (
         <Note kind="ok" style={{ marginBottom: 18 }}>
-          Sale complete. Record the cash on the Payments page so it can be verified.
+          Sale complete. Record the payment on the Payments page so it can be verified.
         </Note>
       ) : null}
       {error ? (
@@ -169,156 +212,212 @@ export default function OwnerPosPage() {
       ) : null}
 
       <FilterBar>
-        <AsyncBlock
-          isLoading={departures.isLoading}
-          error={departures.error}
-          isEmpty={bookable.length === 0}
-          onRetry={() => departures.mutate()}
-          empty={<Note kind="warn">No bookable departures. Add one from the schedule.</Note>}
+        <input
+          type="month"
+          aria-label="Filter departures by month"
+          value={month}
+          onChange={(e) => {
+            setMonth(e.target.value);
+            setDepartureId('');
+            setPicked([]);
+          }}
+        />
+        <select
+          aria-label="Departure date"
+          value={activeId}
+          onChange={(e) => {
+            setDepartureId(e.target.value);
+            setPicked([]);
+          }}
+          disabled={bookable.length === 0}
         >
-          <Seg
-            options={bookable.slice(0, 5).map((d) => ({
-              value: d.id,
-              label: `${weekday(d.startDate)} ${formatDate(d.startDate).slice(0, 6)}`,
-            }))}
-            value={activeId}
-            onChange={(v) => {
-              setDepartureId(v);
-              setPicked([]);
+          {bookable.length === 0 ? <option value="">No departures</option> : null}
+          {bookable.map((d) => (
+            <option key={d.id} value={d.id}>
+              {weekday(d.startDate)} {formatDate(d.startDate)} · {d.availableCount} free
+            </option>
+          ))}
+        </select>
+        {month ? (
+          <button
+            type="button"
+            className="btn btn-sm btn-o"
+            onClick={() => {
+              setMonth('');
+              setDepartureId('');
             }}
-          />
-        </AsyncBlock>
+          >
+            All months
+          </button>
+        ) : null}
       </FilterBar>
 
-      <div className="grid-2">
-        <Card
-          title="Cabins"
-          sub={
-            active
-              ? `${active.package.durationLabel ?? 'Trip'} · ${formatDate(active.startDate)}`
-              : undefined
-          }
-        >
-          <AsyncBlock
-            isLoading={boat.isLoading}
-            error={boat.error}
-            isEmpty={tiles.length === 0}
-            onRetry={() => boat.mutate()}
-            empty={
-              <Note kind="warn">
-                This boat has no cabins yet. Add decks and cabins from Boat setup.
-              </Note>
+      <AsyncBlock
+        isLoading={departures.isLoading}
+        error={departures.error}
+        isEmpty={bookable.length === 0}
+        onRetry={() => departures.mutate()}
+        empty={
+          <Note kind="warn">
+            No bookable departures{month ? ' this month' : ''}. Set a weekly schedule to
+            generate them.
+          </Note>
+        }
+      >
+        <div className="grid-2">
+          <Card
+            title="Cabin layout"
+            sub={
+              active
+                ? `${active.package.durationLabel ?? 'Trip'} · ${formatDate(active.startDate)}`
+                : undefined
             }
           >
-            <CabGrid cabins={tiles} onSelect={toggle} />
-            <Note kind="info" style={{ marginTop: 14 }}>
-              Selecting a cabin does not reserve it. The hold is taken when you complete
-              the sale, and the server clock decides who wins if two people sell the same
-              cabin at once.
-            </Note>
-          </AsyncBlock>
-        </Card>
+            <AsyncBlock
+              isLoading={boat.isLoading}
+              error={boat.error}
+              isEmpty={!hasCabins}
+              onRetry={() => boat.mutate()}
+              empty={
+                <Note kind="warn">
+                  This boat has no cabins yet. Add decks and cabins from Boat setup.
+                </Note>
+              }
+            >
+              <BoatCabinMap decks={decks} onSelect={toggle} />
+              <Note kind="info" style={{ marginTop: 14 }}>
+                Selecting a cabin does not reserve it. The hold is taken when you complete
+                the sale, and the server clock decides who wins if two people sell the same
+                cabin at once.
+              </Note>
+            </AsyncBlock>
+          </Card>
 
-        <Card title={`Cart${picked.length ? ` · ${picked.length} cabin(s)` : ''}`}>
-          <form onSubmit={submit} style={{ display: 'grid', gap: 12 }}>
-            {picked.length === 0 ? (
-              <Note kind="info">Pick a free cabin from the grid to start a sale.</Note>
-            ) : (
-              picked.map((p) => (
-                <div
-                  key={p.cabinId}
-                  style={{
-                    border: '1px solid var(--hair)',
-                    borderRadius: 'var(--r)',
-                    padding: 12,
-                    display: 'grid',
-                    gap: 10,
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <b>Cabin {p.name}</b>
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-o"
-                      onClick={() => toggle({ id: p.cabinId, name: p.name, state: 'selected' })}
-                    >
-                      Remove
-                    </button>
+          <Card title={`Cart${picked.length ? ` · ${picked.length} cabin(s)` : ''}`}>
+            <form onSubmit={submit} style={{ display: 'grid', gap: 12 }}>
+              {picked.length === 0 ? (
+                <Note kind="info">Tap a free cabin on the layout to start a sale.</Note>
+              ) : (
+                picked.map((p) => (
+                  <div
+                    key={p.cabinId}
+                    style={{
+                      border: '1px solid var(--hair)',
+                      borderRadius: 'var(--r)',
+                      padding: 12,
+                      display: 'grid',
+                      gap: 10,
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <b>Cabin {p.name}</b>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-o"
+                        onClick={() => toggle({ id: p.cabinId, name: p.name })}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                      <Field label="Adults">
+                        <input
+                          type="number"
+                          min={1}
+                          value={p.adults}
+                          onChange={(e) => setCount(p.cabinId, 'adults', Number(e.target.value))}
+                        />
+                      </Field>
+                      <Field label="Children">
+                        <input
+                          type="number"
+                          min={0}
+                          value={p.children}
+                          onChange={(e) => setCount(p.cabinId, 'children', Number(e.target.value))}
+                        />
+                      </Field>
+                    </div>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                    <Field label="Adults">
-                      <input
-                        type="number"
-                        min={1}
-                        value={p.adults}
-                        onChange={(e) => setCount(p.cabinId, 'adults', Number(e.target.value))}
-                      />
-                    </Field>
-                    <Field label="Children">
-                      <input
-                        type="number"
-                        min={0}
-                        value={p.children}
-                        onChange={(e) => setCount(p.cabinId, 'children', Number(e.target.value))}
-                      />
-                    </Field>
-                  </div>
-                </div>
-              ))
-            )}
+                ))
+              )}
 
-            <Field label="Lead guest name">
-              <input
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                placeholder="Farhana Akter"
-                required
-              />
-            </Field>
-
-            <Field label="Phone">
-              <div className="with-pre">
-                <span className="pre">+880</span>
+              <Field label="Lead guest name">
                 <input
-                  type="tel"
-                  inputMode="numeric"
-                  value={customerPhone}
-                  onChange={(e) => setCustomerPhone(e.target.value)}
-                  placeholder="1711222290"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="Farhana Akter"
                   required
                 />
-              </div>
-            </Field>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <Field label="Coupon code">
-                <input value={couponCode} onChange={(e) => setCouponCode(e.target.value)} />
               </Field>
-              <Field label="Reference">
-                <input
-                  value={referenceName}
-                  onChange={(e) => setReferenceName(e.target.value)}
-                  placeholder="Who sent them"
+
+              <Field label="Phone">
+                <div className="with-pre">
+                  <span className="pre">+880</span>
+                  <input
+                    type="tel"
+                    inputMode="numeric"
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                    placeholder="1711222290"
+                    required
+                  />
+                </div>
+              </Field>
+
+              <Field label="Note (customer requirement)">
+                <textarea
+                  rows={2}
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="Early check-in, halal-only meals, ground-floor cabin…"
                 />
               </Field>
-            </div>
 
-            <button
-              className="btn btn-b"
-              type="submit"
-              disabled={busy || picked.length === 0}
-              style={{ justifyContent: 'center' }}
-            >
-              {busy ? 'Completing…' : 'Complete sale →'}
-            </button>
+              <Field label="Payment method (how the guest pays you)">
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {PAYMENT_METHODS.map((m) => (
+                    <button
+                      type="button"
+                      key={m.value}
+                      className={`btn btn-sm ${paymentMethod === m.value ? 'btn-b' : 'btn-o'}`}
+                      onClick={() => setPaymentMethod(m.value)}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+              </Field>
 
-            <Note kind="warn">
-              Cash taken here never touches the gateway, so it is not part of the weekly
-              payout. Record and verify it on the Payments page.
-            </Note>
-          </form>
-        </Card>
-      </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <Field label="Coupon code">
+                  <input value={couponCode} onChange={(e) => setCouponCode(e.target.value)} />
+                </Field>
+                <Field label="Reference">
+                  <input
+                    value={referenceName}
+                    onChange={(e) => setReferenceName(e.target.value)}
+                    placeholder="Who sent them"
+                  />
+                </Field>
+              </div>
+
+              <button
+                className="btn btn-b"
+                type="submit"
+                disabled={busy || picked.length === 0}
+                style={{ justifyContent: 'center' }}
+              >
+                {busy ? 'Completing…' : 'Complete sale →'}
+              </button>
+
+              <Note kind="warn">
+                Payment taken here is your own money, not part of the platform payout.
+                Record and verify it on the Payments page.
+              </Note>
+            </form>
+          </Card>
+        </div>
+      </AsyncBlock>
     </>
   );
 }

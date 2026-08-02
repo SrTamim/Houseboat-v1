@@ -1,4 +1,4 @@
-import { Money, money, ZERO, add, sub, percentOf, round2, nonNegative } from './money';
+import { Money, money, ZERO, sub, percentOf, round2, nonNegative } from './money';
 
 /**
  * The invoice bill order — plan/houseboat_logic.md §1 "Building the bill".
@@ -6,12 +6,16 @@ import { Money, money, ZERO, add, sub, percentOf, round2, nonNegative } from './
  * Order is FIXED and must not change:
  *
  *   1 room_total     = owner-set room price (sum of booking_cabin.room_price)
- *   2 gateway_fee    = platform % of room_total, added on top
- *   3 price_shown    = room_total + gateway_fee        (customer sees this)
+ *   2 gateway_fee    = REMOVED — always 0 (no gateway charge on the bill)
+ *   3 price_shown    = room_total                      (customer sees this)
  *   4 discount       = coupon applied LAST, to price_shown
  *   5 display_total  = price_shown - discount          (customer pays this)
  *   6 commission     = platform % of ROOM_TOTAL (original, NOT discounted)
  *   7 due_to_boat    = amount_received - commission
+ *
+ * The gateway fee line item was removed platform-wide. The gatewayFee /
+ * priceShown fields are kept (gatewayFee = 0, priceShown = roomTotal) so every
+ * Invoice write and downstream consumer keeps working without a migration.
  *
  * The boat absorbs the full cost of its own coupon — commission is unaffected
  * by discounts. See the worked example in the plan.
@@ -25,8 +29,11 @@ export interface CouponInput {
 export interface BillInput {
   /** Sum of owner-set room prices for the chosen headcount(s). */
   roomTotal: Money;
-  /** Platform gateway fee percent (whole number, e.g. 1.8). */
-  gatewayFeePct: Money;
+  /**
+   * DEPRECATED — the gateway fee was removed from the bill. Callers may still
+   * pass it (it is ignored); the fee is always 0.
+   */
+  gatewayFeePct?: Money;
   /** Platform commission percent (whole number, e.g. 5). null = not on commission. */
   commissionPct: Money | null;
   /** Optional coupon. Referral coupons are recorded but do not discount here. */
@@ -57,8 +64,8 @@ function couponDiscount(priceShown: Money, coupon?: CouponInput | null): Money {
 
 export function buildBill(input: BillInput): Bill {
   const roomTotal = round2(input.roomTotal);
-  const gatewayFee = percentOf(roomTotal, input.gatewayFeePct); // step 2
-  const priceShown = add(roomTotal, gatewayFee); // step 3
+  const gatewayFee = ZERO; // step 2 — gateway fee removed platform-wide
+  const priceShown = roomTotal; // step 3 — no fee added on top
   const discountAmount = couponDiscount(priceShown, input.coupon); // step 4
   const displayTotal = nonNegative(sub(priceShown, discountAmount)); // step 5
   const commission = input.commissionPct // step 6 — off ROOM_TOTAL

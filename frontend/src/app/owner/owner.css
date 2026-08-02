@@ -13,6 +13,8 @@
 
 /* ---------- tokens ---------- */
 :root {
+  /* native controls (date/month pickers, select popups) follow the theme */
+  color-scheme: light;
   /* brand — steady across themes */
   --blue: #1a73e8;
   --blue-600: #1560d6;
@@ -59,6 +61,8 @@
 }
 
 :root[data-theme='dark'] {
+  color-scheme: dark;
+  --picker-icon-filter: invert(0.85);
   --blue: #5aa0ff;
   --blue-600: #74b0ff;
   --blue-700: #4a86e6;
@@ -690,6 +694,34 @@ table.tbl { width: 100%; border-collapse: separate; border-spacing: 0; font-size
 
 /* ---------- filter bar ---------- */
 .filterbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+/* Bare date/month/select filters dropped straight into a filter bar inherit the
+   .select look so they match the theme (and native pickers follow color-scheme). */
+.filterbar > input,
+.filterbar > select {
+  height: 40px;
+  border: 1px solid var(--hair);
+  border-radius: var(--r);
+  background: var(--field);
+  padding: 0 12px;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ink);
+  cursor: pointer;
+}
+.filterbar > input::placeholder { color: var(--muted); }
+.filterbar > input:focus,
+.filterbar > select:focus {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: var(--ring);
+}
+/* Tint the native calendar/spin icons to the current theme's ink. */
+.filterbar > input[type='date']::-webkit-calendar-picker-indicator,
+.filterbar > input[type='month']::-webkit-calendar-picker-indicator {
+  filter: var(--picker-icon-filter, none);
+  cursor: pointer;
+}
 .seg { display: inline-flex; background: var(--field); border: 1px solid var(--hair); border-radius: var(--r); padding: 3px; }
 .seg-b {
   border: none;
@@ -1161,3 +1193,77 @@ table.tbl { width: 100%; border-collapse: separate; border-spacing: 0; font-size
 .boat-pick .bn { font-size: 14.5px; font-weight: 600; color: var(--ink); display: block; }
 .boat-pick .bm { font-size: 11.5px; color: var(--muted); font-weight: 500; display: block; }
 .boat-pick .role { margin-left: auto; }
+
+/* ---------- BoatCabinMap (boat-shaped cabin layout, §3) ---------- */
+.bhull-wrap { --hull: color-mix(in srgb, var(--blue) 40%, var(--hair)); }
+.bhull {
+  position: relative;
+  padding: 42px 16px 24px;
+  isolation: isolate;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--blue) 7%, var(--raise-1)), var(--raise-1) 30%);
+  border: 2.5px solid var(--hull);
+  border-radius: 120px 120px 20px 20px / 72px 72px 20px 20px;
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.4);
+}
+:root[data-theme="dark"] .bhull { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06); }
+.bhull::before {
+  content: "";
+  position: absolute; top: -22px; left: 50%; transform: translateX(-50%);
+  border-left: 11px solid transparent; border-right: 11px solid transparent;
+  border-bottom: 22px solid var(--hull);
+}
+.bhull::after {
+  content: "";
+  position: absolute; left: -2px; right: -2px; bottom: -9px; height: 14px;
+  border-radius: 0 0 40% 40%;
+  background: linear-gradient(180deg, var(--hull), transparent);
+  opacity: 0.6; z-index: -1;
+}
+.bhull-flag {
+  position: absolute; top: 8px; left: 50%; transform: translateX(-50%); z-index: 2;
+  font-size: 11px; font-weight: 800; color: var(--blue); letter-spacing: 0.05em;
+}
+.bhull-deck {
+  font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--blue); margin: 16px 0 8px; display: flex; align-items: center; gap: 8px;
+}
+.bhull-deck:first-child { margin-top: 4px; }
+.bhull-deck::after { content: ""; flex: 1; height: 1px; background: var(--hair); }
+.bhull-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.mcab {
+  position: relative; border: 2px solid var(--hair); border-radius: 8px;
+  background: var(--field); padding: 11px 6px; text-align: center; transition: all 0.16s;
+  min-height: 58px; display: flex; flex-direction: column; justify-content: center; gap: 3px;
+  font: inherit; color: inherit; width: 100%;
+}
+button.mcab { cursor: pointer; }
+button.mcab:hover { border-color: var(--blue); transform: translateY(-2px); }
+.mcab .mcab-n { color: var(--ink); font-weight: 800; font-size: 11.5px; }
+.mcab .mcab-s { font-size: 9.5px; color: var(--muted); font-weight: 600; }
+.mcab .mcab-p { font-size: 10px; font-weight: 700; color: var(--blue); }
+.mcab.selected { border-color: var(--blue); background: color-mix(in srgb, var(--blue) 10%, var(--raise-1)); }
+.mcab.selected .mcab-n { color: var(--blue); }
+.mcab.selected::before {
+  content: "✓"; position: absolute; top: -8px; right: -8px; width: 20px; height: 20px;
+  background: var(--blue); color: #fff; border-radius: 50%; font-size: 11px; font-weight: 900;
+  display: grid; place-items: center;
+}
+.mcab.booked, .mcab.held {
+  background: color-mix(in srgb, var(--danger) 9%, transparent);
+  border-color: color-mix(in srgb, var(--danger) 35%, transparent);
+  border-style: dashed; cursor: not-allowed;
+}
+.mcab.booked .mcab-n, .mcab.held .mcab-n { color: var(--danger); }
+.mcab.spare {
+  background: color-mix(in srgb, var(--warn) 12%, transparent);
+  border-color: color-mix(in srgb, var(--warn) 40%, transparent);
+}
+.bhull-legend {
+  display: flex; gap: 14px; flex-wrap: wrap; margin-top: 14px;
+  font-size: 11.5px; font-weight: 600; color: var(--muted);
+}
+.bhull-legend span { display: inline-flex; gap: 6px; align-items: center; }
+.bhull-legend i { width: 13px; height: 13px; border-radius: 3px; border: 2px solid var(--hair); display: inline-block; }
+.bhull-legend i.lg-free { background: var(--field); }
+.bhull-legend i.lg-sel { background: color-mix(in srgb, var(--blue) 10%, var(--raise-1)); border-color: var(--blue); }
+.bhull-legend i.lg-full { background: color-mix(in srgb, var(--danger) 12%, transparent); border-color: var(--danger); border-style: dashed; }

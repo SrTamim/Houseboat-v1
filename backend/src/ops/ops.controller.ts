@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+} from '@nestjs/common';
 import { OpsService } from './ops.service';
 import { RequirePermission } from '../rbac/require-permission.decorator';
 import { CurrentUser, Public } from '../auth/decorators';
@@ -85,6 +93,31 @@ export class OpsController {
     @Body('reply') reply: string,
   ) {
     return this.ops.replyToReview(reviewId, reply);
+  }
+
+  @Patch('reviews/:reviewId/reply')
+  @RequirePermission({
+    module: 'settings',
+    action: 'edit',
+    boatIdFrom: 'body',
+    boatIdKey: 'houseboatId',
+  })
+  editReviewReply(
+    @Param('reviewId') reviewId: string,
+    @Body('reply') reply: string,
+  ) {
+    return this.ops.replyToReview(reviewId, reply);
+  }
+
+  @Delete('reviews/:reviewId/reply')
+  @RequirePermission({
+    module: 'settings',
+    action: 'edit',
+    boatIdFrom: 'query',
+    boatIdKey: 'houseboatId',
+  })
+  deleteReviewReply(@Param('reviewId') reviewId: string) {
+    return this.ops.deleteReviewReply(reviewId);
   }
 
   // ── Notifications ──────────────────────────────────────────

@@ -227,7 +227,13 @@ async function ensureBoat(b: { name: string; slug: string; route: string }) {
       slug: b.slug,
       description: `${b.name} — a comfortable houseboat cruising the haor.`,
       safetyFeatures: 'Life jackets for all guests, trained crew, first-aid kit.',
-      foodMenu: 'Local Bangladeshi cuisine, fresh fish, breakfast included.',
+      foodMenu: {
+        breakfast: 'Paratha, egg and tea.',
+        brunch: '',
+        lunch: 'Rice, dal, fresh fish and vegetables.',
+        snacks: 'Tea and light snacks.',
+        dinner: 'Rice, chicken and seasonal curry.',
+      },
       status: 'live',
       profileCompletePct: 100,
       operatingDates: [],
@@ -744,11 +750,13 @@ async function reseedJolKolol(opts: {
         'Coast-guard approved life jackets for every guest (adult & child ' +
         'sizes), two lifebuoys, fire extinguisher, first-aid kit, trained ' +
         'sukani and swimmer crew, GPS and mobile network coverage on route.',
-      foodMenu:
-        'Full-board local Bangladeshi cuisine — fresh haor fish, chicken, ' +
-        'rice, dal, seasonal vegetables and bhorta; BBQ night; morning ' +
-        'breakfast with paratha, egg and tea; evening snacks and unlimited ' +
-        'filtered water.',
+      foodMenu: {
+        breakfast: 'Paratha, egg, seasonal bhaji and tea.',
+        brunch: 'Fresh fruit and light snacks.',
+        lunch: 'Rice, dal, fresh haor fish, seasonal vegetables and bhorta.',
+        snacks: 'Evening pakora, muri and tea; unlimited filtered water.',
+        dinner: 'BBQ night — chicken, fish, rice, salad and dessert.',
+      },
       bankAccount: {
         bankName: 'Dutch-Bangla Bank Ltd',
         accountName: 'Jol Kolol Houseboat',

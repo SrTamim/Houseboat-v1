@@ -134,4 +134,44 @@ export class OwnerGuestsService {
       },
     };
   }
+
+  /** All guest rows as a CSV string, for the owner's download (§8). */
+  async exportCsv(houseboatId: string, q?: string): Promise<string> {
+    // Reuse the aggregation with a wide window — guest counts per boat run to
+    // hundreds (see the class note), so an unpaginated pull is cheap.
+    const { items } = await this.list(houseboatId, { q, limit: 1_000_000, offset: 0 });
+
+    const header = [
+      'Name',
+      'Phone',
+      'Email',
+      'Trips',
+      'Cancellations',
+      'Lifetime value',
+      'Last trip',
+      'Open credit',
+      'Repeat',
+    ];
+    const esc = (v: unknown) => {
+      const s = v === null || v === undefined ? '' : String(v);
+      // Quote if the value contains a comma, quote, or newline; double inner quotes.
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const rows = items.map((g) =>
+      [
+        g.name ?? '',
+        g.phone,
+        g.email ?? '',
+        g.bookings,
+        g.cancellations,
+        g.lifetimeValue,
+        g.lastTrip ? g.lastTrip.toISOString().slice(0, 10) : '',
+        g.openCredit,
+        g.isRepeat ? 'yes' : 'no',
+      ]
+        .map(esc)
+        .join(','),
+    );
+    return [header.join(','), ...rows].join('\n');
+  }
 }

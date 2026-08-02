@@ -71,10 +71,29 @@ interface InvoiceDetail {
   amountPaid: string;
 }
 
+/** Turn a date / month / year selection into a [from, to] departure-date range. */
+function dateRange(date: string, month: string, year: string): { from?: string; to?: string } {
+  if (date) return { from: date, to: date };
+  if (month) {
+    // month is "YYYY-MM"
+    const [y, m] = month.split('-').map(Number);
+    const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    return { from: `${month}-01`, to: `${month}-${String(last).padStart(2, '0')}` };
+  }
+  if (year) return { from: `${year}-01-01`, to: `${year}-12-31` };
+  return {};
+}
+
+const CURRENT_YEAR = new Date().getUTCFullYear();
+const YEARS = [CURRENT_YEAR - 1, CURRENT_YEAR, CURRENT_YEAR + 1];
+
 export default function OwnerBookingsPage() {
   const { boatId } = useActiveBoat();
   const [status, setStatus] = useState('');
   const [q, setQ] = useState('');
+  const [date, setDate] = useState('');
+  const [month, setMonth] = useState('');
+  const [year, setYear] = useState('');
   const [open, setOpen] = useState<OwnerBooking | null>(null);
 
   const { data: counts } = useSWR<Record<string, number>>(
@@ -83,8 +102,14 @@ export default function OwnerBookingsPage() {
     { revalidateOnFocus: false },
   );
 
+  const range = dateRange(date, month, year);
   const { items, error, isLoading, isInitialLoading, hasMore, loadMore, mutate } =
-    useOwnerList<OwnerBooking>(`/houseboats/${boatId}/bookings`, { status, q });
+    useOwnerList<OwnerBooking>(`/houseboats/${boatId}/bookings`, {
+      status,
+      q,
+      ...(range.from ? { from: range.from } : {}),
+      ...(range.to ? { to: range.to } : {}),
+    });
 
   // Full invoice detail for the drawer. The list payload carries a summary; the
   // bill breakdown needs every step of the waterfall, which only the invoices
@@ -116,6 +141,55 @@ export default function OwnerBookingsPage() {
       <FilterBar>
         <Seg options={options} value={status} onChange={setStatus} />
         <Search placeholder="Search guest, phone…" value={q} onChange={setQ} />
+        <input
+          type="date"
+          aria-label="Filter by departure date"
+          value={date}
+          onChange={(e) => {
+            setDate(e.target.value);
+            setMonth('');
+            setYear('');
+          }}
+        />
+        <input
+          type="month"
+          aria-label="Filter by month"
+          value={month}
+          onChange={(e) => {
+            setMonth(e.target.value);
+            setDate('');
+            setYear('');
+          }}
+        />
+        <select
+          aria-label="Filter by year"
+          value={year}
+          onChange={(e) => {
+            setYear(e.target.value);
+            setDate('');
+            setMonth('');
+          }}
+        >
+          <option value="">Any year</option>
+          {YEARS.map((y) => (
+            <option key={y} value={String(y)}>
+              {y}
+            </option>
+          ))}
+        </select>
+        {date || month || year ? (
+          <button
+            type="button"
+            className="btn btn-sm btn-o"
+            onClick={() => {
+              setDate('');
+              setMonth('');
+              setYear('');
+            }}
+          >
+            Clear dates
+          </button>
+        ) : null}
       </FilterBar>
 
       <Card flush>

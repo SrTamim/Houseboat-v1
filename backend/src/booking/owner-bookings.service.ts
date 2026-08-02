@@ -6,6 +6,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { HoldsService } from './holds.service';
 import { BookingService } from './booking.service';
+import { PaymentsService } from '../money/payments.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuditService } from '../audit/audit.service';
 import { newId } from '../common/uuid';
@@ -26,6 +27,7 @@ export class OwnerBookingsService {
     private readonly prisma: PrismaService,
     private readonly holds: HoldsService,
     private readonly booking: BookingService,
+    private readonly payments: PaymentsService,
     private readonly notifications: NotificationsService,
     private readonly audit: AuditService,
   ) {}
@@ -107,6 +109,41 @@ export class OwnerBookingsService {
     });
 
     return toPage(rows, query);
+  }
+
+  /**
+   * Mark a booking's departure attendance from the manifest (§4). Orthogonal to
+   * Booking.status — this is who physically boarded, set on departure day.
+   */
+  async setCheckin(
+    houseboatId: string,
+    bookingId: string,
+    actorId: string,
+    status: 'pending' | 'checked_in' | 'absent',
+  ) {
+    const booking = await this.prisma.booking.findFirst({
+      where: { id: bookingId, departure: { package: { houseboatId } } },
+      select: { id: true, checkinStatus: true },
+    });
+    if (!booking) throw new NotFoundException('Booking not found');
+
+    const updated = await this.prisma.booking.update({
+      where: { id: bookingId },
+      data: { checkinStatus: status },
+      select: { id: true, checkinStatus: true },
+    });
+
+    await this.audit.log({
+      houseboatId,
+      actorAccountId: actorId,
+      action: 'booking_checkin',
+      entityType: 'booking',
+      entityId: bookingId,
+      before: { checkinStatus: booking.checkinStatus },
+      after: { checkinStatus: status },
+    });
+
+    return updated;
   }
 
   /** Counts per status for the filter bar chips. */
@@ -289,13 +326,30 @@ export class OwnerBookingsService {
       specialInstructions: dto.specialInstructions,
     });
 
+    // Record the counter payment (owner's own channel) as an unverified payment
+    // so it lands in the owner's Payments queue to verify. Non-fatal: the sale
+    // itself already succeeded.
+    if (dto.paymentMethod && result.invoice) {
+      await this.payments
+        .recordPayment(result.invoice.id, actorId, false, {
+          amount: Number(result.invoice.displayTotal),
+          method: dto.paymentMethod,
+          receivedBy: actorId,
+        })
+        .catch(() => undefined);
+    }
+
     await this.audit.log({
       houseboatId,
       actorAccountId: actorId,
       action: 'pos_sale',
       entityType: 'booking',
-      entityId: (result as { id?: string }).id,
-      after: { cabins: dto.cabins.length, customerPhone: dto.customerPhone },
+      entityId: result.booking.id,
+      after: {
+        cabins: dto.cabins.length,
+        customerPhone: dto.customerPhone,
+        paymentMethod: dto.paymentMethod ?? null,
+      },
     });
 
     return result;

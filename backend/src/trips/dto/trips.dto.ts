@@ -1,4 +1,7 @@
 import {
+  ArrayMaxSize,
+  IsArray,
+  IsBoolean,
   IsInt,
   IsOptional,
   IsString,
@@ -6,7 +9,9 @@ import {
   MaxLength,
   Min,
   IsDateString,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import {
   LEN_CODE,
   LEN_LONG_TEXT,
@@ -32,4 +37,29 @@ export class CreateDepartureDto {
   @IsOptional() @IsString() @MaxLength(LEN_CODE) departureTime?: string; // HH:mm
   @IsOptional() @IsString() @MaxLength(LEN_CODE) arrivalTime?: string;
   @IsOptional() @IsString() @MaxLength(LEN_CODE) pricingProfileId?: string;
+}
+
+/** One weekly trip slot (Trip 1/2/3) in the recurring schedule (§1). */
+export class ScheduleSlotDto {
+  @IsInt() @Min(1) @Max(3) slotNo!: number;
+  /** Days of week, 0=Sun … 6=Sat. */
+  @IsArray()
+  @ArrayMaxSize(7)
+  @IsInt({ each: true })
+  @Min(0, { each: true })
+  @Max(6, { each: true })
+  weekdays!: number[];
+  @IsOptional() @IsString() @MaxLength(LEN_CODE) departureTime?: string; // HH:mm
+  @IsOptional() @IsString() @MaxLength(LEN_CODE) pricingProfileId?: string;
+}
+
+/** Save the boat's weekly schedule: a package + up to 3 trip slots (§1). */
+export class SaveScheduleDto {
+  @IsString() @MaxLength(LEN_CODE) packageId!: string;
+  @IsOptional() @IsBoolean() active?: boolean;
+  @ValidateNested({ each: true })
+  @Type(() => ScheduleSlotDto)
+  @IsArray()
+  @ArrayMaxSize(3)
+  slots!: ScheduleSlotDto[];
 }

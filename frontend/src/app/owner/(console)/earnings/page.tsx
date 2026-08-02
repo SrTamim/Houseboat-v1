@@ -168,7 +168,6 @@ export default function OwnerEarningsPage() {
                 rows={[
                   { label: 'Room revenue', hint: 'Owner-set prices', value: s.roomRevenue },
                   { label: 'Commission (platform)', value: s.commission, negative: true },
-                  { label: 'Gateway fees', value: s.gatewayFees, negative: true },
                   {
                     label: 'Payouts received',
                     hint: 'Transferred to your bank',

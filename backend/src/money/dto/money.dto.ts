@@ -39,7 +39,9 @@ export class OwnerInvoicesQueryDto extends PageQueryDto {
 
 export class RecordPaymentDto {
   @IsNumber() @Min(0) amount!: number;
-  @IsIn(['gateway', 'cash']) method!: 'gateway' | 'cash';
+  // gateway = platform card processing; cash/bkash/bank/online = owner channels (§6).
+  @IsIn(['gateway', 'cash', 'bkash', 'bank', 'online'])
+  method!: 'gateway' | 'cash' | 'bkash' | 'bank' | 'online';
   @IsOptional() @IsString() @MaxLength(LEN_CODE) gatewayToken?: string;
   @IsOptional() @IsString() @MaxLength(LEN_NAME) receivedBy?: string;
 }

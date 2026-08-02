@@ -54,7 +54,16 @@ export class PaymentsService {
         houseboatId,
         ...(query.status ? { status: query.status } : {}),
         ...(query.cashPending
-          ? { payments: { some: { method: 'cash', verifiedBy: null } } }
+          ? {
+              // Owner-collected channels the owner verifies themselves (§6) —
+              // gateway money is verified by platform finance, not here.
+              payments: {
+                some: {
+                  method: { in: ['cash', 'bkash', 'bank', 'online'] },
+                  verifiedBy: null,
+                },
+              },
+            }
           : {}),
         ...(query.q
           ? {
@@ -106,8 +115,10 @@ export class PaymentsService {
     actorId: string,
     isPlatform: boolean,
     input: {
+      // gateway = platform card processing (legacy/customer); the rest are the
+      // owner's own collection channels recorded at the counter (§6).
       amount: number;
-      method: 'gateway' | 'cash';
+      method: 'gateway' | 'cash' | 'bkash' | 'bank' | 'online';
       gatewayToken?: string;
       receivedBy?: string;
     },

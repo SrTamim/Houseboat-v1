@@ -17,9 +17,9 @@ export interface BillRow {
  * The invoice waterfall.
  *
  * Order is fixed by the billing rules (plan §1) and every drawer that shows a
- * bill renders it the same way:
- *   room total → + gateway fee → shown → − coupon → customer pays
- *   platform receives → − commission → you receive
+ * bill renders it the same way (gateway fee removed platform-wide):
+ *   room total → − coupon → customer pays
+ *   paid so far → − commission → you receive
  * Amounts arrive as Decimal strings and are never arithmetic'd here.
  */
 export function Bill({ rows }: { rows: BillRow[] }) {
@@ -52,8 +52,10 @@ export function InvoiceBill({
 }: {
   invoice: {
     roomTotal: string;
-    gatewayFee: string;
-    priceShown: string;
+    /** Kept for data compatibility; no longer displayed (gateway fee removed). */
+    gatewayFee?: string;
+    /** Kept for data compatibility; no longer displayed (= roomTotal now). */
+    priceShown?: string;
     discountAmount: string;
     displayTotal: string;
     commission: string;
@@ -66,8 +68,6 @@ export function InvoiceBill({
       <Bill
         rows={[
           { label: 'Room total', hint: 'Your price', value: invoice.roomTotal },
-          { label: 'Gateway fee', value: invoice.gatewayFee, sub: true },
-          { label: 'Shown to customer', value: invoice.priceShown, sub: true },
           ...(Number(invoice.discountAmount) > 0
             ? [{ label: 'Coupon', value: invoice.discountAmount, negative: true }]
             : []),

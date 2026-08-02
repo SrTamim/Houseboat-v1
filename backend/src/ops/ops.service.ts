@@ -232,10 +232,19 @@ export class OpsService {
     });
   }
 
+  /** Create or edit the owner's reply to a review (§7). */
   replyToReview(reviewId: string, reply: string) {
     return this.prisma.review.update({
       where: { id: reviewId },
       data: { ownerReply: reply },
+    });
+  }
+
+  /** Remove the owner's reply (§7). */
+  deleteReviewReply(reviewId: string) {
+    return this.prisma.review.update({
+      where: { id: reviewId },
+      data: { ownerReply: null },
     });
   }
 

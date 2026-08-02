@@ -43,7 +43,7 @@ export class HouseboatAdminService {
           slug: this.slugify(dto.name),
           description: dto.description,
           safetyFeatures: dto.safetyFeatures,
-          foodMenu: dto.foodMenu,
+          foodMenu: dto.foodMenu as never,
           status: 'draft',
           profileCompletePct: 0,
           operatingDates: [],
@@ -121,7 +121,7 @@ export class HouseboatAdminService {
         name: dto.name,
         description: dto.description,
         safetyFeatures: dto.safetyFeatures,
-        foodMenu: dto.foodMenu,
+        foodMenu: dto.foodMenu as never,
         bankAccount: dto.bankAccount as never,
         childPolicy: dto.childPolicy as never,
         operatingDates: dto.operatingDates
@@ -199,9 +199,21 @@ export class HouseboatAdminService {
     return cabin;
   }
 
+  /**
+   * A boat runs exactly ONE route (§9) — the single source of truth the weekly
+   * schedule reads. Setting a route replaces any existing link rather than
+   * adding to it.
+   */
   async linkRoute(houseboatId: string, routeId: string) {
-    const link = await this.prisma.houseboatRoute.create({
-      data: { id: newId(), houseboatId, routeId },
+    const link = await this.prisma.$transaction(async (tx) => {
+      await tx.houseboatRoute.deleteMany({
+        where: { houseboatId, routeId: { not: routeId } },
+      });
+      return tx.houseboatRoute.upsert({
+        where: { houseboatId_routeId: { houseboatId, routeId } },
+        update: {},
+        create: { id: newId(), houseboatId, routeId },
+      });
     });
     await this.recomputeCompleteness(houseboatId);
     return link;

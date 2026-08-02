@@ -152,28 +152,26 @@ export default function OwnerCouponsPage() {
           <Bill
             rows={[
               { label: 'Room total', hint: 'Your price', value: '10000' },
-              { label: 'Gateway fee (1.8%)', value: '180', sub: true },
-              { label: 'Shown to customer', value: '10180', sub: true },
-              { label: 'Coupon MONSOON10 (10%)', value: '1018', negative: true },
-              { label: 'Customer pays', value: '9162', total: true },
+              { label: 'Coupon MONSOON10 (10%)', value: '1000', negative: true },
+              { label: 'Customer pays', value: '9000', total: true },
             ]}
           />
           <div className="stack" style={{ gap: 10 }}>
             <Bill
               rows={[
-                { label: 'Platform receives', value: '8982', sub: true },
+                { label: 'Platform receives', value: '9000', sub: true },
                 {
                   label: 'Commission',
                   hint: '5% of the original ৳10,000 — not the discounted price',
                   value: '500',
                   negative: true,
                 },
-                { label: 'You receive', value: '8482', total: true },
+                { label: 'You receive', value: '8500', total: true },
               ]}
             />
             <Note kind="info">
-              The coupon applies last, after the gateway fee, and commission is still 5% of
-              the original room total. The discount is entirely yours to absorb.
+              The coupon applies to the room total, and commission is still 5% of the
+              original room total. The discount is entirely yours to absorb.
             </Note>
           </div>
         </div>

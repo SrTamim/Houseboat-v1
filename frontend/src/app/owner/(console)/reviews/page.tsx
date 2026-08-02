@@ -45,19 +45,40 @@ export default function OwnerReviewsPage() {
       ? (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1)
       : null;
 
-  async function postReply(reviewId: string) {
+  async function postReply(reviewId: string, isEdit: boolean) {
     if (busy || !reply.trim()) return;
     setBusy(true);
     setError(null);
     try {
       // The boat id travels in the body: this route resolves permissions from
       // there rather than the path.
-      await api.post(`/reviews/${reviewId}/reply`, { reply, houseboatId: boatId });
+      const body = { reply, houseboatId: boatId };
+      if (isEdit) {
+        await api.patch(`/reviews/${reviewId}/reply`, body);
+      } else {
+        await api.post(`/reviews/${reviewId}/reply`, body);
+      }
       setReplyFor(null);
       setReply('');
       await mutate();
     } catch (e) {
-      setError(apiErrorMessage(e, 'Could not post your reply.'));
+      setError(apiErrorMessage(e, 'Could not save your reply.'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteReply(reviewId: string) {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.delete(`/reviews/${reviewId}/reply`, {
+        params: { houseboatId: boatId },
+      });
+      await mutate();
+    } catch (e) {
+      setError(apiErrorMessage(e, 'Could not delete your reply.'));
     } finally {
       setBusy(false);
     }
@@ -145,33 +166,9 @@ export default function OwnerReviewsPage() {
                     <p style={{ margin: '8px 0 0', lineHeight: 1.55 }}>{r.text}</p>
                   ) : null}
 
-                  {r.ownerReply ? (
-                    <div
-                      style={{
-                        marginTop: 12,
-                        borderLeft: '3px solid var(--blue)',
-                        background: 'var(--field)',
-                        padding: '10px 14px',
-                        borderRadius: 'var(--r-sm)',
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: 10.5,
-                          fontWeight: 700,
-                          textTransform: 'uppercase',
-                          letterSpacing: '.06em',
-                          color: 'var(--muted)',
-                          marginBottom: 4,
-                        }}
-                      >
-                        Your reply
-                      </div>
-                      {r.ownerReply}
-                    </div>
-                  ) : replyFor === r.id ? (
+                  {replyFor === r.id ? (
                     <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
-                      <Field label="Your reply">
+                      <Field label={r.ownerReply ? 'Edit your reply' : 'Your reply'}>
                         <textarea
                           rows={3}
                           value={reply}
@@ -182,10 +179,10 @@ export default function OwnerReviewsPage() {
                       <div style={{ display: 'flex', gap: 8 }}>
                         <button
                           className="btn btn-b btn-sm"
-                          onClick={() => postReply(r.id)}
+                          onClick={() => postReply(r.id, Boolean(r.ownerReply))}
                           disabled={busy || !reply.trim()}
                         >
-                          {busy ? 'Posting…' : 'Post reply'}
+                          {busy ? 'Saving…' : r.ownerReply ? 'Save reply' : 'Post reply'}
                         </button>
                         <button
                           className="btn btn-o btn-sm"
@@ -195,6 +192,50 @@ export default function OwnerReviewsPage() {
                           }}
                         >
                           Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : r.ownerReply ? (
+                    <div style={{ marginTop: 12 }}>
+                      <div
+                        style={{
+                          borderLeft: '3px solid var(--blue)',
+                          background: 'var(--field)',
+                          padding: '10px 14px',
+                          borderRadius: 'var(--r-sm)',
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: 10.5,
+                            fontWeight: 700,
+                            textTransform: 'uppercase',
+                            letterSpacing: '.06em',
+                            color: 'var(--muted)',
+                            marginBottom: 4,
+                          }}
+                        >
+                          Your reply
+                        </div>
+                        {r.ownerReply}
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                        <button
+                          className="btn btn-o btn-sm"
+                          disabled={busy}
+                          onClick={() => {
+                            setReplyFor(r.id);
+                            setReply(r.ownerReply ?? '');
+                          }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          className="btn btn-o btn-sm"
+                          disabled={busy}
+                          onClick={() => deleteReply(r.id)}
+                        >
+                          Delete
                         </button>
                       </div>
                     </div>

@@ -23,6 +23,16 @@ export const BOOKING_STATUSES = [
   'completed',
 ] as const;
 
+/** Departure attendance, set by the owner on the manifest (§4). */
+export const CHECKIN_STATUSES = ['pending', 'checked_in', 'absent'] as const;
+
+/** Owner collection channels for a counter sale / due payment (§6). */
+export const OWNER_PAYMENT_METHODS = ['cash', 'bkash', 'bank', 'online'] as const;
+
+export class CheckinDto {
+  @IsIn(CHECKIN_STATUSES) status!: (typeof CHECKIN_STATUSES)[number];
+}
+
 export class OwnerBookingsQueryDto extends PageQueryDto {
   @IsOptional() @IsIn(BOOKING_STATUSES) status?: string;
   /** Guest name or phone. */
@@ -53,4 +63,6 @@ export class PosCheckoutDto {
   @IsOptional() @IsString() @MaxLength(LEN_CODE) couponCode?: string;
   @IsOptional() @IsString() @MaxLength(LEN_NAME) referenceName?: string;
   @IsOptional() @IsString() @MaxLength(LEN_TEXT) specialInstructions?: string;
+  /** Owner's personal collection channel for cash taken at the counter (§6). */
+  @IsOptional() @IsIn(OWNER_PAYMENT_METHODS) paymentMethod?: (typeof OWNER_PAYMENT_METHODS)[number];
 }

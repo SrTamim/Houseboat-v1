@@ -1,21 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import useSWR from 'swr';
 import { api, fetcher } from '@/lib/api';
 import { useActiveBoat } from '@/lib/owner/boat-context';
 import {
   PageHead,
   Card,
-  FilterBar,
-  Seg,
   Field,
   Note,
   TableWrap,
   AsyncTable,
 } from '@/components/owner/ui';
 import { DepartureStatusPill, Pill } from '@/components/owner/Pill';
-import { Drawer } from '@/components/owner/Drawer';
 import { apiErrorMessage, formatDate, weekday } from '@/lib/owner/format';
 
 interface Departure {
@@ -25,6 +22,7 @@ interface Departure {
   departureTime: string | null;
   availableCount: number;
   status: string;
+  scheduleSlotId: string | null;
   pricingProfileId: string | null;
   package: { id: string; durationLabel: string | null; route: { name: string } };
 }
@@ -33,7 +31,7 @@ interface TripPackage {
   id: string;
   durationLabel: string | null;
   durationDays: number;
-  route: { name: string };
+  route: { id: string; name: string };
 }
 
 interface PricingProfile {
@@ -42,27 +40,57 @@ interface PricingProfile {
   isDefault: boolean;
 }
 
-const FILTERS = [
-  { value: '', label: 'All' },
-  { value: 'scheduled', label: 'Upcoming' },
-  { value: 'in_progress', label: 'In progress' },
-  { value: 'completed', label: 'Completed' },
-  { value: 'cancelled', label: 'Cancelled' },
+interface ScheduleSlot {
+  slotNo: number;
+  weekdays: number[];
+  departureTime: string | null;
+  pricingProfileId: string | null;
+}
+
+interface Schedule {
+  id: string;
+  packageId: string;
+  active: boolean;
+  package?: { durationLabel: string | null; route: { name: string } };
+  slots: ScheduleSlot[];
+}
+
+const DAYS = [
+  { n: 0, label: 'Sun' },
+  { n: 1, label: 'Mon' },
+  { n: 2, label: 'Tue' },
+  { n: 3, label: 'Wed' },
+  { n: 4, label: 'Thu' },
+  { n: 5, label: 'Fri' },
+  { n: 6, label: 'Sat' },
 ];
+
+const SLOT_COUNT = 3;
+
+function emptySlots(): ScheduleSlot[] {
+  return Array.from({ length: SLOT_COUNT }, (_, i) => ({
+    slotNo: i + 1,
+    weekdays: [],
+    departureTime: '07:30',
+    pricingProfileId: null,
+  }));
+}
+
+/** HH:mm from a stored @db.Time value (an ISO datetime on the epoch date). */
+function timeHHmm(v: string | null): string {
+  if (!v) return '';
+  return v.length > 5 ? new Date(v).toISOString().slice(11, 16) : v;
+}
 
 export default function OwnerSchedulePage() {
   const { boatId } = useActiveBoat();
-  const [filter, setFilter] = useState('scheduled');
-  const [open, setOpen] = useState(false);
+  const [packageId, setPackageId] = useState('');
+  const [slots, setSlots] = useState<ScheduleSlot[]>(emptySlots());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState<string | null>(null);
 
-  const [packageId, setPackageId] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [departureTime, setDepartureTime] = useState('07:30');
-  const [pricingProfileId, setPricingProfileId] = useState('');
-
-  const departures = useSWR<Departure[]>(`/houseboats/${boatId}/departures`, fetcher, {
+  const schedule = useSWR<Schedule | null>(`/houseboats/${boatId}/schedule`, fetcher, {
     revalidateOnFocus: false,
   });
   const packages = useSWR<TripPackage[]>(`/houseboats/${boatId}/packages`, fetcher, {
@@ -73,34 +101,83 @@ export default function OwnerSchedulePage() {
     fetcher,
     { revalidateOnFocus: false },
   );
+  const departures = useSWR<Departure[]>(`/houseboats/${boatId}/departures`, fetcher, {
+    revalidateOnFocus: false,
+  });
 
-  const rows = (departures.data ?? []).filter((d) => !filter || d.status === filter);
-  const counts = (departures.data ?? []).reduce<Record<string, number>>((acc, d) => {
-    acc[d.status] = (acc[d.status] ?? 0) + 1;
-    return acc;
-  }, {});
-  const profileName = new Map((profiles.data ?? []).map((p) => [p.id, p.name]));
+  // Hydrate the form from the saved schedule when it (or the boat) changes.
+  useEffect(() => {
+    const s = schedule.data;
+    if (!s) {
+      setPackageId('');
+      setSlots(emptySlots());
+      return;
+    }
+    setPackageId(s.packageId);
+    const base = emptySlots();
+    for (const slot of s.slots) {
+      const idx = slot.slotNo - 1;
+      if (idx >= 0 && idx < SLOT_COUNT) {
+        base[idx] = {
+          slotNo: slot.slotNo,
+          weekdays: slot.weekdays,
+          departureTime: timeHHmm(slot.departureTime) || '07:30',
+          pricingProfileId: slot.pricingProfileId,
+        };
+      }
+    }
+    setSlots(base);
+  }, [schedule.data]);
 
-  async function create(e: React.FormEvent) {
+  function toggleDay(slotIdx: number, day: number) {
+    setSlots((prev) =>
+      prev.map((s, i) => {
+        if (i !== slotIdx) return s;
+        const has = s.weekdays.includes(day);
+        return {
+          ...s,
+          weekdays: has
+            ? s.weekdays.filter((d) => d !== day)
+            : [...s.weekdays, day].sort((a, b) => a - b),
+        };
+      }),
+    );
+  }
+
+  function setSlotField(slotIdx: number, patch: Partial<ScheduleSlot>) {
+    setSlots((prev) => prev.map((s, i) => (i === slotIdx ? { ...s, ...patch } : s)));
+  }
+
+  async function save(e: React.FormEvent) {
     e.preventDefault();
-    if (busy || !packageId || !startDate) return;
+    if (busy || !packageId) return;
     setBusy(true);
     setError(null);
+    setSaved(null);
     try {
-      await api.post(`/houseboats/${boatId}/departures`, {
+      const payload = {
         packageId,
-        startDate,
-        departureTime: departureTime || undefined,
-        pricingProfileId: pricingProfileId || undefined,
-      });
-      setOpen(false);
-      setStartDate('');
-      await departures.mutate();
+        active: true,
+        slots: slots
+          .filter((s) => s.weekdays.length > 0)
+          .map((s) => ({
+            slotNo: s.slotNo,
+            weekdays: s.weekdays,
+            departureTime: s.departureTime || undefined,
+            pricingProfileId: s.pricingProfileId || undefined,
+          })),
+      };
+      const res = await api.put(`/houseboats/${boatId}/schedule`, payload);
+      const generated = (res.data as { generated?: number })?.generated ?? 0;
+      setSaved(
+        `Schedule saved. ${generated} departure${generated === 1 ? '' : 's'} generated for the next two months.`,
+      );
+      await Promise.all([schedule.mutate(), departures.mutate()]);
     } catch (err) {
       setError(
         apiErrorMessage(
           err,
-          'Could not schedule the departure. Check the date is one of your operating dates.',
+          'Could not save the schedule. Check the package and your operating dates.',
         ),
       );
     } finally {
@@ -108,45 +185,133 @@ export default function OwnerSchedulePage() {
     }
   }
 
+  const profileName = new Map((profiles.data ?? []).map((p) => [p.id, p.name]));
+  const rows = (departures.data ?? []).filter((d) => d.status === 'scheduled');
+  const noPackages = (packages.data?.length ?? 0) === 0 && !packages.isLoading;
+
   return (
     <>
       <PageHead
         title="Schedule"
-        desc="Departures generated against your packages. A date must be in your operating dates before it can carry a departure."
-        actions={
-          <button
-            className="btn btn-b"
-            onClick={() => setOpen(true)}
-            disabled={(packages.data?.length ?? 0) === 0}
-          >
-            ＋ New departure
-          </button>
-        }
+        desc="Pick your trip and the days it runs each week. Departures for the next two months are generated automatically and topped up daily."
       />
 
-      {(packages.data?.length ?? 0) === 0 && !packages.isLoading ? (
-        <Note kind="warn" style={{ marginBottom: 18 }}>
-          Create a trip package first — a departure is always a package on a date.
+      {saved ? (
+        <Note kind="ok" style={{ marginBottom: 18 }}>
+          {saved}
+        </Note>
+      ) : null}
+      {error ? (
+        <Note kind="danger" style={{ marginBottom: 18 }}>
+          {error}
         </Note>
       ) : null}
 
-      <FilterBar>
-        <Seg
-          options={FILTERS.map((f) => ({
-            ...f,
-            count: f.value ? counts[f.value] : departures.data?.length,
-          }))}
-          value={filter}
-          onChange={setFilter}
-        />
-      </FilterBar>
+      {noPackages ? (
+        <Note kind="warn" style={{ marginBottom: 18 }}>
+          Create a trip package first — the schedule generates departures from a package
+          (its route is the boat&apos;s route).
+        </Note>
+      ) : null}
 
-      <Card flush>
-        <TableWrap minWidth={820}>
+      <form onSubmit={save}>
+        <Card title="Weekly trips" sub="each trip is generated on the days you select">
+          <div style={{ display: 'grid', gap: 14 }}>
+            <Field label="Trip package">
+              <select
+                value={packageId}
+                onChange={(e) => setPackageId(e.target.value)}
+                required
+              >
+                <option value="">Choose a package…</option>
+                {(packages.data ?? []).map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.route.name} · {p.durationLabel ?? `${p.durationDays}d`}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            {slots.map((slot, idx) => (
+              <div
+                key={slot.slotNo}
+                style={{
+                  border: '1px solid var(--hair)',
+                  borderRadius: 12,
+                  padding: 14,
+                  display: 'grid',
+                  gap: 12,
+                }}
+              >
+                <div style={{ fontWeight: 600 }}>Trip {slot.slotNo}</div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {DAYS.map((d) => {
+                    const on = slot.weekdays.includes(d.n);
+                    return (
+                      <button
+                        type="button"
+                        key={d.n}
+                        className={`btn btn-sm ${on ? 'btn-b' : 'btn-o'}`}
+                        onClick={() => toggleDay(idx, d.n)}
+                      >
+                        {d.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                  <Field label="Departure time">
+                    <input
+                      type="time"
+                      value={slot.departureTime ?? ''}
+                      onChange={(e) => setSlotField(idx, { departureTime: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="Pricing profile">
+                    <select
+                      value={slot.pricingProfileId ?? ''}
+                      onChange={(e) =>
+                        setSlotField(idx, { pricingProfileId: e.target.value || null })
+                      }
+                    >
+                      <option value="">Use the date&apos;s profile</option>
+                      {(profiles.data ?? []).map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                          {p.isDefault ? ' (default)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                </div>
+              </div>
+            ))}
+
+            <div>
+              <button
+                className="btn btn-b"
+                type="submit"
+                disabled={busy || !packageId}
+              >
+                {busy ? 'Saving & generating…' : 'Save schedule'}
+              </button>
+            </div>
+          </div>
+        </Card>
+      </form>
+
+      <Note kind="info" style={{ margin: '16px 0' }}>
+        Only dates in your operating dates carry a departure — set them on the boat profile
+        first. A slot with no days selected is ignored. Changing the route on your profile
+        starts a fresh schedule.
+      </Note>
+
+      <Card title="Generated departures" sub="upcoming" flush>
+        <TableWrap minWidth={760}>
           <thead>
             <tr>
               <th>Date</th>
-              <th>Package</th>
+              <th>Trip</th>
               <th>Departs</th>
               <th>Pricing</th>
               <th>Available</th>
@@ -161,8 +326,8 @@ export default function OwnerSchedulePage() {
             empty={
               <div className="state">
                 <div className="ic">📅</div>
-                <h4>Nothing scheduled</h4>
-                <p>Add a departure to make a date bookable.</p>
+                <h4>Nothing generated yet</h4>
+                <p>Save a weekly schedule to auto-fill departures.</p>
               </div>
             }
           >
@@ -200,83 +365,6 @@ export default function OwnerSchedulePage() {
           </AsyncTable>
         </TableWrap>
       </Card>
-
-      <Note kind="info" style={{ marginTop: 16 }}>
-        Status is time-driven: a departure becomes in progress and then completed on its
-        own. A multi-day trip is always booked on its start date.
-      </Note>
-
-      <Drawer
-        open={open}
-        title="New departure"
-        onClose={() => setOpen(false)}
-        footer={
-          <>
-            <button className="btn btn-o" onClick={() => setOpen(false)}>
-              Cancel
-            </button>
-            <button
-              className="btn btn-b"
-              onClick={create}
-              disabled={busy || !packageId || !startDate}
-            >
-              {busy ? 'Scheduling…' : 'Schedule'}
-            </button>
-          </>
-        }
-      >
-        <form onSubmit={create} style={{ display: 'grid', gap: 12 }}>
-          {error ? <Note kind="danger">{error}</Note> : null}
-
-          <Field label="Package">
-            <select value={packageId} onChange={(e) => setPackageId(e.target.value)} required>
-              <option value="">Choose a package…</option>
-              {packages.data?.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.route.name} · {p.durationLabel ?? `${p.durationDays}d`}
-                </option>
-              ))}
-            </select>
-          </Field>
-
-          <Field label="Start date">
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              required
-            />
-          </Field>
-
-          <Field label="Departure time">
-            <input
-              type="time"
-              value={departureTime}
-              onChange={(e) => setDepartureTime(e.target.value)}
-            />
-          </Field>
-
-          <Field label="Pricing profile">
-            <select
-              value={pricingProfileId}
-              onChange={(e) => setPricingProfileId(e.target.value)}
-            >
-              <option value="">Use the date&apos;s profile</option>
-              {profiles.data?.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                  {p.isDefault ? ' (default)' : ''}
-                </option>
-              ))}
-            </select>
-          </Field>
-
-          <Note kind="info">
-            Leave the profile blank and the price comes from whichever profile covers that
-            date — that is how weekend and Eid pricing applies automatically.
-          </Note>
-        </form>
-      </Drawer>
     </>
   );
 }

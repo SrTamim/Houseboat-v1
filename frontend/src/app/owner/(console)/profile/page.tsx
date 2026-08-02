@@ -15,15 +15,38 @@ import {
 import { Pill } from '@/components/owner/Pill';
 import { apiErrorMessage, humanize } from '@/lib/owner/format';
 
+interface FoodMenu {
+  breakfast?: string;
+  brunch?: string;
+  lunch?: string;
+  snacks?: string;
+  dinner?: string;
+}
+
+interface BankAccount {
+  bankName?: string;
+  accountNo?: string;
+  accountHolder?: string;
+  district?: string;
+  branch?: string;
+  routingNumber?: string;
+}
+
+interface ChildBand {
+  min: number;
+  max: number;
+  chargePct: number;
+}
+
 interface BoatDetail {
   id: string;
   name: string;
   slug: string;
   description: string | null;
   safetyFeatures: string | null;
-  foodMenu: string | null;
-  bankAccount: Record<string, unknown> | null;
-  childPolicy: Record<string, unknown> | null;
+  foodMenu: FoodMenu | null;
+  bankAccount: BankAccount | null;
+  childPolicy: ChildBand[] | null;
   profileCompletePct: number;
   status: string;
   operatingDates: string[];
@@ -36,6 +59,32 @@ interface Route {
   region: string | null;
 }
 
+const MEALS: { key: keyof FoodMenu; label: string; placeholder: string }[] = [
+  { key: 'breakfast', label: 'Breakfast', placeholder: 'Paratha, egg, seasonal bhaji and tea' },
+  { key: 'brunch', label: 'Brunch', placeholder: 'Fresh fruit and light snacks' },
+  { key: 'lunch', label: 'Lunch', placeholder: 'Rice, dal, fish, vegetables and bhorta' },
+  { key: 'snacks', label: 'Snacks', placeholder: 'Evening pakora, muri and tea' },
+  { key: 'dinner', label: 'Dinner', placeholder: 'BBQ night — chicken, fish, rice and dessert' },
+];
+
+const BANK_FIELDS: { key: keyof BankAccount; label: string; placeholder?: string }[] = [
+  { key: 'bankName', label: 'Bank name', placeholder: 'City Bank' },
+  { key: 'accountNo', label: 'Account number' },
+  { key: 'accountHolder', label: 'Account holder name' },
+  { key: 'district', label: 'District' },
+  { key: 'branch', label: 'Branch' },
+  { key: 'routingNumber', label: 'Routing number' },
+];
+
+const EMPTY_BANK: BankAccount = {
+  bankName: '',
+  accountNo: '',
+  accountHolder: '',
+  district: '',
+  branch: '',
+  routingNumber: '',
+};
+
 export default function OwnerProfilePage() {
   const { boatId } = useActiveBoat();
   const [busy, setBusy] = useState(false);
@@ -45,10 +94,9 @@ export default function OwnerProfilePage() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [safetyFeatures, setSafetyFeatures] = useState('');
-  const [foodMenu, setFoodMenu] = useState('');
-  const [bankName, setBankName] = useState('');
-  const [accountNumber, setAccountNumber] = useState('');
-  const [accountHolder, setAccountHolder] = useState('');
+  const [foodMenu, setFoodMenu] = useState<FoodMenu>({});
+  const [bank, setBank] = useState<BankAccount>(EMPTY_BANK);
+  const [childPolicy, setChildPolicy] = useState<ChildBand[]>([]);
 
   const boat = useSWR<BoatDetail>(`/houseboats/${boatId}/manage`, fetcher, {
     revalidateOnFocus: false,
@@ -63,16 +111,12 @@ export default function OwnerProfilePage() {
     setName(b.name);
     setDescription(b.description ?? '');
     setSafetyFeatures(b.safetyFeatures ?? '');
-    setFoodMenu(b.foodMenu ?? '');
-    const acct = b.bankAccount as
-      | { bankName?: string; accountNumber?: string; accountHolder?: string }
-      | null;
-    setBankName(acct?.bankName ?? '');
-    setAccountNumber(acct?.accountNumber ?? '');
-    setAccountHolder(acct?.accountHolder ?? '');
+    setFoodMenu(b.foodMenu ?? {});
+    setBank({ ...EMPTY_BANK, ...(b.bankAccount ?? {}) });
+    setChildPolicy(Array.isArray(b.childPolicy) ? b.childPolicy : []);
   }, [boat.data]);
 
-  const linkedIds = new Set((boat.data?.routes ?? []).map((r) => r.route.id));
+  const linkedId = boat.data?.routes[0]?.route.id ?? '';
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -81,15 +125,14 @@ export default function OwnerProfilePage() {
     setError(null);
     setSaved(false);
     try {
+      const bankFilled = Object.values(bank).some((v) => v && v.trim());
       await api.patch(`/houseboats/${boatId}`, {
         name,
         description: description || undefined,
         safetyFeatures: safetyFeatures || undefined,
-        foodMenu: foodMenu || undefined,
-        bankAccount:
-          bankName || accountNumber
-            ? { bankName, accountNumber, accountHolder }
-            : undefined,
+        foodMenu,
+        bankAccount: bankFilled ? bank : undefined,
+        childPolicy,
       });
       setSaved(true);
       await boat.mutate();
@@ -100,18 +143,32 @@ export default function OwnerProfilePage() {
     }
   }
 
-  async function linkRoute(routeId: string) {
-    if (busy) return;
+  async function chooseRoute(routeId: string) {
+    if (busy || routeId === linkedId) return;
     setBusy(true);
     setError(null);
     try {
       await api.post(`/houseboats/${boatId}/routes`, { routeId });
       await boat.mutate();
     } catch (err) {
-      setError(apiErrorMessage(err, 'Could not link that route.'));
+      setError(apiErrorMessage(err, 'Could not set that route.'));
     } finally {
       setBusy(false);
     }
+  }
+
+  function addBand() {
+    const last = childPolicy[childPolicy.length - 1];
+    const min = last ? last.max : 0;
+    setChildPolicy([...childPolicy, { min, max: min + 1, chargePct: 100 }]);
+  }
+
+  function updateBand(i: number, patch: Partial<ChildBand>) {
+    setChildPolicy(childPolicy.map((b, idx) => (idx === i ? { ...b, ...patch } : b)));
+  }
+
+  function removeBand(i: number) {
+    setChildPolicy(childPolicy.filter((_, idx) => idx !== i));
   }
 
   const pct = boat.data?.profileCompletePct ?? 0;
@@ -142,182 +199,231 @@ export default function OwnerProfilePage() {
       ) : null}
 
       <AsyncBlock isLoading={boat.isLoading} error={boat.error} onRetry={() => boat.mutate()}>
-        <div className="grid-2">
-          <div className="stack">
-            <Card title="Basics">
-              <form onSubmit={save} style={{ display: 'grid', gap: 12 }}>
-                <Field label="Boat name">
-                  <input value={name} onChange={(e) => setName(e.target.value)} required />
-                </Field>
+        <form onSubmit={save}>
+          <div className="grid-2">
+            <div className="stack">
+              <Card title="Basics">
+                <div style={{ display: 'grid', gap: 12 }}>
+                  <Field label="Boat name">
+                    <input value={name} onChange={(e) => setName(e.target.value)} required />
+                  </Field>
 
-                <Field label="Public URL">
-                  <input value={`/houseboat/${boat.data?.slug ?? ''}`} readOnly />
-                </Field>
+                  <Field label="Public URL">
+                    <input value={`/houseboat/${boat.data?.slug ?? ''}`} readOnly />
+                  </Field>
 
-                <Field label="Description">
-                  <textarea
-                    rows={3}
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                  />
-                </Field>
+                  <Field label="Description">
+                    <textarea
+                      rows={3}
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                    />
+                  </Field>
 
-                <Field label="Safety features">
-                  <textarea
-                    rows={2}
-                    value={safetyFeatures}
-                    onChange={(e) => setSafetyFeatures(e.target.value)}
-                    placeholder="Life jackets for all guests, trained crew, first-aid kit"
-                  />
-                </Field>
-
-                <Field label="Food menu">
-                  <textarea
-                    rows={2}
-                    value={foodMenu}
-                    onChange={(e) => setFoodMenu(e.target.value)}
-                  />
-                </Field>
-
-                <div>
-                  <button className="btn btn-b" type="submit" disabled={busy}>
-                    {busy ? 'Saving…' : 'Save profile'}
-                  </button>
+                  <Field label="Safety features">
+                    <textarea
+                      rows={2}
+                      value={safetyFeatures}
+                      onChange={(e) => setSafetyFeatures(e.target.value)}
+                      placeholder="Life jackets for all guests, trained crew, first-aid kit"
+                    />
+                  </Field>
                 </div>
-              </form>
-            </Card>
+              </Card>
 
-            <Card title="Routes" sub="platform-curated">
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-                {(routes.data ?? []).map((r) => (
-                  <button
-                    key={r.id}
-                    type="button"
-                    className={`btn btn-sm ${linkedIds.has(r.id) ? 'btn-b' : 'btn-o'}`}
-                    disabled={linkedIds.has(r.id) || busy}
-                    onClick={() => linkRoute(r.id)}
-                  >
-                    {linkedIds.has(r.id) ? '✓ ' : '＋ '}
-                    {r.name}
-                  </button>
-                ))}
-              </div>
-              <Note kind="info">
-                Only the platform creates routes. You pick which of them this boat runs —
-                a package is then a route plus a duration.
-              </Note>
-            </Card>
-
-            <Card title="Bank account" sub="required before any payout">
-              <form onSubmit={save} style={{ display: 'grid', gap: 12 }}>
-                <Field label="Bank name">
-                  <input
-                    value={bankName}
-                    onChange={(e) => setBankName(e.target.value)}
-                    placeholder="City Bank"
-                  />
-                </Field>
-                <Field label="Account number">
-                  <input
-                    value={accountNumber}
-                    onChange={(e) => setAccountNumber(e.target.value)}
-                  />
-                </Field>
-                <Field label="Account holder">
-                  <input
-                    value={accountHolder}
-                    onChange={(e) => setAccountHolder(e.target.value)}
-                  />
-                </Field>
-                <div>
-                  <button className="btn btn-b" type="submit" disabled={busy}>
-                    {busy ? 'Saving…' : 'Save bank details'}
-                  </button>
+              <Card title="Food menu" sub="one line per meal">
+                <div style={{ display: 'grid', gap: 12 }}>
+                  {MEALS.map((m) => (
+                    <Field key={m.key} label={m.label}>
+                      <textarea
+                        rows={2}
+                        value={foodMenu[m.key] ?? ''}
+                        placeholder={m.placeholder}
+                        onChange={(e) =>
+                          setFoodMenu({ ...foodMenu, [m.key]: e.target.value })
+                        }
+                      />
+                    </Field>
+                  ))}
                 </div>
-                <Note kind="warn">
-                  A payout batch cannot even be prepared without this. Your account number
-                  is stored as a reference — the audit trail never records it in full.
+              </Card>
+
+              <Card title="Route" sub="platform-curated · one per boat">
+                <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
+                  {(routes.data ?? []).map((r) => (
+                    <label
+                      key={r.id}
+                      style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}
+                    >
+                      <input
+                        type="radio"
+                        name="route"
+                        checked={linkedId === r.id}
+                        disabled={busy}
+                        onChange={() => chooseRoute(r.id)}
+                      />
+                      <span>
+                        {r.name}
+                        {r.region ? <span className="t2"> · {r.region}</span> : null}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                <Note kind="info">
+                  A boat runs exactly one route — this is what your weekly schedule builds
+                  departures for. Only the platform creates routes.
                 </Note>
-              </form>
-            </Card>
-          </div>
+              </Card>
 
-          <div className="stack">
-            <Card title="Completion">
-              <div
-                style={{
-                  fontSize: 34,
-                  fontFamily: 'var(--display)',
-                  fontWeight: 600,
-                  color: pct >= 100 ? 'var(--ok)' : 'var(--warn)',
-                }}
-              >
-                {pct}%
-              </div>
-              <div
-                style={{
-                  height: 8,
-                  borderRadius: 999,
-                  background: 'var(--field)',
-                  overflow: 'hidden',
-                  margin: '10px 0 14px',
-                }}
-              >
+              <Card title="Bank account" sub="required before any payout">
+                <div style={{ display: 'grid', gap: 12 }}>
+                  {BANK_FIELDS.map((f) => (
+                    <Field key={f.key} label={f.label}>
+                      <input
+                        value={bank[f.key] ?? ''}
+                        placeholder={f.placeholder}
+                        onChange={(e) => setBank({ ...bank, [f.key]: e.target.value })}
+                      />
+                    </Field>
+                  ))}
+                  <Note kind="warn">
+                    A payout batch cannot even be prepared without this. Your account number
+                    is stored as a reference — the audit trail never records it in full.
+                  </Note>
+                </div>
+              </Card>
+            </div>
+
+            <div className="stack">
+              <Card title="Completion">
                 <div
                   style={{
-                    width: `${Math.min(100, pct)}%`,
-                    height: '100%',
-                    background: pct >= 100 ? 'var(--ok)' : 'var(--warn)',
-                  }}
-                />
-              </div>
-              <div className="stack" style={{ gap: 8 }}>
-                <Note kind={boat.data?.bankAccount ? 'ok' : 'warn'}>
-                  {boat.data?.bankAccount
-                    ? 'Bank account on file'
-                    : 'No bank account — payouts cannot run'}
-                </Note>
-                <Note kind={boat.data?.status === 'live' ? 'ok' : 'info'}>
-                  {boat.data?.status === 'live'
-                    ? 'Approved and visible to customers'
-                    : 'The platform reviews the boat once the profile is complete'}
-                </Note>
-              </div>
-            </Card>
-
-            <Card title="Operating dates">
-              <Kv
-                rows={[
-                  ['Dates set', boat.data?.operatingDates.length ?? 0],
-                  ['Routes linked', boat.data?.routes.length ?? 0],
-                ]}
-              />
-              <Note kind="info" style={{ marginTop: 12 }}>
-                Only these dates can carry a departure. Everything else is invisible to
-                customers, however full your schedule looks.
-              </Note>
-            </Card>
-
-            <Card title="Child policy">
-              {boat.data?.childPolicy ? (
-                <pre
-                  style={{
-                    margin: 0,
-                    fontSize: 12,
-                    color: 'var(--body)',
-                    whiteSpace: 'pre-wrap',
+                    fontSize: 34,
+                    fontFamily: 'var(--display)',
+                    fontWeight: 600,
+                    color: pct >= 100 ? 'var(--ok)' : 'var(--warn)',
                   }}
                 >
-                  {JSON.stringify(boat.data.childPolicy, null, 2)}
-                </pre>
-              ) : (
-                <Note kind="info">
-                  No child policy set, so children are charged the full per-person rate.
+                  {pct}%
+                </div>
+                <div
+                  style={{
+                    height: 8,
+                    borderRadius: 999,
+                    background: 'var(--field)',
+                    overflow: 'hidden',
+                    margin: '10px 0 14px',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: `${Math.min(100, pct)}%`,
+                      height: '100%',
+                      background: pct >= 100 ? 'var(--ok)' : 'var(--warn)',
+                    }}
+                  />
+                </div>
+                <div className="stack" style={{ gap: 8 }}>
+                  <Note kind={boat.data?.bankAccount ? 'ok' : 'warn'}>
+                    {boat.data?.bankAccount
+                      ? 'Bank account on file'
+                      : 'No bank account — payouts cannot run'}
+                  </Note>
+                  <Note kind={boat.data?.status === 'live' ? 'ok' : 'info'}>
+                    {boat.data?.status === 'live'
+                      ? 'Approved and visible to customers'
+                      : 'The platform reviews the boat once the profile is complete'}
+                  </Note>
+                </div>
+              </Card>
+
+              <Card title="Operating dates">
+                <Kv
+                  rows={[
+                    ['Dates set', boat.data?.operatingDates.length ?? 0],
+                    ['Route', boat.data?.routes[0]?.route.name ?? '—'],
+                  ]}
+                />
+                <Note kind="info" style={{ marginTop: 12 }}>
+                  Only these dates can carry a departure. Everything else is invisible to
+                  customers, however full your schedule looks.
                 </Note>
-              )}
-            </Card>
+              </Card>
+
+              <Card title="Child policy" sub="age bands — first match wins">
+                <div className="stack" style={{ gap: 10 }}>
+                  {childPolicy.length === 0 ? (
+                    <Note kind="info">
+                      No bands set, so children are charged the full per-person rate.
+                    </Note>
+                  ) : (
+                    childPolicy.map((b, i) => (
+                      <div
+                        key={i}
+                        style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}
+                      >
+                        <Field label="Age from">
+                          <input
+                            type="number"
+                            min={0}
+                            value={b.min}
+                            onChange={(e) =>
+                              updateBand(i, { min: Number(e.target.value) })
+                            }
+                          />
+                        </Field>
+                        <Field label="Age to">
+                          <input
+                            type="number"
+                            min={0}
+                            value={b.max}
+                            onChange={(e) =>
+                              updateBand(i, { max: Number(e.target.value) })
+                            }
+                          />
+                        </Field>
+                        <Field label="Charge %">
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={b.chargePct}
+                            onChange={(e) =>
+                              updateBand(i, { chargePct: Number(e.target.value) })
+                            }
+                          />
+                        </Field>
+                        <button
+                          type="button"
+                          className="btn btn-o btn-sm"
+                          onClick={() => removeBand(i)}
+                          aria-label="Remove band"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))
+                  )}
+                  <div>
+                    <button type="button" className="btn btn-o btn-sm" onClick={addBand}>
+                      ＋ Add band
+                    </button>
+                  </div>
+                  <Note kind="info">
+                    “Age to” is exclusive: 0–3 at 0% means under-3s are free; 3–5 at 50% is
+                    ages 3 and 4 at half price.
+                  </Note>
+                </div>
+              </Card>
+            </div>
           </div>
-        </div>
+
+          <div style={{ marginTop: 18 }}>
+            <button className="btn btn-b" type="submit" disabled={busy}>
+              {busy ? 'Saving…' : 'Save profile'}
+            </button>
+          </div>
+        </form>
       </AsyncBlock>
     </>
   );

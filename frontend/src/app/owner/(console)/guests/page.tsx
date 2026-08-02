@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import useSWR from 'swr';
-import { fetcher } from '@/lib/api';
+import { api, fetcher } from '@/lib/api';
 import { useActiveBoat } from '@/lib/owner/boat-context';
 import {
   PageHead,
@@ -48,6 +48,7 @@ export default function OwnerGuestsPage() {
   const { boatId } = useActiveBoat();
   const [q, setQ] = useState('');
   const [offset, setOffset] = useState(0);
+  const [downloading, setDownloading] = useState(false);
 
   const { data, error, isLoading, mutate } = useSWR<GuestsResponse>(
     `/houseboats/${boatId}/guests?limit=${PAGE}&offset=${offset}${q ? `&q=${encodeURIComponent(q)}` : ''}`,
@@ -58,11 +59,39 @@ export default function OwnerGuestsPage() {
   const rows = data?.items ?? [];
   const s = data?.summary;
 
+  async function downloadCsv() {
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      const res = await api.get(`/houseboats/${boatId}/guests/export`, {
+        params: q ? { q } : {},
+        responseType: 'blob',
+      });
+      const url = URL.createObjectURL(res.data as Blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'guests.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   return (
     <>
       <PageHead
         title="Guests"
         desc="Everyone who has booked this boat, built from their bookings — there is no separate contact list to keep up to date."
+        actions={
+          <button
+            className="btn btn-o"
+            onClick={downloadCsv}
+            disabled={downloading || rows.length === 0}
+          >
+            {downloading ? 'Preparing…' : '⭳ Download CSV'}
+          </button>
+        }
       />
 
       <Kpis>

@@ -7,9 +7,10 @@ import { BookingService } from './booking.service';
 import { WaitlistService } from './waitlist.service';
 import { OwnerBookingsService } from './owner-bookings.service';
 import { PricingModule } from '../pricing/pricing.module';
+import { MoneyModule } from '../money/money.module';
 
 @Module({
-  imports: [PricingModule],
+  imports: [PricingModule, MoneyModule],
   controllers: [BookingController, OwnerBookingsController],
   providers: [
     HoldsService,
