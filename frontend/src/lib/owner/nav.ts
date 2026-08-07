@@ -75,15 +75,6 @@ export const OWNER_NAV: OwnerNavGroup[] = [
   {
     group: 'Money',
     items: [
-      { key: 'invoices', icon: '🧮', label: 'Invoices', href: '/owner/invoices' },
-      {
-        key: 'payments',
-        icon: '💵',
-        label: 'Payments',
-        href: '/owner/payments',
-        badge: 'payments',
-        badgeWarn: true,
-      },
       { key: 'refunds', icon: '↩', label: 'Refunds', href: '/owner/refunds', badge: 'refunds' },
       { key: 'payouts', icon: '💸', label: 'Payouts', href: '/owner/payouts' },
       { key: 'earnings', icon: '📊', label: 'Earnings', href: '/owner/earnings' },

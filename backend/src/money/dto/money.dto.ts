@@ -11,7 +11,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
-import { Transform, Type } from 'class-transformer';
+import { Type } from 'class-transformer';
 import { LEN_CODE, LEN_NAME, LEN_TEXT } from '../../common/field-limits';
 import { PageQueryDto } from '../../common/dto/pagination.dto';
 
@@ -26,14 +26,6 @@ export const INVOICE_STATUSES = [
 
 export class OwnerInvoicesQueryDto extends PageQueryDto {
   @IsOptional() @IsIn(INVOICE_STATUSES) status?: string;
-  /**
-   * Only invoices with a cash payment nobody has verified yet — the queue the
-   * Payments page works through.
-   */
-  @IsOptional()
-  @Transform(({ value }) => value === true || value === 'true')
-  @IsBoolean()
-  cashPending?: boolean;
   @IsOptional() @IsString() @MaxLength(LEN_NAME) q?: string;
 }
 
@@ -63,6 +55,10 @@ export class CreateCouponDto {
   @IsNumber() @Min(0) value!: number;
   @IsOptional() @IsISO8601() validFrom?: string;
   @IsOptional() @IsISO8601() validTo?: string;
+}
+
+export class SetCouponActiveDto {
+  @IsBoolean() active!: boolean;
 }
 
 export class CreatePolicyDto {

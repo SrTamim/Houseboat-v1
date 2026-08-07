@@ -11,7 +11,11 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { AuditService } from '../audit/audit.service';
 import { newId } from '../common/uuid';
 import { cursorArgs, toPage } from '../common/paginate';
-import { OwnerBookingsQueryDto, PosCheckoutDto } from './dto/owner-bookings.dto';
+import {
+  OwnerBookingsQueryDto,
+  PosCheckoutDto,
+  PosQuoteDto,
+} from './dto/owner-bookings.dto';
 
 /**
  * The owner's view of bookings on their own boat, plus counter (POS) sales.
@@ -276,6 +280,70 @@ export class OwnerBookingsService {
    * unique index on active holds is what makes double-booking impossible, and a
    * separate insert path here would bypass it.
    */
+  /**
+   * Live holds on a departure of this boat, whoever took them. Seeds the counter
+   * grid so a cabin another operator is holding shows as unavailable on load,
+   * before the availability socket delivers the 'held' event.
+   */
+  async departureHolds(houseboatId: string, departureId: string) {
+    const departure = await this.prisma.tripDeparture.findFirst({
+      where: { id: departureId, package: { houseboatId } },
+      select: { id: true },
+    });
+    if (!departure) throw new NotFoundException('Departure not found');
+    return this.holds.listActiveForDeparture(departureId);
+  }
+
+  /**
+   * Read-only price preview for a counter-sale selection — no holds, no writes.
+   * Reuses the SAME pricing path as checkout (booking.priceSelection), so the
+   * quoted figures can never drift from what the sale is actually billed.
+   * Cabins with no configured rate come back `priced:false` so the grid can
+   * show a manual-price input instead of erroring.
+   */
+  async posQuote(houseboatId: string, dto: PosQuoteDto) {
+    const departure = await this.prisma.tripDeparture.findFirst({
+      where: { id: dto.departureId, package: { houseboatId } },
+      select: { id: true },
+    });
+    if (!departure) throw new NotFoundException('Departure not found');
+
+    const overrides = new Map<string, number>();
+    for (const c of dto.cabins) {
+      if (c.priceOverride != null) overrides.set(c.cabinId, c.priceOverride);
+    }
+
+    const { cabinRows, bill } = await this.booking.priceSelection(
+      {
+        departureId: dto.departureId,
+        cabins: dto.cabins.map((c) => ({
+          cabinId: c.cabinId,
+          adults: c.adults,
+          children: c.children,
+          childAges: c.childAges,
+        })),
+        couponCode: dto.couponCode,
+      },
+      {
+        overrides: overrides.size > 0 ? overrides : undefined,
+        ownerDiscount: dto.discount ?? null,
+        throwOnUnpriced: false,
+        allowOverCapacity: true,
+      },
+    );
+
+    return {
+      perCabin: cabinRows.map((r) => ({
+        cabinId: r.cabinId,
+        roomPrice: r.roomPrice.toFixed(2),
+        priced: r.priced,
+      })),
+      roomTotal: bill.roomTotal.toFixed(2),
+      discountAmount: bill.discountAmount.toFixed(2),
+      displayTotal: bill.displayTotal.toFixed(2),
+    };
+  }
+
   async posCheckout(houseboatId: string, actorId: string, dto: PosCheckoutDto) {
     const departure = await this.prisma.tripDeparture.findFirst({
       where: { id: dto.departureId, package: { houseboatId } },
@@ -298,41 +366,86 @@ export class OwnerBookingsService {
       select: { id: true },
     });
 
-    // Take a hold per cabin under the OWNER's account, then convert — the same
-    // two steps the customer flow performs.
+    // Build the per-cabin selections that checkout converts. Two ways in:
+    //  - `holds`: the counter grid already took the holds on select (and started
+    //    the visible countdown), so we just pass those holdIds through. We must
+    //    NOT re-hold them — a second hold on the operator's own cabin would trip
+    //    uq_cabin_hold_active ("just taken").
+    //  - `cabins` (legacy single-request path): hold + convert in one call.
+    // A per-cabin manual price (owner-typed, for cabins with no configured rate)
+    // is carried in `overrides` so the confirmed invoice bills at that price.
     const selections: {
       cabinId: string;
       holdId: string;
       adults: number;
       children?: number;
+      childAges?: number[];
     }[] = [];
-    for (const c of dto.cabins) {
-      const hold = await this.holds.hold(c.cabinId, dto.departureId, actorId);
-      selections.push({
-        cabinId: c.cabinId,
-        holdId: hold.id,
-        adults: c.adults,
-        children: c.children,
-      });
+    const overrides = new Map<string, number>();
+    if (dto.holds && dto.holds.length > 0) {
+      for (const h of dto.holds) {
+        selections.push({
+          cabinId: h.cabinId,
+          holdId: h.holdId,
+          adults: h.adults,
+          children: h.children,
+          childAges: h.childAges,
+        });
+        if (h.priceOverride != null) overrides.set(h.cabinId, h.priceOverride);
+      }
+    } else if (dto.cabins && dto.cabins.length > 0) {
+      for (const c of dto.cabins) {
+        const hold = await this.holds.hold(c.cabinId, dto.departureId, actorId);
+        selections.push({
+          cabinId: c.cabinId,
+          holdId: hold.id,
+          adults: c.adults,
+          children: c.children,
+        });
+      }
+    } else {
+      throw new BadRequestException('Select at least one cabin');
     }
 
-    const result = await this.booking.checkout(customer.id, actorId, {
-      departureId: dto.departureId,
-      cabins: selections,
-      leadGuestName: dto.customerName,
-      leadGuestPhone: dto.customerPhone,
-      couponCode: dto.couponCode,
-      referenceName: dto.referenceName,
-      specialInstructions: dto.specialInstructions,
-    });
+    const result = await this.booking.checkout(
+      customer.id,
+      actorId,
+      {
+        departureId: dto.departureId,
+        cabins: selections,
+        leadGuestName: dto.customerName,
+        leadGuestPhone: dto.customerPhone,
+        couponCode: dto.couponCode,
+        referenceName: dto.referenceName,
+        specialInstructions: dto.specialInstructions,
+      },
+      {
+        overrides: overrides.size > 0 ? overrides : undefined,
+        ownerDiscount: dto.discount ?? null,
+        // Counter operator must have priced every cabin (manual price fills the
+        // gap), so a genuinely unpriced cabin should still fail loudly here.
+        throwOnUnpriced: true,
+        // The counter may oversell beyond rated capacity; such a cabin arrives
+        // with a manual priceOverride, which prices it. Without an override it
+        // stays unpriced and throwOnUnpriced rejects it — the operator must set
+        // a price. (The frontend blocks confirm until then.)
+        allowOverCapacity: true,
+      },
+    );
 
     // Record the counter payment (owner's own channel) as an unverified payment
     // so it lands in the owner's Payments queue to verify. Non-fatal: the sale
     // itself already succeeded.
-    if (dto.paymentMethod && result.invoice) {
+    //
+    // `amountPaid` is what the customer actually handed over — defaults to the
+    // full total (unchanged legacy behaviour) and may be a partial deposit. The
+    // remaining due is implicit (displayTotal − amountPaid); recordPayment
+    // accumulates. A zero payment records nothing and leaves the invoice due.
+    const paid = dto.amountPaid ?? Number(result.invoice?.displayTotal ?? 0);
+    if (dto.paymentMethod && result.invoice && paid > 0) {
       await this.payments
         .recordPayment(result.invoice.id, actorId, false, {
-          amount: Number(result.invoice.displayTotal),
+          amount: paid,
           method: dto.paymentMethod,
           receivedBy: actorId,
         })
@@ -346,7 +459,7 @@ export class OwnerBookingsService {
       entityType: 'booking',
       entityId: result.booking.id,
       after: {
-        cabins: dto.cabins.length,
+        cabins: selections.length,
         customerPhone: dto.customerPhone,
         paymentMethod: dto.paymentMethod ?? null,
       },

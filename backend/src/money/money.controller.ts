@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { PaymentsService } from './payments.service';
 import { RefundsService } from './refunds.service';
@@ -12,6 +12,7 @@ import {
   RecordPaymentDto,
   RefundRequestDto,
   CreateCouponDto,
+  SetCouponActiveDto,
   CreatePolicyDto,
   RecordDistributionDto,
   IssueSubscriptionDto,
@@ -109,6 +110,15 @@ export class MoneyController {
     return this.refunds.complete(refundId, user.id, user.isPlatform);
   }
 
+  /** POS one-step settle — owner marks a counter-sale refund as refunded. */
+  @Post('refunds/:refundId/settle-pos')
+  settlePosRefund(
+    @Param('refundId') refundId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.refunds.settlePos(refundId, user.id, user.isPlatform);
+  }
+
   // ── Settlement / payouts (platform finance) ────────────────
   @PlatformOnly()
   @Get('houseboats/:houseboatId/due-payments')
@@ -165,6 +175,17 @@ export class MoneyController {
     @Body() dto: CreateCouponDto,
   ) {
     return this.coupons.createCoupon(houseboatId, dto, user.id);
+  }
+
+  @Patch('houseboats/:houseboatId/coupons/:couponId/active')
+  @RequirePermission({ module: 'money', action: 'edit' })
+  setCouponActive(
+    @CurrentUser() user: AuthUser,
+    @Param('houseboatId') houseboatId: string,
+    @Param('couponId') couponId: string,
+    @Body() dto: SetCouponActiveDto,
+  ) {
+    return this.coupons.setCouponActive(houseboatId, couponId, dto.active, user.id);
   }
 
   @Get('houseboats/:houseboatId/cancellation-policies')

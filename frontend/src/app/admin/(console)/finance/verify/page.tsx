@@ -10,7 +10,7 @@ import type { ApiInvoice } from '@/lib/admin/invoices';
 export default function VerifyPayments() {
   const { items, error, isInitialLoading, hasMore, loadMore, mutate } =
     useAdminList<ApiInvoice>('/platform/finance/invoices', {
-      status: 'paid',
+      gatewayPending: true,
       limit: 20,
     });
 

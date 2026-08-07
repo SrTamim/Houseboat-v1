@@ -23,6 +23,31 @@ import {
 import { InvoiceStatus, assertTransition } from '../money/invoice-state';
 import { CheckoutDto } from './dto/booking.dto';
 
+/** A cabin to price. `holdId` is only needed by the checkout conversion. */
+export interface PriceableCabin {
+  cabinId: string;
+  holdId?: string;
+  adults: number;
+  children?: number;
+  childAges?: number[];
+  openSeat?: boolean;
+}
+
+/** Owner-only pricing controls, supplied by the counter-sale path only. */
+export interface PriceOpts {
+  /** cabinId → manual room price, for cabins with no configured rate. */
+  overrides?: Map<string, number>;
+  /** Flat taka discount folded into the bill. */
+  ownerDiscount?: number | null;
+  /** false = don't throw on a missing rate; mark the cabin unpriced instead. */
+  throwOnUnpriced?: boolean;
+  /**
+   * Counter-sale only: allow a headcount above the cabin's rated capacity. Such
+   * a cabin is returned unpriced (needs a manual price) rather than rejected.
+   */
+  allowOverCapacity?: boolean;
+}
+
 /**
  * Booking + checkout. Converts held cabins into a confirmed booking, its
  * booking_cabin rows, and a single invoice — atomically (plan §11).
@@ -126,6 +151,7 @@ export class BookingService {
       where: {
         houseboatId,
         code,
+        isActive: true,
         OR: [{ validFrom: null }, { validFrom: { lte: when } }],
         AND: [{ OR: [{ validTo: null }, { validTo: { gte: when } }] }],
       },
@@ -141,11 +167,29 @@ export class BookingService {
   }
 
   /**
-   * Checkout: caller must already hold every cabin (holdId per cabin). We
-   * convert the holds, create booking + cabins + invoice in one transaction.
-   * If any hold is not valid/owned, the whole thing rolls back.
+   * Price a cabin selection WITHOUT writing anything — the single source of
+   * truth for what a booking costs. Both real checkout and the counter-sale
+   * price quote call this, so a quoted price can never diverge from the price
+   * the booking is actually billed at.
+   *
+   * `opts.overrides` (cabinId → room price) lets the counter operator set a
+   * manual price for a cabin whose occupancy tier has no configured rate; it
+   * replaces the computed room_price for that cabin only. `opts.ownerDiscount`
+   * is a flat taka discount folded into the bill. Both are owner-only and are
+   * never reachable from the customer checkout path.
+   *
+   * `throwOnUnpriced` (checkout) surfaces a missing rate as an error; the quote
+   * path passes false so an unpriced cabin comes back marked `priced:false`
+   * (room_price 0) for the UI to show a manual-price input instead of crashing.
    */
-  async checkout(customerId: string, bookedBy: string, dto: CheckoutDto) {
+  async priceSelection(
+    dto: {
+      departureId: string;
+      cabins: PriceableCabin[];
+      couponCode?: string;
+    },
+    opts?: PriceOpts,
+  ) {
     const departure = await this.prisma.tripDeparture.findUnique({
       where: { id: dto.departureId },
       include: { package: { include: { houseboat: { select: { id: true, childPolicy: true } } } } },
@@ -159,10 +203,12 @@ export class BookingService {
     const billing = await this.prisma.houseboatBillingConfig.findFirst({
       where: { houseboatId },
     });
-    const gatewayFeePct = money(billing?.gatewayFeePct ?? 0);
     const commissionPct = billing?.commissionPct
       ? money(billing.commissionPct)
       : null;
+
+    const overrides = opts?.overrides;
+    const throwOnUnpriced = opts?.throwOnUnpriced ?? true;
 
     // Compute each cabin's room price from its category + occupancy + date.
     const cabinRows: {
@@ -173,6 +219,8 @@ export class BookingService {
       occupancy: number;
       roomPrice: Prisma.Decimal;
       isOpenSeat: boolean;
+      /** false when there was no configured rate AND no manual override. */
+      priced: boolean;
     }[] = [];
     let roomTotal = ZERO;
 
@@ -187,7 +235,17 @@ export class BookingService {
       const occupancy = sel.adults + children;
       const baseCap = cabin.category.baseCapacity;
       const cap = cabin.category.extendedCapacity ?? baseCap;
-      if (occupancy > cap) {
+
+      // A manual override (owner-typed price) wins over the pricing profile — it
+      // exists precisely for cabins whose occupancy tier has no configured rate.
+      const override = overrides?.get(sel.cabinId);
+
+      // Over the cabin's rated capacity. Online booking treats this as a hard
+      // limit; the counter may oversell (real walk-ups get squeezed in), so when
+      // allowOverCapacity is set we don't throw — the cabin just needs a manual
+      // price (there's no rate row beyond capacity). An override satisfies that.
+      const overCapacity = occupancy > cap;
+      if (overCapacity && !opts?.allowOverCapacity) {
         throw new BadRequestException(
           `Cabin ${cabin.name}: ${occupancy} exceeds capacity ${cap}`,
         );
@@ -195,19 +253,32 @@ export class BookingService {
 
       // Open seat (plan §3): the party doesn't fill the room and chooses to share
       // the spare place(s). It's priced at the full-capacity BUYOUT, and the room
-      // is offered to others until it fills.
-      const isOpenSeat = Boolean(sel.openSeat) && occupancy < baseCap;
-      if (sel.openSeat && occupancy >= baseCap) {
+      // is offered to others until it fills. (Not applicable over capacity.)
+      const isOpenSeat =
+        !overCapacity && Boolean(sel.openSeat) && occupancy < baseCap;
+      if (sel.openSeat && !overCapacity && occupancy >= baseCap) {
         throw new BadRequestException(
           `Cabin ${cabin.name}: it is already full — no open seat to share`,
         );
       }
 
-      // Buyout price for an open seat = full base capacity at the owner-set rate.
-      // Otherwise the room total is the per-person rate for this occupancy tier
-      // applied per party member — children charged per the boat's child_policy.
       let roomPrice: Prisma.Decimal;
-      if (isOpenSeat) {
+      let priced = true;
+      if (override !== undefined) {
+        roomPrice = money(override);
+      } else if (overCapacity) {
+        // Allowed oversell with no manual price yet. There is no rate row beyond
+        // capacity, so it needs a manual price. The quote marks it unpriced (for
+        // the manual-price input); checkout must not silently bill ৳0, so it
+        // fails loudly exactly like any other unpriced cabin.
+        if (throwOnUnpriced) {
+          throw new BadRequestException(
+            `Cabin ${cabin.name}: set a price for ${occupancy} people (over the rated capacity ${cap}).`,
+          );
+        }
+        roomPrice = ZERO;
+        priced = false;
+      } else if (isOpenSeat) {
         roomPrice = await this.pricing.priceFor(
           houseboatId,
           cabin.cabinCategoryId,
@@ -215,31 +286,44 @@ export class BookingService {
           departure.startDate,
         );
       } else {
-        const perPerson = await this.pricing.pricePerPersonFor(
-          houseboatId,
-          cabin.cabinCategoryId,
-          occupancy,
-          departure.startDate,
-        );
-        roomPrice = priceForParty({
-          pricePerPerson: perPerson,
-          adults: sel.adults,
-          children,
-          childAges: sel.childAges,
-          childPolicy: departure.package.houseboat.childPolicy as
-            | ChildBand[]
-            | null,
-        });
+        // Buyout price for an open seat = full base capacity at the owner-set rate.
+        // Otherwise the room total is the per-person rate for this occupancy tier
+        // applied per party member — children charged per the boat's child_policy.
+        try {
+          const perPerson = await this.pricing.pricePerPersonFor(
+            houseboatId,
+            cabin.cabinCategoryId,
+            occupancy,
+            departure.startDate,
+          );
+          roomPrice = priceForParty({
+            pricePerPerson: perPerson,
+            adults: sel.adults,
+            children,
+            childAges: sel.childAges,
+            childPolicy: departure.package.houseboat.childPolicy as
+              | ChildBand[]
+              | null,
+          });
+        } catch (e) {
+          // No configured rate for this occupancy tier. Checkout must fail loudly;
+          // the quote path swallows it and marks the cabin unpriced so the UI can
+          // offer a manual price input.
+          if (throwOnUnpriced) throw e;
+          roomPrice = ZERO;
+          priced = false;
+        }
       }
       roomTotal = add(roomTotal, roomPrice);
       cabinRows.push({
         cabinId: sel.cabinId,
-        holdId: sel.holdId,
+        holdId: sel.holdId ?? '',
         adults: sel.adults,
         children,
         occupancy,
         roomPrice,
         isOpenSeat,
+        priced,
       });
     }
 
@@ -250,10 +334,29 @@ export class BookingService {
     );
     const bill = buildBill({
       roomTotal,
-      gatewayFeePct,
       commissionPct,
       coupon: coupon?.input,
+      ownerDiscount: opts?.ownerDiscount != null ? money(opts.ownerDiscount) : null,
     });
+
+    return { departure, houseboatId, cabinRows, coupon, bill };
+  }
+
+  /**
+   * Checkout: caller must already hold every cabin (holdId per cabin). We
+   * convert the holds, create booking + cabins + invoice in one transaction.
+   * If any hold is not valid/owned, the whole thing rolls back.
+   */
+  async checkout(
+    customerId: string,
+    bookedBy: string,
+    dto: CheckoutDto,
+    opts?: PriceOpts,
+  ) {
+    const { houseboatId, cabinRows, coupon, bill } = await this.priceSelection(
+      dto,
+      opts,
+    );
 
     return this.prisma.$transaction(async (tx) => {
       // Convert each hold. If a hold isn't held/owned, abort (rolls back).
@@ -406,7 +509,6 @@ export class BookingService {
     const billing = await this.prisma.houseboatBillingConfig.findFirst({
       where: { houseboatId },
     });
-    const gatewayFeePct = money(billing?.gatewayFeePct ?? 0);
     const commissionPct = billing?.commissionPct
       ? money(billing.commissionPct)
       : null;
@@ -414,7 +516,6 @@ export class BookingService {
     // The band price IS the room total; no coupon on group buyout (spec §1).
     const bill = buildBill({
       roomTotal: money(band.totalPrice),
-      gatewayFeePct,
       commissionPct,
     });
 
@@ -579,7 +680,6 @@ export class BookingService {
     const billing = await this.prisma.houseboatBillingConfig.findFirst({
       where: { houseboatId },
     });
-    const gatewayFeePct = money(billing?.gatewayFeePct ?? 0);
     const commissionPct = billing?.commissionPct
       ? money(billing.commissionPct)
       : null;
@@ -595,7 +695,7 @@ export class BookingService {
       roomTotal = add(roomTotal, price);
     }
     // Reschedule does not re-apply the original coupon (fresh date, fresh bill).
-    const bill = buildBill({ roomTotal, gatewayFeePct, commissionPct });
+    const bill = buildBill({ roomTotal, commissionPct });
 
     const oldPrice = money(booking.invoice.displayTotal);
     const paid = money(booking.invoice.amountPaid);
@@ -830,7 +930,6 @@ export class BookingService {
     const billing = await this.prisma.houseboatBillingConfig.findFirst({
       where: { houseboatId },
     });
-    const gatewayFeePct = money(billing?.gatewayFeePct ?? 0);
     const commissionPct = billing?.commissionPct
       ? money(billing.commissionPct)
       : null;
@@ -840,7 +939,6 @@ export class BookingService {
     const newRoomTotal = sub(oldRoomTotal, joinerPrice);
     const firstBill = buildBill({
       roomTotal: newRoomTotal.isNegative() ? ZERO : newRoomTotal,
-      gatewayFeePct,
       commissionPct,
     });
 
@@ -884,7 +982,6 @@ export class BookingService {
       // 3. Create the joiner's own booking + cabin + invoice for the spare place.
       const joinerBill = buildBill({
         roomTotal: joinerPrice,
-        gatewayFeePct,
         commissionPct,
       });
       const joinerBooking = await tx.booking.create({

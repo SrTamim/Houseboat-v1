@@ -42,7 +42,6 @@ export class PaymentsService {
     houseboatId: string,
     query: {
       status?: string;
-      cashPending?: boolean;
       q?: string;
       cursor?: string;
       limit?: number;
@@ -53,18 +52,6 @@ export class PaymentsService {
       where: {
         houseboatId,
         ...(query.status ? { status: query.status } : {}),
-        ...(query.cashPending
-          ? {
-              // Owner-collected channels the owner verifies themselves (§6) —
-              // gateway money is verified by platform finance, not here.
-              payments: {
-                some: {
-                  method: { in: ['cash', 'bkash', 'bank', 'online'] },
-                  verifiedBy: null,
-                },
-              },
-            }
-          : {}),
         ...(query.q
           ? {
               customer: {

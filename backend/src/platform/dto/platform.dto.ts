@@ -10,6 +10,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { PageQueryDto } from '../../common/dto/pagination.dto';
 
 /** Runtime mirror of InvoiceStatus (money/invoice-state.ts exports a type only). */
@@ -57,6 +58,27 @@ export class ListInvoicesQueryDto extends PageQueryDto {
   @IsOptional()
   @IsIn(INVOICE_STATUSES as unknown as string[])
   status?: (typeof INVOICE_STATUSES)[number];
+
+  /**
+   * Invoices ready to settle: owner-recorded 'paid' plus platform-verified
+   * 'payment_verified', not yet in a payout batch. Backs the payout-prep queue
+   * (mirrors payouts.service.ts pickup). Ignored when `status` is set.
+   */
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  settleable?: boolean;
+
+  /**
+   * The gateway verify queue: 'paid' invoices carrying a gateway payment the
+   * platform still checks against the gateway portal. Owner-recorded cash never
+   * queues here — it settles without platform verification. Ignored when
+   * `status` is set.
+   */
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  gatewayPending?: boolean;
 
   @IsOptional() @IsUUID() houseboatId?: string;
 }
@@ -136,12 +158,6 @@ export class UpsertBillingConfigDto {
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   monthlyFee?: number | null;
-
-  @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0)
-  @Max(100)
-  gatewayFeePct?: number | null;
 
   /** YYYY-MM-DD — the column is a date, not a timestamp. */
   @IsOptional()

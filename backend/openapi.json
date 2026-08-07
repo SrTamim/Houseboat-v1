@@ -629,6 +629,216 @@
         ]
       }
     },
+    "/api/houseboats/{houseboatId}/decks/{deckId}": {
+      "patch": {
+        "operationId": "AssetsController_updateDeck",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "deckId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDeckDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      },
+      "delete": {
+        "operationId": "AssetsController_deleteDeck",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "deckId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/categories/{categoryId}": {
+      "patch": {
+        "operationId": "AssetsController_updateCategory",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "categoryId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCategoryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      },
+      "delete": {
+        "operationId": "AssetsController_deleteCategory",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "categoryId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/cabins/{cabinId}": {
+      "patch": {
+        "operationId": "AssetsController_updateCabin",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cabinId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCabinDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      },
+      "delete": {
+        "operationId": "AssetsController_deleteCabin",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cabinId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
     "/api/houseboats/{houseboatId}/routes": {
       "post": {
         "operationId": "AssetsController_linkRoute",
@@ -898,6 +1108,60 @@
         },
         "tags": [
           "Media"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/schedule": {
+      "get": {
+        "operationId": "TripsController_getSchedule",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Trips"
+        ]
+      },
+      "put": {
+        "operationId": "TripsController_saveSchedule",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveScheduleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Trips"
         ]
       }
     },
@@ -1545,6 +1809,48 @@
         ]
       }
     },
+    "/api/houseboats/{houseboatId}/bookings/{bookingId}/checkin": {
+      "patch": {
+        "operationId": "OwnerBookingsController_setCheckin",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "bookingId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckinDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Mark departure attendance for one booking from the manifest (§4).",
+        "tags": [
+          "OwnerBookings"
+        ]
+      }
+    },
     "/api/houseboats/{houseboatId}/waitlist": {
       "get": {
         "operationId": "OwnerBookingsController_waitlist",
@@ -1594,6 +1900,72 @@
             "description": ""
           }
         },
+        "tags": [
+          "OwnerBookings"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/departures/{departureId}/holds": {
+      "get": {
+        "operationId": "OwnerBookingsController_departureHolds",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "departureId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Live holds on a departure (anyone's), so the counter grid can lock them.",
+        "tags": [
+          "OwnerBookings"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/pos/quote": {
+      "post": {
+        "operationId": "OwnerBookingsController_posQuote",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PosQuoteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Read-only price preview for a counter-sale selection. Creates nothing.",
         "tags": [
           "OwnerBookings"
         ]
@@ -1738,15 +2110,6 @@
             }
           },
           {
-            "name": "cashPending",
-            "required": false,
-            "in": "query",
-            "description": "Only invoices with a cash payment nobody has verified yet — the queue the\nPayments page works through.",
-            "schema": {
-              "type": "boolean"
-            }
-          },
-          {
             "name": "q",
             "required": false,
             "in": "query",
@@ -1884,6 +2247,30 @@
             "description": ""
           }
         },
+        "tags": [
+          "Money"
+        ]
+      }
+    },
+    "/api/refunds/{refundId}/settle-pos": {
+      "post": {
+        "operationId": "MoneyController_settlePosRefund",
+        "parameters": [
+          {
+            "name": "refundId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "POS one-step settle — owner marks a counter-sale refund as refunded.",
         "tags": [
           "Money"
         ]
@@ -2059,6 +2446,47 @@
         },
         "responses": {
           "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Money"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/coupons/{couponId}/active": {
+      "patch": {
+        "operationId": "MoneyController_setCouponActive",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "couponId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetCouponActiveDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
             "description": ""
           }
         },
@@ -2542,17 +2970,7 @@
         ],
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object"
-                  }
-                }
-              }
-            }
+            "description": ""
           }
         },
         "tags": [
@@ -2583,6 +3001,76 @@
         },
         "responses": {
           "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/staff/{staffId}": {
+      "patch": {
+        "operationId": "HrController_updateStaff",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "staffId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateStaffDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      },
+      "delete": {
+        "operationId": "HrController_removeStaff",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "staffId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
             "description": ""
           }
         },
@@ -2693,6 +3181,38 @@
         ],
         "responses": {
           "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/attendance": {
+      "get": {
+        "operationId": "HrController_attendance",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "period",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "pattern": "/^\\d{4}-\\d{2}$/",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
             "description": ""
           }
         },
@@ -2983,6 +3503,48 @@
         "tags": [
           "Ops"
         ]
+      },
+      "patch": {
+        "operationId": "OpsController_editReviewReply",
+        "parameters": [
+          {
+            "name": "reviewId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Ops"
+        ]
+      },
+      "delete": {
+        "operationId": "OpsController_deleteReviewReply",
+        "parameters": [
+          {
+            "name": "reviewId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Ops"
+        ]
       }
     },
     "/api/me/notifications": {
@@ -3088,6 +3650,24 @@
                 "refund_completed"
               ],
               "type": "string"
+            }
+          },
+          {
+            "name": "settleable",
+            "required": false,
+            "in": "query",
+            "description": "Invoices ready to settle: owner-recorded 'paid' plus platform-verified\n'payment_verified', not yet in a payout batch. Backs the payout-prep queue\n(mirrors payouts.service.ts pickup). Ignored when `status` is set.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "gatewayPending",
+            "required": false,
+            "in": "query",
+            "description": "The gateway verify queue: 'paid' invoices carrying a gateway payment the\nplatform still checks against the gateway portal. Owner-recorded cash never\nqueues here — it settles without platform verification. Ignored when\n`status` is set.",
+            "schema": {
+              "type": "boolean"
             }
           },
           {
@@ -3198,6 +3778,24 @@
                 "refund_completed"
               ],
               "type": "string"
+            }
+          },
+          {
+            "name": "settleable",
+            "required": false,
+            "in": "query",
+            "description": "Invoices ready to settle: owner-recorded 'paid' plus platform-verified\n'payment_verified', not yet in a payout batch. Backs the payout-prep queue\n(mirrors payouts.service.ts pickup). Ignored when `status` is set.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "gatewayPending",
+            "required": false,
+            "in": "query",
+            "description": "The gateway verify queue: 'paid' invoices carrying a gateway payment the\nplatform still checks against the gateway portal. Owner-recorded cash never\nqueues here — it settles without platform verification. Ignored when\n`status` is set.",
+            "schema": {
+              "type": "boolean"
             }
           },
           {
@@ -4392,6 +4990,59 @@
         ]
       }
     },
+    "/api/houseboats/{houseboatId}/guests/export": {
+      "get": {
+        "operationId": "OwnerController_exportGuests",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 120,
+              "type": "string"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "description": "Offset paging, not a cursor: the guest list is a groupBy aggregate and\nPrisma cursors don't apply to grouped rows. Guest counts per boat are\nsmall (hundreds), so the offset scan cost is not a concern here.",
+            "schema": {
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 200,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Download the guest directory as CSV (§8).",
+        "tags": [
+          "Owner"
+        ]
+      }
+    },
     "/api/houseboats/{houseboatId}/audit": {
       "get": {
         "operationId": "OwnerController_listAudit",
@@ -4917,6 +5568,31 @@
           "roleId"
         ]
       },
+      "FoodMenuDto": {
+        "type": "object",
+        "properties": {
+          "breakfast": {
+            "type": "string",
+            "maxLength": 5000
+          },
+          "brunch": {
+            "type": "string",
+            "maxLength": 5000
+          },
+          "lunch": {
+            "type": "string",
+            "maxLength": 5000
+          },
+          "snacks": {
+            "type": "string",
+            "maxLength": 5000
+          },
+          "dinner": {
+            "type": "string",
+            "maxLength": 5000
+          }
+        }
+      },
       "CreateHouseboatDto": {
         "type": "object",
         "properties": {
@@ -4933,12 +5609,62 @@
             "maxLength": 5000
           },
           "foodMenu": {
-            "type": "string",
-            "maxLength": 5000
+            "$ref": "#/components/schemas/FoodMenuDto"
           }
         },
         "required": [
           "name"
+        ]
+      },
+      "BankAccountDto": {
+        "type": "object",
+        "properties": {
+          "bankName": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "accountNo": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "accountHolder": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "district": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "branch": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "routingNumber": {
+            "type": "string",
+            "maxLength": 64
+          }
+        }
+      },
+      "ChildBandDto": {
+        "type": "object",
+        "properties": {
+          "min": {
+            "type": "number",
+            "minimum": 0
+          },
+          "max": {
+            "type": "number",
+            "minimum": 0
+          },
+          "chargePct": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "min",
+          "max",
+          "chargePct"
         ]
       },
       "UpdateHouseboatDto": {
@@ -4957,15 +5683,23 @@
             "maxLength": 5000
           },
           "foodMenu": {
-            "type": "string",
-            "maxLength": 5000
+            "$ref": "#/components/schemas/FoodMenuDto"
           },
           "bankAccount": {
-            "type": "object",
-            "description": "Payout destination; shape is bank-dependent."
+            "description": "Payout destination — structured bank fields (§9).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BankAccountDto"
+              }
+            ]
           },
           "childPolicy": {
-            "type": "object"
+            "description": "Age bands; empty/omitted → children pay full. Order matters (first match wins).",
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChildBandDto"
+            }
           },
           "operatingDates": {
             "description": "ISO date strings — only these dates generate bookable departures.",
@@ -5057,6 +5791,65 @@
           "name"
         ]
       },
+      "UpdateDeckDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "position": {
+            "type": "number"
+          }
+        }
+      },
+      "UpdateCategoryDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "isAc": {
+            "type": "boolean"
+          },
+          "baseCapacity": {
+            "type": "number",
+            "minimum": 1
+          },
+          "extendedCapacity": {
+            "type": "number",
+            "minimum": 1
+          },
+          "facilities": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
+      },
+      "UpdateCabinDto": {
+        "type": "object",
+        "properties": {
+          "deckId": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "cabinCategoryId": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "gridRow": {
+            "type": "number"
+          },
+          "gridCol": {
+            "type": "number"
+          }
+        }
+      },
       "LinkRouteDto": {
         "type": "object",
         "properties": {
@@ -5114,6 +5907,61 @@
         },
         "required": [
           "youtubeUrl"
+        ]
+      },
+      "ScheduleSlotDto": {
+        "type": "object",
+        "properties": {
+          "slotNo": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 3
+          },
+          "weekdays": {
+            "description": "Days of week, 0=Sun … 6=Sat.",
+            "maxItems": 7,
+            "type": "array",
+            "items": {
+              "type": "number",
+              "maximum": 6,
+              "minimum": 0
+            }
+          },
+          "departureTime": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "pricingProfileId": {
+            "type": "string",
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "slotNo",
+          "weekdays"
+        ]
+      },
+      "SaveScheduleDto": {
+        "type": "object",
+        "properties": {
+          "packageId": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "slots": {
+            "maxItems": 3,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScheduleSlotDto"
+            }
+          }
+        },
+        "required": [
+          "packageId",
+          "slots"
         ]
       },
       "CreatePackageDto": {
@@ -5466,6 +6314,86 @@
           "newDepartureId"
         ]
       },
+      "CheckinDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "checked_in",
+              "absent"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "PosQuoteCabinDto": {
+        "type": "object",
+        "properties": {
+          "cabinId": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "adults": {
+            "type": "number",
+            "minimum": 1
+          },
+          "children": {
+            "type": "number",
+            "minimum": 0
+          },
+          "childAges": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "number",
+              "maximum": 120,
+              "minimum": 0
+            }
+          },
+          "priceOverride": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 10000000
+          }
+        },
+        "required": [
+          "cabinId",
+          "adults"
+        ]
+      },
+      "PosQuoteDto": {
+        "type": "object",
+        "properties": {
+          "departureId": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "cabins": {
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PosQuoteCabinDto"
+            }
+          },
+          "couponCode": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "discount": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 10000000
+          }
+        },
+        "required": [
+          "departureId",
+          "cabins"
+        ]
+      },
       "PosCabinDto": {
         "type": "object",
         "properties": {
@@ -5487,6 +6415,48 @@
           "adults"
         ]
       },
+      "PosHeldCabinDto": {
+        "type": "object",
+        "properties": {
+          "cabinId": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "holdId": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "adults": {
+            "type": "number",
+            "minimum": 1
+          },
+          "children": {
+            "type": "number",
+            "minimum": 0
+          },
+          "childAges": {
+            "description": "Ages of the children so each is charged per the boat's child_policy.",
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "number",
+              "maximum": 120,
+              "minimum": 0
+            }
+          },
+          "priceOverride": {
+            "type": "number",
+            "description": "Owner-typed room price for a cabin whose occupancy tier has no configured\nrate. Replaces the computed price for this cabin only. Counter-sale only.",
+            "minimum": 0,
+            "maximum": 10000000
+          }
+        },
+        "required": [
+          "cabinId",
+          "holdId",
+          "adults"
+        ]
+      },
       "PosCheckoutDto": {
         "type": "object",
         "properties": {
@@ -5504,10 +6474,19 @@
             "maxLength": 64
           },
           "cabins": {
+            "description": "Legacy single-request path: hold + checkout in one call. Optional now that\nthe counter grid holds cabins on select and sends `holds` instead. Exactly\none of `cabins` / `holds` is used; `holds` wins when present.",
             "maxItems": 50,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/PosCabinDto"
+            }
+          },
+          "holds": {
+            "description": "Cabins already held from the select step, to be converted on confirm.",
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PosHeldCabinDto"
             }
           },
           "couponCode": {
@@ -5521,13 +6500,34 @@
           "specialInstructions": {
             "type": "string",
             "maxLength": 500
+          },
+          "paymentMethod": {
+            "type": "string",
+            "description": "Owner's personal collection channel for cash taken at the counter (§6).",
+            "enum": [
+              "cash",
+              "bkash",
+              "bank",
+              "online"
+            ]
+          },
+          "discount": {
+            "type": "number",
+            "description": "Ad-hoc flat discount (taka) the owner grants at the counter, deducted from\nthe total on top of any coupon. The boat absorbs it.",
+            "minimum": 0,
+            "maximum": 10000000
+          },
+          "amountPaid": {
+            "type": "number",
+            "description": "How much the customer actually handed over. Defaults to the full total when\nomitted. 0 = nothing paid yet (booking still confirms; invoice stays due).",
+            "minimum": 0,
+            "maximum": 10000000
           }
         },
         "required": [
           "departureId",
           "customerName",
-          "customerPhone",
-          "cabins"
+          "customerPhone"
         ]
       },
       "RecordPaymentDto": {
@@ -5541,7 +6541,10 @@
             "type": "string",
             "enum": [
               "gateway",
-              "cash"
+              "cash",
+              "bkash",
+              "bank",
+              "online"
             ]
           },
           "gatewayToken": {
@@ -5608,6 +6611,17 @@
           "code",
           "kind",
           "value"
+        ]
+      },
+      "SetCouponActiveDto": {
+        "type": "object",
+        "properties": {
+          "active": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "active"
         ]
       },
       "CreatePolicyDto": {
@@ -5746,6 +6760,10 @@
             "type": "string",
             "maxLength": 64
           },
+          "designation": {
+            "type": "string",
+            "maxLength": 120
+          },
           "nid": {
             "type": "string",
             "maxLength": 64
@@ -5753,6 +6771,10 @@
           "emergencyContact": {
             "type": "string",
             "maxLength": 120
+          },
+          "address": {
+            "type": "string",
+            "maxLength": 500
           },
           "perTripRate": {
             "type": "number",
@@ -5766,6 +6788,44 @@
         "required": [
           "phone"
         ]
+      },
+      "UpdateStaffDto": {
+        "type": "object",
+        "properties": {
+          "designation": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "nid": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "emergencyContact": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "address": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "available",
+              "on_leave"
+            ]
+          },
+          "perTripRate": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 0
+          },
+          "monthlySalary": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 0
+          }
+        }
       },
       "LeaveDto": {
         "type": "object",
@@ -5996,12 +7056,6 @@
             "type": "number",
             "nullable": true,
             "minimum": 0
-          },
-          "gatewayFeePct": {
-            "type": "number",
-            "nullable": true,
-            "minimum": 0,
-            "maximum": 100
           },
           "trialEnds": {
             "type": "string",

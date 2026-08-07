@@ -17,7 +17,6 @@ interface Analytics {
   totals: {
     gmv: string | number;
     commission: string | number;
-    gatewayFees: string | number;
     collected: string | number;
     dueToBoats: string | number;
     invoiceCount: number;
@@ -59,13 +58,6 @@ export default function Commission() {
                   <><span className="u">৳</span>{formatBDT(data.totals.commission)}</>
                 ) : '…',
                 delta: data ? `${data.totals.invoiceCount} invoices all-time` : undefined,
-              },
-              {
-                icon: '💳',
-                label: 'Gateway fees',
-                value: data ? (
-                  <><span className="u">৳</span>{formatBDT(data.totals.gatewayFees)}</>
-                ) : '…',
               },
               {
                 icon: '📈',

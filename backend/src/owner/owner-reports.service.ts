@@ -39,7 +39,7 @@ export class OwnerReportsService {
           select: {
             cabins: { select: { id: true, occupancy: true } },
             invoice: {
-              select: { roomTotal: true, commission: true, gatewayFee: true },
+              select: { roomTotal: true, commission: true },
             },
           },
         },
@@ -165,7 +165,6 @@ export class OwnerReportsService {
           select: {
             roomTotal: true,
             commission: true,
-            gatewayFee: true,
             dueToBoat: true,
             amountPaid: true,
           },
@@ -202,7 +201,6 @@ export class OwnerReportsService {
 
     const roomRevenue = invoices.reduce((s, i) => add(s, money(i.roomTotal)), ZERO);
     const commission = invoices.reduce((s, i) => add(s, money(i.commission)), ZERO);
-    const gatewayFees = invoices.reduce((s, i) => add(s, money(i.gatewayFee)), ZERO);
     const payoutsReceived = payouts.reduce(
       (s, p) => add(s, money(p.totalAmount)),
       ZERO,
@@ -218,7 +216,7 @@ export class OwnerReportsService {
     );
 
     const net = sub(
-      sub(sub(sub(roomRevenue, commission), gatewayFees), operatingCosts),
+      sub(sub(roomRevenue, commission), operatingCosts),
       crewPayroll,
     );
 
@@ -227,7 +225,6 @@ export class OwnerReportsService {
       statement: {
         roomRevenue: roomRevenue.toFixed(2),
         commission: commission.toFixed(2),
-        gatewayFees: gatewayFees.toFixed(2),
         payoutsReceived: payoutsReceived.toFixed(2),
         operatingCosts: operatingCosts.toFixed(2),
         crewPayroll: crewPayroll.toFixed(2),

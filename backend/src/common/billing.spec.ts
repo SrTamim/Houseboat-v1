@@ -62,3 +62,51 @@ describe('buildBill — flat coupon capped at price', () => {
     expect(b.discountAmount.toFixed(2)).toBe('1000.00');
   });
 });
+
+describe('buildBill — owner discount', () => {
+  it('deducts the owner discount from display_total', () => {
+    const b = buildBill({
+      roomTotal: money(10000),
+      commissionPct: money(5),
+      ownerDiscount: money(1500),
+    });
+    expect(b.discountAmount.toFixed(2)).toBe('1500.00');
+    expect(b.displayTotal.toFixed(2)).toBe('8500.00');
+    // Commission is still off the ORIGINAL room total — boat absorbs it.
+    expect(b.commission.toFixed(2)).toBe('500.00');
+  });
+
+  it('stacks on top of a coupon', () => {
+    const b = buildBill({
+      roomTotal: money(10000),
+      commissionPct: money(5),
+      coupon: { kind: 'percent', value: money(10) }, // 1,000
+      ownerDiscount: money(500),
+    });
+    expect(b.discountAmount.toFixed(2)).toBe('1500.00');
+    expect(b.displayTotal.toFixed(2)).toBe('8500.00');
+    expect(b.commission.toFixed(2)).toBe('500.00');
+  });
+
+  it('coupon + owner discount together cannot exceed price shown', () => {
+    const b = buildBill({
+      roomTotal: money(1000),
+      commissionPct: null,
+      coupon: { kind: 'flat', value: money(800) },
+      ownerDiscount: money(800),
+    });
+    expect(b.discountAmount.toFixed(2)).toBe('1000.00');
+    expect(b.displayTotal.toFixed(2)).toBe('0.00');
+  });
+
+  it('is a no-op when null/absent (coupon-only path unchanged)', () => {
+    const withNull = buildBill({
+      roomTotal: money(5000),
+      commissionPct: money(5),
+      ownerDiscount: null,
+    });
+    const without = buildBill({ roomTotal: money(5000), commissionPct: money(5) });
+    expect(withNull.displayTotal.toFixed(2)).toBe(without.displayTotal.toFixed(2));
+    expect(withNull.displayTotal.toFixed(2)).toBe('5000.00');
+  });
+});

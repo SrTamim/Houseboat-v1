@@ -16,7 +16,6 @@ interface Analytics {
   totals: {
     gmv: string | number;
     commission: string | number;
-    gatewayFees: string | number;
     collected: string | number;
     dueToBoats: string | number;
     invoiceCount: number;

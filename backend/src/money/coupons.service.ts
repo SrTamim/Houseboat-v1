@@ -7,6 +7,8 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { newId } from '../common/uuid';
+import { couponDiscount, CouponInput } from '../common/billing';
+import { money, ZERO, add } from '../common/money';
 
 /** Coupons + cancellation policies — owner-set money config. */
 @Injectable()
@@ -86,8 +88,68 @@ export class CouponsService {
     return coupon;
   }
 
-  listCoupons(houseboatId: string) {
-    return this.prisma.coupon.findMany({ where: { houseboatId } });
+  async setCouponActive(
+    houseboatId: string,
+    couponId: string,
+    active: boolean,
+    actorId: string,
+  ) {
+    const coupon = await this.prisma.coupon.findFirst({
+      where: { id: couponId, houseboatId },
+      select: { id: true },
+    });
+    if (!coupon) throw new NotFoundException('Coupon not found');
+
+    const updated = await this.prisma.coupon.update({
+      where: { id: couponId },
+      data: { isActive: active },
+    });
+
+    await this.audit.log({
+      houseboatId,
+      actorAccountId: actorId,
+      action: 'coupon_set_active',
+      entityType: 'coupon',
+      entityId: couponId,
+      after: { isActive: active },
+    });
+
+    return updated;
+  }
+
+  async listCoupons(houseboatId: string) {
+    const coupons = await this.prisma.coupon.findMany({ where: { houseboatId } });
+
+    // Usage stats: count non-cancelled bookings per coupon and recompute the
+    // coupon-only discount from each booking's pre-coupon price (invoice.priceShown),
+    // so an owner's ad-hoc POS discount never inflates the deducted total.
+    const bookings = await this.prisma.booking.findMany({
+      where: {
+        couponId: { in: coupons.map((c) => c.id) },
+        status: { not: 'cancelled' },
+      },
+      select: { couponId: true, invoice: { select: { priceShown: true } } },
+    });
+
+    return coupons.map((c) => {
+      const input: CouponInput = {
+        kind: c.kind as CouponInput['kind'],
+        value: money(c.value),
+      };
+      let total = ZERO;
+      let count = 0;
+      for (const b of bookings) {
+        if (b.couponId !== c.id) continue;
+        count += 1;
+        if (!b.invoice) continue; // quote-type bookings have no invoice
+        total = add(total, couponDiscount(money(b.invoice.priceShown), input));
+      }
+      return {
+        ...c,
+        usageCount: count,
+        totalDeducted: total.toFixed(2),
+      };
+    });
   }
 
   createPolicy(

@@ -8,6 +8,7 @@ import {
   CheckinDto,
   OwnerBookingsQueryDto,
   PosCheckoutDto,
+  PosQuoteDto,
 } from './dto/owner-bookings.dto';
 
 /**
@@ -63,6 +64,26 @@ export class OwnerBookingsController {
     @CurrentUser() user: AuthUser,
   ) {
     return this.bookings.notifyWaitlist(houseboatId, departureId, user.id);
+  }
+
+  /** Live holds on a departure (anyone's), so the counter grid can lock them. */
+  @Get('departures/:departureId/holds')
+  @RequirePermission({ module: 'bookings', action: 'edit' })
+  departureHolds(
+    @Param('houseboatId') houseboatId: string,
+    @Param('departureId') departureId: string,
+  ) {
+    return this.bookings.departureHolds(houseboatId, departureId);
+  }
+
+  /** Read-only price preview for a counter-sale selection. Creates nothing. */
+  @Post('pos/quote')
+  @RequirePermission({ module: 'bookings', action: 'edit' })
+  posQuote(
+    @Param('houseboatId') houseboatId: string,
+    @Body() dto: PosQuoteDto,
+  ) {
+    return this.bookings.posQuote(houseboatId, dto);
   }
 
   /**

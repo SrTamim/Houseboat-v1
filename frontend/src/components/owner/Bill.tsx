@@ -52,10 +52,6 @@ export function InvoiceBill({
 }: {
   invoice: {
     roomTotal: string;
-    /** Kept for data compatibility; no longer displayed (gateway fee removed). */
-    gatewayFee?: string;
-    /** Kept for data compatibility; no longer displayed (= roomTotal now). */
-    priceShown?: string;
     discountAmount: string;
     displayTotal: string;
     commission: string;

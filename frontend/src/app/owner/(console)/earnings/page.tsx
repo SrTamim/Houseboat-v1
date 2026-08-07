@@ -24,7 +24,6 @@ interface EarningsResponse {
   statement: {
     roomRevenue: string;
     commission: string;
-    gatewayFees: string;
     payoutsReceived: string;
     operatingCosts: string;
     crewPayroll: string;

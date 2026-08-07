@@ -11,10 +11,12 @@ import { Money, money, ZERO, add } from '../common/money';
 import { dueToBoat } from '../common/billing';
 
 /**
- * Weekly settlement + payout — plan §5. Finance batches all payment_verified
- * invoices for a boat, computes a SIGNED total (can be negative if the boat
- * owes the platform), and locks each invoice to in_payout so no refund can
- * double-spend. Separation of duties: prepared_by != approved_by (DB CHECK too).
+ * Weekly settlement + payout — plan §5. Finance batches all settleable
+ * invoices for a boat (owner-recorded 'paid' plus platform-verified
+ * 'payment_verified' — owner cash no longer needs a separate verify step),
+ * computes a SIGNED total (can be negative if the boat owes the platform), and
+ * locks each invoice to in_payout so no refund can double-spend. Separation of
+ * duties: prepared_by != approved_by (DB CHECK too).
  *
  * Cash never entered the platform account → it never enters due_to_boat.
  */
@@ -28,7 +30,11 @@ export class PayoutsService {
   /** Invoices ready to settle for a boat. */
   async duePayments(houseboatId: string) {
     return this.prisma.invoice.findMany({
-      where: { houseboatId, status: 'payment_verified', payoutBatchId: null },
+      where: {
+        houseboatId,
+        status: { in: ['paid', 'payment_verified'] },
+        payoutBatchId: null,
+      },
       include: { payments: true },
     });
   }
@@ -70,8 +76,9 @@ export class PayoutsService {
   }
 
   /**
-   * Prepare a batch: pull all payment_verified invoices, compute due_to_boat per
-   * invoice (gateway receipts − commission; cash excluded), lock them in_payout.
+   * Prepare a batch: pull all settleable invoices (paid + payment_verified),
+   * compute due_to_boat per invoice (gateway receipts − commission; cash
+   * excluded), lock them in_payout.
    */
   async prepareBatch(houseboatId: string, preparedBy: string) {
     // A payout cannot run without the boat's bank account on file (schema:
@@ -88,11 +95,15 @@ export class PayoutsService {
 
     return this.prisma.$transaction(async (tx) => {
       const invoices = await tx.invoice.findMany({
-        where: { houseboatId, status: 'payment_verified', payoutBatchId: null },
+        where: {
+          houseboatId,
+          status: { in: ['paid', 'payment_verified'] },
+          payoutBatchId: null,
+        },
         include: { payments: true },
       });
       if (invoices.length === 0) {
-        throw new BadRequestException('No verified invoices to settle');
+        throw new BadRequestException('No invoices ready to settle');
       }
 
       const batch = await tx.houseboatPayoutBatch.create({

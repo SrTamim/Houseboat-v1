@@ -16,6 +16,7 @@ import {
   AsyncTable,
 } from '@/components/owner/ui';
 import { Pill, DepartureStatusPill } from '@/components/owner/Pill';
+import { Drawer } from '@/components/owner/Drawer';
 import { apiErrorMessage, money, formatDate, weekday } from '@/lib/owner/format';
 
 interface Departure {
@@ -45,7 +46,11 @@ interface Booking {
 interface Crew {
   id: string;
   present: boolean;
-  staff: { id: string; account: { name: string | null; phone: string } | null };
+  staff: {
+    id: string;
+    role: { name: string } | null;
+    account: { name: string | null; phone: string } | null;
+  };
 }
 
 const PAY_METHODS = [
@@ -55,11 +60,9 @@ const PAY_METHODS = [
   { value: 'online', label: 'Online' },
 ] as const;
 
-const CURRENT_YEAR = new Date().getUTCFullYear();
-const YEARS = [CURRENT_YEAR - 1, CURRENT_YEAR, CURRENT_YEAR + 1];
-
-function monthOf(iso: string): string {
-  return iso.slice(0, 7);
+/** Today in YYYY-MM-DD, for the default date filter. */
+function today(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
 /** Digits-only phone for a tel: link. */
@@ -70,38 +73,57 @@ function telHref(phone: string): string {
 export default function OwnerDeparturePage() {
   const { boatId } = useActiveBoat();
   const [selected, setSelected] = useState<string>('');
-  const [date, setDate] = useState('');
-  const [month, setMonth] = useState('');
-  const [year, setYear] = useState('');
+  const [date, setDate] = useState(() => today());
   const [busyId, setBusyId] = useState<string | null>(null);
   const [payFor, setPayFor] = useState<Booking | null>(null);
+  const [payMethod, setPayMethod] = useState<string>(PAY_METHODS[0].value);
+  const [payAmount, setPayAmount] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const departures = useSWR<Departure[]>(`/houseboats/${boatId}/departures`, fetcher, {
     revalidateOnFocus: false,
   });
 
-  // Departures narrowed by the date/month/year filter, newest first.
-  const filtered = useMemo(() => {
-    const all = [...(departures.data ?? [])].sort((a, b) =>
-      b.startDate.localeCompare(a.startDate),
-    );
-    if (date) return all.filter((d) => d.startDate.slice(0, 10) === date);
-    if (month) return all.filter((d) => monthOf(d.startDate) === month);
-    if (year) return all.filter((d) => d.startDate.slice(0, 4) === year);
-    return all;
-  }, [departures.data, date, month, year]);
+  // All departures, newest first.
+  const all = useMemo(
+    () =>
+      [...(departures.data ?? [])].sort((a, b) =>
+        b.startDate.localeCompare(a.startDate),
+      ),
+    [departures.data],
+  );
 
-  // Default to the latest departure on load / when the filter changes.
+  // Departures on the picked date. May be empty (e.g. no trip today).
+  const filtered = useMemo(
+    () => (date ? all.filter((d) => d.startDate.slice(0, 10) === date) : all),
+    [all, date],
+  );
+
+  // Never leave the manifest blank: when the picked date has no departure,
+  // fall back to the latest one so there's always something to work with.
+  const pool = filtered.length ? filtered : all;
+
   const activeId =
-    selected && filtered.some((d) => d.id === selected)
+    selected && pool.some((d) => d.id === selected)
       ? selected
-      : filtered[0]?.id || '';
-  const active = (departures.data ?? []).find((d) => d.id === activeId);
+      : pool[0]?.id || '';
+  const active = all.find((d) => d.id === activeId);
 
   useEffect(() => {
     setSelected('');
-  }, [date, month, year]);
+  }, [date]);
+
+  // Seed the pay form with the outstanding due whenever a row is picked.
+  useEffect(() => {
+    if (!payFor) return;
+    const due = Math.max(
+      0,
+      Number(payFor.invoice?.displayTotal ?? 0) -
+        Number(payFor.invoice?.amountPaid ?? 0),
+    );
+    setPayAmount(due.toFixed(2));
+    setPayMethod(PAY_METHODS[0].value);
+  }, [payFor]);
 
   const bookings = useOwnerList<Booking>(
     activeId ? `/houseboats/${boatId}/bookings` : null,
@@ -146,19 +168,21 @@ export default function OwnerDeparturePage() {
     }
   }
 
-  async function pay(method: string) {
+  async function pay() {
     const b = payFor;
     if (!b || !b.invoice) return;
-    const due =
-      Number(b.invoice.displayTotal) - Number(b.invoice.amountPaid);
-    if (due <= 0) {
-      setPayFor(null);
+    const amount = Number(payAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setError('Enter a payment amount greater than zero.');
       return;
     }
     setBusyId(b.id);
     setError(null);
     try {
-      await api.post(`/invoices/${b.invoice.id}/payments`, { amount: due, method });
+      await api.post(`/invoices/${b.invoice.id}/payments`, {
+        amount,
+        method: payMethod,
+      });
       setPayFor(null);
       await bookings.mutate();
     } catch (err) {
@@ -204,46 +228,16 @@ export default function OwnerDeparturePage() {
           type="date"
           aria-label="Departure date"
           value={date}
-          onChange={(e) => {
-            setDate(e.target.value);
-            setMonth('');
-            setYear('');
-          }}
+          onChange={(e) => setDate(e.target.value)}
         />
-        <input
-          type="month"
-          aria-label="Month"
-          value={month}
-          onChange={(e) => {
-            setMonth(e.target.value);
-            setDate('');
-            setYear('');
-          }}
-        />
-        <select
-          aria-label="Year"
-          value={year}
-          onChange={(e) => {
-            setYear(e.target.value);
-            setDate('');
-            setMonth('');
-          }}
-        >
-          <option value="">Any year</option>
-          {YEARS.map((y) => (
-            <option key={y} value={String(y)}>
-              {y}
-            </option>
-          ))}
-        </select>
         <select
           aria-label="Departure"
           value={activeId}
           onChange={(e) => setSelected(e.target.value)}
-          disabled={filtered.length === 0}
+          disabled={pool.length === 0}
         >
-          {filtered.length === 0 ? <option value="">No departures</option> : null}
-          {filtered.map((d) => (
+          {pool.length === 0 ? <option value="">No departures</option> : null}
+          {pool.map((d) => (
             <option key={d.id} value={d.id}>
               {weekday(d.startDate)} {formatDate(d.startDate)} ·{' '}
               {d.package.durationLabel ?? 'Trip'}
@@ -294,7 +288,7 @@ export default function OwnerDeparturePage() {
                   <th className="num">Advance</th>
                   <th className="num">Due</th>
                   <th>Pay</th>
-                  <th>Status</th>
+                  <th>Check-in</th>
                 </tr>
               </thead>
               <AsyncTable
@@ -369,45 +363,81 @@ export default function OwnerDeparturePage() {
             </TableWrap>
           </Card>
 
-          {payFor ? (
-            <Card title={`Record payment · ${payFor.guests[0]?.name ?? 'Guest'}`} style={{ marginTop: 16 }}>
-              <p className="t2" style={{ marginBottom: 12 }}>
-                Due{' '}
-                {money(
-                  (
-                    Number(payFor.invoice?.displayTotal ?? 0) -
-                    Number(payFor.invoice?.amountPaid ?? 0)
-                  ).toFixed(2),
-                )}
-                . How did the guest pay?
-              </p>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {PAY_METHODS.map((m) => (
+          <Drawer
+            open={Boolean(payFor)}
+            title={`Record payment · ${payFor?.guests[0]?.name ?? 'Guest'}`}
+            onClose={() => setPayFor(null)}
+            footer={
+              payFor ? (
+                <>
                   <button
-                    key={m.value}
-                    className="btn btn-b btn-sm"
+                    className="btn btn-o btn-sm"
+                    onClick={() => setPayFor(null)}
                     disabled={busyId === payFor.id}
-                    onClick={() => pay(m.value)}
                   >
-                    {m.label}
+                    Cancel
                   </button>
-                ))}
-                <button
-                  className="btn btn-o btn-sm"
-                  onClick={() => setPayFor(null)}
-                  disabled={busyId === payFor.id}
-                >
-                  Cancel
-                </button>
-              </div>
-            </Card>
-          ) : null}
+                  <button
+                    className="btn btn-b btn-sm"
+                    onClick={() => pay()}
+                    disabled={busyId === payFor.id}
+                  >
+                    Record payment
+                  </button>
+                </>
+              ) : null
+            }
+          >
+            {payFor ? (
+              <>
+                <p className="t2" style={{ marginBottom: 16 }}>
+                  Due{' '}
+                  {money(
+                    Math.max(
+                      0,
+                      Number(payFor.invoice?.displayTotal ?? 0) -
+                        Number(payFor.invoice?.amountPaid ?? 0),
+                    ).toFixed(2),
+                  )}
+                  . Enter the amount the guest is paying now — it can be less
+                  than the due.
+                </p>
+                <div className="field" style={{ marginBottom: 14 }}>
+                  <label htmlFor="pay-amount">Amount</label>
+                  <input
+                    id="pay-amount"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    inputMode="decimal"
+                    value={payAmount}
+                    onChange={(e) => setPayAmount(e.target.value)}
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="pay-method">Payment method</label>
+                  <select
+                    id="pay-method"
+                    value={payMethod}
+                    onChange={(e) => setPayMethod(e.target.value)}
+                  >
+                    {PAY_METHODS.map((m) => (
+                      <option key={m.value} value={m.value}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            ) : null}
+          </Drawer>
 
           <Card title="Crew today" sub="mark anyone who did not turn up" flush style={{ marginTop: 16 }}>
-            <TableWrap minWidth={420}>
+            <TableWrap minWidth={520}>
               <thead>
                 <tr>
                   <th>Name</th>
+                  <th>Designation</th>
                   <th>Status</th>
                   <th />
                 </tr>
@@ -429,6 +459,7 @@ export default function OwnerDeparturePage() {
                   {crew.data?.map((c) => (
                     <tr key={c.id}>
                       <td className="t1">{c.staff.account?.name ?? 'Crew'}</td>
+                      <td className="t2">{c.staff.role?.name ?? '—'}</td>
                       <td>
                         <Pill tone={c.present ? 'ok' : 'warn'}>
                           {c.present ? 'present' : 'absent'}

@@ -23,7 +23,7 @@ interface BoatDetail {
     id: string;
     name: string;
     position: number;
-    cabins: { id: string; name: string; cabinCategoryId: string }[];
+    cabins: { id: string; name: string; cabinCategoryId: string; deckId: string }[];
   }[];
   cabinCategories: {
     id: string;
@@ -35,20 +35,66 @@ interface BoatDetail {
   }[];
 }
 
-type DrawerKind = 'deck' | 'category' | 'cabin' | null;
+type DrawerKind = 'deck' | 'category' | 'cabin';
+/** null = closed; id present = editing that row, else creating. */
+type DrawerState = { kind: DrawerKind; id?: string } | null;
+
+/**
+ * Canonical facility list for the checkbox grid. Anything an owner has stored
+ * that isn't in this list round-trips through the "extras" comma box, so no
+ * existing data is lost when the UI switched from free-text to checkboxes.
+ */
+const FACILITY_OPTIONS = [
+  'Attached Bath',
+  'AC',
+  'Balcony',
+  'Shared Bath',
+  'Ceiling fan',
+  'TV',
+  'Fridge',
+  'Mirror',
+  'Swing',
+];
+
+/** Split a stored comma string into known-checked + free-text extras. */
+function parseFacilities(raw: string | null | undefined) {
+  const parts = (raw ?? '')
+    .split(',')
+    .map((s) => s.trim().replace(/\.$/, ''))
+    .filter(Boolean);
+  const known = new Set<string>();
+  const extras: string[] = [];
+  const lookup = new Map(FACILITY_OPTIONS.map((o) => [o.toLowerCase(), o]));
+  for (const p of parts) {
+    const hit = lookup.get(p.toLowerCase());
+    if (hit) known.add(hit);
+    else extras.push(p);
+  }
+  return { known, extras: extras.join(', ') };
+}
+
+/** Join checked boxes + extras into a single comma string (deduped). */
+function serializeFacilities(checked: Set<string>, extras: string): string {
+  const extraList = extras
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const all = [...FACILITY_OPTIONS.filter((o) => checked.has(o)), ...extraList];
+  return [...new Set(all)].join(', ');
+}
 
 export default function OwnerCabinsPage() {
   const { boatId } = useActiveBoat();
-  const [drawer, setDrawer] = useState<DrawerKind>(null);
+  const [drawer, setDrawer] = useState<DrawerState>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [deckName, setDeckName] = useState('');
   const [catName, setCatName] = useState('');
-  const [isAc, setIsAc] = useState(true);
   const [baseCapacity, setBaseCapacity] = useState('2');
   const [extendedCapacity, setExtendedCapacity] = useState('3');
-  const [facilities, setFacilities] = useState('');
+  const [facilitySet, setFacilitySet] = useState<Set<string>>(new Set());
+  const [facilityExtras, setFacilityExtras] = useState('');
   const [cabinName, setCabinName] = useState('');
   const [cabinDeck, setCabinDeck] = useState('');
   const [cabinCategory, setCabinCategory] = useState('');
@@ -61,35 +107,85 @@ export default function OwnerCabinsPage() {
   const categories = boat.data?.cabinCategories ?? [];
   const categoryName = new Map(categories.map((c) => [c.id, c.name]));
 
+  const editing = drawer?.id != null;
+
+  function toggleFacility(name: string, on: boolean) {
+    setFacilitySet((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(name);
+      else next.delete(name);
+      return next;
+    });
+  }
+
+  // ── Open drawer in create or edit mode ─────────────────────
+  function openDeck(deck?: BoatDetail['decks'][number]) {
+    setError(null);
+    setDeckName(deck?.name ?? '');
+    setDrawer({ kind: 'deck', id: deck?.id });
+  }
+
+  function openCategory(cat?: BoatDetail['cabinCategories'][number]) {
+    setError(null);
+    if (cat) {
+      const { known, extras } = parseFacilities(cat.facilities);
+      // AC lives in the facility grid now; seed it from the isAc DB flag too.
+      if (cat.isAc) known.add('AC');
+      setCatName(cat.name);
+      setBaseCapacity(String(cat.baseCapacity));
+      setExtendedCapacity(cat.extendedCapacity != null ? String(cat.extendedCapacity) : '');
+      setFacilitySet(known);
+      setFacilityExtras(extras);
+    } else {
+      setCatName('');
+      setBaseCapacity('2');
+      setExtendedCapacity('3');
+      setFacilitySet(new Set(['AC']));
+      setFacilityExtras('');
+    }
+    setDrawer({ kind: 'category', id: cat?.id });
+  }
+
+  function openCabin(cabin?: { id: string; name: string; deckId: string; cabinCategoryId: string }) {
+    setError(null);
+    setCabinName(cabin?.name ?? '');
+    setCabinDeck(cabin?.deckId ?? decks[0]?.id ?? '');
+    setCabinCategory(cabin?.cabinCategoryId ?? categories[0]?.id ?? '');
+    setDrawer({ kind: 'cabin', id: cabin?.id });
+  }
+
+  // ── Save (create or edit) ──────────────────────────────────
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (busy) return;
+    if (busy || !drawer) return;
     setBusy(true);
     setError(null);
     try {
-      if (drawer === 'deck') {
-        await api.post(`/houseboats/${boatId}/decks`, {
-          name: deckName,
-          position: decks.length,
-        });
-        setDeckName('');
-      } else if (drawer === 'category') {
-        await api.post(`/houseboats/${boatId}/categories`, {
+      const base = `/houseboats/${boatId}`;
+      if (drawer.kind === 'deck') {
+        const body = { name: deckName, position: editing ? undefined : decks.length };
+        if (drawer.id) await api.patch(`${base}/decks/${drawer.id}`, body);
+        else await api.post(`${base}/decks`, body);
+      } else if (drawer.kind === 'category') {
+        const facilities = serializeFacilities(facilitySet, facilityExtras);
+        const body = {
           name: catName,
-          isAc,
+          // AC is a facility checkbox now; keep the DB isAc flag in sync with it.
+          isAc: facilitySet.has('AC'),
           baseCapacity: Number(baseCapacity),
           extendedCapacity: extendedCapacity ? Number(extendedCapacity) : undefined,
           facilities: facilities || undefined,
-        });
-        setCatName('');
-        setFacilities('');
-      } else if (drawer === 'cabin') {
-        await api.post(`/houseboats/${boatId}/cabins`, {
+        };
+        if (drawer.id) await api.patch(`${base}/categories/${drawer.id}`, body);
+        else await api.post(`${base}/categories`, body);
+      } else {
+        const body = {
           deckId: cabinDeck,
           cabinCategoryId: cabinCategory,
           name: cabinName,
-        });
-        setCabinName('');
+        };
+        if (drawer.id) await api.patch(`${base}/cabins/${drawer.id}`, body);
+        else await api.post(`${base}/cabins`, body);
       }
       setDrawer(null);
       await boat.mutate();
@@ -100,6 +196,19 @@ export default function OwnerCabinsPage() {
     }
   }
 
+  // ── Delete (guarded server-side; surface conflict messages) ─
+  async function remove(kind: DrawerKind, id: string, label: string) {
+    if (!window.confirm(`Delete ${label}? This cannot be undone.`)) return;
+    setError(null);
+    try {
+      const path = kind === 'deck' ? 'decks' : kind === 'category' ? 'categories' : 'cabins';
+      await api.delete(`/houseboats/${boatId}/${path}/${id}`);
+      await boat.mutate();
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not delete that.'));
+    }
+  }
+
   return (
     <>
       <PageHead
@@ -107,19 +216,15 @@ export default function OwnerCabinsPage() {
         desc="The physical boat. A cabin belongs to a deck for layout and to a category for pricing — the category is what a price is set against."
         actions={
           <>
-            <button className="btn btn-o" onClick={() => setDrawer('deck')}>
+            <button className="btn btn-o" onClick={() => openDeck()}>
               ＋ Deck
             </button>
-            <button className="btn btn-o" onClick={() => setDrawer('category')}>
+            <button className="btn btn-o" onClick={() => openCategory()}>
               ＋ Category
             </button>
             <button
               className="btn btn-b"
-              onClick={() => {
-                setCabinDeck(decks[0]?.id ?? '');
-                setCabinCategory(categories[0]?.id ?? '');
-                setDrawer('cabin');
-              }}
+              onClick={() => openCabin()}
               disabled={decks.length === 0 || categories.length === 0}
             >
               ＋ Cabin
@@ -135,7 +240,7 @@ export default function OwnerCabinsPage() {
       ) : null}
 
       <Card title="Cabin categories" sub="what pricing is set against" flush style={{ marginBottom: 20 }}>
-        <TableWrap minWidth={640}>
+        <TableWrap minWidth={720}>
           <thead>
             <tr>
               <th>Category</th>
@@ -143,6 +248,7 @@ export default function OwnerCabinsPage() {
               <th>Base capacity</th>
               <th>Extended</th>
               <th>Facilities</th>
+              <th style={{ textAlign: 'right' }}>Actions</th>
             </tr>
           </thead>
           <AsyncTable
@@ -171,6 +277,19 @@ export default function OwnerCabinsPage() {
                   <td>{c.baseCapacity}</td>
                   <td>{c.extendedCapacity ?? '—'}</td>
                   <td className="t2">{c.facilities ?? '—'}</td>
+                  <td>
+                    <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                      <button className="btn btn-o btn-sm" onClick={() => openCategory(c)}>
+                        Edit
+                      </button>
+                      <button
+                        className="btn btn-o btn-sm btn-danger"
+                        onClick={() => remove('category', c.id, `category “${c.name}”`)}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -207,9 +326,29 @@ export default function OwnerCabinsPage() {
                 key={deck.id}
                 title={deck.name}
                 sub={`${deck.cabins.length} cabins`}
+                actions={
+                  <>
+                    <button className="btn btn-o btn-sm" onClick={() => openDeck(deck)}>
+                      Edit
+                    </button>
+                    <button
+                      className="btn btn-o btn-sm btn-danger"
+                      onClick={() => remove('deck', deck.id, `deck “${deck.name}”`)}
+                    >
+                      Delete
+                    </button>
+                  </>
+                }
               >
                 {tiles.length > 0 ? (
-                  <CabGrid cabins={tiles} />
+                  <CabGrid
+                    cabins={tiles}
+                    onEdit={(t) => {
+                      const cab = deck.cabins.find((x) => x.id === t.id);
+                      if (cab) openCabin(cab);
+                    }}
+                    onDelete={(t) => remove('cabin', t.id, `cabin “${t.name}”`)}
+                  />
                 ) : (
                   <Note kind="info">No cabins on this deck yet.</Note>
                 )}
@@ -222,7 +361,17 @@ export default function OwnerCabinsPage() {
       <Drawer
         open={drawer !== null}
         title={
-          drawer === 'deck' ? 'Add deck' : drawer === 'category' ? 'Add category' : 'Add cabin'
+          drawer?.kind === 'deck'
+            ? editing
+              ? 'Edit deck'
+              : 'Add deck'
+            : drawer?.kind === 'category'
+              ? editing
+                ? 'Edit category'
+                : 'Add category'
+              : editing
+                ? 'Edit cabin'
+                : 'Add cabin'
         }
         onClose={() => setDrawer(null)}
         footer={
@@ -239,7 +388,7 @@ export default function OwnerCabinsPage() {
         <form onSubmit={submit} style={{ display: 'grid', gap: 12 }}>
           {error ? <Note kind="danger">{error}</Note> : null}
 
-          {drawer === 'deck' ? (
+          {drawer?.kind === 'deck' ? (
             <Field label="Deck name">
               <input
                 value={deckName}
@@ -250,7 +399,7 @@ export default function OwnerCabinsPage() {
             </Field>
           ) : null}
 
-          {drawer === 'category' ? (
+          {drawer?.kind === 'category' ? (
             <>
               <Field label="Category name">
                 <input
@@ -280,16 +429,26 @@ export default function OwnerCabinsPage() {
                 </Field>
               </div>
               <Field label="Facilities">
+                <div className="facility-grid">
+                  {FACILITY_OPTIONS.map((opt) => (
+                    <label key={opt} className="facility-opt">
+                      <input
+                        type="checkbox"
+                        checked={facilitySet.has(opt)}
+                        onChange={(e) => toggleFacility(opt, e.target.checked)}
+                      />
+                      {opt}
+                    </label>
+                  ))}
+                </div>
+              </Field>
+              <Field label="More facilities (comma separated)">
                 <input
-                  value={facilities}
-                  onChange={(e) => setFacilities(e.target.value)}
-                  placeholder="AC, attached bath, balcony view"
+                  value={facilityExtras}
+                  onChange={(e) => setFacilityExtras(e.target.value)}
+                  placeholder="sea-facing deck, private butler"
                 />
               </Field>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <input type="checkbox" checked={isAc} onChange={(e) => setIsAc(e.target.checked)} />
-                Air conditioned
-              </label>
               <Note kind="info">
                 Extended capacity is the overflow a group may squeeze into — it only
                 applies to group bookings, not ordinary cabin sales.
@@ -297,7 +456,7 @@ export default function OwnerCabinsPage() {
             </>
           ) : null}
 
-          {drawer === 'cabin' ? (
+          {drawer?.kind === 'cabin' ? (
             <>
               <Field label="Cabin name or number">
                 <input

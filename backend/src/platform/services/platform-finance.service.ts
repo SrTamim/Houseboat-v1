@@ -53,8 +53,10 @@ export class PlatformFinanceService {
   /**
    * Invoices across all boats, newest first, optionally narrowed by state.
    *
-   * Backs the console's verify/payout queues (e.g. status=paid is the
-   * verification queue; status=payment_verified is ready for payout). The
+   * Backs the console's verify/payout queues. The gateway verify queue is
+   * status=paid narrowed to gateway payments; the payout-prep queue is
+   * `settleable` (paid + payment_verified, unbatched — owner cash settles
+   * without a verify step). The
    * boat-scoped money endpoints can't serve those screens — they all require a
    * :houseboatId.
    */
@@ -62,7 +64,21 @@ export class PlatformFinanceService {
     const rows = await this.prisma.invoice.findMany({
       ...cursorArgs(query),
       where: {
-        status: query.status ?? undefined,
+        // An explicit `status` wins. Otherwise two derived queues:
+        //  - settleable: owner-recorded 'paid' + verified 'payment_verified',
+        //    unbatched (payout-prep, mirrors payouts.service.ts pickup).
+        //  - gatewayPending: 'paid' invoices with a gateway payment (the only
+        //    thing the platform still verifies; owner cash never queues here).
+        ...(query.status
+          ? { status: query.status }
+          : query.settleable
+            ? { status: { in: ['paid', 'payment_verified'] }, payoutBatchId: null }
+            : query.gatewayPending
+              ? {
+                  status: 'paid',
+                  payments: { some: { method: 'gateway' } },
+                }
+              : {}),
         houseboatId: query.houseboatId ?? undefined,
       },
       select: {
@@ -212,7 +228,6 @@ export class PlatformFinanceService {
     const data = {
       commissionPct: dto.commissionPct ?? null,
       monthlyFee: dto.monthlyFee ?? null,
-      gatewayFeePct: dto.gatewayFeePct ?? null,
       trialEnds: dto.trialEnds ? new Date(dto.trialEnds) : null,
     };
 
@@ -229,17 +244,15 @@ export class PlatformFinanceService {
           data: { id: newId(), houseboatId, ...data },
         });
 
-    // before/after list only the four editable fields — including
+    // before/after list only the editable fields — including
     // platformBalance would imply this path can change it.
     const snapshot = (c: {
       commissionPct: unknown;
       monthlyFee: unknown;
-      gatewayFeePct: unknown;
       trialEnds: Date | null;
     }) => ({
       commissionPct: c.commissionPct?.toString() ?? null,
       monthlyFee: c.monthlyFee?.toString() ?? null,
-      gatewayFeePct: c.gatewayFeePct?.toString() ?? null,
       trialEnds: c.trialEnds?.toISOString().slice(0, 10) ?? null,
     });
     await this.audit.log({
@@ -263,7 +276,6 @@ export class PlatformFinanceService {
         id: true,
         commissionPct: true,
         monthlyFee: true,
-        gatewayFeePct: true,
         platformBalance: true,
         trialEnds: true,
         houseboat: { select: { id: true, name: true, status: true } },
@@ -331,7 +343,6 @@ export class PlatformFinanceService {
           _sum: {
             displayTotal: true,
             commission: true,
-            gatewayFee: true,
             amountPaid: true,
             dueToBoat: true,
           },
@@ -359,7 +370,6 @@ export class PlatformFinanceService {
       totals: {
         gmv: totals._sum.displayTotal ?? 0,
         commission: totals._sum.commission ?? 0,
-        gatewayFees: totals._sum.gatewayFee ?? 0,
         collected: totals._sum.amountPaid ?? 0,
         dueToBoats: totals._sum.dueToBoat ?? 0,
         invoiceCount: totals._count,

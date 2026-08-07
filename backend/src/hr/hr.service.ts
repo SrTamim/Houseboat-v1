@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -8,7 +9,33 @@ import { AuditService } from '../audit/audit.service';
 import { newId } from '../common/uuid';
 import { money, add, sub } from '../common/money';
 import { normalizePhone } from '../auth/auth.types';
-import { CreateStaffDto, LeaveDto, PayrollDto } from './dto/hr.dto';
+import {
+  CreateStaffDto,
+  LeaveDto,
+  PayrollDto,
+  UpdateStaffDto,
+} from './dto/hr.dto';
+
+type LeaveWindow = {
+  state: string;
+  fromDate: Date | null;
+  toDate: Date | null;
+};
+
+/**
+ * Effective availability today. `on_leave` only holds while the latest leave's
+ * date window covers today; an open-ended leave (no toDate) stays on_leave
+ * until explicitly cleared. A window that has fully passed reads `available`
+ * regardless of the stored column.
+ */
+function effectiveStatus(stored: string, leave?: LeaveWindow): string {
+  if (stored !== 'on_leave') return stored;
+  if (!leave || leave.state !== 'on_leave') return 'available';
+  if (!leave.toDate) return 'on_leave'; // open-ended leave
+  const endOfDay = new Date(leave.toDate);
+  endOfDay.setHours(23, 59, 59, 999);
+  return Date.now() > endOfDay.getTime() ? 'available' : 'on_leave';
+}
 
 /**
  * HR — staff, crew attendance, payroll, leave (plan §8). Attendance is not a
@@ -36,32 +63,132 @@ export class HrService {
         accountId: account.id,
         houseboatId,
         roleId: dto.roleId,
+        designation: dto.designation,
         nid: dto.nid,
         emergencyContact: dto.emergencyContact,
+        address: dto.address,
         perTripRate: dto.perTripRate,
         monthlySalary: dto.monthlySalary,
       },
     });
   }
 
-  listStaff(houseboatId: string) {
-    return this.prisma.houseboatStaff.findMany({
+  async listStaff(houseboatId: string) {
+    const staff = await this.prisma.houseboatStaff.findMany({
       where: { houseboatId },
-      include: { account: { select: { name: true, phone: true } } },
+      include: {
+        account: { select: { name: true, phone: true } },
+        // Latest leave gives us the active date range to age-out.
+        leaves: {
+          orderBy: { fromDate: 'desc' },
+          take: 1,
+          select: { state: true, fromDate: true, toDate: true },
+        },
+      },
+    });
+
+    // A leave range expires: once toDate has passed, the person is available
+    // again even though nobody re-saved them. Reconcile the stored column so
+    // reports stay correct — self-healing, no cron.
+    const fixes: string[] = [];
+    const rows = staff.map((s) => {
+      const effective = effectiveStatus(s.status, s.leaves[0]);
+      if (effective !== s.status) fixes.push(s.id);
+      const { leaves, ...rest } = s;
+      return { ...rest, status: effective };
+    });
+    if (fixes.length) {
+      await this.prisma.houseboatStaff.updateMany({
+        where: { id: { in: fixes } },
+        data: { status: 'available' },
+      });
+    }
+    return rows;
+  }
+
+  /** A staffId must belong to this houseboat before we mutate it. */
+  private async assertStaffOwned(houseboatId: string, staffId: string) {
+    const staff = await this.prisma.houseboatStaff.findFirst({
+      where: { id: staffId, houseboatId },
+      select: { id: true },
+    });
+    if (!staff) throw new NotFoundException('Crew member not found on this houseboat.');
+  }
+
+  async updateStaff(houseboatId: string, staffId: string, dto: UpdateStaffDto) {
+    await this.assertStaffOwned(houseboatId, staffId);
+    return this.prisma.houseboatStaff.update({
+      where: { id: staffId },
+      data: {
+        designation: dto.designation,
+        nid: dto.nid,
+        emergencyContact: dto.emergencyContact,
+        address: dto.address,
+        status: dto.status,
+        // Pay-type is exclusive: a `null` clears the other side when switching.
+        perTripRate: dto.perTripRate,
+        monthlySalary: dto.monthlySalary,
+      },
     });
   }
 
+  async removeStaff(houseboatId: string, staffId: string, actorId: string) {
+    await this.assertStaffOwned(houseboatId, staffId);
+    const [payroll, crew] = await Promise.all([
+      this.prisma.staffPayroll.count({ where: { staffId } }),
+      this.prisma.tripCrew.count({ where: { staffId } }),
+    ]);
+    if (payroll > 0) {
+      throw new ConflictException(
+        'This crew member has payroll history and cannot be deleted. Set them to on-leave instead.',
+      );
+    }
+    if (crew > 0) {
+      throw new ConflictException(
+        'This crew member has trip attendance records and cannot be deleted. Set them to on-leave instead.',
+      );
+    }
+    await this.prisma.$transaction([
+      this.prisma.staffLeave.deleteMany({ where: { staffId } }),
+      this.prisma.houseboatStaff.delete({ where: { id: staffId } }),
+    ]);
+    await this.audit.log({
+      houseboatId,
+      actorAccountId: actorId,
+      action: 'staff_delete',
+      entityType: 'houseboat_staff',
+      entityId: staffId,
+    });
+    return { ok: true };
+  }
+
   // ── Leave ──────────────────────────────────────────────────
+  /** Records a leave row and keeps the denormalized staff.status in sync. */
   setLeave(staffId: string, dto: LeaveDto) {
-    return this.prisma.staffLeave.create({
-      data: {
-        id: newId(),
-        staffId,
-        state: dto.state,
-        fromDate: dto.fromDate ? new Date(dto.fromDate) : undefined,
-        toDate: dto.toDate ? new Date(dto.toDate) : undefined,
-        note: dto.note,
-      },
+    const fromDate = dto.fromDate ? new Date(dto.fromDate) : null;
+    const toDate = dto.toDate ? new Date(dto.toDate) : null;
+    // Don't mark on_leave for a window that has already passed — it would just
+    // age back to available on the next read anyway.
+    const status = effectiveStatus(
+      dto.state === 'on_leave' ? 'on_leave' : 'available',
+      { state: dto.state, fromDate, toDate },
+    );
+    return this.prisma.$transaction(async (tx) => {
+      const leave = await tx.staffLeave.create({
+        data: {
+          id: newId(),
+          staffId,
+          state: dto.state,
+          fromDate: fromDate ?? undefined,
+          toDate: toDate ?? undefined,
+          note: dto.note,
+        },
+      });
+      await tx.houseboatStaff.update({
+        where: { id: staffId },
+        data: { status },
+      });
+      return leave;
     });
   }
 
@@ -82,8 +209,93 @@ export class HrService {
   listCrew(departureId: string) {
     return this.prisma.tripCrew.findMany({
       where: { departureId },
-      include: { staff: { include: { account: { select: { name: true } } } } },
+      include: {
+        staff: {
+          include: {
+            account: { select: { name: true } },
+            role: { select: { name: true } },
+          },
+        },
+      },
     });
+  }
+
+  // ── Attendance report (monthly, HR-style) ─────────────────
+  /**
+   * Per-crew monthly report: trips worked (present crew rows on departures that
+   * start in the month) and days on leave (StaffLeave ranges overlapping the
+   * month, clipped to its bounds). `period` is "YYYY-MM"; defaults to the
+   * current month. Trips-worked reuses the attendance rule from runPayroll:
+   * a present=true trip_crew row is one trip worked.
+   */
+  async attendanceReport(houseboatId: string, period?: string) {
+    const now = new Date();
+    const resolved =
+      period ??
+      `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+    const [y, m] = resolved.split('-').map(Number);
+    const monthStart = new Date(Date.UTC(y, m - 1, 1));
+    const nextMonthStart = new Date(Date.UTC(y, m, 1));
+    // Last instant of the month, for clipping open-ended leave ranges.
+    const monthEnd = new Date(nextMonthStart.getTime() - 1);
+
+    const staff = await this.prisma.houseboatStaff.findMany({
+      where: { houseboatId },
+      include: {
+        account: { select: { name: true, phone: true } },
+        role: { select: { name: true } },
+      },
+    });
+
+    // Trips worked: present crew rows on departures starting this month.
+    const presentRows = await this.prisma.tripCrew.groupBy({
+      by: ['staffId'],
+      where: {
+        present: true,
+        staff: { houseboatId },
+        departure: { startDate: { gte: monthStart, lt: nextMonthStart } },
+      },
+      _count: { _all: true },
+    });
+    const tripsByStaff = new Map(
+      presentRows.map((r) => [r.staffId, r._count._all]),
+    );
+
+    // Leave ranges overlapping the month. Open-ended (no toDate) runs to month end.
+    const leaves = await this.prisma.staffLeave.findMany({
+      where: {
+        staff: { houseboatId },
+        state: { in: ['on_leave', 'other_duty'] },
+        fromDate: { lt: nextMonthStart },
+        OR: [{ toDate: null }, { toDate: { gte: monthStart } }],
+      },
+      select: { staffId: true, fromDate: true, toDate: true },
+    });
+    const dayMs = 24 * 60 * 60 * 1000;
+    const leaveDaysByStaff = new Map<string, number>();
+    for (const l of leaves) {
+      const from = l.fromDate && l.fromDate > monthStart ? l.fromDate : monthStart;
+      const to = l.toDate && l.toDate < monthEnd ? l.toDate : monthEnd;
+      const days = Math.floor((to.getTime() - from.getTime()) / dayMs) + 1;
+      if (days > 0) {
+        leaveDaysByStaff.set(
+          l.staffId,
+          (leaveDaysByStaff.get(l.staffId) ?? 0) + days,
+        );
+      }
+    }
+
+    return {
+      period: resolved,
+      crew: staff.map((s) => ({
+        staffId: s.id,
+        name: s.account?.name ?? null,
+        phone: s.account?.phone ?? null,
+        role: s.role?.name ?? null,
+        tripsWorked: tripsByStaff.get(s.id) ?? 0,
+        leaveDays: leaveDaysByStaff.get(s.id) ?? 0,
+      })),
+    };
   }
 
   // ── Payroll ────────────────────────────────────────────────

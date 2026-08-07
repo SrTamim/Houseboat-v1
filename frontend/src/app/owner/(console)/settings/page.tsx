@@ -31,7 +31,7 @@ interface BoatDetail {
 /** The events an owner can silence. Adding one here needs no migration. */
 const EVENTS: { key: string; label: string; hint: string }[] = [
   { key: 'booking', label: 'New bookings', hint: 'Someone books a cabin on your boat' },
-  { key: 'payment_due', label: 'Payments', hint: 'Cash to verify, gateway payments received' },
+  { key: 'payment_due', label: 'Payments', hint: 'Payments recorded and gateway payments received' },
   { key: 'refund_sent', label: 'Refunds', hint: 'A refund moves through its steps' },
   { key: 'low_stock', label: 'Low stock', hint: 'A consumable drops below its reorder level' },
   { key: 'waitlist_open', label: 'Waitlist', hint: 'A place frees on a full departure' },
@@ -223,7 +223,7 @@ export default function OwnerSettingsPage() {
                 ]}
               />
               <Note kind="info" style={{ marginTop: 12 }}>
-                🔒 Commission, gateway fee and monthly fee are platform terms — contact the
+                🔒 Commission and monthly fee are platform terms — contact the
                 platform to change them.
               </Note>
             </AsyncBlock>

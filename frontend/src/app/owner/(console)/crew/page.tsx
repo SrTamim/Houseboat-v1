@@ -18,24 +18,32 @@ import { money, maskPhone, apiErrorMessage, toE164 } from '@/lib/owner/format';
 
 interface Staff {
   id: string;
+  designation: string | null;
   nid: string | null;
   emergencyContact: string | null;
+  address: string | null;
+  status: string;
   perTripRate: string | null;
   monthlySalary: string | null;
   account: { id: string; name: string | null; phone: string } | null;
-  role: { id: string; name: string } | null;
 }
+
+/** null = closed; id present = editing that crew member, else adding. */
+type DrawerState = { id?: string } | null;
 
 export default function OwnerCrewPage() {
   const { boatId } = useActiveBoat();
-  const [open, setOpen] = useState(false);
+  const [drawer, setDrawer] = useState<DrawerState>(null);
+  const [editRow, setEditRow] = useState<Staff | null>(null);
   const [leaveFor, setLeaveFor] = useState<Staff | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [phone, setPhone] = useState('');
+  const [designation, setDesignation] = useState('');
   const [nid, setNid] = useState('');
   const [emergencyContact, setEmergencyContact] = useState('');
+  const [address, setAddress] = useState('');
   const [payKind, setPayKind] = useState<'per_trip' | 'salary'>('per_trip');
   const [rate, setRate] = useState('');
 
@@ -49,34 +57,91 @@ export default function OwnerCrewPage() {
     { revalidateOnFocus: false },
   );
 
-  async function addStaff(e: React.FormEvent) {
+  const editing = drawer?.id != null;
+
+  function openAdd() {
+    setError(null);
+    setEditRow(null);
+    setPhone('');
+    setDesignation('');
+    setNid('');
+    setEmergencyContact('');
+    setAddress('');
+    setPayKind('per_trip');
+    setRate('');
+    setDrawer({});
+  }
+
+  function openEdit(s: Staff) {
+    setError(null);
+    setEditRow(s);
+    setPhone('');
+    setDesignation(s.designation ?? '');
+    setNid(s.nid ?? '');
+    setEmergencyContact(s.emergencyContact ?? '');
+    setAddress(s.address ?? '');
+    const salaried = s.monthlySalary !== null;
+    setPayKind(salaried ? 'salary' : 'per_trip');
+    setRate(salaried ? (s.monthlySalary ?? '') : (s.perTripRate ?? ''));
+    setDrawer({ id: s.id });
+  }
+
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (busy || !phone) return;
+    if (busy || !drawer) return;
+    if (!editing && !phone) return;
     setBusy(true);
     setError(null);
     try {
-      await api.post(`/houseboats/${boatId}/staff`, {
-        phone: toE164(phone),
-        nid: nid || undefined,
-        emergencyContact: emergencyContact || undefined,
-        perTripRate: payKind === 'per_trip' && rate ? Number(rate) : undefined,
-        monthlySalary: payKind === 'salary' && rate ? Number(rate) : undefined,
-      });
-      setOpen(false);
-      setPhone('');
-      setNid('');
-      setEmergencyContact('');
-      setRate('');
+      const rateNum = rate ? Number(rate) : null;
+      if (drawer.id) {
+        // Pay-type is exclusive: send the active field, null the other so a
+        // switch clears it.
+        await api.patch(`/houseboats/${boatId}/staff/${drawer.id}`, {
+          designation: designation || undefined,
+          nid: nid || undefined,
+          emergencyContact: emergencyContact || undefined,
+          address: address || undefined,
+          perTripRate: payKind === 'per_trip' ? rateNum : null,
+          monthlySalary: payKind === 'salary' ? rateNum : null,
+        });
+      } else {
+        await api.post(`/houseboats/${boatId}/staff`, {
+          phone: toE164(phone),
+          designation: designation || undefined,
+          nid: nid || undefined,
+          emergencyContact: emergencyContact || undefined,
+          address: address || undefined,
+          perTripRate:
+            payKind === 'per_trip' && rate ? Number(rate) : undefined,
+          monthlySalary: payKind === 'salary' && rate ? Number(rate) : undefined,
+        });
+      }
+      setDrawer(null);
       await mutate();
     } catch (err) {
       setError(
         apiErrorMessage(
           err,
-          'Could not add that person. They need an account on this phone number first.',
+          editing
+            ? 'Could not save those changes.'
+            : 'Could not add that person. They need an account on this phone number first.',
         ),
       );
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function remove(s: Staff) {
+    const name = s.account?.name ?? 'this crew member';
+    if (!window.confirm(`Delete ${name}? This cannot be undone.`)) return;
+    setError(null);
+    try {
+      await api.delete(`/houseboats/${boatId}/staff/${s.id}`);
+      await mutate();
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not delete that crew member.'));
     }
   }
 
@@ -110,7 +175,7 @@ export default function OwnerCrewPage() {
         title="Crew"
         desc="Who works this boat and how they are paid. A crew member needs their own account first — they are a person on the platform, not a record you own."
         actions={
-          <button className="btn btn-b" onClick={() => setOpen(true)}>
+          <button className="btn btn-b" onClick={openAdd}>
             ＋ Add crew
           </button>
         }
@@ -123,11 +188,12 @@ export default function OwnerCrewPage() {
       ) : null}
 
       <Card flush>
-        <TableWrap minWidth={780}>
+        <TableWrap minWidth={880}>
           <thead>
             <tr>
               <th>Name</th>
-              <th>Role</th>
+              <th>Designation</th>
+              <th>Status</th>
               <th>Pay</th>
               <th className="num">Rate</th>
               <th>Emergency contact</th>
@@ -150,6 +216,7 @@ export default function OwnerCrewPage() {
             <tbody>
               {rows.map((s) => {
                 const salaried = s.monthlySalary !== null;
+                const onLeave = s.status === 'on_leave';
                 return (
                   <tr key={s.id}>
                     <td>
@@ -159,7 +226,12 @@ export default function OwnerCrewPage() {
                         {s.nid ? ` · NID ••${s.nid.slice(-4)}` : ''}
                       </div>
                     </td>
-                    <td className="t2">{s.role?.name ?? '—'}</td>
+                    <td className="t2">{s.designation ?? '—'}</td>
+                    <td>
+                      <Pill tone={onLeave ? 'mut' : 'ok'}>
+                        {onLeave ? 'on leave' : 'available'}
+                      </Pill>
+                    </td>
                     <td>
                       <Pill tone={salaried ? 'blue' : 'mut'}>
                         {salaried ? 'salaried' : 'per trip'}
@@ -177,12 +249,24 @@ export default function OwnerCrewPage() {
                       <div className="rowact">
                         <button
                           className="btn btn-sm btn-o"
+                          onClick={() => openEdit(s)}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          className="btn btn-sm btn-o"
                           onClick={() => {
                             setLeaveFor(s);
                             setLeaveState('on_leave');
                           }}
                         >
                           Set leave
+                        </button>
+                        <button
+                          className="btn btn-sm btn-danger"
+                          onClick={() => remove(s)}
+                        >
+                          Delete
                         </button>
                       </div>
                     </td>
@@ -201,35 +285,54 @@ export default function OwnerCrewPage() {
       </Note>
 
       <Drawer
-        open={open}
-        title="Add crew"
-        onClose={() => setOpen(false)}
+        open={drawer !== null}
+        title={editing ? 'Edit crew' : 'Add crew'}
+        onClose={() => setDrawer(null)}
         footer={
           <>
-            <button className="btn btn-o" onClick={() => setOpen(false)}>
+            <button className="btn btn-o" onClick={() => setDrawer(null)}>
               Cancel
             </button>
-            <button className="btn btn-b" onClick={addStaff} disabled={busy || !phone}>
-              {busy ? 'Adding…' : 'Add crew'}
+            <button
+              className="btn btn-b"
+              onClick={submit}
+              disabled={busy || (!editing && !phone)}
+            >
+              {busy ? 'Saving…' : editing ? 'Save changes' : 'Add crew'}
             </button>
           </>
         }
       >
-        <form onSubmit={addStaff} style={{ display: 'grid', gap: 12 }}>
+        <form onSubmit={submit} style={{ display: 'grid', gap: 12 }}>
           {error ? <Note kind="danger">{error}</Note> : null}
 
-          <Field label="Phone">
-            <div className="with-pre">
-              <span className="pre">+880</span>
-              <input
-                type="tel"
-                inputMode="numeric"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="1720000000"
-                required
-              />
-            </div>
+          {editing ? (
+            <Field label="Name">
+              <div className="t1">{editRow?.account?.name ?? 'Crew'}</div>
+              <div className="t2">{maskPhone(editRow?.account?.phone)}</div>
+            </Field>
+          ) : (
+            <Field label="Phone">
+              <div className="with-pre">
+                <span className="pre">+880</span>
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="1720000000"
+                  required
+                />
+              </div>
+            </Field>
+          )}
+
+          <Field label="Designation">
+            <input
+              value={designation}
+              onChange={(e) => setDesignation(e.target.value)}
+              placeholder="Sukani, cook, helper…"
+            />
           </Field>
 
           <Field label="NID">
@@ -241,6 +344,13 @@ export default function OwnerCrewPage() {
               value={emergencyContact}
               onChange={(e) => setEmergencyContact(e.target.value)}
               placeholder="+8801799999999"
+            />
+          </Field>
+
+          <Field label="Address">
+            <input
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
             />
           </Field>
 
@@ -264,10 +374,17 @@ export default function OwnerCrewPage() {
             />
           </Field>
 
-          <Note kind="info">
-            The person must already have an account on this phone number. Ask them to
-            register first — that keeps one login per person across every boat.
-          </Note>
+          {editing ? (
+            <Note kind="info">
+              Name and phone come from this person&apos;s account and can&apos;t be changed
+              here.
+            </Note>
+          ) : (
+            <Note kind="info">
+              The person must already have an account on this phone number. Ask them to
+              register first — that keeps one login per person across every boat.
+            </Note>
+          )}
         </form>
       </Drawer>
 

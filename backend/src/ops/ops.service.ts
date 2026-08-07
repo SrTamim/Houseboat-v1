@@ -207,8 +207,9 @@ export class OpsService {
     if (booking.status !== 'completed') {
       throw new BadRequestException('Only completed trips can be reviewed');
     }
-    // "verified" = payment reached at least payment_verified/bill_cleared.
-    const verifiedStates = ['payment_verified', 'in_payout', 'bill_cleared'];
+    // "paid" = payment recorded and settling (owner-recorded cash, or a
+    // platform-verified gateway payment, and anything downstream).
+    const verifiedStates = ['paid', 'payment_verified', 'in_payout', 'bill_cleared'];
     if (!booking.invoice || !verifiedStates.includes(booking.invoice.status)) {
       throw new BadRequestException('Only verified bookings can be reviewed');
     }

@@ -91,8 +91,18 @@ export class PlatformOpsService {
     ] = await this.prisma.$transaction([
       this.prisma.houseboat.count({ where: { status: 'pending' } }),
       this.prisma.houseboat.count({ where: { status: 'live' } }),
-      this.prisma.invoice.count({ where: { status: 'paid' } }),
-      this.prisma.invoice.count({ where: { status: 'payment_verified' } }),
+      // Only gateway receipts are the platform's to verify — owner-recorded
+      // cash/bkash/bank/online settle on the owner's word and never queue here.
+      this.prisma.invoice.count({
+        where: { status: 'paid', payments: { some: { method: 'gateway' } } },
+      }),
+      // Ready to settle: owner-recorded 'paid' plus platform-verified gateway.
+      this.prisma.invoice.count({
+        where: {
+          status: { in: ['paid', 'payment_verified'] },
+          payoutBatchId: null,
+        },
+      }),
       this.prisma.invoiceRefund.count({
         where: { status: { in: ['requested', 'verified'] } },
       }),

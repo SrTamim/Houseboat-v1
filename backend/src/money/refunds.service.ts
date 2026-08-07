@@ -63,6 +63,8 @@ export class RefundsService {
               select: {
                 id: true,
                 status: true,
+                bookedBy: true,
+                customerId: true,
                 departure: { select: { startDate: true } },
               },
             },
@@ -86,6 +88,9 @@ export class RefundsService {
       paid: r.invoice.amountPaid.toFixed(2),
       bookingStatus: r.invoice.booking.status,
       departureDate: r.invoice.booking.departure.startDate,
+      // POS = owner counter-sale, where bookedBy (the owner) differs from the
+      // customer. Those refunds settle here; platform-booked ones by finance.
+      isPos: r.invoice.booking.bookedBy !== r.invoice.booking.customerId,
     }));
   }
 
@@ -247,6 +252,70 @@ export class RefundsService {
           houseboatId: refund.invoice.houseboatId,
           actorAccountId: completerId,
           action: 'refund_complete',
+          entityType: 'invoice_refund',
+          entityId: refundId,
+        },
+        tx,
+      );
+      return updated;
+    });
+  }
+
+  /**
+   * POS one-step settle. A counter-sale refund (bookedBy != customer) has no
+   * separate finance to verify it, so the owner both raises and settles it:
+   * refund_requested → refund_completed in a single action. verified_by is left
+   * null, so the DB CHECK (verified_by != completed_by) is not tripped.
+   *
+   * Platform-booked refunds are refused here — they must go through the
+   * 3-person request → verify → complete flow.
+   */
+  async settlePos(refundId: string, actorId: string, isPlatform: boolean) {
+    const refund = await this.prisma.invoiceRefund.findUnique({
+      where: { id: refundId },
+      include: { invoice: { include: { booking: true } } },
+    });
+    if (!refund) throw new NotFoundException('Refund not found');
+    // IDOR guard: caller must have money:edit on THIS refund's boat.
+    await this.rbac.assert(
+      actorId,
+      isPlatform,
+      refund.invoice.houseboatId,
+      'money',
+      'edit',
+    );
+
+    // POS-only: a platform booking (bookedBy === customer) must not settle in
+    // one step — separation of duties applies to it.
+    const isPos =
+      refund.invoice.booking.bookedBy !== refund.invoice.booking.customerId;
+    if (!isPos) {
+      throw new ForbiddenException(
+        'Platform refunds must go through verify then complete, not one-step settle',
+      );
+    }
+
+    this.assertWithinWindow(refund.claimDeadline);
+    assertTransition(refund.invoice.status as InvoiceStatus, 'refund_completed');
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.invoiceRefund.update({
+        where: { id: refundId },
+        data: {
+          status: 'completed',
+          completedBy: actorId,
+          completedAt: new Date(),
+        },
+      });
+      await tx.invoice.update({
+        where: { id: refund.invoiceId },
+        data: { status: 'refund_completed' },
+      });
+      await this.audit.log(
+        {
+          houseboatId: refund.invoice.houseboatId,
+          actorAccountId: actorId,
+          action: 'refund_settle_pos',
           entityType: 'invoice_refund',
           entityId: refundId,
         },

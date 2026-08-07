@@ -1,4 +1,4 @@
-import { Money, money, ZERO, sub, percentOf, round2, nonNegative } from './money';
+import { Money, money, ZERO, add, sub, percentOf, round2, nonNegative } from './money';
 
 /**
  * The invoice bill order — plan/houseboat_logic.md §1 "Building the bill".
@@ -6,7 +6,7 @@ import { Money, money, ZERO, sub, percentOf, round2, nonNegative } from './money
  * Order is FIXED and must not change:
  *
  *   1 room_total     = owner-set room price (sum of booking_cabin.room_price)
- *   2 gateway_fee    = REMOVED — always 0 (no gateway charge on the bill)
+ *   2 gateway_fee    = 0 (removed — no gateway charge on the bill)
  *   3 price_shown    = room_total                      (customer sees this)
  *   4 discount       = coupon applied LAST, to price_shown
  *   5 display_total  = price_shown - discount          (customer pays this)
@@ -14,8 +14,8 @@ import { Money, money, ZERO, sub, percentOf, round2, nonNegative } from './money
  *   7 due_to_boat    = amount_received - commission
  *
  * The gateway fee line item was removed platform-wide. The gatewayFee /
- * priceShown fields are kept (gatewayFee = 0, priceShown = roomTotal) so every
- * Invoice write and downstream consumer keeps working without a migration.
+ * priceShown output fields are kept (gatewayFee = 0, priceShown = roomTotal) so
+ * every Invoice write and downstream consumer keeps working without a migration.
  *
  * The boat absorbs the full cost of its own coupon — commission is unaffected
  * by discounts. See the worked example in the plan.
@@ -29,15 +29,16 @@ export interface CouponInput {
 export interface BillInput {
   /** Sum of owner-set room prices for the chosen headcount(s). */
   roomTotal: Money;
-  /**
-   * DEPRECATED — the gateway fee was removed from the bill. Callers may still
-   * pass it (it is ignored); the fee is always 0.
-   */
-  gatewayFeePct?: Money;
   /** Platform commission percent (whole number, e.g. 5). null = not on commission. */
   commissionPct: Money | null;
   /** Optional coupon. Referral coupons are recorded but do not discount here. */
   coupon?: CouponInput | null;
+  /**
+   * Ad-hoc flat discount the owner grants at the counter (taka), on top of any
+   * coupon. The boat absorbs it — commission is still taken off the original
+   * room_total, exactly like a coupon. POS-only; the customer path never sets it.
+   */
+  ownerDiscount?: Money | null;
 }
 
 export interface Bill {
@@ -49,7 +50,7 @@ export interface Bill {
   commission: Money;
 }
 
-function couponDiscount(priceShown: Money, coupon?: CouponInput | null): Money {
+export function couponDiscount(priceShown: Money, coupon?: CouponInput | null): Money {
   if (!coupon) return ZERO;
   if (coupon.kind === 'percent') {
     return percentOf(priceShown, coupon.value);
@@ -66,7 +67,13 @@ export function buildBill(input: BillInput): Bill {
   const roomTotal = round2(input.roomTotal);
   const gatewayFee = ZERO; // step 2 — gateway fee removed platform-wide
   const priceShown = roomTotal; // step 3 — no fee added on top
-  const discountAmount = couponDiscount(priceShown, input.coupon); // step 4
+  // step 4 — coupon plus any owner-granted flat discount, together capped at
+  // the price shown so display_total can never go below zero.
+  const ownerDiscount = input.ownerDiscount ? round2(input.ownerDiscount) : ZERO;
+  const rawDiscount = add(couponDiscount(priceShown, input.coupon), ownerDiscount);
+  const discountAmount = rawDiscount.greaterThan(priceShown)
+    ? priceShown
+    : rawDiscount;
   const displayTotal = nonNegative(sub(priceShown, discountAmount)); // step 5
   const commission = input.commissionPct // step 6 — off ROOM_TOTAL
     ? percentOf(roomTotal, input.commissionPct)

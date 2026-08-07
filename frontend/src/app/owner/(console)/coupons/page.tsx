@@ -24,6 +24,9 @@ interface Coupon {
   value: string;
   validFrom: string | null;
   validTo: string | null;
+  isActive: boolean;
+  usageCount: number;
+  totalDeducted: string;
 }
 
 const KIND_TONES: Record<string, 'blue' | 'amb' | 'ok'> = {
@@ -32,8 +35,8 @@ const KIND_TONES: Record<string, 'blue' | 'amb' | 'ok'> = {
   referral: 'ok',
 };
 
-/** A coupon is live when today falls inside its window (open-ended counts). */
-function isActive(c: Coupon): boolean {
+/** True when today falls inside the coupon's date window (open-ended counts). */
+function isInWindow(c: Coupon): boolean {
   const now = Date.now();
   if (c.validFrom && new Date(c.validFrom).getTime() > now) return false;
   if (c.validTo && new Date(c.validTo).getTime() < now) return false;
@@ -44,6 +47,7 @@ export default function OwnerCouponsPage() {
   const { boatId } = useActiveBoat();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [code, setCode] = useState('');
@@ -84,6 +88,22 @@ export default function OwnerCouponsPage() {
     }
   }
 
+  async function toggleActive(c: Coupon) {
+    if (busyId) return;
+    setBusyId(c.id);
+    setError(null);
+    try {
+      await api.patch(`/houseboats/${boatId}/coupons/${c.id}/active`, {
+        active: !c.isActive,
+      });
+      await mutate();
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not update the coupon.'));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   const rows = data ?? [];
 
   return (
@@ -98,16 +118,25 @@ export default function OwnerCouponsPage() {
         }
       />
 
+      {error && !open ? (
+        <Note kind="danger" style={{ marginBottom: 12 }}>
+          {error}
+        </Note>
+      ) : null}
+
       <Card flush style={{ marginBottom: 20 }}>
-        <TableWrap minWidth={680}>
+        <TableWrap minWidth={860}>
           <thead>
             <tr>
               <th>Code</th>
               <th>Kind</th>
               <th className="num">Value</th>
+              <th className="num">Uses</th>
+              <th className="num">Deducted</th>
               <th>Valid from</th>
               <th>Valid to</th>
               <th>Status</th>
+              <th></th>
             </tr>
           </thead>
           <AsyncTable
@@ -133,12 +162,31 @@ export default function OwnerCouponsPage() {
                   <td className="num">
                     {c.kind === 'percent' ? `${Number(c.value)}%` : money(c.value)}
                   </td>
+                  <td className="num">{c.usageCount}</td>
+                  <td className="num">{money(c.totalDeducted)}</td>
                   <td className="t2">{c.validFrom ? formatDate(c.validFrom) : 'always'}</td>
                   <td className="t2">{c.validTo ? formatDate(c.validTo) : 'no end'}</td>
                   <td>
-                    <Pill tone={isActive(c) ? 'ok' : 'mut'}>
-                      {isActive(c) ? 'active' : 'inactive'}
-                    </Pill>
+                    {!c.isActive ? (
+                      <Pill tone="mut">disabled</Pill>
+                    ) : (
+                      <Pill tone={isInWindow(c) ? 'ok' : 'mut'}>
+                        {isInWindow(c) ? 'active' : 'inactive'}
+                      </Pill>
+                    )}
+                  </td>
+                  <td>
+                    <button
+                      className="btn btn-o"
+                      onClick={() => toggleActive(c)}
+                      disabled={busyId === c.id}
+                    >
+                      {busyId === c.id
+                        ? '…'
+                        : c.isActive
+                          ? 'Deactivate'
+                          : 'Reactivate'}
+                    </button>
                   </td>
                 </tr>
               ))}

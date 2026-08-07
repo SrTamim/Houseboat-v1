@@ -54,7 +54,7 @@ interface OwnerBooking {
     amountPaid: string;
     dueToBoat: string;
     payoutBatchId: string | null;
-    payments: { method: string; verifiedBy: string | null; amount: string }[];
+    payments: { method: string; amount: string }[];
   } | null;
 }
 
@@ -62,8 +62,6 @@ interface OwnerBooking {
 interface InvoiceDetail {
   id: string;
   roomTotal: string;
-  gatewayFee: string;
-  priceShown: string;
   discountAmount: string;
   displayTotal: string;
   commission: string;
@@ -224,9 +222,6 @@ export default function OwnerBookingsPage() {
             <tbody>
               {items.map((b) => {
                 const lead = b.guests[0];
-                const unverifiedCash = b.invoice?.payments.some(
-                  (p) => p.method === 'cash' && !p.verifiedBy,
-                );
                 return (
                   <tr key={b.id}>
                     <td>
@@ -258,11 +253,7 @@ export default function OwnerBookingsPage() {
                     </td>
                     <td className="num">{money(b.invoice?.displayTotal ?? 0)}</td>
                     <td>
-                      {unverifiedCash ? (
-                        <Pill tone="warn">cash unverified</Pill>
-                      ) : (
-                        <BookingStatusPill status={b.status} />
-                      )}
+                      <BookingStatusPill status={b.status} />
                     </td>
                     <td>
                       <div className="rowact">

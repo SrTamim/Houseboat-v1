@@ -30,7 +30,7 @@ export default function Payouts() {
     limit: 20,
   });
   const readyInvoices = useAdminList<ApiInvoice>('/platform/finance/invoices', {
-    status: 'payment_verified',
+    settleable: true,
     limit: 20,
   });
 
@@ -38,7 +38,7 @@ export default function Payouts() {
     <>
       <PageHead
         title="Payouts"
-        desc={<>Verified invoices below are ready to batch per boat — the preparer must not be the approver, and a boat with no bank account cannot be paid.</>}
+        desc={<>Invoices below are ready to batch per boat — the preparer must not be the approver, and a boat with no bank account cannot be paid.</>}
       />
       <Card title="Payout batches" flush style={{ marginBottom: 20 }}>
         {batches.error ? (
@@ -46,7 +46,7 @@ export default function Payouts() {
         ) : !batches.isInitialLoading && batches.items.length === 0 ? (
           <EmptyState
             title="No payout batches yet"
-            desc="Batches appear here once a boat's verified invoices are prepared for payment."
+            desc="Batches appear here once a boat's settleable invoices are prepared for payment."
           />
         ) : (
           <>

@@ -21,7 +21,6 @@ interface BillingConfigRow {
   id: string;
   commissionPct: string | null;
   monthlyFee: string | null;
-  gatewayFeePct: string | null;
   platformBalance: string;
   trialEnds: string | null;
   houseboat: { id: string; name: string; status: string };
@@ -38,7 +37,6 @@ interface FormState {
   boatName: string;
   commissionPct: string;
   monthlyFee: string;
-  gatewayFeePct: string;
   trialEnds: string;
 }
 
@@ -72,7 +70,6 @@ export default function BillingConfig() {
       boatName: boat.name,
       commissionPct: existing?.commissionPct ?? '',
       monthlyFee: existing?.monthlyFee ?? '',
-      gatewayFeePct: existing?.gatewayFeePct ?? '',
       trialEnds: existing?.trialEnds ? existing.trialEnds.slice(0, 10) : '',
     });
   }
@@ -85,7 +82,6 @@ export default function BillingConfig() {
       await api.put(`/platform/finance/billing-configs/${form.boatId}`, {
         commissionPct: form.commissionPct === '' ? null : Number(form.commissionPct),
         monthlyFee: form.monthlyFee === '' ? null : Number(form.monthlyFee),
-        gatewayFeePct: form.gatewayFeePct === '' ? null : Number(form.gatewayFeePct),
         trialEnds: form.trialEnds === '' ? null : form.trialEnds,
       });
       setForm(null);
@@ -99,7 +95,7 @@ export default function BillingConfig() {
 
   const field = (
     label: string,
-    key: 'commissionPct' | 'monthlyFee' | 'gatewayFeePct',
+    key: 'commissionPct' | 'monthlyFee',
     placeholder: string,
   ) =>
     form ? (
@@ -137,14 +133,13 @@ export default function BillingConfig() {
                 <th>Boat</th>
                 <th className="num">Commission</th>
                 <th className="num">Monthly fee</th>
-                <th className="num">Gateway fee</th>
                 <th className="num">Platform balance</th>
                 <th>Trial ends</th>
                 <th />
               </tr>
             </thead>
             {configs.isLoading ? (
-              <TableSkeleton rows={4} cols={7} />
+              <TableSkeleton rows={4} cols={6} />
             ) : (
               <tbody>
                 {rows.map((c) => (
@@ -160,9 +155,6 @@ export default function BillingConfig() {
                       {c.monthlyFee !== null ? (
                         <><span className="u">৳</span> {formatBDT(c.monthlyFee)}</>
                       ) : '—'}
-                    </td>
-                    <td className="num">
-                      {c.gatewayFeePct !== null ? `${c.gatewayFeePct}%` : '—'}
                     </td>
                     <td
                       className="num"
@@ -270,7 +262,6 @@ export default function BillingConfig() {
             <div className="form-grid">
               {field('Commission %', 'commissionPct', 'e.g. 5.0')}
               {field('Monthly fee (৳)', 'monthlyFee', 'e.g. 5000')}
-              {field('Gateway fee %', 'gatewayFeePct', 'e.g. 1.8')}
               <div className="field">
                 <label>Trial ends</label>
                 <input

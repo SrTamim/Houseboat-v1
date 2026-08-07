@@ -33,10 +33,17 @@ const DEFAULT_LABEL: Record<CabState, string> = {
 export function CabGrid({
   cabins,
   onSelect,
+  onEdit,
+  onDelete,
 }: {
   cabins: CabTile[];
   onSelect?: (cabin: CabTile) => void;
+  /** Owner-only inline edit; when set, an edit control appears on each tile. */
+  onEdit?: (cabin: CabTile) => void;
+  /** Owner-only inline delete; when set, a delete control appears on each tile. */
+  onDelete?: (cabin: CabTile) => void;
 }) {
+  const manage = Boolean(onEdit || onDelete);
   return (
     <div className="cabgrid">
       {cabins.map((c) => {
@@ -55,6 +62,36 @@ export function CabGrid({
             {c.caption ? <div className="cc">{c.caption}</div> : null}
             {c.price !== null && c.price !== undefined ? (
               <div className="cp">{money(c.price)}</div>
+            ) : null}
+            {manage ? (
+              <div className="cab-actions">
+                {onEdit ? (
+                  <button
+                    type="button"
+                    className="cab-act"
+                    title="Edit cabin"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEdit(c);
+                    }}
+                  >
+                    ✎
+                  </button>
+                ) : null}
+                {onDelete ? (
+                  <button
+                    type="button"
+                    className="cab-act cab-act-del"
+                    title="Delete cabin"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(c);
+                    }}
+                  >
+                    🗑
+                  </button>
+                ) : null}
+              </div>
             ) : null}
           </Tag>
         );

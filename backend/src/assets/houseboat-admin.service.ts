@@ -1,4 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RolesService } from '../rbac/roles.service';
 import { AuditService } from '../audit/audit.service';
@@ -10,6 +14,9 @@ import {
   CreateDeckDto,
   CreateCategoryDto,
   CreateCabinDto,
+  UpdateDeckDto,
+  UpdateCategoryDto,
+  UpdateCabinDto,
 } from './dto/assets.dto';
 
 /**
@@ -119,6 +126,9 @@ export class HouseboatAdminService {
       where: { id: houseboatId },
       data: {
         name: dto.name,
+        // Public URL derives from the name, so a rename re-slugifies. slugify
+        // appends a random suffix, keeping the @unique constraint safe.
+        slug: dto.name ? this.slugify(dto.name) : undefined,
         description: dto.description,
         safetyFeatures: dto.safetyFeatures,
         foodMenu: dto.foodMenu as never,
@@ -197,6 +207,207 @@ export class HouseboatAdminService {
     });
     await this.recomputeCompleteness(houseboatId);
     return cabin;
+  }
+
+  // ── Deck update/delete ─────────────────────────────────────
+  async updateDeck(
+    houseboatId: string,
+    deckId: string,
+    actorId: string,
+    dto: UpdateDeckDto,
+  ) {
+    await this.assertDeckOwned(houseboatId, deckId);
+    const deck = await this.prisma.houseboatDeck.update({
+      where: { id: deckId },
+      data: { name: dto.name, position: dto.position },
+    });
+    await this.recomputeCompleteness(houseboatId);
+    await this.audit.log({
+      houseboatId,
+      actorAccountId: actorId,
+      action: 'deck_update',
+      entityType: 'houseboat_deck',
+      entityId: deckId,
+    });
+    return deck;
+  }
+
+  async deleteDeck(houseboatId: string, deckId: string, actorId: string) {
+    await this.assertDeckOwned(houseboatId, deckId);
+    const cabins = await this.prisma.houseboatCabin.count({ where: { deckId } });
+    if (cabins > 0) {
+      throw new ConflictException(
+        'This deck still has cabins. Remove or move them before deleting the deck.',
+      );
+    }
+    await this.prisma.houseboatDeck.delete({ where: { id: deckId } });
+    await this.recomputeCompleteness(houseboatId);
+    await this.audit.log({
+      houseboatId,
+      actorAccountId: actorId,
+      action: 'deck_delete',
+      entityType: 'houseboat_deck',
+      entityId: deckId,
+    });
+    return { ok: true };
+  }
+
+  // ── Category update/delete ─────────────────────────────────
+  async updateCategory(
+    houseboatId: string,
+    categoryId: string,
+    actorId: string,
+    dto: UpdateCategoryDto,
+  ) {
+    await this.assertCategoryOwned(houseboatId, categoryId);
+    const cat = await this.prisma.houseboatCabinCategory.update({
+      where: { id: categoryId },
+      data: {
+        name: dto.name,
+        isAc: dto.isAc,
+        baseCapacity: dto.baseCapacity,
+        extendedCapacity: dto.extendedCapacity,
+        facilities: dto.facilities,
+      },
+    });
+    await this.recomputeCompleteness(houseboatId);
+    await this.audit.log({
+      houseboatId,
+      actorAccountId: actorId,
+      action: 'category_update',
+      entityType: 'houseboat_cabin_category',
+      entityId: categoryId,
+    });
+    return cat;
+  }
+
+  async deleteCategory(
+    houseboatId: string,
+    categoryId: string,
+    actorId: string,
+  ) {
+    await this.assertCategoryOwned(houseboatId, categoryId);
+    const [cabins, rules] = await Promise.all([
+      this.prisma.houseboatCabin.count({
+        where: { cabinCategoryId: categoryId },
+      }),
+      this.prisma.pricingRule.count({
+        where: { cabinCategoryId: categoryId },
+      }),
+    ]);
+    if (cabins > 0) {
+      throw new ConflictException(
+        'This category is used by cabins. Reassign or delete those cabins first.',
+      );
+    }
+    if (rules > 0) {
+      throw new ConflictException(
+        'This category has pricing rules. Remove them before deleting the category.',
+      );
+    }
+    await this.prisma.houseboatCabinCategory.delete({
+      where: { id: categoryId },
+    });
+    await this.recomputeCompleteness(houseboatId);
+    await this.audit.log({
+      houseboatId,
+      actorAccountId: actorId,
+      action: 'category_delete',
+      entityType: 'houseboat_cabin_category',
+      entityId: categoryId,
+    });
+    return { ok: true };
+  }
+
+  // ── Cabin update/delete ────────────────────────────────────
+  async updateCabin(
+    houseboatId: string,
+    cabinId: string,
+    actorId: string,
+    dto: UpdateCabinDto,
+  ) {
+    await this.assertCabinOwned(houseboatId, cabinId);
+    // Guard cross-boat reparenting: a new deck/category must belong to this boat.
+    if (dto.deckId) await this.assertDeckOwned(houseboatId, dto.deckId);
+    if (dto.cabinCategoryId)
+      await this.assertCategoryOwned(houseboatId, dto.cabinCategoryId);
+    const cabin = await this.prisma.houseboatCabin.update({
+      where: { id: cabinId },
+      data: {
+        deckId: dto.deckId,
+        cabinCategoryId: dto.cabinCategoryId,
+        name: dto.name,
+        gridRow: dto.gridRow,
+        gridCol: dto.gridCol,
+      },
+    });
+    await this.recomputeCompleteness(houseboatId);
+    await this.audit.log({
+      houseboatId,
+      actorAccountId: actorId,
+      action: 'cabin_update',
+      entityType: 'houseboat_cabin',
+      entityId: cabinId,
+    });
+    return cabin;
+  }
+
+  async deleteCabin(houseboatId: string, cabinId: string, actorId: string) {
+    await this.assertCabinOwned(houseboatId, cabinId);
+    const [bookings, holds] = await Promise.all([
+      this.prisma.bookingCabin.count({ where: { cabinId } }),
+      this.prisma.cabinHold.count({ where: { cabinId } }),
+    ]);
+    if (bookings > 0 || holds > 0) {
+      throw new ConflictException(
+        'This cabin is tied to bookings or held reservations and cannot be deleted.',
+      );
+    }
+    // Media is nullable-linked; detach its gallery rows so the FK is clear.
+    await this.prisma.$transaction([
+      this.prisma.houseboatMedia.updateMany({
+        where: { cabinId },
+        data: { cabinId: null },
+      }),
+      this.prisma.houseboatCabin.delete({ where: { id: cabinId } }),
+    ]);
+    await this.recomputeCompleteness(houseboatId);
+    await this.audit.log({
+      houseboatId,
+      actorAccountId: actorId,
+      action: 'cabin_delete',
+      entityType: 'houseboat_cabin',
+      entityId: cabinId,
+    });
+    return { ok: true };
+  }
+
+  // Ownership guards: a row must belong to the boat in the URL, else 404 —
+  // this stops one owner editing another boat's deck/category/cabin by id.
+  private async assertDeckOwned(houseboatId: string, deckId: string) {
+    const deck = await this.prisma.houseboatDeck.findFirst({
+      where: { id: deckId, houseboatId },
+      select: { id: true },
+    });
+    if (!deck) throw new NotFoundException('Deck not found on this houseboat.');
+  }
+
+  private async assertCategoryOwned(houseboatId: string, categoryId: string) {
+    const cat = await this.prisma.houseboatCabinCategory.findFirst({
+      where: { id: categoryId, houseboatId },
+      select: { id: true },
+    });
+    if (!cat)
+      throw new NotFoundException('Category not found on this houseboat.');
+  }
+
+  private async assertCabinOwned(houseboatId: string, cabinId: string) {
+    const cabin = await this.prisma.houseboatCabin.findFirst({
+      where: { id: cabinId, deck: { houseboatId } },
+      select: { id: true },
+    });
+    if (!cabin)
+      throw new NotFoundException('Cabin not found on this houseboat.');
   }
 
   /**

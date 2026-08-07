@@ -42,7 +42,6 @@ export class OwnerDashboardService {
     const [
       boat,
       departuresToday,
-      unverifiedCash,
       pendingBatches,
       unpaidPayroll,
       inventory,
@@ -84,14 +83,6 @@ export class OwnerDashboardService {
           crew: { select: { present: true } },
         },
         orderBy: { departureTime: 'asc' },
-      }),
-      this.prisma.invoicePayment.findMany({
-        where: {
-          method: 'cash',
-          verifiedBy: null,
-          invoice: { houseboatId },
-        },
-        select: { amount: true },
       }),
       this.prisma.houseboatPayoutBatch.findMany({
         where: { houseboatId, status: { in: ['prepared', 'approved'] } },
@@ -156,10 +147,6 @@ export class OwnerDashboardService {
       this.rbac.isBillingLocked(houseboatId),
     ]);
 
-    const cashTotal = unverifiedCash.reduce(
-      (sum, p) => add(sum, money(p.amount)),
-      ZERO,
-    );
     const payoutTotal = pendingBatches.reduce(
       (sum, b) => add(sum, money(b.totalAmount)),
       ZERO,
@@ -230,8 +217,6 @@ export class OwnerDashboardService {
         departingToday: departures.length,
         cabinsSoldToday: departures.reduce((n, d) => n + d.cabinsSold, 0),
         cabinsTotalToday: departures.reduce((n, d) => n + d.cabinsTotal, 0),
-        cashToVerify: unverifiedCash.length,
-        cashToVerifyAmount: cashTotal.toFixed(2),
         payoutPending: payoutTotal.toFixed(2),
         payoutInvoiceCount,
         crewUnpaid: unpaidPayroll,
@@ -270,7 +255,6 @@ export class OwnerDashboardService {
         departures: departures.length,
         waitlist: waitlistCount,
         quotes: quotes.length,
-        payments: unverifiedCash.length,
         refunds: pendingRefunds,
         payroll: unpaidPayroll,
         inventory: lowStock.length,

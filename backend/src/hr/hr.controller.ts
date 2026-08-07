@@ -1,13 +1,24 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { HrService } from './hr.service';
 import { RequirePermission } from '../rbac/require-permission.decorator';
 import { CurrentUser } from '../auth/decorators';
 import { AuthUser } from '../auth/auth.types';
 import {
+  AttendanceQueryDto,
   CreateStaffDto,
   LeaveDto,
   PayrollDto,
   CrewPresenceDto,
+  UpdateStaffDto,
 } from './dto/hr.dto';
 
 @Controller()
@@ -27,6 +38,26 @@ export class HrController {
     @Body() dto: CreateStaffDto,
   ) {
     return this.hr.addStaff(houseboatId, dto);
+  }
+
+  @Patch('houseboats/:houseboatId/staff/:staffId')
+  @RequirePermission({ module: 'staff', action: 'edit' })
+  updateStaff(
+    @Param('houseboatId') houseboatId: string,
+    @Param('staffId') staffId: string,
+    @Body() dto: UpdateStaffDto,
+  ) {
+    return this.hr.updateStaff(houseboatId, staffId, dto);
+  }
+
+  @Delete('houseboats/:houseboatId/staff/:staffId')
+  @RequirePermission({ module: 'staff', action: 'edit' })
+  removeStaff(
+    @Param('houseboatId') houseboatId: string,
+    @Param('staffId') staffId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.hr.removeStaff(houseboatId, staffId, user.id);
   }
 
   @Post('houseboats/:houseboatId/staff/:staffId/leave')
@@ -58,6 +89,16 @@ export class HrController {
   @RequirePermission({ module: 'staff', action: 'view' })
   listPayroll(@Param('staffId') staffId: string) {
     return this.hr.listPayroll(staffId);
+  }
+
+  // ── Attendance report (monthly) ────────────────────────────
+  @Get('houseboats/:houseboatId/attendance')
+  @RequirePermission({ module: 'staff', action: 'view' })
+  attendance(
+    @Param('houseboatId') houseboatId: string,
+    @Query() query: AttendanceQueryDto,
+  ) {
+    return this.hr.attendanceReport(houseboatId, query.period);
   }
 
   // ── Crew presence (per departure) ──────────────────────────

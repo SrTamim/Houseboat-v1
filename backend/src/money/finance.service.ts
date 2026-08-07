@@ -90,7 +90,8 @@ export class FinanceService {
 
   /**
    * Issue a monthly subscription invoice for a boat: monthly_fee (if any) plus
-   * commission accrued from payment_verified/in_payout invoices in the period.
+   * commission accrued from settled invoices (paid/payment_verified/in_payout/
+   * bill_cleared) in the period.
    * `period` is a YYYY-MM string.
    */
   async issueSubscriptionInvoice(houseboatId: string, actorId: string, period: string) {
@@ -122,7 +123,7 @@ export class FinanceService {
         paidAt: { gte: from, lt: to },
         invoice: {
           houseboatId,
-          status: { in: ['payment_verified', 'in_payout', 'bill_cleared'] },
+          status: { in: ['paid', 'payment_verified', 'in_payout', 'bill_cleared'] },
         },
       },
       select: { invoiceId: true, invoice: { select: { commission: true } } },

@@ -378,6 +378,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/houseboats/{houseboatId}/decks/{deckId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["AssetsController_deleteDeck"];
+        options?: never;
+        head?: never;
+        patch: operations["AssetsController_updateDeck"];
+        trace?: never;
+    };
+    "/api/houseboats/{houseboatId}/categories/{categoryId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["AssetsController_deleteCategory"];
+        options?: never;
+        head?: never;
+        patch: operations["AssetsController_updateCategory"];
+        trace?: never;
+    };
+    "/api/houseboats/{houseboatId}/cabins/{cabinId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["AssetsController_deleteCabin"];
+        options?: never;
+        head?: never;
+        patch: operations["AssetsController_updateCabin"];
+        trace?: never;
+    };
     "/api/houseboats/{houseboatId}/routes": {
         parameters: {
             query?: never;
@@ -517,6 +565,22 @@ export interface paths {
         put?: never;
         post?: never;
         delete: operations["MediaController_remove"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/houseboats/{houseboatId}/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["TripsController_getSchedule"];
+        put: operations["TripsController_saveSchedule"];
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -800,6 +864,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/houseboats/{houseboatId}/bookings/{bookingId}/checkin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Mark departure attendance for one booking from the manifest (§4). */
+        patch: operations["OwnerBookingsController_setCheckin"];
+        trace?: never;
+    };
     "/api/houseboats/{houseboatId}/waitlist": {
         parameters: {
             query?: never;
@@ -826,6 +907,40 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["OwnerBookingsController_notifyWaitlist"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/houseboats/{houseboatId}/departures/{departureId}/holds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Live holds on a departure (anyone's), so the counter grid can lock them. */
+        get: operations["OwnerBookingsController_departureHolds"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/houseboats/{houseboatId}/pos/quote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Read-only price preview for a counter-sale selection. Creates nothing. */
+        post: operations["OwnerBookingsController_posQuote"];
         delete?: never;
         options?: never;
         head?: never;
@@ -965,6 +1080,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/refunds/{refundId}/settle-pos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** POS one-step settle — owner marks a counter-sale refund as refunded. */
+        post: operations["MoneyController_settlePosRefund"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/houseboats/{houseboatId}/due-payments": {
         parameters: {
             query?: never;
@@ -1047,6 +1179,22 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/houseboats/{houseboatId}/coupons/{couponId}/active": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["MoneyController_setCouponActive"];
         trace?: never;
     };
     "/api/houseboats/{houseboatId}/cancellation-policies": {
@@ -1302,6 +1450,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/houseboats/{houseboatId}/staff/{staffId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["HrController_removeStaff"];
+        options?: never;
+        head?: never;
+        patch: operations["HrController_updateStaff"];
+        trace?: never;
+    };
     "/api/houseboats/{houseboatId}/staff/{staffId}/leave": {
         parameters: {
             query?: never;
@@ -1344,6 +1508,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["HrController_markPaid"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/houseboats/{houseboatId}/attendance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["HrController_attendance"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1456,10 +1636,10 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["OpsController_replyReview"];
-        delete?: never;
+        delete: operations["OpsController_deleteReviewReply"];
         options?: never;
         head?: never;
-        patch?: never;
+        patch: operations["OpsController_editReviewReply"];
         trace?: never;
     };
     "/api/me/notifications": {
@@ -2091,6 +2271,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/houseboats/{houseboatId}/guests/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download the guest directory as CSV (§8). */
+        get: operations["OwnerController_exportGuests"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/houseboats/{houseboatId}/audit": {
         parameters: {
             query?: never;
@@ -2292,20 +2489,41 @@ export interface components {
         ChangeRoleDto: {
             roleId: string;
         };
+        FoodMenuDto: {
+            breakfast?: string;
+            brunch?: string;
+            lunch?: string;
+            snacks?: string;
+            dinner?: string;
+        };
         CreateHouseboatDto: {
             name: string;
             description?: string;
             safetyFeatures?: string;
-            foodMenu?: string;
+            foodMenu?: components["schemas"]["FoodMenuDto"];
+        };
+        BankAccountDto: {
+            bankName?: string;
+            accountNo?: string;
+            accountHolder?: string;
+            district?: string;
+            branch?: string;
+            routingNumber?: string;
+        };
+        ChildBandDto: {
+            min: number;
+            max: number;
+            chargePct: number;
         };
         UpdateHouseboatDto: {
             name?: string;
             description?: string;
             safetyFeatures?: string;
-            foodMenu?: string;
-            /** @description Payout destination; shape is bank-dependent. */
-            bankAccount?: Record<string, never>;
-            childPolicy?: Record<string, never>;
+            foodMenu?: components["schemas"]["FoodMenuDto"];
+            /** @description Payout destination — structured bank fields (§9). */
+            bankAccount?: components["schemas"]["BankAccountDto"];
+            /** @description Age bands; empty/omitted → children pay full. Order matters (first match wins). */
+            childPolicy?: components["schemas"]["ChildBandDto"][];
             /** @description ISO date strings — only these dates generate bookable departures. */
             operatingDates?: string[];
             defaultCrew?: string[];
@@ -2328,6 +2546,24 @@ export interface components {
             gridRow?: number;
             gridCol?: number;
         };
+        UpdateDeckDto: {
+            name?: string;
+            position?: number;
+        };
+        UpdateCategoryDto: {
+            name?: string;
+            isAc?: boolean;
+            baseCapacity?: number;
+            extendedCapacity?: number;
+            facilities?: string;
+        };
+        UpdateCabinDto: {
+            deckId?: string;
+            cabinCategoryId?: string;
+            name?: string;
+            gridRow?: number;
+            gridCol?: number;
+        };
         LinkRouteDto: {
             routeId: string;
         };
@@ -2344,6 +2580,18 @@ export interface components {
             /** Format: uri */
             youtubeUrl: string;
             sortOrder?: number;
+        };
+        ScheduleSlotDto: {
+            slotNo: number;
+            /** @description Days of week, 0=Sun … 6=Sat. */
+            weekdays: number[];
+            departureTime?: string;
+            pricingProfileId?: string;
+        };
+        SaveScheduleDto: {
+            packageId: string;
+            active?: boolean;
+            slots: components["schemas"]["ScheduleSlotDto"][];
         };
         CreatePackageDto: {
             routeId: string;
@@ -2438,25 +2686,77 @@ export interface components {
             newDepartureId: string;
             reason?: string;
         };
+        CheckinDto: {
+            /** @enum {string} */
+            status: "pending" | "checked_in" | "absent";
+        };
+        PosQuoteCabinDto: {
+            cabinId: string;
+            adults: number;
+            children?: number;
+            childAges?: number[];
+            priceOverride?: number;
+        };
+        PosQuoteDto: {
+            departureId: string;
+            cabins: components["schemas"]["PosQuoteCabinDto"][];
+            couponCode?: string;
+            discount?: number;
+        };
         PosCabinDto: {
             cabinId: string;
             adults: number;
             children?: number;
+        };
+        PosHeldCabinDto: {
+            cabinId: string;
+            holdId: string;
+            adults: number;
+            children?: number;
+            /** @description Ages of the children so each is charged per the boat's child_policy. */
+            childAges?: number[];
+            /**
+             * @description Owner-typed room price for a cabin whose occupancy tier has no configured
+             *     rate. Replaces the computed price for this cabin only. Counter-sale only.
+             */
+            priceOverride?: number;
         };
         PosCheckoutDto: {
             departureId: string;
             customerName: string;
             /** @description E.164. Used to find-or-create the walk-in guest's account. */
             customerPhone: string;
-            cabins: components["schemas"]["PosCabinDto"][];
+            /**
+             * @description Legacy single-request path: hold + checkout in one call. Optional now that
+             *     the counter grid holds cabins on select and sends `holds` instead. Exactly
+             *     one of `cabins` / `holds` is used; `holds` wins when present.
+             */
+            cabins?: components["schemas"]["PosCabinDto"][];
+            /** @description Cabins already held from the select step, to be converted on confirm. */
+            holds?: components["schemas"]["PosHeldCabinDto"][];
             couponCode?: string;
             referenceName?: string;
             specialInstructions?: string;
+            /**
+             * @description Owner's personal collection channel for cash taken at the counter (§6).
+             * @enum {string}
+             */
+            paymentMethod?: "cash" | "bkash" | "bank" | "online";
+            /**
+             * @description Ad-hoc flat discount (taka) the owner grants at the counter, deducted from
+             *     the total on top of any coupon. The boat absorbs it.
+             */
+            discount?: number;
+            /**
+             * @description How much the customer actually handed over. Defaults to the full total when
+             *     omitted. 0 = nothing paid yet (booking still confirms; invoice stays due).
+             */
+            amountPaid?: number;
         };
         RecordPaymentDto: {
             amount: number;
             /** @enum {string} */
-            method: "gateway" | "cash";
+            method: "gateway" | "cash" | "bkash" | "bank" | "online";
             gatewayToken?: string;
             receivedBy?: string;
         };
@@ -2477,6 +2777,9 @@ export interface components {
             value: number;
             validFrom?: string;
             validTo?: string;
+        };
+        SetCouponActiveDto: {
+            active: boolean;
         };
         CreatePolicyDto: {
             /** @enum {string} */
@@ -2516,10 +2819,22 @@ export interface components {
         CreateStaffDto: {
             phone: string;
             roleId?: string;
+            designation?: string;
             nid?: string;
             emergencyContact?: string;
+            address?: string;
             perTripRate?: number;
             monthlySalary?: number;
+        };
+        UpdateStaffDto: {
+            designation?: string;
+            nid?: string;
+            emergencyContact?: string;
+            address?: string;
+            /** @enum {string} */
+            status?: "available" | "on_leave";
+            perTripRate?: number | null;
+            monthlySalary?: number | null;
         };
         LeaveDto: {
             /** @enum {string} */
@@ -2578,7 +2893,6 @@ export interface components {
         UpsertBillingConfigDto: {
             commissionPct?: number | null;
             monthlyFee?: number | null;
-            gatewayFeePct?: number | null;
             /** @description YYYY-MM-DD — the column is a date, not a timestamp. */
             trialEnds?: string | null;
         };
@@ -3162,6 +3476,138 @@ export interface operations {
             };
         };
     };
+    AssetsController_deleteDeck: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+                deckId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AssetsController_updateDeck: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+                deckId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateDeckDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AssetsController_deleteCategory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+                categoryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AssetsController_updateCategory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+                categoryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateCategoryDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AssetsController_deleteCabin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+                cabinId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AssetsController_updateCabin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+                cabinId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateCabinDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     AssetsController_linkRoute: {
         parameters: {
             query?: never;
@@ -3358,6 +3804,48 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    TripsController_getSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    TripsController_saveSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveScheduleDto"];
+            };
+        };
         responses: {
             200: {
                 headers: {
@@ -3814,6 +4302,30 @@ export interface operations {
             };
         };
     };
+    OwnerBookingsController_setCheckin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+                bookingId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckinDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     OwnerBookingsController_waitlist: {
         parameters: {
             query?: never;
@@ -3844,6 +4356,49 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OwnerBookingsController_departureHolds: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+                departureId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OwnerBookingsController_posQuote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PosQuoteDto"];
+            };
+        };
         responses: {
             201: {
                 headers: {
@@ -3941,11 +4496,6 @@ export interface operations {
         parameters: {
             query?: {
                 status?: "customer_due" | "paid" | "payment_verified" | "in_payout" | "bill_cleared";
-                /**
-                 * @description Only invoices with a cash payment nobody has verified yet — the queue the
-                 *     Payments page works through.
-                 */
-                cashPending?: boolean;
                 q?: string;
                 limit?: number;
                 /** @description id of the last row from the previous page. */
@@ -4029,6 +4579,25 @@ export interface operations {
         };
     };
     MoneyController_completeRefund: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                refundId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MoneyController_settlePosRefund: {
         parameters: {
             query?: never;
             header?: never;
@@ -4179,6 +4748,30 @@ export interface operations {
         };
         responses: {
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MoneyController_setCouponActive: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+                couponId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetCouponActiveDto"];
+            };
+        };
+        responses: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4567,9 +5160,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>[];
-                };
+                content?: never;
             };
         };
     };
@@ -4589,6 +5180,50 @@ export interface operations {
         };
         responses: {
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    HrController_removeStaff: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+                staffId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    HrController_updateStaff: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+                staffId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateStaffDto"];
+            };
+        };
+        responses: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4673,6 +5308,27 @@ export interface operations {
         requestBody?: never;
         responses: {
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    HrController_attendance: {
+        parameters: {
+            query?: {
+                period?: string;
+            };
+            header?: never;
+            path: {
+                houseboatId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4892,6 +5548,44 @@ export interface operations {
             };
         };
     };
+    OpsController_deleteReviewReply: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reviewId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OpsController_editReviewReply: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reviewId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     OpsController_myNotifications: {
         parameters: {
             query?: never;
@@ -4956,6 +5650,19 @@ export interface operations {
         parameters: {
             query?: {
                 status?: "customer_due" | "paid" | "payment_verified" | "in_payout" | "bill_cleared" | "cancelled" | "refund_requested" | "refund_verified" | "refund_completed";
+                /**
+                 * @description Invoices ready to settle: owner-recorded 'paid' plus platform-verified
+                 *     'payment_verified', not yet in a payout batch. Backs the payout-prep queue
+                 *     (mirrors payouts.service.ts pickup). Ignored when `status` is set.
+                 */
+                settleable?: boolean;
+                /**
+                 * @description The gateway verify queue: 'paid' invoices carrying a gateway payment the
+                 *     platform still checks against the gateway portal. Owner-recorded cash never
+                 *     queues here — it settles without platform verification. Ignored when
+                 *     `status` is set.
+                 */
+                gatewayPending?: boolean;
                 houseboatId?: string;
                 limit?: number;
                 /** @description id of the last row from the previous page. */
@@ -5001,6 +5708,19 @@ export interface operations {
         parameters: {
             query?: {
                 status?: "customer_due" | "paid" | "payment_verified" | "in_payout" | "bill_cleared" | "cancelled" | "refund_requested" | "refund_verified" | "refund_completed";
+                /**
+                 * @description Invoices ready to settle: owner-recorded 'paid' plus platform-verified
+                 *     'payment_verified', not yet in a payout batch. Backs the payout-prep queue
+                 *     (mirrors payouts.service.ts pickup). Ignored when `status` is set.
+                 */
+                settleable?: boolean;
+                /**
+                 * @description The gateway verify queue: 'paid' invoices carrying a gateway payment the
+                 *     platform still checks against the gateway portal. Owner-recorded cash never
+                 *     queues here — it settles without platform verification. Ignored when
+                 *     `status` is set.
+                 */
+                gatewayPending?: boolean;
                 houseboatId?: string;
                 limit?: number;
                 /** @description id of the last row from the previous page. */
@@ -5707,6 +6427,34 @@ export interface operations {
         };
     };
     OwnerController_listGuests: {
+        parameters: {
+            query?: {
+                q?: string;
+                /**
+                 * @description Offset paging, not a cursor: the guest list is a groupBy aggregate and
+                 *     Prisma cursors don't apply to grouped rows. Guest counts per boat are
+                 *     small (hundreds), so the offset scan cost is not a concern here.
+                 */
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                houseboatId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OwnerController_exportGuests: {
         parameters: {
             query?: {
                 q?: string;

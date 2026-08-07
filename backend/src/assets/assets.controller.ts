@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -20,6 +21,9 @@ import {
   CreateDeckDto,
   CreateCategoryDto,
   CreateCabinDto,
+  UpdateDeckDto,
+  UpdateCategoryDto,
+  UpdateCabinDto,
   CreateRouteDto,
   LinkRouteDto,
   ListBoatsQueryDto,
@@ -81,6 +85,70 @@ export class AssetsController {
     @Body() dto: CreateCabinDto,
   ) {
     return this.boats.addCabin(houseboatId, dto);
+  }
+
+  // ── Owner: edit + delete decks / categories / cabins ───────
+  @Patch('houseboats/:houseboatId/decks/:deckId')
+  @RequirePermission({ module: 'assets', action: 'edit' })
+  updateDeck(
+    @Param('houseboatId') houseboatId: string,
+    @Param('deckId') deckId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() dto: UpdateDeckDto,
+  ) {
+    return this.boats.updateDeck(houseboatId, deckId, user.id, dto);
+  }
+
+  @Delete('houseboats/:houseboatId/decks/:deckId')
+  @RequirePermission({ module: 'assets', action: 'edit' })
+  deleteDeck(
+    @Param('houseboatId') houseboatId: string,
+    @Param('deckId') deckId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.boats.deleteDeck(houseboatId, deckId, user.id);
+  }
+
+  @Patch('houseboats/:houseboatId/categories/:categoryId')
+  @RequirePermission({ module: 'assets', action: 'edit' })
+  updateCategory(
+    @Param('houseboatId') houseboatId: string,
+    @Param('categoryId') categoryId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() dto: UpdateCategoryDto,
+  ) {
+    return this.boats.updateCategory(houseboatId, categoryId, user.id, dto);
+  }
+
+  @Delete('houseboats/:houseboatId/categories/:categoryId')
+  @RequirePermission({ module: 'assets', action: 'edit' })
+  deleteCategory(
+    @Param('houseboatId') houseboatId: string,
+    @Param('categoryId') categoryId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.boats.deleteCategory(houseboatId, categoryId, user.id);
+  }
+
+  @Patch('houseboats/:houseboatId/cabins/:cabinId')
+  @RequirePermission({ module: 'assets', action: 'edit' })
+  updateCabin(
+    @Param('houseboatId') houseboatId: string,
+    @Param('cabinId') cabinId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() dto: UpdateCabinDto,
+  ) {
+    return this.boats.updateCabin(houseboatId, cabinId, user.id, dto);
+  }
+
+  @Delete('houseboats/:houseboatId/cabins/:cabinId')
+  @RequirePermission({ module: 'assets', action: 'edit' })
+  deleteCabin(
+    @Param('houseboatId') houseboatId: string,
+    @Param('cabinId') cabinId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.boats.deleteCabin(houseboatId, cabinId, user.id);
   }
 
   @Post('houseboats/:houseboatId/routes')

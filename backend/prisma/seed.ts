@@ -153,6 +153,11 @@ async function deleteBoatCascade(slug: string) {
     where: { package: { houseboatId } },
   });
 
+  // Weekly-schedule engine references packages via boat_schedule.package_id, so
+  // it must go before tripPackage. Slots cascade off boat_schedule; departures
+  // (which reference slots) were already dropped above.
+  await prisma.boatSchedule.deleteMany({ where: { houseboatId } });
+
   // Pricing + packages. Null the package→policy FK before dropping policies.
   await prisma.pricingRule.deleteMany({
     where: { profile: { houseboatId } },
@@ -328,7 +333,6 @@ async function ensureBillingConfig(houseboatId: string) {
       houseboatId,
       commissionPct: 5,
       monthlyFee: 2000,
-      gatewayFeePct: 1.8,
       platformBalance: 0,
       trialEnds,
     },
@@ -666,7 +670,7 @@ async function ensureDemoData(
         where: { id: firstDeparture.id },
         data: { availableCount: { decrement: 1 } },
       });
-      // Bill order per plan §1: room 10,000 + gateway 1.8% = 10,180 shown;
+      // Bill order per plan §1: room 10,000 = 10,000 shown (no gateway fee);
       // commission 5% of room = 500; cash taken in full, not yet verified.
       const invoice = await prisma.invoice.create({
         data: {
@@ -675,13 +679,13 @@ async function ensureDemoData(
           houseboatId,
           customerId: customer.id,
           roomTotal: 10000,
-          gatewayFee: 180,
-          priceShown: 10180,
+          gatewayFee: 0,
+          priceShown: 10000,
           discountAmount: 0,
-          displayTotal: 10180,
+          displayTotal: 10000,
           commission: 500,
           dueToBoat: 9500,
-          amountPaid: 10180,
+          amountPaid: 10000,
           status: 'paid',
         },
       });
@@ -689,7 +693,7 @@ async function ensureDemoData(
         data: {
           id: id(),
           invoiceId: invoice.id,
-          amount: 10180,
+          amount: 10000,
           method: 'cash',
           receivedBy: ownerAccountId,
           verifiedBy: null,
@@ -759,15 +763,15 @@ async function reseedJolKolol(opts: {
       },
       bankAccount: {
         bankName: 'Dutch-Bangla Bank Ltd',
-        accountName: 'Jol Kolol Houseboat',
-        accountNumber: '1011200456789',
+        accountHolder: 'Jol Kolol Houseboat',
+        accountNo: '1011200456789',
         branch: 'Sunamganj Branch',
         routingNumber: '090900123',
       },
       childPolicy: [
-        { min: 0, max: 4, charge_pct: 0 },
-        { min: 5, max: 11, charge_pct: 50 },
-        { min: 12, max: 120, charge_pct: 100 },
+        { min: 0, max: 4, chargePct: 0 },
+        { min: 5, max: 11, chargePct: 50 },
+        { min: 12, max: 120, chargePct: 100 },
       ],
       status: 'live',
       profileCompletePct: 100,
@@ -1059,7 +1063,6 @@ async function reseedJolKolol(opts: {
   // Reusable builder: booking + cabin(s) + lead guest + invoice + payment.
   const luxuryCabins = cabins.filter((c) => c.categoryId === luxuryAc.id);
   const familyCabins = cabins.filter((c) => c.categoryId === familyNonAc.id);
-  const GATEWAY_PCT = 0.018;
   const COMMISSION_PCT = 0.05;
 
   // Helper that wires one full booking chain. `decrementAvail` controls whether
@@ -1119,10 +1122,8 @@ async function reseedJolKolol(opts: {
         data: { availableCount: { decrement: 1 } },
       });
     }
-    const gatewayFee = Math.round(b.roomTotal * GATEWAY_PCT);
-    const priceShown = b.roomTotal + gatewayFee;
     const commission = Math.round(b.roomTotal * COMMISSION_PCT);
-    const paid = b.payment ? priceShown : 0;
+    const paid = b.payment ? b.roomTotal : 0;
     const invoice = await prisma.invoice.create({
       data: {
         id: id(),
@@ -1130,10 +1131,10 @@ async function reseedJolKolol(opts: {
         houseboatId,
         customerId: customer.id,
         roomTotal: b.roomTotal,
-        gatewayFee,
-        priceShown,
+        gatewayFee: 0,
+        priceShown: b.roomTotal,
         discountAmount: 0,
-        displayTotal: priceShown,
+        displayTotal: b.roomTotal,
         commission,
         dueToBoat: b.roomTotal - commission,
         amountPaid: paid,
@@ -1146,7 +1147,7 @@ async function reseedJolKolol(opts: {
         data: {
           id: id(),
           invoiceId: invoice.id,
-          amount: priceShown,
+          amount: b.roomTotal,
           method: b.payment.method,
           gatewayToken: b.payment.gatewayToken,
           receivedBy: ownerAccountId,

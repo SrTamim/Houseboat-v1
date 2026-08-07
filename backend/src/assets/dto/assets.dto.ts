@@ -101,6 +101,28 @@ export class CreateCabinDto {
   @IsOptional() @IsInt() gridCol?: number;
 }
 
+// ── Updates: every field optional; only what's sent is changed. ──
+export class UpdateDeckDto {
+  @IsOptional() @IsString() @MaxLength(LEN_NAME) name?: string;
+  @IsOptional() @IsInt() position?: number;
+}
+
+export class UpdateCategoryDto {
+  @IsOptional() @IsString() @MaxLength(LEN_NAME) name?: string;
+  @IsOptional() @IsBoolean() isAc?: boolean;
+  @IsOptional() @IsInt() @Min(1) baseCapacity?: number;
+  @IsOptional() @IsInt() @Min(1) extendedCapacity?: number;
+  @IsOptional() @IsString() @MaxLength(LEN_TEXT) facilities?: string;
+}
+
+export class UpdateCabinDto {
+  @IsOptional() @IsString() @MaxLength(LEN_CODE) deckId?: string;
+  @IsOptional() @IsString() @MaxLength(LEN_CODE) cabinCategoryId?: string;
+  @IsOptional() @IsString() @MaxLength(LEN_NAME) name?: string;
+  @IsOptional() @IsInt() gridRow?: number;
+  @IsOptional() @IsInt() gridCol?: number;
+}
+
 export class CreateRouteDto {
   @IsString() @MaxLength(LEN_NAME) name!: string;
   @IsOptional() @IsString() @MaxLength(LEN_NAME) region?: string;

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import useSWR from 'swr';
 import { api, fetcher } from '@/lib/api';
 import { useActiveBoat } from '@/lib/owner/boat-context';
@@ -9,7 +10,6 @@ import {
   Card,
   Field,
   Note,
-  Kv,
   AsyncBlock,
 } from '@/components/owner/ui';
 import { Pill } from '@/components/owner/Pill';
@@ -51,6 +51,8 @@ interface BoatDetail {
   status: string;
   operatingDates: string[];
   routes: { route: { id: string; name: string; region: string | null } }[];
+  cabinCategories: { id: string }[];
+  decks: { cabins: { id: string }[] }[];
 }
 
 interface Route {
@@ -85,6 +87,39 @@ const EMPTY_BANK: BankAccount = {
   routingNumber: '',
 };
 
+/**
+ * Older records (and the seed) stored bank/child-policy JSON under legacy keys
+ * (accountName, accountNumber, charge_pct). The current DTO whitelists only the
+ * canonical names and rejects anything else on save, so we map the legacy keys
+ * to canonical ones on the way in and never send the strays back.
+ */
+function normalizeBank(raw: Record<string, unknown> | null | undefined): BankAccount {
+  const b = (raw ?? {}) as Record<string, unknown>;
+  const str = (v: unknown) => (typeof v === 'string' ? v : undefined);
+  return {
+    ...EMPTY_BANK,
+    bankName: str(b.bankName) ?? EMPTY_BANK.bankName,
+    accountNo: str(b.accountNo) ?? str(b.accountNumber) ?? EMPTY_BANK.accountNo,
+    accountHolder: str(b.accountHolder) ?? str(b.accountName) ?? EMPTY_BANK.accountHolder,
+    district: str(b.district) ?? EMPTY_BANK.district,
+    branch: str(b.branch) ?? EMPTY_BANK.branch,
+    routingNumber: str(b.routingNumber) ?? EMPTY_BANK.routingNumber,
+  };
+}
+
+function normalizeBands(raw: unknown): ChildBand[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((band) => {
+    const b = (band ?? {}) as Record<string, unknown>;
+    const num = (v: unknown) => (typeof v === 'number' ? v : 0);
+    return {
+      min: num(b.min),
+      max: num(b.max),
+      chargePct: typeof b.chargePct === 'number' ? b.chargePct : num(b.charge_pct),
+    };
+  });
+}
+
 export default function OwnerProfilePage() {
   const { boatId } = useActiveBoat();
   const [busy, setBusy] = useState(false);
@@ -112,8 +147,8 @@ export default function OwnerProfilePage() {
     setDescription(b.description ?? '');
     setSafetyFeatures(b.safetyFeatures ?? '');
     setFoodMenu(b.foodMenu ?? {});
-    setBank({ ...EMPTY_BANK, ...(b.bankAccount ?? {}) });
-    setChildPolicy(Array.isArray(b.childPolicy) ? b.childPolicy : []);
+    setBank(normalizeBank(b.bankAccount as Record<string, unknown> | null));
+    setChildPolicy(normalizeBands(b.childPolicy));
   }, [boat.data]);
 
   const linkedId = boat.data?.routes[0]?.route.id ?? '';
@@ -173,6 +208,28 @@ export default function OwnerProfilePage() {
 
   const pct = boat.data?.profileCompletePct ?? 0;
 
+  // Mirror of the server's 7-item completeness checklist
+  // (backend recomputeCompleteness). Same order, same rules — so the owner can
+  // see exactly which item is holding the % back, not just the number.
+  const d = boat.data;
+  const checklist: { label: string; done: boolean; href?: string }[] = [
+    { label: 'Description', done: Boolean(d?.description) },
+    { label: 'Safety features', done: Boolean(d?.safetyFeatures) },
+    { label: 'Bank account', done: Boolean(d?.bankAccount) },
+    { label: 'Cabin categories', done: (d?.cabinCategories?.length ?? 0) > 0, href: '/owner/cabins' },
+    {
+      label: 'Cabins',
+      done: (d?.decks ?? []).some((deck) => deck.cabins.length > 0),
+      href: '/owner/cabins',
+    },
+    { label: 'Route', done: (d?.routes?.length ?? 0) > 0 },
+    {
+      label: 'Operating dates',
+      done: (d?.operatingDates?.length ?? 0) > 0,
+      href: '/owner/calendar',
+    },
+  ];
+
   return (
     <>
       <PageHead
@@ -206,10 +263,6 @@ export default function OwnerProfilePage() {
                 <div style={{ display: 'grid', gap: 12 }}>
                   <Field label="Boat name">
                     <input value={name} onChange={(e) => setName(e.target.value)} required />
-                  </Field>
-
-                  <Field label="Public URL">
-                    <input value={`/houseboat/${boat.data?.slug ?? ''}`} readOnly />
                   </Field>
 
                   <Field label="Description">
@@ -323,30 +376,61 @@ export default function OwnerProfilePage() {
                     }}
                   />
                 </div>
-                <div className="stack" style={{ gap: 8 }}>
-                  <Note kind={boat.data?.bankAccount ? 'ok' : 'warn'}>
-                    {boat.data?.bankAccount
-                      ? 'Bank account on file'
-                      : 'No bank account — payouts cannot run'}
-                  </Note>
-                  <Note kind={boat.data?.status === 'live' ? 'ok' : 'info'}>
-                    {boat.data?.status === 'live'
-                      ? 'Approved and visible to customers'
-                      : 'The platform reviews the boat once the profile is complete'}
-                  </Note>
+                <div className="stack" style={{ gap: 6 }}>
+                  {checklist.map((item) => {
+                    const row = (
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          padding: '7px 0',
+                          borderBottom: '1px solid var(--hair-2)',
+                        }}
+                      >
+                        <span
+                          aria-hidden
+                          style={{
+                            width: 18,
+                            height: 18,
+                            borderRadius: '50%',
+                            flex: 'none',
+                            display: 'grid',
+                            placeItems: 'center',
+                            fontSize: 12,
+                            color: '#fff',
+                            background: item.done ? 'var(--ok)' : 'var(--hair)',
+                          }}
+                        >
+                          {item.done ? '✓' : ''}
+                        </span>
+                        <span style={{ flex: 1, color: item.done ? 'var(--ink)' : 'var(--muted)' }}>
+                          {item.label}
+                        </span>
+                        {!item.done && item.href ? (
+                          <span className="t2" style={{ fontSize: 13 }}>
+                            Add →
+                          </span>
+                        ) : null}
+                      </div>
+                    );
+                    return !item.done && item.href ? (
+                      <Link
+                        key={item.label}
+                        href={item.href}
+                        style={{ textDecoration: 'none', color: 'inherit' }}
+                      >
+                        {row}
+                      </Link>
+                    ) : (
+                      <div key={item.label}>{row}</div>
+                    );
+                  })}
                 </div>
-              </Card>
-
-              <Card title="Operating dates">
-                <Kv
-                  rows={[
-                    ['Dates set', boat.data?.operatingDates.length ?? 0],
-                    ['Route', boat.data?.routes[0]?.route.name ?? '—'],
-                  ]}
-                />
-                <Note kind="info" style={{ marginTop: 12 }}>
-                  Only these dates can carry a departure. Everything else is invisible to
-                  customers, however full your schedule looks.
+                <Note kind={boat.data?.status === 'live' ? 'ok' : 'info'} style={{ marginTop: 12 }}>
+                  {boat.data?.status === 'live'
+                    ? 'Approved and visible to customers'
+                    : 'The platform reviews the boat once every item is complete. Operating dates are set on the Calendar page.'}
                 </Note>
               </Card>
 

@@ -1,16 +1,22 @@
 'use client';
 
+import { useState } from 'react';
 import useSWR from 'swr';
-import { fetcher } from '@/lib/api';
+import { api, fetcher } from '@/lib/api';
 import { useActiveBoat } from '@/lib/owner/boat-context';
 import {
   PageHead,
   Card,
   Note,
+  FilterBar,
+  Seg,
   TableWrap,
   AsyncTable,
+  Kv,
 } from '@/components/owner/ui';
 import { Pill } from '@/components/owner/Pill';
+import { Drawer } from '@/components/owner/Drawer';
+import { InvoiceBill } from '@/components/owner/Bill';
 import { money, formatDate, timeLeft, humanize } from '@/lib/owner/format';
 
 interface OwnerRefund {
@@ -28,6 +34,18 @@ interface OwnerRefund {
   paid: string;
   bookingStatus: string;
   departureDate: string;
+  isPos: boolean;
+}
+
+/** The full bill waterfall, as returned by the invoices endpoint. */
+interface InvoiceDetail {
+  id: string;
+  roomTotal: string;
+  discountAmount: string;
+  displayTotal: string;
+  commission: string;
+  dueToBoat: string;
+  amountPaid: string;
 }
 
 const STATUS_TONES: Record<string, 'amb' | 'blue' | 'ok'> = {
@@ -40,6 +58,19 @@ function invoiceRef(id: string): string {
   return `#${id.slice(-6).toUpperCase()}`;
 }
 
+const ORIGIN_OPTS = [
+  { value: '', label: 'All' },
+  { value: 'pos', label: 'POS' },
+  { value: 'platform', label: 'Platform' },
+];
+
+const STATUS_OPTS = [
+  { value: '', label: 'All' },
+  { value: 'requested', label: 'Requested' },
+  { value: 'verified', label: 'Verified' },
+  { value: 'completed', label: 'Completed' },
+];
+
 export default function OwnerRefundsPage() {
   const { boatId } = useActiveBoat();
   const { data, error, isLoading, mutate } = useSWR<OwnerRefund[]>(
@@ -48,8 +79,46 @@ export default function OwnerRefundsPage() {
     { revalidateOnFocus: false },
   );
 
-  const rows = data ?? [];
-  const open = rows.filter((r) => r.status !== 'completed');
+  const [origin, setOrigin] = useState('');
+  const [status, setStatus] = useState('');
+  const [open, setOpen] = useState<OwnerRefund | null>(null);
+  const [settling, setSettling] = useState(false);
+  const [settleError, setSettleError] = useState<string | null>(null);
+
+  const rows = (data ?? []).filter((r) => {
+    if (origin === 'pos' && !r.isPos) return false;
+    if (origin === 'platform' && r.isPos) return false;
+    if (status && r.status !== status) return false;
+    return true;
+  });
+
+  // Full invoice detail for the drawer bill breakdown. The refund list only
+  // carries invoiceId/paid/amount; the waterfall lives on the invoices endpoint.
+  const { data: invoicePage } = useSWR<{ items: InvoiceDetail[] }>(
+    open ? `/houseboats/${boatId}/invoices?limit=200` : null,
+    fetcher,
+    { revalidateOnFocus: false },
+  );
+  const invoiceDetail =
+    invoicePage?.items.find((i) => i.id === open?.invoiceId) ?? null;
+
+  async function settle() {
+    if (!open) return;
+    setSettling(true);
+    setSettleError(null);
+    try {
+      await api.post(`/refunds/${open.id}/settle-pos`);
+      await mutate();
+      setOpen(null);
+    } catch (e) {
+      const msg =
+        (e as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message ?? 'Could not settle this refund. Try again.';
+      setSettleError(msg);
+    } finally {
+      setSettling(false);
+    }
+  }
 
   return (
     <>
@@ -58,22 +127,29 @@ export default function OwnerRefundsPage() {
         desc={
           <>
             A refund only opens when <b>you cancelled the trip</b>, and only within the
-            6-day claim window. Customer cancellations follow your policy template
-            instead, and the platform always keeps its commission.
+            6-day claim window. Counter-sale (POS) refunds are settled here by you;
+            website (platform) refunds are settled by the platform.
           </>
         }
       />
 
+      <FilterBar>
+        <Seg options={ORIGIN_OPTS} value={origin} onChange={setOrigin} />
+        <Seg options={STATUS_OPTS} value={status} onChange={setStatus} />
+      </FilterBar>
+
       <Card title="Refund claims" sub="owner-cancelled trips" flush style={{ marginBottom: 20 }}>
-        <TableWrap minWidth={820}>
+        <TableWrap minWidth={880}>
           <thead>
             <tr>
               <th>Invoice</th>
               <th>Guest</th>
+              <th>Origin</th>
               <th className="num">Paid</th>
               <th className="num">Refund</th>
               <th>Deadline</th>
               <th>Status</th>
+              <th />
             </tr>
           </thead>
           <AsyncTable
@@ -86,8 +162,8 @@ export default function OwnerRefundsPage() {
                 <div className="ic">↩</div>
                 <h4>No refunds</h4>
                 <p>
-                  Nothing has been cancelled from your side. Refunds only appear here when
-                  you cancel a departure.
+                  Nothing matches this filter. Refunds only appear here when you cancel a
+                  departure.
                 </p>
               </div>
             }
@@ -99,6 +175,9 @@ export default function OwnerRefundsPage() {
                   <td>
                     <div className="t1">{r.customer.name ?? 'Guest'}</div>
                     <div className="t2">{formatDate(r.departureDate)}</div>
+                  </td>
+                  <td>
+                    <Pill tone={r.isPos ? 'amb' : 'blue'}>{r.isPos ? 'POS' : 'Platform'}</Pill>
                   </td>
                   <td className="num">{money(r.paid)}</td>
                   <td className="num">{money(r.amount)}</td>
@@ -114,6 +193,19 @@ export default function OwnerRefundsPage() {
                   <td>
                     <Pill tone={STATUS_TONES[r.status] ?? 'mut'}>{humanize(r.status)}</Pill>
                   </td>
+                  <td>
+                    <div className="rowact">
+                      <button
+                        className="btn btn-sm btn-o"
+                        onClick={() => {
+                          setSettleError(null);
+                          setOpen(r);
+                        }}
+                      >
+                        View
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -121,74 +213,115 @@ export default function OwnerRefundsPage() {
         </TableWrap>
       </Card>
 
-      <div className="grid-2">
-        <Card title="Refund flow · 3-person separation">
-          <div className="stack" style={{ gap: 10 }}>
-            <Note kind="info">
-              <b>requested_by → verified_by → completed_by</b> must be three different
-              people. Finance collects the bank details and makes the transfer — the
-              database rejects a completion by whoever verified it.
-            </Note>
+      <Card title="Refund flow · 3-person separation">
+        <Note kind="info">
+          <b>requested_by → verified_by → completed_by</b> must be three different people
+          for a platform refund — finance collects the bank details and makes the
+          transfer, and the database rejects a completion by whoever verified it. A
+          counter-sale (POS) refund has no finance in the middle, so you settle it in one
+          step below.
+        </Note>
+      </Card>
 
-            {open.length === 0 ? (
-              <Note kind="ok">Nothing is mid-flow right now.</Note>
+      <Drawer
+        open={open !== null}
+        title={open ? `Refund ${invoiceRef(open.invoiceId)}` : 'Refund'}
+        onClose={() => setOpen(null)}
+        footer={
+          <button className="btn btn-o" onClick={() => setOpen(null)}>
+            Close
+          </button>
+        }
+      >
+        {open ? (
+          <div className="stack" style={{ gap: 16 }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <Pill tone={STATUS_TONES[open.status] ?? 'mut'}>{humanize(open.status)}</Pill>
+              <Pill tone={open.isPos ? 'amb' : 'blue'}>{open.isPos ? 'POS' : 'Platform'}</Pill>
+            </div>
+
+            <Kv
+              rows={[
+                ['Guest', open.customer.name ?? '—'],
+                ['Phone', open.customer.phone],
+                ['Departure', formatDate(open.departureDate)],
+                ['Booking', humanize(open.bookingStatus)],
+              ]}
+            />
+
+            <div>
+              <h4
+                style={{
+                  fontSize: 12,
+                  textTransform: 'uppercase',
+                  letterSpacing: '.05em',
+                  color: 'var(--muted)',
+                  marginBottom: 10,
+                }}
+              >
+                Current invoice
+              </h4>
+              {invoiceDetail ? (
+                <InvoiceBill invoice={invoiceDetail} />
+              ) : (
+                <Kv
+                  rows={[
+                    ['Paid so far', money(open.paid)],
+                    ['Refund amount', money(open.amount)],
+                  ]}
+                />
+              )}
+            </div>
+
+            <div>
+              <h4
+                style={{
+                  fontSize: 12,
+                  textTransform: 'uppercase',
+                  letterSpacing: '.05em',
+                  color: 'var(--muted)',
+                  marginBottom: 10,
+                }}
+              >
+                Refund details
+              </h4>
+              <Kv
+                rows={[
+                  ['Refund amount', money(open.amount)],
+                  ['Reason', open.reason ?? '—'],
+                  [
+                    'Claim deadline',
+                    open.claimDeadline ? timeLeft(open.claimDeadline) : '—',
+                  ],
+                  ['Requested by', open.requestedBy ?? '—'],
+                  ['Verified by', open.verifiedBy ?? '—'],
+                  ['Completed by', open.completedBy ?? '—'],
+                ]}
+              />
+            </div>
+
+            {settleError ? (
+              <div className="note warn">
+                <span className="ic">⚠</span>
+                <span>{settleError}</span>
+              </div>
+            ) : null}
+
+            {open.status === 'completed' ? (
+              <Note kind="ok">This refund is settled.</Note>
+            ) : open.isPos ? (
+              <button className="btn" onClick={settle} disabled={settling}>
+                {settling ? 'Marking…' : 'Mark as refunded'}
+              </button>
             ) : (
-              <TableWrap minWidth={0}>
-                <thead>
-                  <tr>
-                    <th>Invoice</th>
-                    <th>Requested</th>
-                    <th>Verified</th>
-                    <th>Completed</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {open.map((r) => (
-                    <tr key={r.id}>
-                      <td className="t1">{invoiceRef(r.invoiceId)}</td>
-                      <td className="t2">{r.requestedBy ?? '—'}</td>
-                      <td className="t2">{r.verifiedBy ?? 'pending'}</td>
-                      <td className="t2">{r.completedBy ?? '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </TableWrap>
+              <Note kind="info">
+                The platform settles this refund through its own verify-then-complete
+                flow. You don&apos;t action it here.
+              </Note>
             )}
           </div>
-        </Card>
-
-        <Card title="How a reschedule prices">
-          <div className="bill">
-            <div className="row">
-              <span className="lbl">
-                Original booking
-                <span className="s">priced on its own date</span>
-              </span>
-              <span className="val">as paid</span>
-            </div>
-            <div className="row">
-              <span className="lbl">
-                New date
-                <span className="s">repriced at that date&apos;s profile</span>
-              </span>
-              <span className="val">new price</span>
-            </div>
-            <div className="row sub">
-              <span className="lbl">Advance carried as credit</span>
-              <span className="val">amount paid</span>
-            </div>
-            <div className="row total">
-              <span className="lbl">New due</span>
-              <span className="val">difference</span>
-            </div>
-          </div>
-          <Note kind="warn" style={{ marginTop: 12 }}>
-            A reschedule reprices at the new date — the advance becomes credit, not a
-            locked-in price. Moving a trip into a weekend or Eid profile costs the guest
-            more.
-          </Note>
-        </Card>
-      </div>
+        ) : null}
+      </Drawer>
     </>
   );
 }

@@ -171,4 +171,16 @@ export class HoldsService {
       where: { departureId, heldBy, state: 'held', expiresAt: { gt: new Date() } },
     });
   }
+
+  /**
+   * All still-live holds on a departure, regardless of who took them. Lets the
+   * counter-sale grid show cabins another operator is holding as unavailable
+   * before the socket delivers the live 'held' event.
+   */
+  listActiveForDeparture(departureId: string) {
+    return this.prisma.cabinHold.findMany({
+      where: { departureId, state: 'held', expiresAt: { gt: new Date() } },
+      select: { cabinId: true, heldBy: true, expiresAt: true },
+    });
+  }
 }

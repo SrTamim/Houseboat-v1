@@ -36,8 +36,6 @@ interface DashboardResponse {
     departingToday: number;
     cabinsSoldToday: number;
     cabinsTotalToday: number;
-    cashToVerify: number;
-    cashToVerifyAmount: string;
     payoutPending: string;
     payoutInvoiceCount: number;
     crewUnpaid: number;
@@ -112,15 +110,6 @@ function greeting(): string {
 function buildTodos(d: DashboardResponse): TodoRow[] {
   const todos: TodoRow[] = [];
 
-  if (d.kpis.cashToVerify > 0) {
-    todos.push({
-      tone: 'warn',
-      label: 'Verify cash',
-      detail: `${d.kpis.cashToVerify} payment${d.kpis.cashToVerify > 1 ? 's' : ''} · ${money(d.kpis.cashToVerifyAmount)} taken at the counter`,
-      href: '/owner/payments',
-      action: 'Verify',
-    });
-  }
   if (d.billing.unpaidSubscription) {
     todos.push({
       tone: 'danger',
@@ -232,13 +221,6 @@ export default function OwnerDashboardPage() {
           }
         />
         <Kpi
-          icon="💵"
-          label="Cash to verify"
-          value={k?.cashToVerify ?? '—'}
-          alert={Boolean(k && k.cashToVerify > 0)}
-          detail={k ? `${money(k.cashToVerifyAmount)} taken at counter` : undefined}
-        />
-        <Kpi
           icon="💸"
           label="Payout pending"
           value={k ? money(k.payoutPending) : '—'}
@@ -282,7 +264,7 @@ export default function OwnerDashboardPage() {
                 <div className="state">
                   <div className="ic">✓</div>
                   <h4>Nothing needs you</h4>
-                  <p>No cash to verify, no bills due, nothing low on stock.</p>
+                  <p>No bills due, nothing low on stock.</p>
                 </div>
               }
             >
@@ -395,7 +377,7 @@ export default function OwnerDashboardPage() {
               />
               <Note kind="info" style={{ marginTop: 14 }}>
                 Cash never touches the platform, so it is not in the weekly payout —
-                verify it at the counter and it lands in your reports.
+                you keep it at the counter and it lands in your reports.
               </Note>
             </AsyncBlock>
           </Card>

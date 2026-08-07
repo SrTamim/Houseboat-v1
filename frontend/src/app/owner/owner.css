@@ -803,6 +803,15 @@ table.tbl { width: 100%; border-collapse: separate; border-spacing: 0; font-size
 .field textarea:focus { outline: none; }
 .field input::placeholder,
 .field textarea::placeholder { color: var(--muted); font-weight: 500; }
+/* Inline prefix (e.g. ৳, +880) sitting on the same line as the input. */
+.field .with-pre { display: flex; align-items: center; gap: 8px; }
+.field .with-pre .pre {
+  flex: none;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.field .with-pre input { flex: 1; width: auto; }
 .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
 
 /* ---------- notes / misc ---------- */
@@ -909,6 +918,68 @@ table.tbl { width: 100%; border-collapse: separate; border-spacing: 0; font-size
 .cab.booked .st { color: var(--muted); }
 .cab.spare .st { color: var(--blue); }
 .cab.selected .st { color: var(--blue); }
+.cab-actions {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  display: flex;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity var(--dur) var(--ease);
+}
+.cab:hover .cab-actions,
+.cab:focus-within .cab-actions { opacity: 1; }
+.cab-act {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--hair);
+  border-radius: var(--r-md, 8px);
+  background: var(--raise-1);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: var(--e1);
+  transition: border-color var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.cab-act:hover { border-color: var(--blue); color: var(--blue); }
+.cab-act-del:hover { border-color: var(--danger); color: var(--danger); }
+
+/* facility checkbox grid (category drawer) */
+.facility-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 14px;
+}
+.facility-opt {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--ink);
+  cursor: pointer;
+}
+/* Field's global "input { width:100% }" stretches checkboxes and wraps the
+   label below — pin the box to its intrinsic size so it stays inline. */
+.facility-opt input[type='checkbox'] {
+  appearance: auto;
+  -webkit-appearance: checkbox;
+  width: 15px;
+  height: 15px;
+  min-width: 15px;
+  flex: 0 0 15px;
+  margin: 0;
+  padding: 0;
+  vertical-align: middle;
+  accent-color: var(--blue);
+  cursor: pointer;
+}
 
 /* ---------- bill breakdown (invoice) ---------- */
 .bill { font-size: 13.5px; }
@@ -1248,12 +1319,18 @@ button.mcab:hover { border-color: var(--blue); transform: translateY(-2px); }
   background: var(--blue); color: #fff; border-radius: 50%; font-size: 11px; font-weight: 900;
   display: grid; place-items: center;
 }
-.mcab.booked, .mcab.held {
+.mcab.booked {
   background: color-mix(in srgb, var(--danger) 9%, transparent);
   border-color: color-mix(in srgb, var(--danger) 35%, transparent);
   border-style: dashed; cursor: not-allowed;
 }
-.mcab.booked .mcab-n, .mcab.held .mcab-n { color: var(--danger); }
+.mcab.booked .mcab-n { color: var(--danger); }
+.mcab.held {
+  background: color-mix(in srgb, var(--warn) 12%, transparent);
+  border-color: color-mix(in srgb, var(--warn) 45%, transparent);
+  border-style: dashed; cursor: not-allowed;
+}
+.mcab.held .mcab-n { color: var(--warn); }
 .mcab.spare {
   background: color-mix(in srgb, var(--warn) 12%, transparent);
   border-color: color-mix(in srgb, var(--warn) 40%, transparent);

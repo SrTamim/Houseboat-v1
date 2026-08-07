@@ -1,10 +1,11 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import useSWR from 'swr';
 import { api, fetcher } from '@/lib/api';
 import { useActiveBoat } from '@/lib/owner/boat-context';
 import { useOwnerList } from '@/lib/owner/useOwnerList';
+import { useDepartureAvailability } from '@/lib/owner/useDepartureAvailability';
 import {
   PageHead,
   Card,
@@ -15,7 +16,8 @@ import {
 } from '@/components/owner/ui';
 import { BoatCabinMap, type MapDeck } from '@/components/owner/BoatCabinMap';
 import type { CabState } from '@/components/owner/CabGrid';
-import { apiErrorMessage, formatDate, toE164, weekday } from '@/lib/owner/format';
+import { Bill } from '@/components/owner/Bill';
+import { apiErrorMessage, formatDate, money, toE164, weekday } from '@/lib/owner/format';
 
 interface Departure {
   id: string;
@@ -49,6 +51,32 @@ interface Selection {
   name: string;
   adults: number;
   children: number;
+  /** Server hold id, obtained the moment the cabin was selected. */
+  holdId: string;
+  /** Owner-typed price for a cabin with no configured rate (undefined = use profile). */
+  priceOverride?: number;
+  /**
+   * Latched once the server reports no configured rate for this cabin's current
+   * headcount. Stays true (so the manual-price input keeps rendering and stays
+   * editable) even after the override makes the quote come back priced. Reset
+   * when adults/children change, which re-evaluates the rate.
+   */
+  manualPrice?: boolean;
+}
+
+/** Server price quote for the current selection. */
+interface Quote {
+  perCabin: { cabinId: string; roomPrice: string; priced: boolean }[];
+  roomTotal: string;
+  discountAmount: string;
+  displayTotal: string;
+}
+
+/** One live hold on the departure, from the seed read. */
+interface ActiveHold {
+  cabinId: string;
+  heldBy: string;
+  expiresAt: string;
 }
 
 const PAYMENT_METHODS = [
@@ -58,9 +86,35 @@ const PAYMENT_METHODS = [
   { value: 'online', label: 'Online' },
 ] as const;
 
-/** "YYYY-MM" of a date string. */
-function monthOf(iso: string): string {
-  return iso.slice(0, 7);
+/** "YYYY-MM-DD" (local) of a date string, for day-level comparison. */
+function dayOf(iso: string): string {
+  return iso.slice(0, 10);
+}
+
+/** Today's date as "YYYY-MM-DD" in the browser's local zone. */
+function today(): string {
+  const now = new Date();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${now.getFullYear()}-${m}-${d}`;
+}
+
+/** Digits only (for counts / whole-taka prices). Non-digits are dropped. */
+function digits(v: string): number {
+  const s = v.replace(/\D/g, '');
+  return s === '' ? 0 : Number(s);
+}
+
+/**
+ * Keep a money string as the user types: digits with at most one decimal point.
+ * Returns a string so the field can be empty (→ 0) without snapping to a number.
+ */
+function numStr(v: string): string {
+  const cleaned = v.replace(/[^\d.]/g, '');
+  const i = cleaned.indexOf('.');
+  if (i === -1) return cleaned;
+  // Drop any further dots after the first.
+  return cleaned.slice(0, i + 1) + cleaned.slice(i + 1).replace(/\./g, '');
 }
 
 /**
@@ -73,16 +127,27 @@ function monthOf(iso: string): string {
  */
 export default function OwnerPosPage() {
   const { boatId } = useActiveBoat();
-  const [month, setMonth] = useState('');
+  const [day, setDay] = useState(today);
   const [departureId, setDepartureId] = useState('');
   const [picked, setPicked] = useState<Selection[]>([]);
+  // Shared cart countdown: every hold this operator takes on a departure shares
+  // one server-issued expiry (the backend sweeps them onto the newest). Held as
+  // an ISO string from the hold response — the server clock is authoritative.
+  const [holdExpiresAt, setHoldExpiresAt] = useState<string | null>(null);
+  const [remainingMs, setRemainingMs] = useState(0);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [couponCode, setCouponCode] = useState('');
   const [referenceName, setReferenceName] = useState('');
   const [note, setNote] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<string>('cash');
+  // Owner-granted flat discount and what the customer actually paid. Kept as
+  // raw strings so the inputs can be cleared; parsed to numbers where needed.
+  const [discount, setDiscount] = useState('');
+  const [amountPaid, setAmountPaid] = useState('');
+  const [quote, setQuote] = useState<Quote | null>(null);
   const [busy, setBusy] = useState(false);
+  const [holding, setHolding] = useState<string | null>(null); // cabinId mid-hold
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
 
@@ -93,11 +158,14 @@ export default function OwnerPosPage() {
     revalidateOnFocus: false,
   });
 
-  // Bookable departures from the schedule, optionally narrowed to a month.
+  // Bookable departures from the schedule, sorted by date and optionally
+  // narrowed to a single day picked from the calendar.
   const bookable = useMemo(() => {
-    const all = (departures.data ?? []).filter((d) => d.status === 'scheduled');
-    return month ? all.filter((d) => monthOf(d.startDate) === month) : all;
-  }, [departures.data, month]);
+    const all = (departures.data ?? [])
+      .filter((d) => d.status === 'scheduled')
+      .sort((a, b) => a.startDate.localeCompare(b.startDate));
+    return day ? all.filter((d) => dayOf(d.startDate) === day) : all;
+  }, [departures.data, day]);
 
   const activeId = departureId && bookable.some((d) => d.id === departureId)
     ? departureId
@@ -109,11 +177,32 @@ export default function OwnerPosPage() {
     { departureId: activeId, status: 'confirmed' },
   );
 
+  // Seed of who is holding what on this departure (any operator), so the grid
+  // locks a rival's cabin on load. Kept fresh after that by the socket below.
+  const seededHolds = useSWR<ActiveHold[]>(
+    activeId ? `/houseboats/${boatId}/departures/${activeId}/holds` : null,
+    fetcher,
+    { revalidateOnFocus: false },
+  );
+
+  // Live held-cabin set for this departure (backend /rt gateway).
+  const live = useDepartureAvailability(activeId || null);
+
+  // Cabins others are holding = seed ∪ live socket set, minus my own picks
+  // (mine render as 'selected', not 'held').
+  const mine = useMemo(() => new Set(picked.map((p) => p.cabinId)), [picked]);
+  const othersHeld = useMemo(() => {
+    const s = new Set<string>();
+    for (const h of seededHolds.data ?? []) s.add(h.cabinId);
+    for (const id of live.held) s.add(id);
+    for (const id of mine) s.delete(id);
+    return s;
+  }, [seededHolds.data, live.held, mine]);
+
   // Cabins grouped by deck for the boat-shaped map.
   const decks: MapDeck[] = useMemo(() => {
     const categories = new Map((boat.data?.cabinCategories ?? []).map((c) => [c.id, c]));
     const sold = new Set(taken.items.flatMap((b) => b.cabins.map((c) => c.cabin.id)));
-    const chosen = new Set(picked.map((p) => p.cabinId));
 
     return (boat.data?.decks ?? []).map((d) => ({
       id: d.id,
@@ -122,9 +211,11 @@ export default function OwnerPosPage() {
         const category = categories.get(c.cabinCategoryId);
         const state: CabState = sold.has(c.id)
           ? 'booked'
-          : chosen.has(c.id)
+          : mine.has(c.id)
             ? 'selected'
-            : 'free';
+            : othersHeld.has(c.id)
+              ? 'held'
+              : 'free';
         return {
           id: c.id,
           name: c.name,
@@ -133,27 +224,214 @@ export default function OwnerPosPage() {
         };
       }),
     }));
-  }, [boat.data, taken.items, picked]);
+  }, [boat.data, taken.items, mine, othersHeld]);
 
   const hasCabins = decks.some((d) => d.cabins.length > 0);
 
-  function toggle(cabin: { id: string; name: string }) {
-    setPicked((prev) => {
-      const existing = prev.find((p) => p.cabinId === cabin.id);
-      if (existing) return prev.filter((p) => p.cabinId !== cabin.id);
-      return [...prev, { cabinId: cabin.id, name: cabin.name, adults: 2, children: 0 }];
-    });
+  // Tick the shared countdown down to zero from the server expiry. On expiry the
+  // hold is gone server-side (the sweeper releases it within a minute and emits
+  // 'released'); clear the cart so the operator re-picks.
+  useEffect(() => {
+    if (!holdExpiresAt) {
+      setRemainingMs(0);
+      return;
+    }
+    const tick = () => {
+      const ms = new Date(holdExpiresAt).getTime() - Date.now();
+      setRemainingMs(Math.max(0, ms));
+      if (ms <= 0) {
+        setHoldExpiresAt(null);
+        setPicked([]);
+        setError('The 10-minute hold expired and the cabins were released. Please re-select.');
+      }
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [holdExpiresAt]);
+
+  // Live price quote for the current selection. Recomputed (debounced) whenever
+  // the cabins, their headcounts/overrides, the coupon or the owner discount
+  // change. Uses the SAME backend pricing path the sale is billed at, so the
+  // number shown here is exactly what the customer will be charged. A request id
+  // guards against out-of-order responses clobbering a newer quote.
+  const quoteReqId = useRef(0);
+  // Signature of everything that affects price — keeps the effect from re-firing
+  // on unrelated re-renders.
+  const quoteKey = JSON.stringify({
+    activeId,
+    couponCode,
+    discount,
+    cabins: picked.map((p) => ({
+      c: p.cabinId,
+      a: p.adults,
+      k: p.children,
+      o: p.priceOverride,
+    })),
+  });
+  useEffect(() => {
+    if (!activeId || picked.length === 0) {
+      setQuote(null);
+      return;
+    }
+    const id = ++quoteReqId.current;
+    const body = {
+      departureId: activeId,
+      couponCode: couponCode || undefined,
+      discount: discount ? Number(discount) : undefined,
+      cabins: picked.map((p) => ({
+        cabinId: p.cabinId,
+        adults: p.adults,
+        children: p.children || undefined,
+        priceOverride: p.priceOverride,
+      })),
+    };
+    const t = setTimeout(() => {
+      api
+        .post<Quote>(`/houseboats/${boatId}/pos/quote`, body)
+        .then((res) => {
+          if (id !== quoteReqId.current) return;
+          setQuote(res.data);
+          // Latch manual-pricing for any cabin the server couldn't price. Once a
+          // cabin needs a manual price, keep it latched — the override then makes
+          // the quote come back priced, and without this the input would unmount
+          // mid-typing. Cleared on a headcount change (see setCount).
+          const unpriced = new Set(
+            res.data.perCabin.filter((c) => !c.priced).map((c) => c.cabinId),
+          );
+          setPicked((prev) =>
+            prev.some((p) => unpriced.has(p.cabinId) && !p.manualPrice)
+              ? prev.map((p) =>
+                  unpriced.has(p.cabinId) ? { ...p, manualPrice: true } : p,
+                )
+              : prev,
+          );
+        })
+        .catch(() => {
+          if (id === quoteReqId.current) setQuote(null);
+        });
+    }, 250);
+    return () => clearTimeout(t);
+    // quoteKey encodes every price-affecting input.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quoteKey, boatId]);
+
+  /** Release every held cabin (best-effort) and clear the cart + countdown. */
+  const releaseAll = async (selections: Selection[]) => {
+    await Promise.all(
+      selections.map((p) =>
+        api.post(`/booking/hold/${p.holdId}/release`).catch(() => undefined),
+      ),
+    );
+  };
+
+  async function toggle(cabin: { id: string; name: string }) {
+    if (busy || holding || !activeId) return;
+    const existing = picked.find((p) => p.cabinId === cabin.id);
+
+    // Deselect → release the hold immediately so the cabin frees for everyone.
+    if (existing) {
+      setError(null);
+      await api.post(`/booking/hold/${existing.holdId}/release`).catch(() => undefined);
+      setPicked((prev) => {
+        const next = prev.filter((p) => p.cabinId !== cabin.id);
+        if (next.length === 0) setHoldExpiresAt(null);
+        return next;
+      });
+      seededHolds.mutate();
+      return;
+    }
+
+    // Select → take a real hold now; the returned expires_at drives the timer.
+    setHolding(cabin.id);
+    setError(null);
+    setDone(null);
+    try {
+      const res = await api.post<{ id: string; expiresAt: string }>('/booking/hold', {
+        cabinId: cabin.id,
+        departureId: activeId,
+      });
+      setPicked((prev) => [
+        ...prev,
+        { cabinId: cabin.id, name: cabin.name, adults: 2, children: 0, holdId: res.data.id },
+      ]);
+      // Holds share one cart expiry — the newest wins for the whole cart.
+      setHoldExpiresAt(res.data.expiresAt);
+    } catch (err) {
+      setError(
+        apiErrorMessage(
+          err,
+          'That cabin was just taken by someone else. Pick another.',
+        ),
+      );
+      seededHolds.mutate();
+    } finally {
+      setHolding(null);
+    }
   }
 
   function setCount(cabinId: string, key: 'adults' | 'children', value: number) {
+    // Headcount change re-evaluates the rate: drop the latched manual flag and
+    // any stale override so the new tier is priced fresh (the quote re-latches
+    // manual pricing if the new headcount is also unpriced).
     setPicked((prev) =>
-      prev.map((p) => (p.cabinId === cabinId ? { ...p, [key]: Math.max(0, value) } : p)),
+      prev.map((p) =>
+        p.cabinId === cabinId
+          ? { ...p, [key]: Math.max(0, value), manualPrice: false, priceOverride: undefined }
+          : p,
+      ),
     );
   }
+
+  function setOverride(cabinId: string, value: string) {
+    const clean = numStr(value);
+    const n = clean === '' ? undefined : Math.max(0, Number(clean));
+    setPicked((prev) =>
+      prev.map((p) => (p.cabinId === cabinId ? { ...p, priceOverride: n } : p)),
+    );
+  }
+
+  // Per-cabin price + priced flag from the latest quote, keyed for the cart.
+  const priceByCabin = useMemo(() => {
+    const m = new Map<string, { roomPrice: string; priced: boolean }>();
+    for (const c of quote?.perCabin ?? []) {
+      m.set(c.cabinId, { roomPrice: c.roomPrice, priced: c.priced });
+    }
+    return m;
+  }, [quote]);
+
+  // A cabin that needs a manual price but doesn't have one yet — the sale can't
+  // be confirmed until every such cabin has a price typed in.
+  const unpricedCabin = picked.find(
+    (p) => p.manualPrice && (p.priceOverride === undefined || p.priceOverride <= 0),
+  );
+
+  const total = quote ? Number(quote.displayTotal) : 0;
+  // Paid starts empty (0) — the owner types what the customer actually handed
+  // over, which may legitimately be 0. Due is the remainder.
+  const paidStr = amountPaid;
+  const paidNum = paidStr === '' ? 0 : Math.max(0, Number(paidStr));
+  const dueNum = Math.max(0, total - paidNum);
+
+  // Changing the date/departure while cabins are held would strand those holds
+  // (they'd tick down invisibly on the old departure). Release them first.
+  const clearHeldForFilterChange = () => {
+    if (picked.length > 0) void releaseAll(picked);
+    setPicked([]);
+    setHoldExpiresAt(null);
+    setQuote(null);
+    setDiscount('');
+    setAmountPaid('');
+    setError(null);
+  };
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (busy || picked.length === 0 || !activeId) return;
+    if (unpricedCabin) {
+      setError(`Set a price for cabin ${unpricedCabin.name} before confirming.`);
+      return;
+    }
     setBusy(true);
     setError(null);
     setDone(null);
@@ -162,25 +440,36 @@ export default function OwnerPosPage() {
         departureId: activeId,
         customerName,
         customerPhone: toE164(customerPhone),
-        cabins: picked.map((p) => ({
+        // Convert the holds already taken on select — do NOT re-hold.
+        holds: picked.map((p) => ({
           cabinId: p.cabinId,
+          holdId: p.holdId,
           adults: p.adults,
           children: p.children || undefined,
+          priceOverride: p.priceOverride,
         })),
         couponCode: couponCode || undefined,
         referenceName: referenceName || undefined,
         specialInstructions: note || undefined,
         paymentMethod,
+        discount: discount ? Number(discount) : undefined,
+        // What the customer actually handed over. Send the resolved paid value
+        // (defaults to the full total unless the operator edited it).
+        amountPaid: paidNum,
       });
       setDone(res.data.id);
       setPicked([]);
+      setHoldExpiresAt(null);
       setCustomerName('');
       setCustomerPhone('');
       setCouponCode('');
       setReferenceName('');
       setNote('');
       setPaymentMethod('cash');
-      await Promise.all([taken.mutate(), departures.mutate()]);
+      setDiscount('');
+      setAmountPaid('');
+      setQuote(null);
+      await Promise.all([taken.mutate(), departures.mutate(), seededHolds.mutate()]);
     } catch (err) {
       setError(
         apiErrorMessage(
@@ -193,6 +482,12 @@ export default function OwnerPosPage() {
     }
   }
 
+  const countdown = holdExpiresAt
+    ? `${String(Math.floor(remainingMs / 60000)).padStart(2, '0')}:${String(
+        Math.floor((remainingMs % 60000) / 1000),
+      ).padStart(2, '0')}`
+    : null;
+
   return (
     <>
       <PageHead
@@ -202,7 +497,7 @@ export default function OwnerPosPage() {
 
       {done ? (
         <Note kind="ok" style={{ marginBottom: 18 }}>
-          Sale complete. Record the payment on the Payments page so it can be verified.
+          Sale complete. Record the payment at check-in on the Departure page.
         </Note>
       ) : null}
       {error ? (
@@ -213,21 +508,21 @@ export default function OwnerPosPage() {
 
       <FilterBar>
         <input
-          type="month"
-          aria-label="Filter departures by month"
-          value={month}
+          type="date"
+          aria-label="Filter departures by date"
+          value={day}
           onChange={(e) => {
-            setMonth(e.target.value);
+            clearHeldForFilterChange();
+            setDay(e.target.value);
             setDepartureId('');
-            setPicked([]);
           }}
         />
         <select
           aria-label="Departure date"
           value={activeId}
           onChange={(e) => {
+            clearHeldForFilterChange();
             setDepartureId(e.target.value);
-            setPicked([]);
           }}
           disabled={bookable.length === 0}
         >
@@ -238,16 +533,17 @@ export default function OwnerPosPage() {
             </option>
           ))}
         </select>
-        {month ? (
+        {day ? (
           <button
             type="button"
             className="btn btn-sm btn-o"
             onClick={() => {
-              setMonth('');
+              clearHeldForFilterChange();
+              setDay('');
               setDepartureId('');
             }}
           >
-            All months
+            All dates
           </button>
         ) : null}
       </FilterBar>
@@ -259,7 +555,7 @@ export default function OwnerPosPage() {
         onRetry={() => departures.mutate()}
         empty={
           <Note kind="warn">
-            No bookable departures{month ? ' this month' : ''}. Set a weekly schedule to
+            No bookable departures{day ? ' on this date' : ''}. Set a weekly schedule to
             generate them.
           </Note>
         }
@@ -286,17 +582,24 @@ export default function OwnerPosPage() {
             >
               <BoatCabinMap decks={decks} onSelect={toggle} />
               <Note kind="info" style={{ marginTop: 14 }}>
-                Selecting a cabin does not reserve it. The hold is taken when you complete
-                the sale, and the server clock decides who wins if two people sell the same
-                cabin at once.
+                Tapping a free cabin holds it for 10 minutes — it shows as held to every
+                other operator at once, so no one can sell it twice. Tap it again to release
+                it. Complete the sale before the timer runs out, or the hold is released.
               </Note>
             </AsyncBlock>
           </Card>
 
           <Card title={`Cart${picked.length ? ` · ${picked.length} cabin(s)` : ''}`}>
             <form onSubmit={submit} style={{ display: 'grid', gap: 12 }}>
+              {countdown ? (
+                <Note kind={remainingMs < 60000 ? 'danger' : 'warn'}>
+                  Hold expires in{' '}
+                  <b style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--danger)' }}>{countdown}</b>. Complete
+                  the sale before it runs out, or the cabins are released.
+                </Note>
+              ) : null}
               {picked.length === 0 ? (
-                <Note kind="info">Tap a free cabin on the layout to start a sale.</Note>
+                <Note kind="info">Tap a free cabin on the layout to hold it (10 min).</Note>
               ) : (
                 picked.map((p) => (
                   <div
@@ -322,25 +625,62 @@ export default function OwnerPosPage() {
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                       <Field label="Adults">
                         <input
-                          type="number"
-                          min={1}
+                          type="text"
+                          inputMode="numeric"
                           value={p.adults}
-                          onChange={(e) => setCount(p.cabinId, 'adults', Number(e.target.value))}
+                          onChange={(e) =>
+                            setCount(p.cabinId, 'adults', digits(e.target.value))
+                          }
                         />
                       </Field>
                       <Field label="Children">
                         <input
-                          type="number"
-                          min={0}
+                          type="text"
+                          inputMode="numeric"
                           value={p.children}
-                          onChange={(e) => setCount(p.cabinId, 'children', Number(e.target.value))}
+                          onChange={(e) =>
+                            setCount(p.cabinId, 'children', digits(e.target.value))
+                          }
                         />
                       </Field>
                     </div>
+                    {p.manualPrice ? (
+                      // No rate configured for this headcount → let the owner type
+                      // one. Kept mounted (keyed on cabinId only) so it stays
+                      // editable while the quote refreshes.
+                      <Field label="Price (no rate set for this headcount — enter manually)">
+                        <div className="with-pre">
+                          <span className="pre">৳</span>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={p.priceOverride ?? ''}
+                            onChange={(e) => setOverride(p.cabinId, e.target.value)}
+                            placeholder="Set price"
+                          />
+                        </div>
+                      </Field>
+                    ) : (
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          color: 'var(--muted)',
+                        }}
+                      >
+                        <span>Room price</span>
+                        <b>
+                          {priceByCabin.get(p.cabinId)
+                            ? money(priceByCabin.get(p.cabinId)!.roomPrice)
+                            : '…'}
+                        </b>
+                      </div>
+                    )}
                   </div>
                 ))
               )}
 
+              {/* Guest identity */}
               <Field label="Lead guest name">
                 <input
                   value={customerName}
@@ -351,29 +691,80 @@ export default function OwnerPosPage() {
               </Field>
 
               <Field label="Phone">
-                <div className="with-pre">
-                  <span className="pre">+880</span>
-                  <input
-                    type="tel"
-                    inputMode="numeric"
-                    value={customerPhone}
-                    onChange={(e) => setCustomerPhone(e.target.value)}
-                    placeholder="1711222290"
-                    required
-                  />
-                </div>
-              </Field>
-
-              <Field label="Note (customer requirement)">
-                <textarea
-                  rows={2}
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  placeholder="Early check-in, halal-only meals, ground-floor cabin…"
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  value={customerPhone}
+                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  placeholder="01711222290"
+                  required
                 />
               </Field>
 
-              <Field label="Payment method (how the guest pays you)">
+              {/* Money: coupon/reference → discount → total → paid → due */}
+              {picked.length > 0 ? (
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <Field label="Coupon code">
+                      <input value={couponCode} onChange={(e) => setCouponCode(e.target.value)} />
+                    </Field>
+                    <Field label="Reference">
+                      <input
+                        value={referenceName}
+                        onChange={(e) => setReferenceName(e.target.value)}
+                        placeholder="Who sent them"
+                        maxLength={20}
+                      />
+                    </Field>
+                  </div>
+
+                  <Field label="Discount">
+                    <div className="with-pre">
+                      <span className="pre">৳</span>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={discount}
+                        onChange={(e) => setDiscount(numStr(e.target.value))}
+                        placeholder="0"
+                      />
+                    </div>
+                  </Field>
+
+                  <Bill
+                    rows={[
+                      ...(quote && Number(quote.discountAmount) > 0
+                        ? [
+                            {
+                              label: 'Discount',
+                              value: quote.discountAmount,
+                              negative: true,
+                            },
+                          ]
+                        : []),
+                      { label: 'Total (customer pays)', value: total, total: true },
+                    ]}
+                  />
+
+                  <Field label="Paid now">
+                    <div className="with-pre">
+                      <span className="pre">৳</span>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={paidStr}
+                        onChange={(e) => setAmountPaid(numStr(e.target.value))}
+                        placeholder="0"
+                      />
+                    </div>
+                  </Field>
+
+                  <Bill rows={[{ label: 'Due', value: dueNum, total: true }]} />
+                </>
+              ) : null}
+
+              {/* How the guest pays */}
+              <Field label="Payment method">
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   {PAYMENT_METHODS.map((m) => (
                     <button
@@ -388,31 +779,28 @@ export default function OwnerPosPage() {
                 </div>
               </Field>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <Field label="Coupon code">
-                  <input value={couponCode} onChange={(e) => setCouponCode(e.target.value)} />
-                </Field>
-                <Field label="Reference">
-                  <input
-                    value={referenceName}
-                    onChange={(e) => setReferenceName(e.target.value)}
-                    placeholder="Who sent them"
-                  />
-                </Field>
-              </div>
+              {/* Requirements note last */}
+              <Field label="Note (customer requirement)">
+                <textarea
+                  rows={2}
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="Early check-in, halal-only meals, ground-floor cabin…"
+                />
+              </Field>
 
               <button
                 className="btn btn-b"
                 type="submit"
-                disabled={busy || picked.length === 0}
+                disabled={busy || picked.length === 0 || Boolean(unpricedCabin)}
                 style={{ justifyContent: 'center' }}
               >
-                {busy ? 'Completing…' : 'Complete sale →'}
+                {busy ? 'Completing…' : 'Confirm sale →'}
               </button>
 
               <Note kind="warn">
                 Payment taken here is your own money, not part of the platform payout.
-                Record and verify it on the Payments page.
+                Record it at check-in on the Departure page.
               </Note>
             </form>
           </Card>

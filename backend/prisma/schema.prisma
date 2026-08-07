@@ -633,9 +633,9 @@ model Invoice {
   customerId     String   @map("customer_id") @db.Uuid
   /// STEP 1: owner-set room price (sum of booking_cabin.room_price)
   roomTotal      Decimal  @map("room_total") @db.Decimal(12, 2)
-  /// STEP 2: platform % of room_total, added on top
+  /// STEP 2: REMOVED — gateway fee no longer charged; always 0
   gatewayFee     Decimal  @default(0) @map("gateway_fee") @db.Decimal(12, 2)
-  /// STEP 3: room_total + gateway_fee — shown BEFORE any coupon
+  /// STEP 3: = room_total (no gateway fee added) — shown BEFORE any coupon
   priceShown     Decimal  @map("price_shown") @db.Decimal(12, 2)
   /// STEP 4: coupon applied LAST, to price_shown
   discountAmount Decimal  @default(0) @map("discount_amount") @db.Decimal(12, 2)
@@ -765,6 +765,7 @@ model Coupon {
   value       Decimal   @db.Decimal(12, 2)
   validFrom   DateTime? @map("valid_from") @db.Date
   validTo     DateTime? @map("valid_to") @db.Date
+  isActive    Boolean   @default(true) @map("is_active")
 
   houseboat Houseboat @relation(fields: [houseboatId], references: [id])
   bookings  Booking[]
@@ -782,6 +783,7 @@ model HouseboatBillingConfig {
   commissionPct  Decimal?  @map("commission_pct") @db.Decimal(5, 2)
   /// null if not on monthly
   monthlyFee     Decimal?  @map("monthly_fee") @db.Decimal(12, 2)
+  /// DEPRECATED — gateway fee removed platform-wide; column kept, no longer read or written
   gatewayFeePct  Decimal?  @map("gateway_fee_pct") @db.Decimal(5, 2)
   /// SIGNED. Negative = boat owes platform. If exceeded, access denied until settled.
   platformBalance Decimal  @default(0) @map("platform_balance") @db.Decimal(12, 2)
@@ -860,8 +862,13 @@ model HouseboatStaff {
   accountId        String   @map("account_id") @db.Uuid
   houseboatId      String   @map("houseboat_id") @db.Uuid
   roleId           String?  @map("role_id") @db.Uuid
+  /// job title (sukani, cook, helper…) — NOT the RBAC role relation
+  designation      String?
   nid              String?
   emergencyContact String?  @map("emergency_contact")
+  address          String?
+  /// available / on_leave — kept in sync with the latest StaffLeave
+  status           String   @default("available")
   /// own rate — a sukani is not paid like a cleaner
   perTripRate      Decimal? @map("per_trip_rate") @db.Decimal(12, 2)
   /// set instead of per_trip_rate for salaried staff

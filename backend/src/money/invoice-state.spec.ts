@@ -13,6 +13,8 @@ describe('invoice-state machine', () => {
     // Path A — normal booking
     ['customer_due', 'paid'],
     ['paid', 'payment_verified'],
+    // Owner-recorded payments settle straight to payout — no verify step.
+    ['paid', 'in_payout'],
     ['payment_verified', 'in_payout'],
     ['in_payout', 'bill_cleared'],
     // Path B — customer cancels
@@ -30,8 +32,6 @@ describe('invoice-state machine', () => {
   });
 
   const illegal: [InvoiceStatus, InvoiceStatus][] = [
-    // Can't skip verification into payout.
-    ['paid', 'in_payout'],
     // in_payout is a lock — no refund from it (must be pulled first).
     ['in_payout', 'refund_requested'],
     // Terminal states go nowhere.

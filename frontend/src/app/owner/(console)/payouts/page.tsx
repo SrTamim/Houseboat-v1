@@ -52,13 +52,15 @@ export default function OwnerPayoutsPage() {
   const pendingTotal = pending.reduce((s, b) => s + Number(b.totalAmount), 0);
 
   // Bank account shape is bank-dependent, so read defensively for display.
+  // Canonical key is accountNo; older/seed records used accountNumber (see
+  // profile page's normalizeBank), so fall back to it.
   const account = boat?.bankAccount as
-    | { accountNumber?: string; bankName?: string }
+    | { accountNo?: string; accountNumber?: string; bankName?: string }
     | null
     | undefined;
-  const masked = account?.accountNumber
-    ? `••${String(account.accountNumber).slice(-4)}`
-    : '—';
+  const acctNo = account?.accountNo ?? account?.accountNumber;
+  const hasBank = Boolean(acctNo);
+  const masked = acctNo ? `••${String(acctNo).slice(-4)}` : '—';
 
   return (
     <>
@@ -91,11 +93,11 @@ export default function OwnerPayoutsPage() {
           label="Paid into"
           value={masked}
           detail={(account?.bankName as string) ?? 'No bank account on file'}
-          alert={!account?.accountNumber}
+          alert={!hasBank}
         />
       </Kpis>
 
-      {!account?.accountNumber ? (
+      {!hasBank ? (
         <Note kind="warn" style={{ marginBottom: 20 }}>
           No bank account is on file, so a payout cannot run at all. Add one from the boat
           profile.

@@ -7,7 +7,6 @@ describe('PlatformFinanceService.upsertBillingConfig', () => {
     houseboatId: 'boat',
     commissionPct: { toString: () => '5' },
     monthlyFee: { toString: () => '5000' },
-    gatewayFeePct: null,
     platformBalance: { toString: () => '-1200' },
     trialEnds: null,
   };
@@ -68,7 +67,6 @@ describe('PlatformFinanceService.upsertBillingConfig', () => {
     expect(Object.keys(data)).not.toContain('platformBalance');
     expect(Object.keys(data).sort()).toEqual([
       'commissionPct',
-      'gatewayFeePct',
       'monthlyFee',
       'trialEnds',
     ]);
@@ -79,11 +77,10 @@ describe('PlatformFinanceService.upsertBillingConfig', () => {
     await svc.upsertBillingConfig('boat', { commissionPct: 5 }, 'actor');
     const data = update.mock.calls[0][0].data as Record<string, unknown>;
     expect(data.monthlyFee).toBeNull();
-    expect(data.gatewayFeePct).toBeNull();
     expect(data.trialEnds).toBeNull();
   });
 
-  it('audits with before/after limited to the four editable fields', async () => {
+  it('audits with before/after limited to the editable fields', async () => {
     const { svc, audit } = makeService({ existing: true });
     await svc.upsertBillingConfig('boat', dto, 'actor-2');
     const entry = audit.log.mock.calls[0][0];
