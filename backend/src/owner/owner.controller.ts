@@ -7,6 +7,7 @@ import { AuditService } from '../audit/audit.service';
 import { RequirePermission } from '../rbac/require-permission.decorator';
 import {
   AuditQueryDto,
+  FinancialsQueryDto,
   GuestsQueryDto,
   MonthQueryDto,
   MonthlyReportQueryDto,
@@ -61,6 +62,16 @@ export class OwnerController {
     @Query() query: MonthlyReportQueryDto,
   ) {
     return this.reports.monthlyReport(houseboatId, query.months);
+  }
+
+  /** Reports page: period KPIs, cost breakdown and 12-month trend for charts. */
+  @Get('reports/financials')
+  @RequirePermission({ module: 'reports', action: 'view' })
+  financials(
+    @Param('houseboatId') houseboatId: string,
+    @Query() query: FinancialsQueryDto,
+  ) {
+    return this.reports.financials(houseboatId, query.month, query.year);
   }
 
   /** Earnings statement — money view, since it reports on settlement. */

@@ -56,6 +56,13 @@ export class PayrollDto {
   @IsOptional() @IsNumber() @Min(0) deduction?: number;
 }
 
+export class AdjustPayrollDto {
+  @IsOptional() @IsNumber() @Min(0) bonus?: number;
+  @IsOptional() @IsNumber() @Min(0) deduction?: number;
+  // Flip paid state — e.g. revert an accidental mark-paid.
+  @IsOptional() @IsBoolean() paid?: boolean;
+}
+
 export class AttendanceQueryDto {
   // Month to report on, "YYYY-MM". Defaults to the current month when omitted.
   @IsOptional()

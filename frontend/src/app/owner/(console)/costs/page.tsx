@@ -8,12 +8,14 @@ import {
   PageHead,
   Card,
   FilterBar,
-  Seg,
+  Select,
   Search,
+  Field,
   Note,
   TableWrap,
   AsyncTable,
 } from '@/components/owner/ui';
+import { Drawer } from '@/components/owner/Drawer';
 import { money, formatDate, normalizeDigits, apiErrorMessage } from '@/lib/owner/format';
 
 interface Cost {
@@ -22,29 +24,39 @@ interface Cost {
   description: string | null;
   amount: string;
   tripId: string | null;
-  dueToVendor: string | null;
+  comment: string | null;
   paidByAccount: { name: string | null } | null;
 }
 
-const DAY_MS = 86_400_000;
-
-const RANGES = [
-  { value: 'week', label: 'This week' },
-  { value: 'month', label: 'This month' },
-  { value: 'all', label: 'All' },
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
 ];
 
 export default function OwnerCostsPage() {
-  const { boatId } = useActiveBoat();
-  const [range, setRange] = useState('month');
+  const { boat, boatId } = useActiveBoat();
+  const now = new Date();
+  const [month, setMonth] = useState(String(now.getMonth())); // 0–11
+  const [year, setYear] = useState(String(now.getFullYear()));
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = now.toISOString().slice(0, 10);
   const [date, setDate] = useState(today);
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
+  const [comment, setComment] = useState('');
+
+  // Edit drawer — null when closed.
+  const [editing, setEditing] = useState<Cost | null>(null);
+  const [eDate, setEDate] = useState('');
+  const [eDescription, setEDescription] = useState('');
+  const [eAmount, setEAmount] = useState('');
+  const [eComment, setEComment] = useState('');
+
+  // Cost-report drawer for print-to-PDF (same pattern as payroll's statement).
+  const [showReport, setShowReport] = useState(false);
 
   const { data, error: loadError, isLoading, mutate } = useSWR<Cost[]>(
     `/houseboats/${boatId}/costs`,
@@ -52,19 +64,32 @@ export default function OwnerCostsPage() {
     { revalidateOnFocus: false },
   );
 
+  // Year options: every year present in the data, plus the current year, newest first.
+  const yearOptions = useMemo(() => {
+    const years = new Set<number>([now.getFullYear()]);
+    for (const c of data ?? []) {
+      const y = new Date(c.date).getFullYear();
+      if (Number.isFinite(y)) years.add(y);
+    }
+    return [...years].sort((a, b) => b - a).map((y) => String(y));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
+
   const rows = useMemo(() => {
-    const all = data ?? [];
-    const now = Date.now();
-    const cutoff =
-      range === 'week' ? now - 7 * DAY_MS : range === 'month' ? now - 30 * DAY_MS : 0;
-    return all
-      .filter((c) => (cutoff ? new Date(c.date).getTime() >= cutoff : true))
+    const m = Number(month);
+    const y = Number(year);
+    return (data ?? [])
+      .filter((c) => {
+        const d = new Date(c.date);
+        return d.getMonth() === m && d.getFullYear() === y;
+      })
       .filter((c) =>
         q ? (c.description ?? '').toLowerCase().includes(q.toLowerCase()) : true,
       );
-  }, [data, range, q]);
+  }, [data, month, year, q]);
 
   const total = rows.reduce((s, c) => s + Number(c.amount), 0);
+  const periodLabel = `${MONTHS[Number(month)]} ${year}`;
 
   async function addCost(e: React.FormEvent) {
     e.preventDefault();
@@ -78,12 +103,44 @@ export default function OwnerCostsPage() {
         // Bangla numerals are accepted at the input layer so nobody has to
         // switch keyboards to log a bazar run.
         amount: Number(normalizeDigits(amount)),
+        comment: comment || undefined,
       });
       setDescription('');
       setAmount('');
+      setComment('');
       await mutate();
     } catch (err) {
       setError(apiErrorMessage(err, 'Could not log that cost.'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function openEdit(c: Cost) {
+    setEditing(c);
+    setEDate(c.date.slice(0, 10));
+    setEDescription(c.description ?? '');
+    setEAmount(c.amount);
+    setEComment(c.comment ?? '');
+    setError(null);
+  }
+
+  async function saveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (busy || !editing || !eAmount) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.patch(`/houseboats/${boatId}/costs/${editing.id}`, {
+        date: eDate,
+        description: eDescription || undefined,
+        amount: Number(normalizeDigits(eAmount)),
+        comment: eComment || undefined,
+      });
+      setEditing(null);
+      await mutate();
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not save that change.'));
     } finally {
       setBusy(false);
     }
@@ -94,6 +151,15 @@ export default function OwnerCostsPage() {
       <PageHead
         title="Costs"
         desc="One row, faster than a spreadsheet. No forced categories — write what it was for and move on."
+        actions={
+          <button
+            className="btn btn-o"
+            onClick={() => setShowReport(true)}
+            disabled={rows.length === 0}
+          >
+            ⇩ Download PDF
+          </button>
+        }
       />
 
       {error ? (
@@ -107,7 +173,7 @@ export default function OwnerCostsPage() {
           onSubmit={addCost}
           style={{
             display: 'grid',
-            gridTemplateColumns: '1fr 1.4fr 1fr auto',
+            gridTemplateColumns: '1fr 1.4fr 1fr 1.4fr auto',
             gap: 10,
             alignItems: 'end',
           }}
@@ -125,13 +191,21 @@ export default function OwnerCostsPage() {
             />
           </div>
           <div className="field">
-            <label>Amount ৳</label>
+            <label>Cost ৳</label>
             <input
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder="৩৫০০ or 3500"
               inputMode="numeric"
               required
+            />
+          </div>
+          <div className="field">
+            <label>Comment</label>
+            <input
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="Optional note"
             />
           </div>
           <button className="btn btn-b" type="submit" disabled={busy} style={{ height: 44 }}>
@@ -141,7 +215,13 @@ export default function OwnerCostsPage() {
       </Card>
 
       <FilterBar>
-        <Seg options={RANGES} value={range} onChange={setRange} />
+        <Select
+          ariaLabel="Month"
+          value={month}
+          onChange={setMonth}
+          options={MONTHS.map((m, i) => ({ value: String(i), label: m }))}
+        />
+        <Select ariaLabel="Year" value={year} onChange={setYear} options={yearOptions} />
         <Search placeholder="Search description…" value={q} onChange={setQ} />
       </FilterBar>
 
@@ -152,8 +232,9 @@ export default function OwnerCostsPage() {
               <th>Date</th>
               <th>Description</th>
               <th>Paid by</th>
-              <th className="num">Vendor due</th>
+              <th>Comment</th>
               <th className="num">Amount</th>
+              <th className="num"></th>
             </tr>
           </thead>
           <AsyncTable
@@ -164,7 +245,7 @@ export default function OwnerCostsPage() {
             empty={
               <div className="state">
                 <div className="ic">🧾</div>
-                <h4>No costs logged</h4>
+                <h4>No costs in {periodLabel}</h4>
                 <p>Add fuel, bazar and repairs as they happen — reports read from here.</p>
               </div>
             }
@@ -175,8 +256,13 @@ export default function OwnerCostsPage() {
                   <td className="t2">{formatDate(c.date)}</td>
                   <td className="t1">{c.description ?? '—'}</td>
                   <td className="t2">{c.paidByAccount?.name ?? '—'}</td>
-                  <td className="num">{c.dueToVendor ? money(c.dueToVendor) : '—'}</td>
+                  <td className="t2">{c.comment ?? '—'}</td>
                   <td className="num">{money(c.amount)}</td>
+                  <td className="num">
+                    <button className="btn btn-o btn-sm" onClick={() => openEdit(c)}>
+                      Edit
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -185,14 +271,121 @@ export default function OwnerCostsPage() {
             <tfoot>
               <tr>
                 <td colSpan={4}>
-                  {RANGES.find((r) => r.value === range)?.label} total · {rows.length} entries
+                  {periodLabel} total · {rows.length} entries
                 </td>
                 <td className="num">{money(total.toFixed(2))}</td>
+                <td className="num"></td>
               </tr>
             </tfoot>
           ) : null}
         </TableWrap>
       </Card>
+
+      {/*
+        Cost report for print-to-PDF. Rendered inside a Drawer — the same path
+        payroll's statement uses — so it escapes the .content > * entry animation
+        (an ancestor transform would trap the print block and blank the page).
+      */}
+      <Drawer
+        open={showReport}
+        title="Cost report"
+        onClose={() => setShowReport(false)}
+        footer={
+          <>
+            <button className="btn btn-o" onClick={() => setShowReport(false)}>
+              Close
+            </button>
+            <button className="btn btn-b" onClick={() => window.print()}>
+              Download PDF
+            </button>
+          </>
+        }
+      >
+        <div className="statement-print">
+          <div className="stmt-head">
+            <h3>Cost Report</h3>
+            <div className="stmt-meta">
+              <div>
+                <strong>{boat.name}</strong>
+              </div>
+              <div className="t2">{periodLabel}</div>
+              <div className="t2">Generated {formatDate(new Date())}</div>
+            </div>
+          </div>
+          <TableWrap minWidth={560}>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Description</th>
+                <th>Paid by</th>
+                <th>Comment</th>
+                <th className="num">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((c) => (
+                <tr key={c.id}>
+                  <td className="t1">{formatDate(c.date)}</td>
+                  <td>{c.description ?? '—'}</td>
+                  <td className="t2">{c.paidByAccount?.name ?? '—'}</td>
+                  <td className="t2">{c.comment ?? '—'}</td>
+                  <td className="num">{money(c.amount)}</td>
+                </tr>
+              ))}
+              <tr className="stmt-total">
+                <td colSpan={4} className="t1">
+                  Total · {rows.length} entries
+                </td>
+                <td className="num">{money(total.toFixed(2))}</td>
+              </tr>
+            </tbody>
+          </TableWrap>
+        </div>
+      </Drawer>
+
+      <Drawer
+        open={editing !== null}
+        title="Edit cost"
+        onClose={() => setEditing(null)}
+        footer={
+          <>
+            <button className="btn btn-o" onClick={() => setEditing(null)}>
+              Cancel
+            </button>
+            <button className="btn btn-b" onClick={saveEdit} disabled={busy}>
+              {busy ? 'Saving…' : 'Save'}
+            </button>
+          </>
+        }
+      >
+        <form onSubmit={saveEdit} style={{ display: 'grid', gap: 12 }}>
+          <Field label="Date">
+            <input type="date" value={eDate} onChange={(e) => setEDate(e.target.value)} />
+          </Field>
+          <Field label="What for">
+            <input
+              value={eDescription}
+              onChange={(e) => setEDescription(e.target.value)}
+              placeholder="Bazar — fish, vegetables"
+            />
+          </Field>
+          <Field label="Cost ৳">
+            <input
+              value={eAmount}
+              onChange={(e) => setEAmount(e.target.value)}
+              inputMode="numeric"
+              required
+            />
+          </Field>
+          <Field label="Comment">
+            <input
+              value={eComment}
+              onChange={(e) => setEComment(e.target.value)}
+              placeholder="Optional note"
+            />
+          </Field>
+        </form>
+      </Drawer>
     </>
   );
 }

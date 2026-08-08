@@ -18,6 +18,7 @@ import {
   UpdateRoleDto,
   AddMemberDto,
   ChangeRoleDto,
+  UpdateMemberDto,
   MySettingsDto,
 } from './dto/rbac.dto';
 
@@ -121,6 +122,16 @@ export class RbacController {
     @Body() dto: AddMemberDto,
   ) {
     return this.members.addMember(houseboatId, user.id, dto);
+  }
+
+  @Patch('houseboats/:houseboatId/members/:membershipId')
+  @RequirePermission({ module: 'settings', action: 'edit' })
+  updateMember(
+    @Param('membershipId') membershipId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() dto: UpdateMemberDto,
+  ) {
+    return this.members.updateMember(membershipId, dto, user.id);
   }
 
   @Patch('houseboats/:houseboatId/members/:membershipId/role')

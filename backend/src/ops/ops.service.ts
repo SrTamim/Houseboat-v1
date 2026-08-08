@@ -11,6 +11,7 @@ import { newId } from '../common/uuid';
 import { money, add, sub } from '../common/money';
 import {
   CreateCostDto,
+  UpdateCostDto,
   CreateInventoryItemDto,
   StockMovementDto,
   CreateReviewDto,
@@ -66,7 +67,7 @@ export class OpsService {
         amount: dto.amount,
         tripId: dto.tripId,
         paidBy: actorId, // auto-captured from the logged-in user
-        dueToVendor: dto.dueToVendor,
+        comment: dto.comment,
       },
     });
     await this.audit.log({
@@ -79,10 +80,45 @@ export class OpsService {
     return cost;
   }
 
+  /** Edit a logged cost — owner/crew corrections (§9). */
+  async updateCost(
+    houseboatId: string,
+    actorId: string,
+    costId: string,
+    dto: UpdateCostDto,
+  ) {
+    const existing = await this.prisma.cost.findFirst({
+      where: { id: costId, houseboatId },
+      select: { id: true },
+    });
+    if (!existing) throw new NotFoundException('Cost not found');
+
+    const cost = await this.prisma.cost.update({
+      where: { id: costId },
+      data: {
+        ...(dto.date !== undefined ? { date: new Date(dto.date) } : {}),
+        ...(dto.description !== undefined ? { description: dto.description } : {}),
+        ...(dto.amount !== undefined ? { amount: dto.amount } : {}),
+        ...(dto.tripId !== undefined ? { tripId: dto.tripId } : {}),
+        ...(dto.comment !== undefined ? { comment: dto.comment } : {}),
+      },
+      include: { paidByAccount: { select: { name: true } } },
+    });
+    await this.audit.log({
+      houseboatId,
+      actorAccountId: actorId,
+      action: 'cost_edit',
+      entityType: 'cost',
+      entityId: cost.id,
+    });
+    return cost;
+  }
+
   listCosts(houseboatId: string) {
     return this.prisma.cost.findMany({
       where: { houseboatId },
       orderBy: { date: 'desc' },
+      include: { paidByAccount: { select: { name: true } } },
     });
   }
 
@@ -101,8 +137,45 @@ export class OpsService {
     });
   }
 
-  listItems(houseboatId: string) {
-    return this.prisma.inventoryItem.findMany({ where: { houseboatId } });
+  async listItems(houseboatId: string) {
+    const items = await this.prisma.inventoryItem.findMany({
+      where: { houseboatId },
+    });
+    const durableIds = items.filter((i) => i.kind === 'durable').map((i) => i.id);
+    if (durableIds.length === 0) return items;
+
+    // Latest 'count' movement per durable — no DISTINCT ON in Prisma, so pull
+    // them newest-first and keep the first seen for each item.
+    const counts = await this.prisma.stockMovement.findMany({
+      where: { inventoryItemId: { in: durableIds }, direction: 'count' },
+      orderBy: { at: 'desc' },
+      select: {
+        inventoryItemId: true,
+        qty: true,
+        expectedQty: true,
+        discrepancy: true,
+        at: true,
+      },
+    });
+    const latest = new Map<string, (typeof counts)[number]>();
+    for (const c of counts) {
+      if (!latest.has(c.inventoryItemId)) latest.set(c.inventoryItemId, c);
+    }
+
+    return items.map((i) => {
+      const c = latest.get(i.id);
+      return c
+        ? {
+            ...i,
+            lastCount: {
+              countedQty: c.qty,
+              expectedQty: c.expectedQty,
+              discrepancy: c.discrepancy,
+              at: c.at,
+            },
+          }
+        : i;
+    });
   }
 
   /**

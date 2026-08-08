@@ -118,12 +118,70 @@ export class MembershipService {
     return membership;
   }
 
+  /**
+   * Edit an existing membership: role, share %, start date, and status. A
+   * unified alternative to the narrow changeRole/exitMember paths — setting
+   * status to 'exited' stamps endDate, 'active' clears it (the re-activate
+   * path). Only the supplied fields are written.
+   */
+  async updateMember(
+    membershipId: string,
+    dto: {
+      roleId?: string;
+      shareholderPct?: number;
+      startDate?: string;
+      status?: 'active' | 'exited';
+    },
+    actorId: string,
+  ) {
+    const before = await this.prisma.houseboatMember.findUnique({
+      where: { id: membershipId },
+    });
+    if (!before) throw new NotFoundException('Membership not found');
+
+    const data: {
+      roleId?: string;
+      shareholderPct?: number;
+      startDate?: Date;
+      status?: string;
+      endDate?: Date | null;
+    } = {};
+    if (dto.roleId !== undefined) data.roleId = dto.roleId;
+    if (dto.shareholderPct !== undefined) data.shareholderPct = dto.shareholderPct;
+    if (dto.startDate !== undefined) data.startDate = new Date(dto.startDate);
+    if (dto.status !== undefined) {
+      data.status = dto.status;
+      data.endDate = dto.status === 'exited' ? new Date() : null;
+    }
+
+    const membership = await this.prisma.houseboatMember.update({
+      where: { id: membershipId },
+      data,
+    });
+
+    await this.audit.log({
+      houseboatId: membership.houseboatId,
+      actorAccountId: actorId,
+      action: 'member_update',
+      entityType: 'houseboat_member',
+      entityId: membershipId,
+      before: {
+        roleId: before.roleId,
+        shareholderPct: before.shareholderPct,
+        startDate: before.startDate,
+        status: before.status,
+      },
+      after: data,
+    });
+    return membership;
+  }
+
   list(houseboatId: string) {
     return this.prisma.houseboatMember.findMany({
       where: { houseboatId },
       include: {
         account: { select: { id: true, name: true, phone: true } },
-        role: { select: { name: true } },
+        role: { select: { id: true, name: true } },
       },
     });
   }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import useSWR from 'swr';
 import { fetcher } from '@/lib/api';
 import { useActiveBoat } from '@/lib/owner/boat-context';
@@ -10,89 +10,102 @@ import {
   Kpi,
   Kpis,
   FilterBar,
-  Seg,
+  Select,
   Note,
-  TableWrap,
-  AsyncTable,
+  AsyncBlock,
 } from '@/components/owner/ui';
-import { money, moneyShort, formatDate, isNegative } from '@/lib/owner/format';
+import { moneyShort, isNegative } from '@/lib/owner/format';
+import { TrendChart, ProfitBars, CostDonut } from '@/components/owner/charts';
 
-interface TripReport {
-  month: string;
-  trips: {
-    departureId: string;
-    date: string;
-    label: string | null;
-    status: string;
-    cabinsSold: number;
-    cabinsTotal: number;
-    guests: number;
+interface Financials {
+  period: string;
+  month: number;
+  year: number | null;
+  kpis: {
     revenue: string;
     commission: string;
-    costs: string;
-    crew: string;
-    net: string;
-  }[];
-  totals: {
-    revenue: string;
-    commission: string;
-    costs: string;
-    crew: string;
-    net: string;
-  };
-  averages: { fillPct: number; revenuePerTrip: string; marginPct: number };
-}
-
-interface MonthlyReport {
-  months: {
-    month: string;
+    operatingCosts: string;
+    crewPayroll: string;
+    totalCost: string;
+    profit: string;
     trips: number;
-    revenue: string;
-    commission: string;
-    costs: string;
-    crew: string;
-    net: string;
+    guests: number;
+    costPerTrip: string;
+    revenuePerTrip: string;
     fillPct: number;
+    marginPct: number;
+  };
+  costBreakdown: { key: string; label: string; amount: string }[];
+  trend: {
+    month: string;
+    revenue: string;
+    totalCost: string;
+    profit: string;
+    trips: number;
   }[];
 }
 
-function monthLabel(key: string): string {
-  const [y, m] = key.split('-').map(Number);
-  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString('en-GB', {
-    month: 'short',
-    year: 'numeric',
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+const MONTH_OPTIONS = MONTH_NAMES.map((label, i) => ({
+  value: String(i + 1),
+  label,
+}));
+
+/** Current year back to 2022, plus an "All years" seasonality option. */
+function yearOptions(): { value: string; label: string }[] {
+  const now = new Date().getUTCFullYear();
+  const years = Array.from({ length: now - 2022 + 1 }, (_, i) => {
+    const y = now - i;
+    return { value: String(y), label: String(y) };
   });
+  return [...years, { value: 'all', label: 'All years' }];
 }
+
+const YEAR_OPTIONS = yearOptions();
 
 export default function OwnerReportsPage() {
   const { boatId } = useActiveBoat();
-  const [view, setView] = useState<'trips' | 'monthly'>('trips');
+  const now = new Date();
+  const [month, setMonth] = useState(String(now.getUTCMonth() + 1));
+  const [year, setYear] = useState(String(now.getUTCFullYear()));
 
-  const trips = useSWR<TripReport>(`/houseboats/${boatId}/reports/trips`, fetcher, {
-    revalidateOnFocus: false,
-  });
-  const monthly = useSWR<MonthlyReport>(
-    view === 'monthly' ? `/houseboats/${boatId}/reports/monthly?months=6` : null,
+  const qs = useMemo(() => {
+    const p = new URLSearchParams({ month });
+    if (year !== 'all') p.set('year', year);
+    return p.toString();
+  }, [month, year]);
+
+  const { data, error, isLoading, mutate } = useSWR<Financials>(
+    `/houseboats/${boatId}/reports/financials?${qs}`,
     fetcher,
     { revalidateOnFocus: false },
   );
 
-  const t = trips.data;
+  const k = data?.kpis;
+  const loss = Boolean(k && isNegative(k.profit));
 
   return (
     <>
       <PageHead
         title="Reports"
-        desc="Profit per trip and per month. Costs count against a trip only when you tagged them with one — untagged spending is boat-level overhead."
+        desc="Revenue, cost and profit for the boat. Pick a month and year — or a month across all years to compare seasons."
         actions={
           <FilterBar>
-            <Seg
-              options={[
-                { value: 'trips', label: 'Per trip' },
-                { value: 'monthly', label: 'Monthly' },
-              ]}
-              value={view}
-              onChange={(v) => setView(v as 'trips' | 'monthly')}
+            <Select
+              options={MONTH_OPTIONS}
+              value={month}
+              onChange={setMonth}
+              ariaLabel="Report month"
+            />
+            <Select
+              options={YEAR_OPTIONS}
+              value={year}
+              onChange={setYear}
+              ariaLabel="Report year"
             />
           </FilterBar>
         }
@@ -102,143 +115,94 @@ export default function OwnerReportsPage() {
         <Kpi
           icon="📈"
           label="Revenue"
-          value={t ? moneyShort(t.totals.revenue) : '—'}
-          detail={t ? `${t.trips.length} trips this month` : undefined}
+          value={k ? moneyShort(k.revenue) : '—'}
+          detail={k ? `${k.trips} trips · ${k.guests} guests` : undefined}
+        />
+        <Kpi
+          icon="🧾"
+          label="Total cost"
+          value={k ? moneyShort(k.totalCost) : '—'}
+          detail="Costs + crew payroll"
+        />
+        <Kpi
+          icon="💰"
+          label={loss ? 'Loss' : 'Profit'}
+          value={k ? moneyShort(k.profit) : '—'}
+          detail={`Margin ${k ? k.marginPct : 0}%`}
+          alert={loss}
+        />
+        <Kpi
+          icon="৳"
+          label="Cost per trip"
+          value={k ? moneyShort(k.costPerTrip) : '—'}
+          detail="Total cost ÷ trips"
+        />
+        <Kpi
+          icon="🎟️"
+          label="Revenue per trip"
+          value={k ? moneyShort(k.revenuePerTrip) : '—'}
+          detail="Room revenue only"
         />
         <Kpi
           icon="🚪"
           label="Average fill"
-          value={t ? `${t.averages.fillPct}%` : '—'}
-          detail="Cabins sold against capacity"
+          value={k ? `${k.fillPct}%` : '—'}
+          detail="Cabins sold vs capacity"
         />
         <Kpi
-          icon="৳"
-          label="Revenue per trip"
-          value={t ? moneyShort(t.averages.revenuePerTrip) : '—'}
-          detail="Room revenue only"
+          icon="👷"
+          label="Crew payroll"
+          value={k ? moneyShort(k.crewPayroll) : '—'}
+          detail="Salaried crew this period"
         />
         <Kpi
-          icon="💰"
-          label="Margin"
-          value={t ? `${t.averages.marginPct}%` : '—'}
-          detail="Net against revenue"
-          alert={Boolean(t && t.averages.marginPct < 0)}
+          icon="🏷️"
+          label="Commission"
+          value={k ? moneyShort(k.commission) : '—'}
+          detail="Platform share"
         />
       </Kpis>
 
-      {view === 'trips' ? (
-        <Card title={`Profit per trip · ${t ? monthLabel(t.month) : ''}`} flush>
-          <TableWrap minWidth={860}>
-            <thead>
-              <tr>
-                <th>Departure</th>
-                <th>Cabins</th>
-                <th className="num">Revenue</th>
-                <th className="num">Commission</th>
-                <th className="num">Costs</th>
-                <th className="num">Crew</th>
-                <th className="num">Net</th>
-              </tr>
-            </thead>
-            <AsyncTable
-              isLoading={trips.isLoading}
-              error={trips.error}
-              isEmpty={(t?.trips.length ?? 0) === 0}
-              onRetry={() => trips.mutate()}
-              empty={
-                <div className="state">
-                  <div className="ic">📈</div>
-                  <h4>No trips this month</h4>
-                  <p>Reports fill in as departures run.</p>
-                </div>
-              }
-            >
-              <tbody>
-                {t?.trips.map((row) => (
-                  <tr key={row.departureId}>
-                    <td>
-                      <div className="t1">{formatDate(row.date)}</div>
-                      <div className="t2">{row.label ?? 'Trip'}</div>
-                    </td>
-                    <td>
-                      <div className="t1">
-                        {row.cabinsSold} / {row.cabinsTotal}
-                      </div>
-                      <div className="t2">{row.guests} guests</div>
-                    </td>
-                    <td className="num">{money(row.revenue)}</td>
-                    <td className="num">{money(row.commission)}</td>
-                    <td className="num">{money(row.costs)}</td>
-                    <td className="num">{money(row.crew)}</td>
-                    <td className={`num${isNegative(row.net) ? ' neg' : ''}`}>
-                      {money(row.net)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </AsyncTable>
-            {t && t.trips.length > 0 ? (
-              <tfoot>
-                <tr>
-                  <td colSpan={2}>{monthLabel(t.month)} totals</td>
-                  <td className="num">{money(t.totals.revenue)}</td>
-                  <td className="num">{money(t.totals.commission)}</td>
-                  <td className="num">{money(t.totals.costs)}</td>
-                  <td className="num">{money(t.totals.crew)}</td>
-                  <td className={`num${isNegative(t.totals.net) ? ' neg' : ''}`}>
-                    {money(t.totals.net)}
-                  </td>
-                </tr>
-              </tfoot>
-            ) : null}
-          </TableWrap>
+      <div className="rp-grid">
+        <Card title="Revenue · cost · profit" sub="last 12 months">
+          <AsyncBlock
+            isLoading={isLoading}
+            error={error}
+            isEmpty={!data?.trend.length}
+            onRetry={() => mutate()}
+          >
+            {data ? <TrendChart data={data.trend} /> : null}
+          </AsyncBlock>
         </Card>
-      ) : (
-        <Card title="Month by month" sub="last 6 months" flush>
-          <TableWrap minWidth={760}>
-            <thead>
-              <tr>
-                <th>Month</th>
-                <th>Trips</th>
-                <th>Fill</th>
-                <th className="num">Revenue</th>
-                <th className="num">Costs</th>
-                <th className="num">Net</th>
-              </tr>
-            </thead>
-            <AsyncTable
-              isLoading={monthly.isLoading}
-              error={monthly.error}
-              isEmpty={(monthly.data?.months.length ?? 0) === 0}
-              onRetry={() => monthly.mutate()}
-              empty={
-                <div className="state">
-                  <div className="ic">📊</div>
-                  <h4>Nothing to summarise</h4>
-                  <p>Run some trips and the monthly view fills in.</p>
-                </div>
-              }
-            >
-              <tbody>
-                {monthly.data?.months.map((m) => (
-                  <tr key={m.month}>
-                    <td className="t1">{monthLabel(m.month)}</td>
-                    <td>{m.trips}</td>
-                    <td>{m.fillPct}%</td>
-                    <td className="num">{money(m.revenue)}</td>
-                    <td className="num">{money(m.costs)}</td>
-                    <td className={`num${isNegative(m.net) ? ' neg' : ''}`}>{money(m.net)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </AsyncTable>
-          </TableWrap>
+
+        <Card title="Cost breakdown" sub={data?.period}>
+          <AsyncBlock
+            isLoading={isLoading}
+            error={error}
+            isEmpty={!data}
+            onRetry={() => mutate()}
+          >
+            {data ? <CostDonut data={data.costBreakdown} /> : null}
+          </AsyncBlock>
         </Card>
-      )}
+
+        <Card title="Profit / loss" sub="last 12 months" style={{ gridColumn: '1 / -1' }}>
+          <AsyncBlock
+            isLoading={isLoading}
+            error={error}
+            isEmpty={!data?.trend.length}
+            onRetry={() => mutate()}
+          >
+            {data ? <ProfitBars data={data.trend} /> : null}
+          </AsyncBlock>
+        </Card>
+      </div>
 
       <Note kind="info" style={{ marginTop: 16 }}>
-        Crew cost per trip counts per-trip rates only. Salaried crew are paid whether the
-        boat sails or not, so they are a monthly cost rather than a cost of any one trip.
+        <strong>Total cost</strong> is every cost you logged in the period plus salaried crew
+        payroll; <strong>Profit</strong> is revenue minus commission minus that total. Choose a
+        month with <strong>All years</strong> to sum that month across every year on record and
+        spot seasonal patterns.
       </Note>
     </>
   );

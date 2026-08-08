@@ -498,6 +498,23 @@ button { font-family: inherit; cursor: pointer; }
 .card2 .cb { padding: 20px; }
 .card2 .cb.flush { padding: 0; }
 
+.inv-search {
+  min-width: 200px;
+  border: 1px solid var(--hair);
+  background: var(--raise-2, var(--raise-1));
+  border-radius: var(--r-lg, 10px);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  padding: 7px 11px;
+}
+.inv-search::placeholder { color: var(--muted); }
+.inv-search:focus {
+  outline: none;
+  border-color: var(--accent, var(--ink));
+}
+
 /* ---------- KPI stat card ---------- */
 .kpis {
   display: grid;
@@ -981,6 +998,49 @@ table.tbl { width: 100%; border-collapse: separate; border-spacing: 0; font-size
   cursor: pointer;
 }
 
+/* permission list (role drawer) — replaces the sparse Module|View|Edit table */
+.perm-list { display: flex; flex-direction: column; }
+.perm-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 2px;
+  border-bottom: 1px solid var(--hair);
+}
+.perm-row:last-child { border-bottom: none; }
+.perm-row .perm-name {
+  flex: 1 1 auto;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.perm-toggles { display: flex; gap: 16px; flex: 0 0 auto; }
+.perm-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+/* Field's global "input { width:100% }" stretches checkboxes — pin size so
+   they stay inline (mirrors .facility-opt). */
+.perm-toggle input[type='checkbox'] {
+  appearance: auto;
+  -webkit-appearance: checkbox;
+  width: 15px;
+  height: 15px;
+  min-width: 15px;
+  flex: 0 0 15px;
+  margin: 0;
+  padding: 0;
+  vertical-align: middle;
+  accent-color: var(--blue);
+  cursor: pointer;
+}
+
 /* ---------- bill breakdown (invoice) ---------- */
 .bill { font-size: 13.5px; }
 .bill .row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed var(--hair); }
@@ -1344,3 +1404,97 @@ button.mcab:hover { border-color: var(--blue); transform: translateY(-2px); }
 .bhull-legend i.lg-free { background: var(--field); }
 .bhull-legend i.lg-sel { background: color-mix(in srgb, var(--blue) 10%, var(--raise-1)); border-color: var(--blue); }
 .bhull-legend i.lg-full { background: color-mix(in srgb, var(--danger) 12%, transparent); border-color: var(--danger); border-style: dashed; }
+
+/* ── Payroll: name-as-link, adjust checkbox ──────────────────── */
+.linklike {
+  background: none; border: none; padding: 0; cursor: pointer;
+  color: inherit; font: inherit; text-align: left; text-decoration: underline;
+  text-decoration-color: var(--hair); text-underline-offset: 3px;
+}
+.linklike:hover { text-decoration-color: var(--blue); color: var(--blue); }
+.check {
+  display: flex; gap: 9px; align-items: center;
+  font-size: 13px; color: var(--muted); cursor: pointer;
+}
+.check input { width: 16px; height: 16px; accent-color: var(--blue); }
+
+/* ── Salary statement ────────────────────────────────────────── */
+.stmt-head {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 16px; margin-bottom: 18px; padding-bottom: 14px;
+  border-bottom: 2px solid var(--hair);
+}
+.stmt-head h3 { margin: 0; font-size: 18px; }
+.stmt-meta { text-align: right; font-size: 12.5px; line-height: 1.5; }
+.stmt-total td { border-top: 2px solid var(--hair); font-weight: 700; }
+
+/* Print-to-PDF: reveal only the statement, drop all console chrome. */
+@media print {
+  body * { visibility: hidden !important; }
+  .statement-print, .statement-print * { visibility: visible !important; }
+  .statement-print {
+    position: absolute; left: 0; top: 0; width: 100%;
+    padding: 24px; background: #fff; color: #000;
+  }
+  .drawer, .drawer.open {
+    position: static !important; box-shadow: none !important;
+    width: auto !important; max-width: none !important; transform: none !important;
+  }
+  .drawer-sc, .df, .dh { display: none !important; }
+}
+
+/* ── Reports charts ─────────────────────────────────────────── */
+.rp-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 16px;
+  margin-top: 4px;
+}
+@media (max-width: 860px) {
+  .rp-grid { grid-template-columns: 1fr; }
+}
+
+.chart-wrap { width: 100%; }
+.chart { width: 100%; height: auto; display: block; }
+.donut { width: 180px; height: 180px; flex: none; }
+
+.chart .grid { stroke: var(--hair); stroke-width: 1; }
+.chart .axis-line { stroke: var(--muted); opacity: 0.5; }
+.chart .axis { fill: var(--muted); font-size: 11px; }
+
+.chart .bar-rev { fill: var(--blue); }
+.chart .bar-cost { fill: var(--amber); }
+.chart .line-profit { stroke: var(--ok); stroke-width: 2; }
+.chart .dot-profit { fill: var(--ok); }
+.chart .bar-profit { fill: var(--ok); }
+.chart .bar-loss { fill: var(--danger); }
+
+.legend {
+  display: flex; gap: 16px; flex-wrap: wrap;
+  margin-top: 10px; font-size: 12px; color: var(--body);
+}
+.legend .lg { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 11px; height: 11px; border-radius: 3px; display: inline-block; flex: none; }
+.sw-rev { background: var(--blue); }
+.sw-cost { background: var(--amber); }
+.sw-profit { background: var(--ok); border-radius: 999px; }
+
+/* Donut */
+.donut-wrap {
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+}
+.donut-track { stroke: var(--chip); }
+.sl-operating { stroke: var(--blue); }
+.sl-crew { stroke: var(--amber); }
+.sl-commission { stroke: var(--muted); }
+.donut-total { fill: var(--ink); font-size: 18px; font-weight: 700; font-family: var(--display); }
+.donut-cap { fill: var(--muted); font-size: 9px; }
+
+.donut-legend { list-style: none; margin: 0; padding: 0; flex: 1; min-width: 160px; }
+.donut-legend li {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 0; border-bottom: 1px solid var(--hair); font-size: 13px;
+}
+.donut-legend li:last-child { border-bottom: 0; }
+.donut-legend .dl-label { color: var(--body); flex: 1; }
+.donut-legend .dl-amt { color: var(--ink); font-weight: 600; }

@@ -13,6 +13,7 @@ import { CurrentUser, Public } from '../auth/decorators';
 import { AuthUser } from '../auth/auth.types';
 import {
   CreateCostDto,
+  UpdateCostDto,
   CreateInventoryItemDto,
   StockMovementDto,
   CreateReviewDto,
@@ -37,6 +38,17 @@ export class OpsController {
     @Body() dto: CreateCostDto,
   ) {
     return this.ops.addCost(houseboatId, user.id, dto);
+  }
+
+  @Patch('houseboats/:houseboatId/costs/:costId')
+  @RequirePermission({ module: 'costs', action: 'edit' })
+  updateCost(
+    @Param('houseboatId') houseboatId: string,
+    @Param('costId') costId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() dto: UpdateCostDto,
+  ) {
+    return this.ops.updateCost(houseboatId, user.id, costId, dto);
   }
 
   // ── Inventory ──────────────────────────────────────────────

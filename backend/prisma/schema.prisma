@@ -954,8 +954,8 @@ model Cost {
   tripId      String?  @map("trip_id") @db.Uuid
   /// auto-captured from the logged-in user
   paidBy      String?  @map("paid_by") @db.Uuid
-  /// optional — no vendor management
-  dueToVendor Decimal? @map("due_to_vendor") @db.Decimal(12, 2)
+  /// free-text note attached to the cost — separate from `description`
+  comment     String?  @map("comment")
 
   houseboat     Houseboat      @relation(fields: [houseboatId], references: [id])
   trip          TripDeparture? @relation(fields: [tripId], references: [id])

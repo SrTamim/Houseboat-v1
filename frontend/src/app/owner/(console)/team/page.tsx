@@ -14,7 +14,13 @@ import {
 } from '@/components/owner/ui';
 import { Pill } from '@/components/owner/Pill';
 import { Drawer } from '@/components/owner/Drawer';
-import { formatDate, maskPhone, apiErrorMessage, toE164 } from '@/lib/owner/format';
+import {
+  formatDate,
+  maskPhone,
+  apiErrorMessage,
+  toE164,
+  humanize,
+} from '@/lib/owner/format';
 
 interface Member {
   id: string;
@@ -33,6 +39,8 @@ interface Role {
   permissions: Record<string, { view?: boolean; edit?: boolean }> | null;
 }
 
+type Perms = Record<string, { view: boolean; edit: boolean }>;
+
 /** The permission modules a per-boat role can grant. */
 const MODULES = [
   'bookings',
@@ -47,11 +55,84 @@ const MODULES = [
   'settings',
 ] as const;
 
+/** Empty permission map with every module off. */
+function emptyPerms(): Perms {
+  return Object.fromEntries(MODULES.map((m) => [m, { view: false, edit: false }]));
+}
+
+/** Seed a permission map from a role's stored (partial) permissions. */
+function permsFromRole(role: Role): Perms {
+  const base = emptyPerms();
+  for (const m of MODULES) {
+    const p = role.permissions?.[m];
+    if (p) base[m] = { view: !!p.view, edit: !!p.edit };
+  }
+  return base;
+}
+
+/**
+ * Compact per-module View/Edit permission list. Replaces the old three-column
+ * table so the checkboxes read as a tidy settings list inside the drawer.
+ * Editing implies View — turning Edit on forces View on so a role can't edit a
+ * page it can't see.
+ */
+function PermissionList({
+  perms,
+  onChange,
+}: {
+  perms: Perms;
+  onChange: (next: Perms) => void;
+}) {
+  return (
+    <div className="perm-list">
+      {MODULES.map((m) => (
+        <div className="perm-row" key={m}>
+          <span className="perm-name">{humanize(m)}</span>
+          <div className="perm-toggles">
+            <label className="perm-toggle">
+              <input
+                type="checkbox"
+                checked={perms[m].view}
+                onChange={(e) =>
+                  onChange({ ...perms, [m]: { ...perms[m], view: e.target.checked } })
+                }
+              />
+              View
+            </label>
+            <label className="perm-toggle">
+              <input
+                type="checkbox"
+                checked={perms[m].edit}
+                onChange={(e) =>
+                  onChange({
+                    ...perms,
+                    [m]: {
+                      view: e.target.checked ? true : perms[m].view,
+                      edit: e.target.checked,
+                    },
+                  })
+                }
+              />
+              Edit
+            </label>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Keep only the modules that grant something, for the API payload. */
+function grantedOnly(perms: Perms) {
+  return Object.fromEntries(Object.entries(perms).filter(([, v]) => v.view || v.edit));
+}
+
 export default function OwnerTeamPage() {
   const { boatId } = useActiveBoat();
   const [addOpen, setAddOpen] = useState(false);
   const [roleOpen, setRoleOpen] = useState(false);
-  const [viewRole, setViewRole] = useState<Role | null>(null);
+  const [editRole, setEditRole] = useState<Role | null>(null);
+  const [editMember, setEditMember] = useState<Member | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -60,9 +141,17 @@ export default function OwnerTeamPage() {
   const [shareholderPct, setShareholderPct] = useState('');
 
   const [roleName, setRoleName] = useState('');
-  const [perms, setPerms] = useState<Record<string, { view: boolean; edit: boolean }>>(
-    Object.fromEntries(MODULES.map((m) => [m, { view: false, edit: false }])),
-  );
+  const [perms, setPerms] = useState<Perms>(emptyPerms());
+
+  // Edit-role drawer state.
+  const [editRoleName, setEditRoleName] = useState('');
+  const [editPerms, setEditPerms] = useState<Perms>(emptyPerms());
+
+  // Edit-member drawer state.
+  const [mRoleId, setMRoleId] = useState('');
+  const [mShare, setMShare] = useState('');
+  const [mSince, setMSince] = useState('');
+  const [mStatus, setMStatus] = useState<'active' | 'exited'>('active');
 
   const members = useSWR<Member[]>(`/houseboats/${boatId}/members`, fetcher, {
     revalidateOnFocus: false,
@@ -103,15 +192,70 @@ export default function OwnerTeamPage() {
     try {
       await api.post(`/houseboats/${boatId}/roles`, {
         name: roleName,
-        permissions: Object.fromEntries(
-          Object.entries(perms).filter(([, v]) => v.view || v.edit),
-        ),
+        permissions: grantedOnly(perms),
       });
       setRoleOpen(false);
       setRoleName('');
+      setPerms(emptyPerms());
       await roles.mutate();
     } catch (err) {
       setError(apiErrorMessage(err, 'Could not create the role.'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function openEditRole(r: Role) {
+    setError(null);
+    setEditRoleName(r.name);
+    setEditPerms(permsFromRole(r));
+    setEditRole(r);
+  }
+
+  async function saveRole(e: React.FormEvent) {
+    e.preventDefault();
+    if (busy || !editRole || !editRoleName) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.patch(`/houseboats/${boatId}/roles/${editRole.id}`, {
+        name: editRoleName,
+        permissions: grantedOnly(editPerms),
+      });
+      setEditRole(null);
+      await roles.mutate();
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not update the role.'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function openEditMember(m: Member) {
+    setError(null);
+    setMRoleId(m.role.id);
+    setMShare(m.shareholderPct ? String(Number(m.shareholderPct)) : '');
+    setMSince(m.startDate ? m.startDate.slice(0, 10) : '');
+    setMStatus(m.status === 'exited' ? 'exited' : 'active');
+    setEditMember(m);
+  }
+
+  async function saveMember(e: React.FormEvent) {
+    e.preventDefault();
+    if (busy || !editMember) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.patch(`/houseboats/${boatId}/members/${editMember.id}`, {
+        roleId: mRoleId,
+        shareholderPct: mShare ? Number(mShare) : undefined,
+        startDate: mSince ? new Date(mSince).toISOString() : undefined,
+        status: mStatus,
+      });
+      setEditMember(null);
+      await members.mutate();
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not update the member.'));
     } finally {
       setBusy(false);
     }
@@ -138,12 +282,21 @@ export default function OwnerTeamPage() {
         desc="Who can operate this boat, and what each of them may touch. Permissions are per boat — the same person can be an owner here and a manager elsewhere."
         actions={
           <>
-            <button className="btn btn-o" onClick={() => setRoleOpen(true)}>
+            <button
+              className="btn btn-o"
+              onClick={() => {
+                setError(null);
+                setRoleName('');
+                setPerms(emptyPerms());
+                setRoleOpen(true);
+              }}
+            >
               ＋ Role
             </button>
             <button
               className="btn btn-b"
               onClick={() => {
+                setError(null);
                 setRoleId(roles.data?.[0]?.id ?? '');
                 setAddOpen(true);
               }}
@@ -205,6 +358,13 @@ export default function OwnerTeamPage() {
                   </td>
                   <td>
                     <div className="rowact">
+                      <button
+                        className="btn btn-sm btn-o"
+                        onClick={() => openEditMember(m)}
+                        disabled={busy}
+                      >
+                        Edit
+                      </button>
                       {m.status === 'active' ? (
                         <button
                           className="btn btn-sm btn-o"
@@ -255,8 +415,11 @@ export default function OwnerTeamPage() {
                     </td>
                     <td>
                       <div className="rowact">
-                        <button className="btn btn-sm btn-o" onClick={() => setViewRole(r)}>
-                          View
+                        <button
+                          className="btn btn-sm btn-o"
+                          onClick={() => openEditRole(r)}
+                        >
+                          Edit
                         </button>
                       </div>
                     </td>
@@ -347,6 +510,7 @@ export default function OwnerTeamPage() {
         }
       >
         <form onSubmit={createRole} style={{ display: 'grid', gap: 12 }}>
+          {error ? <Note kind="danger">{error}</Note> : null}
           <Field label="Role name">
             <input
               value={roleName}
@@ -355,85 +519,107 @@ export default function OwnerTeamPage() {
               required
             />
           </Field>
-
-          <TableWrap minWidth={0}>
-            <thead>
-              <tr>
-                <th>Module</th>
-                <th>View</th>
-                <th>Edit</th>
-              </tr>
-            </thead>
-            <tbody>
-              {MODULES.map((m) => (
-                <tr key={m}>
-                  <td className="t1">{m}</td>
-                  <td>
-                    <input
-                      type="checkbox"
-                      checked={perms[m].view}
-                      onChange={(e) =>
-                        setPerms((p) => ({
-                          ...p,
-                          [m]: { ...p[m], view: e.target.checked },
-                        }))
-                      }
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="checkbox"
-                      checked={perms[m].edit}
-                      onChange={(e) =>
-                        setPerms((p) => ({
-                          ...p,
-                          // Edit without view would hide the page it edits.
-                          [m]: {
-                            view: e.target.checked ? true : p[m].view,
-                            edit: e.target.checked,
-                          },
-                        }))
-                      }
-                    />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </TableWrap>
+          <Field label="Permissions">
+            <PermissionList perms={perms} onChange={setPerms} />
+          </Field>
         </form>
       </Drawer>
 
       <Drawer
-        open={viewRole !== null}
-        title={viewRole?.name ?? ''}
-        onClose={() => setViewRole(null)}
+        open={editRole !== null}
+        title="Edit role"
+        onClose={() => setEditRole(null)}
         footer={
-          <button className="btn btn-o" onClick={() => setViewRole(null)}>
-            Close
-          </button>
+          <>
+            <button className="btn btn-o" onClick={() => setEditRole(null)}>
+              Cancel
+            </button>
+            <button
+              className="btn btn-b"
+              onClick={saveRole}
+              disabled={busy || !editRoleName}
+            >
+              {busy ? 'Saving…' : 'Save role'}
+            </button>
+          </>
         }
       >
-        <TableWrap minWidth={0}>
-          <thead>
-            <tr>
-              <th>Module</th>
-              <th>View</th>
-              <th>Edit</th>
-            </tr>
-          </thead>
-          <tbody>
-            {MODULES.map((m) => {
-              const p = viewRole?.permissions?.[m];
-              return (
-                <tr key={m}>
-                  <td className="t1">{m}</td>
-                  <td>{p?.view ? '✓' : '✗'}</td>
-                  <td>{p?.edit ? '✓' : '✗'}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </TableWrap>
+        <form onSubmit={saveRole} style={{ display: 'grid', gap: 12 }}>
+          {error ? <Note kind="danger">{error}</Note> : null}
+          <Field label="Role name">
+            <input
+              value={editRoleName}
+              onChange={(e) => setEditRoleName(e.target.value)}
+              required
+            />
+          </Field>
+          <Field label="Permissions">
+            <PermissionList perms={editPerms} onChange={setEditPerms} />
+          </Field>
+        </form>
+      </Drawer>
+
+      <Drawer
+        open={editMember !== null}
+        title="Edit member"
+        onClose={() => setEditMember(null)}
+        footer={
+          <>
+            <button className="btn btn-o" onClick={() => setEditMember(null)}>
+              Cancel
+            </button>
+            <button className="btn btn-b" onClick={saveMember} disabled={busy}>
+              {busy ? 'Saving…' : 'Save member'}
+            </button>
+          </>
+        }
+      >
+        <form onSubmit={saveMember} style={{ display: 'grid', gap: 12 }}>
+          {error ? <Note kind="danger">{error}</Note> : null}
+          <Field label="Member">
+            <div className="t1">{editMember?.account.name ?? 'Member'}</div>
+            <div className="t2">{maskPhone(editMember?.account.phone)}</div>
+          </Field>
+          <Field label="Role">
+            <select value={mRoleId} onChange={(e) => setMRoleId(e.target.value)} required>
+              {roles.data?.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Shareholder %">
+            <input
+              type="number"
+              min={0}
+              max={100}
+              value={mShare}
+              onChange={(e) => setMShare(e.target.value)}
+              placeholder="25"
+            />
+          </Field>
+          <Field label="Since">
+            <input
+              type="date"
+              value={mSince}
+              onChange={(e) => setMSince(e.target.value)}
+            />
+          </Field>
+          <Field label="Status">
+            <select
+              value={mStatus}
+              onChange={(e) => setMStatus(e.target.value as 'active' | 'exited')}
+            >
+              <option value="active">active</option>
+              <option value="exited">exited</option>
+            </select>
+          </Field>
+          <Note kind="info">
+            Name and phone belong to the person&rsquo;s account and are shared across every
+            boat — edit them from their profile, not here.
+          </Note>
+        </form>
       </Drawer>
     </>
   );

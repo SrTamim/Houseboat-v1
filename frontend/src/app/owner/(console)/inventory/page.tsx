@@ -16,6 +16,13 @@ import { Pill } from '@/components/owner/Pill';
 import { Drawer } from '@/components/owner/Drawer';
 import { apiErrorMessage, normalizeDigits } from '@/lib/owner/format';
 
+interface LastCount {
+  countedQty: string;
+  expectedQty: string | null;
+  discrepancy: string | null;
+  at: string;
+}
+
 interface Item {
   id: string;
   name: string;
@@ -23,6 +30,7 @@ interface Item {
   unit: string | null;
   reorderThreshold: string | null;
   currentQty: string;
+  lastCount?: LastCount;
 }
 
 export default function OwnerInventoryPage() {
@@ -40,6 +48,13 @@ export default function OwnerInventoryPage() {
 
   const [direction, setDirection] = useState<'in' | 'out' | 'count'>('out');
   const [qty, setQty] = useState('');
+  const [countResult, setCountResult] = useState<{
+    discrepancy: number;
+    unit: string | null;
+  } | null>(null);
+
+  const [consumableSearch, setConsumableSearch] = useState('');
+  const [durableSearch, setDurableSearch] = useState('');
 
   const { data, error: loadError, isLoading, mutate } = useSWR<Item[]>(
     `/houseboats/${boatId}/inventory`,
@@ -48,8 +63,20 @@ export default function OwnerInventoryPage() {
   );
 
   const items = data ?? [];
-  const consumables = items.filter((i) => i.kind === 'consumable');
-  const durables = items.filter((i) => i.kind === 'durable');
+  const matches = (i: Item, q: string): boolean => {
+    const t = q.trim().toLowerCase();
+    if (!t) return true;
+    return (
+      i.name.toLowerCase().includes(t) ||
+      (i.unit ?? '').toLowerCase().includes(t)
+    );
+  };
+  const consumables = items.filter(
+    (i) => i.kind === 'consumable' && matches(i, consumableSearch),
+  );
+  const durables = items.filter(
+    (i) => i.kind === 'durable' && matches(i, durableSearch),
+  );
 
   const isLow = (i: Item): boolean =>
     i.reorderThreshold !== null && Number(i.currentQty) <= Number(i.reorderThreshold);
@@ -86,18 +113,48 @@ export default function OwnerInventoryPage() {
     setBusy(true);
     setError(null);
     try {
-      await api.post(`/houseboats/${boatId}/inventory/${moveFor.id}/movements`, {
-        direction,
-        qty: Number(normalizeDigits(qty)),
-      });
-      setMoveFor(null);
+      const res = await api.post(
+        `/houseboats/${boatId}/inventory/${moveFor.id}/movements`,
+        {
+          direction,
+          qty: Number(normalizeDigits(qty)),
+        },
+      );
       setQty('');
+      if (direction === 'count') {
+        // Keep the drawer open to show what the count found.
+        const discrepancy = Number(res.data?.discrepancy ?? 0);
+        setCountResult({ discrepancy, unit: moveFor.unit });
+      } else {
+        setMoveFor(null);
+      }
       await mutate();
     } catch (err) {
       setError(apiErrorMessage(err, 'Could not record the movement.'));
     } finally {
       setBusy(false);
     }
+  }
+
+  function closeMovement() {
+    setMoveFor(null);
+    setCountResult(null);
+    setQty('');
+  }
+
+  function renderLastCount(lc?: LastCount) {
+    if (!lc) return <span className="t2">—</span>;
+    const d = Number(lc.discrepancy ?? 0);
+    const tone = d > 0 ? 'danger' : d < 0 ? 'warn' : 'ok';
+    const label =
+      d > 0 ? `${d} short` : d < 0 ? `${Math.abs(d)} over` : 'matched';
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span className="t1">{Number(lc.countedQty)}</span>
+        <Pill tone={tone}>{label}</Pill>
+        <span className="t2">{new Date(lc.at).toLocaleDateString()}</span>
+      </div>
+    );
   }
 
   return (
@@ -118,7 +175,22 @@ export default function OwnerInventoryPage() {
         </Note>
       ) : null}
 
-      <Card title="Consumables" sub="reorder alerts" flush style={{ marginBottom: 20 }}>
+      <Card
+        title="Consumables"
+        sub="reorder alerts"
+        flush
+        style={{ marginBottom: 20 }}
+        actions={
+          <input
+            className="inv-search"
+            type="search"
+            value={consumableSearch}
+            onChange={(e) => setConsumableSearch(e.target.value)}
+            placeholder="Search consumables…"
+            aria-label="Search consumables"
+          />
+        }
+      >
         <TableWrap minWidth={620}>
           <thead>
             <tr>
@@ -135,11 +207,19 @@ export default function OwnerInventoryPage() {
             isEmpty={consumables.length === 0}
             onRetry={() => mutate()}
             empty={
-              <div className="state">
-                <div className="ic">📦</div>
-                <h4>No consumables</h4>
-                <p>Add rice, gas and fuel so the dashboard can warn you.</p>
-              </div>
+              consumableSearch.trim() ? (
+                <div className="state">
+                  <div className="ic">🔍</div>
+                  <h4>No matches</h4>
+                  <p>No consumables match “{consumableSearch.trim()}”.</p>
+                </div>
+              ) : (
+                <div className="state">
+                  <div className="ic">📦</div>
+                  <h4>No consumables</h4>
+                  <p>Add rice, gas and fuel so the dashboard can warn you.</p>
+                </div>
+              )
             }
           >
             <tbody>
@@ -178,12 +258,27 @@ export default function OwnerInventoryPage() {
         </TableWrap>
       </Card>
 
-      <Card title="Durables" sub="counted on demand" flush>
-        <TableWrap minWidth={560}>
+      <Card
+        title="Durables"
+        sub="counted on demand"
+        flush
+        actions={
+          <input
+            className="inv-search"
+            type="search"
+            value={durableSearch}
+            onChange={(e) => setDurableSearch(e.target.value)}
+            placeholder="Search durables…"
+            aria-label="Search durables"
+          />
+        }
+      >
+        <TableWrap minWidth={720}>
           <thead>
             <tr>
               <th>Item</th>
               <th className="num">Expected</th>
+              <th>Last count</th>
               <th />
             </tr>
           </thead>
@@ -193,11 +288,19 @@ export default function OwnerInventoryPage() {
             isEmpty={durables.length === 0}
             onRetry={() => mutate()}
             empty={
-              <div className="state">
-                <div className="ic">🧯</div>
-                <h4>No durables</h4>
-                <p>Life jackets, plates, bedding — anything you count rather than consume.</p>
-              </div>
+              durableSearch.trim() ? (
+                <div className="state">
+                  <div className="ic">🔍</div>
+                  <h4>No matches</h4>
+                  <p>No durables match “{durableSearch.trim()}”.</p>
+                </div>
+              ) : (
+                <div className="state">
+                  <div className="ic">🧯</div>
+                  <h4>No durables</h4>
+                  <p>Life jackets, plates, bedding — anything you count rather than consume.</p>
+                </div>
+              )
             }
           >
             <tbody>
@@ -208,11 +311,13 @@ export default function OwnerInventoryPage() {
                     {i.unit ? <span className="t2"> ({i.unit})</span> : null}
                   </td>
                   <td className="num">{Number(i.currentQty)}</td>
+                  <td>{renderLastCount(i.lastCount)}</td>
                   <td>
                     <div className="rowact">
                       <button
                         className="btn btn-sm btn-o"
                         onClick={() => {
+                          setCountResult(null);
                           setMoveFor(i);
                           setDirection('count');
                         }}
@@ -287,45 +392,75 @@ export default function OwnerInventoryPage() {
       <Drawer
         open={moveFor !== null}
         title={`${direction === 'count' ? 'Count' : 'Movement'} · ${moveFor?.name ?? ''}`}
-        onClose={() => setMoveFor(null)}
+        onClose={closeMovement}
         footer={
-          <>
-            <button className="btn btn-o" onClick={() => setMoveFor(null)}>
-              Cancel
+          countResult ? (
+            <button className="btn btn-b" onClick={closeMovement}>
+              Done
             </button>
-            <button className="btn btn-b" onClick={recordMovement} disabled={busy || !qty}>
-              {busy ? 'Saving…' : 'Record'}
-            </button>
-          </>
+          ) : (
+            <>
+              <button className="btn btn-o" onClick={closeMovement}>
+                Cancel
+              </button>
+              <button
+                className="btn btn-b"
+                onClick={recordMovement}
+                disabled={busy || !qty}
+              >
+                {busy ? 'Saving…' : 'Record'}
+              </button>
+            </>
+          )
         }
       >
-        <form onSubmit={recordMovement} style={{ display: 'grid', gap: 12 }}>
-          <Field label="Direction">
-            <select
-              value={direction}
-              onChange={(e) => setDirection(e.target.value as 'in' | 'out' | 'count')}
+        {countResult ? (
+          <div style={{ display: 'grid', gap: 12 }}>
+            <Note
+              kind={
+                countResult.discrepancy > 0
+                  ? 'danger'
+                  : countResult.discrepancy < 0
+                    ? 'warn'
+                    : 'ok'
+              }
             >
-              <option value="out">Used / taken out</option>
-              <option value="in">Restocked</option>
-              <option value="count">Physical count</option>
-            </select>
-          </Field>
-          <Field label={direction === 'count' ? 'Counted quantity' : 'Quantity'}>
-            <input
-              value={qty}
-              onChange={(e) => setQty(e.target.value)}
-              inputMode="numeric"
-              placeholder="৫ or 5"
-              required
-            />
-          </Field>
-          {direction === 'count' ? (
-            <Note kind="info">
-              A count compares what you found against what the system expected. Anything
-              missing is recorded as a discrepancy rather than silently corrected.
+              {countResult.discrepancy > 0
+                ? `${countResult.discrepancy}${countResult.unit ? ` ${countResult.unit}` : ''} missing since the last count.`
+                : countResult.discrepancy < 0
+                  ? `${Math.abs(countResult.discrepancy)}${countResult.unit ? ` ${countResult.unit}` : ''} more than expected.`
+                  : 'Count matched — nothing missing.'}
             </Note>
-          ) : null}
-        </form>
+          </div>
+        ) : (
+          <form onSubmit={recordMovement} style={{ display: 'grid', gap: 12 }}>
+            <Field label="Direction">
+              <select
+                value={direction}
+                onChange={(e) => setDirection(e.target.value as 'in' | 'out' | 'count')}
+              >
+                <option value="out">Used / taken out</option>
+                <option value="in">Restocked</option>
+                <option value="count">Physical count</option>
+              </select>
+            </Field>
+            <Field label={direction === 'count' ? 'Counted quantity' : 'Quantity'}>
+              <input
+                value={qty}
+                onChange={(e) => setQty(e.target.value)}
+                inputMode="numeric"
+                placeholder="৫ or 5"
+                required
+              />
+            </Field>
+            {direction === 'count' ? (
+              <Note kind="info">
+                A count compares what you found against what the system expected. Anything
+                missing is recorded as a discrepancy rather than silently corrected.
+              </Note>
+            ) : null}
+          </form>
+        )}
       </Drawer>
     </>
   );

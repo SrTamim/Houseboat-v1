@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import useSWR from 'swr';
 import { api, fetcher } from '@/lib/api';
 import { useActiveBoat } from '@/lib/owner/boat-context';
@@ -10,7 +10,8 @@ import {
   Kpi,
   Kpis,
   FilterBar,
-  Seg,
+  Search,
+  Select,
   Field,
   Note,
   TableWrap,
@@ -18,7 +19,7 @@ import {
 } from '@/components/owner/ui';
 import { Pill } from '@/components/owner/Pill';
 import { Drawer } from '@/components/owner/Drawer';
-import { money, formatDate, apiErrorMessage } from '@/lib/owner/format';
+import { money, formatDate, maskPhone, apiErrorMessage } from '@/lib/owner/format';
 
 interface Staff {
   id: string;
@@ -40,16 +41,20 @@ interface Payroll {
   staffId: string;
 }
 
-function recentPeriods(count: number): string[] {
-  const out: string[] = [];
-  const now = new Date();
-  for (let i = 0; i < count; i++) {
-    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
-    out.push(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`);
-  }
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+/** Descending years from the current one back to 2023, for the year dropdown. */
+function yearOptions(): number[] {
+  const now = new Date().getUTCFullYear();
+  const out: number[] = [];
+  for (let y = now; y >= 2023; y--) out.push(y);
   return out;
 }
 
+/** "2026-08" → "Aug 2026". */
 function periodLabel(key: string): string {
   const [y, m] = key.split('-').map(Number);
   return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString('en-GB', {
@@ -58,13 +63,27 @@ function periodLabel(key: string): string {
   });
 }
 
+// The drawer serves two jobs off one bit of state: first-time Calculate, or
+// Adjust of an existing record.
+type DrawerState =
+  | { mode: 'calculate'; staff: Staff }
+  | { mode: 'adjust'; staff: Staff; payroll: Payroll }
+  | null;
+
 export default function OwnerPayrollPage() {
   const { boatId } = useActiveBoat();
-  const periods = recentPeriods(3);
-  const [period, setPeriod] = useState(periods[0]);
-  const [runFor, setRunFor] = useState<Staff | null>(null);
+  const now = new Date();
+  const years = useMemo(() => yearOptions(), []);
+  const [month, setMonth] = useState(now.getUTCMonth() + 1); // 1–12
+  const [year, setYear] = useState(now.getUTCFullYear());
+  const [search, setSearch] = useState('');
+  const period = `${year}-${String(month).padStart(2, '0')}`;
+
+  const [drawer, setDrawer] = useState<DrawerState>(null);
   const [bonus, setBonus] = useState('');
   const [deduction, setDeduction] = useState('');
+  const [markUnpaid, setMarkUnpaid] = useState(false);
+  const [statementFor, setStatementFor] = useState<Staff | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -109,23 +128,53 @@ export default function OwnerPayrollPage() {
     setRows((prev) => ({ ...prev, [staffId]: fresh }));
   }
 
-  async function runPayroll(e: React.FormEvent) {
+  function openCalculate(s: Staff) {
+    setBonus('');
+    setDeduction('');
+    setMarkUnpaid(false);
+    setError(null);
+    setDrawer({ mode: 'calculate', staff: s });
+  }
+
+  function openAdjust(s: Staff, payroll: Payroll) {
+    setBonus(payroll.bonus && Number(payroll.bonus) ? payroll.bonus : '');
+    setDeduction(payroll.deduction && Number(payroll.deduction) ? payroll.deduction : '');
+    setMarkUnpaid(false);
+    setError(null);
+    setDrawer({ mode: 'adjust', staff: s, payroll });
+  }
+
+  async function submitDrawer(e: React.FormEvent) {
     e.preventDefault();
-    if (!runFor || busyId) return;
-    setBusyId(runFor.id);
+    if (!drawer || busyId) return;
+    const s = drawer.staff;
+    setBusyId(s.id);
     setError(null);
     try {
-      await api.post(`/houseboats/${boatId}/staff/${runFor.id}/payroll`, {
-        period,
-        bonus: bonus ? Number(bonus) : undefined,
-        deduction: deduction ? Number(deduction) : undefined,
-      });
-      await refreshStaffPayroll(runFor.id);
-      setRunFor(null);
-      setBonus('');
-      setDeduction('');
+      if (drawer.mode === 'calculate') {
+        await api.post(`/houseboats/${boatId}/staff/${s.id}/payroll`, {
+          period,
+          bonus: bonus ? Number(bonus) : undefined,
+          deduction: deduction ? Number(deduction) : undefined,
+        });
+      } else {
+        await api.patch(`/houseboats/${boatId}/payroll/${drawer.payroll.id}`, {
+          bonus: bonus ? Number(bonus) : 0,
+          deduction: deduction ? Number(deduction) : 0,
+          ...(drawer.payroll.paid && markUnpaid ? { paid: false } : {}),
+        });
+      }
+      await refreshStaffPayroll(s.id);
+      setDrawer(null);
     } catch (err) {
-      setError(apiErrorMessage(err, 'Could not run payroll for this person.'));
+      setError(
+        apiErrorMessage(
+          err,
+          drawer.mode === 'calculate'
+            ? 'Could not calculate payroll for this person.'
+            : 'Could not adjust this payroll.',
+        ),
+      );
     } finally {
       setBusyId(null);
     }
@@ -150,24 +199,30 @@ export default function OwnerPayrollPage() {
     staff: s,
     payroll: (rows[s.id] ?? []).find((p) => p.period === period) ?? null,
   }));
-  const unpaid = forPeriod.filter((r) => r.payroll && !r.payroll.paid);
-  const paid = forPeriod.filter((r) => r.payroll?.paid);
-  const total = forPeriod.reduce((s, r) => s + Number(r.payroll?.totalAmount ?? 0), 0);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return forPeriod;
+    return forPeriod.filter(({ staff: s, payroll }) => {
+      const basis = s.monthlySalary ? 'salary' : 'per trip';
+      const paidState = payroll ? (payroll.paid ? 'paid' : 'unpaid') : 'not run';
+      return [s.account?.name, s.account?.phone, basis, paidState].some((v) =>
+        v?.toLowerCase().includes(q),
+      );
+    });
+  }, [forPeriod, search]);
+
+  const unpaid = filtered.filter((r) => r.payroll && !r.payroll.paid);
+  const paid = filtered.filter((r) => r.payroll?.paid);
+  const total = filtered.reduce((s, r) => s + Number(r.payroll?.totalAmount ?? 0), 0);
+
+  const drawerStaff = drawer?.staff ?? null;
 
   return (
     <>
       <PageHead
         title="Payroll"
-        desc="Run wages for a month, then track who has actually been handed their money. Both steps are recorded — a run is not a payment."
-        actions={
-          <FilterBar>
-            <Seg
-              options={periods.map((p) => ({ value: p, label: periodLabel(p) })).reverse()}
-              value={period}
-              onChange={setPeriod}
-            />
-          </FilterBar>
-        }
+        desc="Calculate wages for a month, then track who has actually been handed their money. Both steps are recorded — a calculation is not a payment."
       />
 
       {error ? (
@@ -181,7 +236,7 @@ export default function OwnerPayrollPage() {
           icon="💰"
           label={`${periodLabel(period)} total`}
           value={money(total.toFixed(2))}
-          detail={`${forPeriod.filter((r) => r.payroll).length} of ${list.length} run`}
+          detail={`${filtered.filter((r) => r.payroll).length} of ${filtered.length} calculated`}
         />
         <Kpi
           icon="⏳"
@@ -202,13 +257,33 @@ export default function OwnerPayrollPage() {
         />
       </Kpis>
 
-      <Card flush>
-        <TableWrap minWidth={860}>
+      <FilterBar>
+        <Select
+          ariaLabel="Month"
+          value={String(month)}
+          onChange={(v) => setMonth(Number(v))}
+          options={MONTHS.map((name, i) => ({ value: String(i + 1), label: name }))}
+        />
+        <Select
+          ariaLabel="Year"
+          value={String(year)}
+          onChange={(v) => setYear(Number(v))}
+          options={years.map((y) => ({ value: String(y), label: String(y) }))}
+        />
+        <Search
+          placeholder="Search name, phone, basis or status…"
+          value={search}
+          onChange={setSearch}
+        />
+      </FilterBar>
+
+      <Card title="Crew" sub={periodLabel(period)} flush>
+        <TableWrap minWidth={920}>
           <thead>
             <tr>
               <th>Name</th>
               <th>Basis</th>
-              <th>Trips</th>
+              <th className="num">Trips</th>
               <th className="num">Base</th>
               <th className="num">Bonus</th>
               <th className="num">Deduct</th>
@@ -220,26 +295,38 @@ export default function OwnerPayrollPage() {
           <AsyncTable
             isLoading={staff.isLoading || loadingRows}
             error={staff.error}
-            isEmpty={list.length === 0}
+            isEmpty={filtered.length === 0}
             onRetry={() => staff.mutate()}
             empty={
               <div className="state">
-                <div className="ic">💰</div>
-                <h4>No crew to pay</h4>
-                <p>Add crew before running payroll.</p>
+                <div className="ic">{search ? '🔍' : '💰'}</div>
+                <h4>{search ? 'No crew match your search' : 'No crew to pay'}</h4>
+                <p>
+                  {search
+                    ? 'Try a different name, phone, basis or status.'
+                    : 'Add crew before calculating payroll.'}
+                </p>
               </div>
             }
           >
             <tbody>
-              {forPeriod.map(({ staff: s, payroll }) => (
+              {filtered.map(({ staff: s, payroll }) => (
                 <tr key={s.id}>
-                  <td className="t1">{s.account?.name ?? 'Crew'}</td>
+                  <td className="t1">
+                    <button
+                      className="linklike"
+                      onClick={() => setStatementFor(s)}
+                      title="View salary statement"
+                    >
+                      {s.account?.name ?? 'Crew'}
+                    </button>
+                  </td>
                   <td>
                     <Pill tone={s.monthlySalary ? 'blue' : 'mut'}>
                       {s.monthlySalary ? 'salary' : 'per trip'}
                     </Pill>
                   </td>
-                  <td>{payroll?.tripsWorked ?? '—'}</td>
+                  <td className="num">{payroll?.tripsWorked ?? '—'}</td>
                   <td className="num">{payroll ? money(payroll.baseAmount) : '—'}</td>
                   <td className="num">{payroll ? money(payroll.bonus) : '—'}</td>
                   <td className={`num${payroll && Number(payroll.deduction) > 0 ? ' neg' : ''}`}>
@@ -259,21 +346,38 @@ export default function OwnerPayrollPage() {
                     <div className="rowact">
                       {!payroll ? (
                         <button
-                          className="btn btn-sm btn-o"
-                          onClick={() => setRunFor(s)}
+                          className="btn btn-sm btn-b"
+                          onClick={() => openCalculate(s)}
                           disabled={busyId === s.id}
                         >
-                          Run
+                          Calculate
                         </button>
-                      ) : !payroll.paid ? (
-                        <button
-                          className="btn btn-sm btn-ok"
-                          onClick={() => markPaid(payroll)}
-                          disabled={busyId === payroll.id}
-                        >
-                          {busyId === payroll.id ? 'Saving…' : 'Mark paid'}
-                        </button>
-                      ) : null}
+                      ) : (
+                        <>
+                          {!payroll.paid ? (
+                            <button
+                              className="btn btn-sm btn-ok"
+                              onClick={() => markPaid(payroll)}
+                              disabled={busyId === payroll.id}
+                            >
+                              {busyId === payroll.id ? 'Saving…' : 'Mark as paid'}
+                            </button>
+                          ) : null}
+                          <button
+                            className="btn btn-sm btn-o"
+                            onClick={() => openAdjust(s, payroll)}
+                            disabled={busyId === payroll.id}
+                          >
+                            Adjust
+                          </button>
+                        </>
+                      )}
+                      <button
+                        className="btn btn-sm btn-o"
+                        onClick={() => setStatementFor(s)}
+                      >
+                        Statement
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -284,24 +388,37 @@ export default function OwnerPayrollPage() {
       </Card>
 
       <Drawer
-        open={runFor !== null}
-        title={`Run payroll · ${runFor?.account?.name ?? 'Crew'}`}
-        onClose={() => setRunFor(null)}
+        open={drawer !== null}
+        title={
+          drawer?.mode === 'adjust'
+            ? `Adjust payroll · ${drawerStaff?.account?.name ?? 'Crew'}`
+            : `Calculate payroll · ${drawerStaff?.account?.name ?? 'Crew'}`
+        }
+        onClose={() => setDrawer(null)}
         footer={
           <>
-            <button className="btn btn-o" onClick={() => setRunFor(null)}>
+            <button className="btn btn-o" onClick={() => setDrawer(null)}>
               Cancel
             </button>
-            <button className="btn btn-b" onClick={runPayroll} disabled={busyId !== null}>
-              {busyId ? 'Running…' : `Run for ${periodLabel(period)}`}
+            <button
+              className="btn btn-b"
+              onClick={submitDrawer}
+              disabled={busyId !== null}
+            >
+              {busyId
+                ? 'Saving…'
+                : drawer?.mode === 'adjust'
+                  ? 'Save changes'
+                  : `Calculate for ${periodLabel(period)}`}
             </button>
           </>
         }
       >
-        <form onSubmit={runPayroll} style={{ display: 'grid', gap: 12 }}>
+        <form onSubmit={submitDrawer} style={{ display: 'grid', gap: 12 }}>
           <Note kind="info">
-            The base amount is calculated for you — monthly salary, or the per-trip rate
-            times the trips actually worked in {periodLabel(period)}.
+            {drawer?.mode === 'adjust'
+              ? 'The base amount is fixed — edit the bonus or deduction and the total is recalculated.'
+              : `The base amount is calculated for you — monthly salary, or the per-trip rate times the trips actually worked in ${periodLabel(period)}.`}
           </Note>
           <Field label="Bonus (৳)">
             <input
@@ -321,8 +438,135 @@ export default function OwnerPayrollPage() {
               onChange={(e) => setDeduction(e.target.value)}
             />
           </Field>
+          {drawer?.mode === 'adjust' && drawer.payroll.paid ? (
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={markUnpaid}
+                onChange={(e) => setMarkUnpaid(e.target.checked)}
+              />
+              <span>Revert to unpaid (marked paid by mistake)</span>
+            </label>
+          ) : null}
         </form>
       </Drawer>
+
+      {statementFor ? (
+        <StatementDrawer
+          staff={statementFor}
+          history={rows[statementFor.id] ?? []}
+          onClose={() => setStatementFor(null)}
+        />
+      ) : null}
     </>
+  );
+}
+
+/**
+ * Bank-statement-style salary history for one crew member. "Download PDF" uses
+ * the browser's print-to-PDF: print CSS (owner.css) hides the console chrome and
+ * shows only the `.statement-print` block, so Save-as-PDF yields a clean sheet.
+ */
+function StatementDrawer({
+  staff,
+  history,
+  onClose,
+}: {
+  staff: Staff;
+  history: Payroll[];
+  onClose: () => void;
+}) {
+  // Oldest → newest so the running balance reads like a bank statement.
+  const ordered = [...history].sort((a, b) => a.period.localeCompare(b.period));
+  let running = 0;
+  const lines = ordered.map((p) => {
+    running += Number(p.totalAmount);
+    return { p, running };
+  });
+  const totalPaid = ordered
+    .filter((p) => p.paid)
+    .reduce((s, p) => s + Number(p.totalAmount), 0);
+
+  return (
+    <Drawer
+      open
+      title={`Statement · ${staff.account?.name ?? 'Crew'}`}
+      onClose={onClose}
+      footer={
+        <>
+          <button className="btn btn-o" onClick={onClose}>
+            Close
+          </button>
+          <button className="btn btn-b" onClick={() => window.print()}>
+            Download PDF
+          </button>
+        </>
+      }
+    >
+      <div className="statement-print">
+        <div className="stmt-head">
+          <h3>Salary Statement</h3>
+          <div className="stmt-meta">
+            <div>
+              <strong>{staff.account?.name ?? 'Crew'}</strong>
+            </div>
+            <div className="t2">{maskPhone(staff.account?.phone)}</div>
+            <div className="t2">
+              {staff.monthlySalary
+                ? `Salary · ${money(staff.monthlySalary)}/mo`
+                : `Per trip · ${money(staff.perTripRate)}/trip`}
+            </div>
+            <div className="t2">Generated {formatDate(new Date())}</div>
+          </div>
+        </div>
+
+        {ordered.length === 0 ? (
+          <Note kind="info">No payroll history yet for this crew member.</Note>
+        ) : (
+          <TableWrap minWidth={560}>
+            <thead>
+              <tr>
+                <th>Period</th>
+                <th className="num">Trips</th>
+                <th className="num">Base</th>
+                <th className="num">Bonus</th>
+                <th className="num">Deduct</th>
+                <th className="num">Total</th>
+                <th>Status</th>
+                <th className="num">Balance</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lines.map(({ p, running: bal }) => (
+                <tr key={p.id}>
+                  <td className="t1">{periodLabel(p.period)}</td>
+                  <td className="num">{p.tripsWorked ?? '—'}</td>
+                  <td className="num">{money(p.baseAmount)}</td>
+                  <td className="num">{money(p.bonus)}</td>
+                  <td className={`num${Number(p.deduction) > 0 ? ' neg' : ''}`}>
+                    {money(p.deduction)}
+                  </td>
+                  <td className="num">{money(p.totalAmount)}</td>
+                  <td>
+                    <Pill tone={p.paid ? 'ok' : 'warn'}>
+                      {p.paid ? `paid ${formatDate(p.paidAt)}` : 'unpaid'}
+                    </Pill>
+                  </td>
+                  <td className="num">{money(bal.toFixed(2))}</td>
+                </tr>
+              ))}
+              <tr className="stmt-total">
+                <td colSpan={5} className="t1">
+                  Total earned
+                </td>
+                <td className="num">{money(running.toFixed(2))}</td>
+                <td className="t2">paid {money(totalPaid.toFixed(2))}</td>
+                <td className="num">{money((running - totalPaid).toFixed(2))}</td>
+              </tr>
+            </tbody>
+          </TableWrap>
+        )}
+      </div>
+    </Drawer>
   );
 }

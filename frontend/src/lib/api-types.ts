@@ -232,6 +232,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/houseboats/{houseboatId}/members/{membershipId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["RbacController_updateMember"];
+        trace?: never;
+    };
     "/api/houseboats/{houseboatId}/members/{membershipId}/role": {
         parameters: {
             query?: never;
@@ -1514,6 +1530,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/houseboats/{houseboatId}/payroll/{payrollId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["HrController_adjustPayroll"];
+        trace?: never;
+    };
     "/api/houseboats/{houseboatId}/attendance": {
         parameters: {
             query?: never;
@@ -1560,6 +1592,22 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/houseboats/{houseboatId}/costs/{costId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["OpsController_updateCost"];
         trace?: never;
     };
     "/api/houseboats/{houseboatId}/inventory": {
@@ -2486,6 +2534,13 @@ export interface components {
             roleId: string;
             shareholderPct?: number;
         };
+        UpdateMemberDto: {
+            roleId?: string;
+            shareholderPct?: number;
+            startDate?: string;
+            /** @enum {string} */
+            status?: "active" | "exited";
+        };
         ChangeRoleDto: {
             roleId: string;
         };
@@ -2848,6 +2903,11 @@ export interface components {
             bonus?: number;
             deduction?: number;
         };
+        AdjustPayrollDto: {
+            bonus?: number;
+            deduction?: number;
+            paid?: boolean;
+        };
         CrewPresenceDto: {
             staffId: string;
             present?: boolean;
@@ -2857,7 +2917,14 @@ export interface components {
             description?: string;
             amount: number;
             tripId?: string;
-            dueToVendor?: number;
+            comment?: string;
+        };
+        UpdateCostDto: {
+            date?: string;
+            description?: string;
+            amount?: number;
+            tripId?: string;
+            comment?: string;
         };
         CreateInventoryItemDto: {
             name: string;
@@ -3259,6 +3326,29 @@ export interface operations {
         };
         responses: {
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    RbacController_updateMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                membershipId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateMemberDto"];
+            };
+        };
+        responses: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5315,6 +5405,29 @@ export interface operations {
             };
         };
     };
+    HrController_adjustPayroll: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                payrollId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdjustPayrollDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     HrController_attendance: {
         parameters: {
             query?: {
@@ -5395,7 +5508,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>[];
+                };
             };
         };
     };
@@ -5419,6 +5534,32 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    OpsController_updateCost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+                costId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateCostDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };

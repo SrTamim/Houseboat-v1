@@ -25,6 +25,16 @@ export class MonthlyReportQueryDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(24) months?: number;
 }
 
+export class FinancialsQueryDto {
+  /** 1–12. Omit for the current month. */
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(12) month?: number;
+  /**
+   * Calendar year. Omit (with `month` set) to sum that month across every year
+   * on record — the "every January" seasonality view.
+   */
+  @IsOptional() @Type(() => Number) @IsInt() @Min(2000) @Max(2100) year?: number;
+}
+
 export class GuestsQueryDto {
   @IsOptional() @IsString() @MaxLength(LEN_NAME) q?: string;
   /**

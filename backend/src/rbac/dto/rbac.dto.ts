@@ -1,5 +1,7 @@
 import {
   IsBoolean,
+  IsDateString,
+  IsIn,
   IsNumber,
   IsObject,
   IsOptional,
@@ -30,6 +32,13 @@ export class AddMemberDto {
 
 export class ChangeRoleDto {
   @IsString() @MaxLength(LEN_CODE) roleId!: string;
+}
+
+export class UpdateMemberDto {
+  @IsOptional() @IsString() @MaxLength(LEN_CODE) roleId?: string;
+  @IsOptional() @IsNumber() @Min(0) @Max(100) shareholderPct?: number;
+  @IsOptional() @IsDateString() startDate?: string;
+  @IsOptional() @IsIn(['active', 'exited']) status?: 'active' | 'exited';
 }
 
 export class MySettingsDto {

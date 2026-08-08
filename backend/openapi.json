@@ -357,6 +357,39 @@
         ]
       }
     },
+    "/api/houseboats/{houseboatId}/members/{membershipId}": {
+      "patch": {
+        "operationId": "RbacController_updateMember",
+        "parameters": [
+          {
+            "name": "membershipId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMemberDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Rbac"
+        ]
+      }
+    },
     "/api/houseboats/{houseboatId}/members/{membershipId}/role": {
       "patch": {
         "operationId": "RbacController_changeRole",
@@ -3189,6 +3222,39 @@
         ]
       }
     },
+    "/api/houseboats/{houseboatId}/payroll/{payrollId}": {
+      "patch": {
+        "operationId": "HrController_adjustPayroll",
+        "parameters": [
+          {
+            "name": "payrollId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdjustPayrollDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      }
+    },
     "/api/houseboats/{houseboatId}/attendance": {
       "get": {
         "operationId": "HrController_attendance",
@@ -3300,7 +3366,17 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -3332,6 +3408,54 @@
         "responses": {
           "201": {
             "description": ""
+          }
+        },
+        "tags": [
+          "Ops"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/costs/{costId}": {
+      "patch": {
+        "operationId": "OpsController_updateCost",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "costId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCostDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -4905,6 +5029,52 @@
         ]
       }
     },
+    "/api/houseboats/{houseboatId}/reports/financials": {
+      "get": {
+        "operationId": "OwnerController_financials",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "month",
+            "required": false,
+            "in": "query",
+            "description": "1–12. Omit for the current month.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 12,
+              "type": "number"
+            }
+          },
+          {
+            "name": "year",
+            "required": false,
+            "in": "query",
+            "description": "Calendar year. Omit (with `month` set) to sum that month across every year\non record — the \"every January\" seasonality view.",
+            "schema": {
+              "minimum": 2000,
+              "maximum": 2100,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Reports page: period KPIs, cost breakdown and 12-month trend for charts.",
+        "tags": [
+          "Owner"
+        ]
+      }
+    },
     "/api/houseboats/{houseboatId}/earnings": {
       "get": {
         "operationId": "OwnerController_earnings",
@@ -5555,6 +5725,30 @@
           "phone",
           "roleId"
         ]
+      },
+      "UpdateMemberDto": {
+        "type": "object",
+        "properties": {
+          "roleId": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "shareholderPct": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "startDate": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "exited"
+            ]
+          }
+        }
       },
       "ChangeRoleDto": {
         "type": "object",
@@ -6875,6 +7069,22 @@
           "period"
         ]
       },
+      "AdjustPayrollDto": {
+        "type": "object",
+        "properties": {
+          "bonus": {
+            "type": "number",
+            "minimum": 0
+          },
+          "deduction": {
+            "type": "number",
+            "minimum": 0
+          },
+          "paid": {
+            "type": "boolean"
+          }
+        }
+      },
       "CrewPresenceDto": {
         "type": "object",
         "properties": {
@@ -6909,15 +7119,40 @@
             "type": "string",
             "maxLength": 64
           },
-          "dueToVendor": {
-            "type": "number",
-            "minimum": 0
+          "comment": {
+            "type": "string",
+            "maxLength": 500
           }
         },
         "required": [
           "date",
           "amount"
         ]
+      },
+      "UpdateCostDto": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "amount": {
+            "type": "number",
+            "minimum": 0
+          },
+          "tripId": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "comment": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
       },
       "CreateInventoryItemDto": {
         "type": "object",

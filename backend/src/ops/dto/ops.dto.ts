@@ -20,7 +20,15 @@ export class CreateCostDto {
   @IsOptional() @IsString() @MaxLength(LEN_TEXT) description?: string;
   @IsNumber() @Min(0) amount!: number;
   @IsOptional() @IsString() @MaxLength(LEN_CODE) tripId?: string;
-  @IsOptional() @IsNumber() @Min(0) dueToVendor?: number;
+  @IsOptional() @IsString() @MaxLength(LEN_TEXT) comment?: string;
+}
+
+export class UpdateCostDto {
+  @IsOptional() @IsString() @MaxLength(LEN_CODE) date?: string; // ISO
+  @IsOptional() @IsString() @MaxLength(LEN_TEXT) description?: string;
+  @IsOptional() @IsNumber() @Min(0) amount?: number;
+  @IsOptional() @IsString() @MaxLength(LEN_CODE) tripId?: string;
+  @IsOptional() @IsString() @MaxLength(LEN_TEXT) comment?: string;
 }
 
 export class CreateInventoryItemDto {

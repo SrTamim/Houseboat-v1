@@ -13,6 +13,7 @@ import { RequirePermission } from '../rbac/require-permission.decorator';
 import { CurrentUser } from '../auth/decorators';
 import { AuthUser } from '../auth/auth.types';
 import {
+  AdjustPayrollDto,
   AttendanceQueryDto,
   CreateStaffDto,
   LeaveDto,
@@ -83,6 +84,16 @@ export class HrController {
     @CurrentUser() user: AuthUser,
   ) {
     return this.hr.markPayrollPaid(payrollId, user.id);
+  }
+
+  @Patch('houseboats/:houseboatId/payroll/:payrollId')
+  @RequirePermission({ module: 'staff', action: 'edit' })
+  adjustPayroll(
+    @Param('payrollId') payrollId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() dto: AdjustPayrollDto,
+  ) {
+    return this.hr.adjustPayroll(payrollId, dto, user.id);
   }
 
   @Get('houseboats/:houseboatId/staff/:staffId/payroll')

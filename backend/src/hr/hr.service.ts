@@ -10,6 +10,7 @@ import { newId } from '../common/uuid';
 import { money, add, sub } from '../common/money';
 import { normalizePhone } from '../auth/auth.types';
 import {
+  AdjustPayrollDto,
   CreateStaffDto,
   LeaveDto,
   PayrollDto,
@@ -35,6 +36,29 @@ function effectiveStatus(stored: string, leave?: LeaveWindow): string {
   const endOfDay = new Date(leave.toDate);
   endOfDay.setHours(23, 59, 59, 999);
   return Date.now() > endOfDay.getTime() ? 'available' : 'on_leave';
+}
+
+/**
+ * UTC month bounds for a "YYYY-MM" period. `monthEnd` is the last instant of
+ * the month (for clipping leave ranges). Defaults to the current month when the
+ * period is omitted. One rule, used by both the attendance report and payroll,
+ * so "trips this month" means the same thing in both places.
+ */
+function monthBounds(period?: string): {
+  resolved: string;
+  monthStart: Date;
+  nextMonthStart: Date;
+  monthEnd: Date;
+} {
+  const now = new Date();
+  const resolved =
+    period ??
+    `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+  const [y, m] = resolved.split('-').map(Number);
+  const monthStart = new Date(Date.UTC(y, m - 1, 1));
+  const nextMonthStart = new Date(Date.UTC(y, m, 1));
+  const monthEnd = new Date(nextMonthStart.getTime() - 1);
+  return { resolved, monthStart, nextMonthStart, monthEnd };
 }
 
 /**
@@ -229,15 +253,8 @@ export class HrService {
    * a present=true trip_crew row is one trip worked.
    */
   async attendanceReport(houseboatId: string, period?: string) {
-    const now = new Date();
-    const resolved =
-      period ??
-      `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
-    const [y, m] = resolved.split('-').map(Number);
-    const monthStart = new Date(Date.UTC(y, m - 1, 1));
-    const nextMonthStart = new Date(Date.UTC(y, m, 1));
-    // Last instant of the month, for clipping open-ended leave ranges.
-    const monthEnd = new Date(nextMonthStart.getTime() - 1);
+    // Last instant of the month is used for clipping open-ended leave ranges.
+    const { resolved, monthStart, nextMonthStart, monthEnd } = monthBounds(period);
 
     const staff = await this.prisma.houseboatStaff.findMany({
       where: { houseboatId },
@@ -314,9 +331,15 @@ export class HrService {
     if (staff.monthlySalary) {
       base = money(staff.monthlySalary);
     } else if (staff.perTripRate) {
-      // Count present crew rows for this staff (attendance = row + present).
+      // Count present crew rows for this staff in the payroll period — same rule
+      // as the attendance report, so per-trip pay matches trips-worked there.
+      const { monthStart, nextMonthStart } = monthBounds(dto.period);
       tripsWorked = await this.prisma.tripCrew.count({
-        where: { staffId, present: true },
+        where: {
+          staffId,
+          present: true,
+          departure: { startDate: { gte: monthStart, lt: nextMonthStart } },
+        },
       });
       base = money(staff.perTripRate).mul(tripsWorked);
     } else {
@@ -361,6 +384,64 @@ export class HrService {
       action: 'payroll_paid',
       entityType: 'staff_payroll',
       entityId: payrollId,
+    });
+    return payroll;
+  }
+
+  /**
+   * Adjust an existing payroll after the fact. Only bonus/deduction are
+   * editable — the base amount is a computed record of what was owed and stays
+   * fixed. `total` is recomputed from the (unchanged) base. Optionally flip the
+   * paid flag, so an owner who marked-paid by mistake can revert.
+   */
+  async adjustPayroll(payrollId: string, dto: AdjustPayrollDto, actorId: string) {
+    const existing = await this.prisma.staffPayroll.findUnique({
+      where: { id: payrollId },
+      include: { staff: { select: { houseboatId: true } } },
+    });
+    if (!existing) throw new NotFoundException('Payroll record not found');
+
+    const bonus = dto.bonus !== undefined ? money(dto.bonus) : money(existing.bonus);
+    const deduction =
+      dto.deduction !== undefined ? money(dto.deduction) : money(existing.deduction);
+    const total = sub(add(money(existing.baseAmount), bonus), deduction);
+
+    const data: {
+      bonus: typeof bonus;
+      deduction: typeof deduction;
+      totalAmount: typeof total;
+      paid?: boolean;
+      paidAt?: Date | null;
+      paidBy?: string | null;
+    } = { bonus, deduction, totalAmount: total };
+    if (dto.paid !== undefined) {
+      data.paid = dto.paid;
+      data.paidAt = dto.paid ? new Date() : null;
+      data.paidBy = dto.paid ? actorId : null;
+    }
+
+    const payroll = await this.prisma.staffPayroll.update({
+      where: { id: payrollId },
+      data,
+    });
+    await this.audit.log({
+      houseboatId: existing.staff.houseboatId,
+      actorAccountId: actorId,
+      action: 'payroll_adjust',
+      entityType: 'staff_payroll',
+      entityId: payrollId,
+      before: {
+        bonus: existing.bonus.toFixed(2),
+        deduction: existing.deduction.toFixed(2),
+        total: existing.totalAmount.toFixed(2),
+        paid: existing.paid,
+      },
+      after: {
+        bonus: bonus.toFixed(2),
+        deduction: deduction.toFixed(2),
+        total: total.toFixed(2),
+        paid: payroll.paid,
+      },
     });
     return payroll;
   }
