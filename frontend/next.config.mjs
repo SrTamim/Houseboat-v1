@@ -60,7 +60,13 @@ const nextConfig = {
   // Proxy /api/* to the NestJS backend in dev so the browser talks to one
   // origin (cookies + CSRF stay simple). In prod, set NEXT_PUBLIC_API_URL.
   async rewrites() {
-    return [{ source: '/api/:path*', destination: `${API_TARGET}/api/:path*` }];
+    return [
+      { source: '/api/:path*', destination: `${API_TARGET}/api/:path*` },
+      // Uploaded images (local storage driver in dev) are served relative as
+      // /uploads/*; forward them to the backend's static mount so they stay
+      // same-origin and pass CSP img-src 'self'.
+      { source: '/uploads/:path*', destination: `${API_TARGET}/uploads/:path*` },
+    ];
   },
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];

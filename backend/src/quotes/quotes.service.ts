@@ -143,6 +143,7 @@ export class QuotesService {
     return this.prisma.quoteRequest.findMany({
       where: { houseboatId },
       orderBy: { status: 'asc' },
+      include: { customer: { select: { id: true, name: true, phone: true } } },
     });
   }
 

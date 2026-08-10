@@ -13,6 +13,7 @@ import {
   AsyncBlock,
 } from '@/components/owner/ui';
 import { Pill } from '@/components/owner/Pill';
+import { MediaGallery, BoatLogo } from '@/components/owner/MediaGallery';
 import { apiErrorMessage, humanize } from '@/lib/owner/format';
 
 interface FoodMenu {
@@ -47,6 +48,7 @@ interface BoatDetail {
   foodMenu: FoodMenu | null;
   bankAccount: BankAccount | null;
   childPolicy: ChildBand[] | null;
+  logoUrl: string | null;
   profileCompletePct: number;
   status: string;
   operatingDates: string[];
@@ -226,7 +228,7 @@ export default function OwnerProfilePage() {
     {
       label: 'Operating dates',
       done: (d?.operatingDates?.length ?? 0) > 0,
-      href: '/owner/calendar',
+      href: '/owner/schedule',
     },
   ];
 
@@ -282,6 +284,18 @@ export default function OwnerProfilePage() {
                     />
                   </Field>
                 </div>
+              </Card>
+
+              <Card title="Logo" sub="square image, shown as a circle">
+                <BoatLogo
+                  houseboatId={boatId}
+                  logoUrl={boat.data?.logoUrl ?? null}
+                  onChange={() => boat.mutate()}
+                />
+              </Card>
+
+              <Card title="Photos & video" sub="up to 12 images — the first is your cover">
+                <MediaGallery houseboatId={boatId} max={12} />
               </Card>
 
               <Card title="Food menu" sub="one line per meal">
@@ -430,7 +444,7 @@ export default function OwnerProfilePage() {
                 <Note kind={boat.data?.status === 'live' ? 'ok' : 'info'} style={{ marginTop: 12 }}>
                   {boat.data?.status === 'live'
                     ? 'Approved and visible to customers'
-                    : 'The platform reviews the boat once every item is complete. Operating dates are set on the Calendar page.'}
+                    : 'The platform reviews the boat once every item is complete. Operating dates are set in the Schedule editor.'}
                 </Note>
               </Card>
 

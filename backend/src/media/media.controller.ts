@@ -75,6 +75,40 @@ export class MediaController {
     });
   }
 
+  @Post('logo')
+  @RequirePermission({ module: 'assets', action: 'edit' })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: MAX_UPLOAD_BYTES },
+    }),
+  )
+  uploadLogo(
+    @Param('houseboatId') houseboatId: string,
+    @CurrentUser() user: AuthUser,
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [new MaxFileSizeValidator({ maxSize: MAX_UPLOAD_BYTES })],
+        fileIsRequired: true,
+      }),
+    )
+    file: { buffer: Buffer; mimetype: string },
+  ) {
+    if (!file.mimetype.startsWith('image/')) {
+      throw new BadRequestException('File must be an image');
+    }
+    return this.media.uploadLogo(houseboatId, user.id, file.buffer);
+  }
+
+  @Delete('logo')
+  @RequirePermission({ module: 'assets', action: 'edit' })
+  removeLogo(
+    @Param('houseboatId') houseboatId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.media.removeLogo(houseboatId, user.id);
+  }
+
   @Post('videos')
   @RequirePermission({ module: 'assets', action: 'edit' })
   createVideo(

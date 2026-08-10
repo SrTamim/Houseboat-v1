@@ -1,5 +1,7 @@
 import 'reflect-metadata';
+import { join } from 'path';
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { ValidationPipe } from '@nestjs/common';
 import { Logger } from 'nestjs-pino';
 import { ConfigService } from '@nestjs/config';
@@ -23,7 +25,9 @@ async function bootstrap(): Promise<void> {
   validateEnv();
 
   // bufferLogs so startup messages replay through pino once it's installed.
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bufferLogs: true,
+  });
   const logger = app.get(Logger);
   app.useLogger(logger);
   const config = app.get(ConfigService);
@@ -106,6 +110,19 @@ async function bootstrap(): Promise<void> {
   );
 
   app.setGlobalPrefix('api');
+
+  // Local storage driver serves uploaded (already-compressed, immutable) webp
+  // images off disk. Mounted outside the /api prefix. In production STORAGE_DRIVER
+  // is 'r2' and images are served by the bucket/CDN instead, so this is skipped.
+  if ((config.get<string>('storage.driver') ?? 'local') === 'local') {
+    const localDir = config.get<string>('storage.localDir') ?? 'uploads';
+    app.useStaticAssets(join(process.cwd(), localDir), {
+      prefix: '/uploads/',
+      setHeaders: (res) => {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      },
+    });
+  }
 
   // API docs. Off in production unless SWAGGER_ENABLED=true (don't expose the
   // full surface publicly by default).

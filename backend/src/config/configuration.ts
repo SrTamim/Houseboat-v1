@@ -28,6 +28,10 @@ export default () => ({
   encryptionKey: process.env.ENCRYPTION_KEY ?? 'dev-insecure-encryption-key',
 
   storage: {
+    // 'local' writes to disk + serves via /uploads (dev default, zero config);
+    // 'r2' uploads to Cloudflare R2. Same StorageService surface either way.
+    driver: process.env.STORAGE_DRIVER ?? 'local',
+    localDir: process.env.STORAGE_LOCAL_DIR ?? 'uploads',
     endpoint: process.env.S3_ENDPOINT,
     region: process.env.S3_REGION ?? 'auto',
     bucket: process.env.S3_BUCKET,

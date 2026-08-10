@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import useSWR from 'swr';
 import { api, fetcher } from '@/lib/api';
 import { useActiveBoat } from '@/lib/owner/boat-context';
@@ -189,6 +190,9 @@ export default function OwnerSettingsPage() {
               Times are stored in UTC and shown in your local zone. The audit trail keeps
               both, so a dispute can always be resolved against server time.
             </Note>
+            <Link className="btn btn-o" href="/owner/profile" style={{ marginTop: 12 }}>
+              Edit boat profile
+            </Link>
           </Card>
         </div>
 
@@ -249,6 +253,9 @@ export default function OwnerSettingsPage() {
               suspension is not something you can trigger yourself, because live bookings
               have to be honoured or refunded first.
             </Note>
+            <Link className="btn btn-o" href="/owner/team" style={{ marginTop: 12 }}>
+              Manage access
+            </Link>
           </Card>
         </div>
       </div>

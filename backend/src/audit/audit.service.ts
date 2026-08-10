@@ -1,4 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { newId } from '../common/uuid';
 
@@ -117,7 +118,14 @@ export class AuditService implements OnModuleInit {
    */
   async list(
     houseboatId: string,
-    opts: { action?: string; cursor?: string; limit?: number } = {},
+    opts: {
+      action?: string;
+      search?: string;
+      from?: string;
+      to?: string;
+      cursor?: string;
+      limit?: number;
+    } = {},
   ) {
     const limit = Math.min(Math.max(opts.limit ?? 50, 1), 200);
 
@@ -130,21 +138,48 @@ export class AuditService implements OnModuleInit {
       }
     }
 
+    // Each condition group is a separate AND element so they intersect rather
+    // than collide: the keyset OR, the search OR and the serverTime range all
+    // constrain independently. Sharing one top-level OR key would let a later
+    // filter silently overwrite the keyset cursor and break "Load more".
+    const and: Prisma.AuditLogWhereInput[] = [];
+
+    if (before) {
+      and.push({
+        OR: [
+          { serverTime: { lt: before.serverTime } },
+          { serverTime: before.serverTime, id: { lt: before.id } },
+        ],
+      });
+    }
+
+    if (opts.search) {
+      // phone is digits — plain contains, no case folding.
+      and.push({
+        OR: [
+          { action: { contains: opts.search, mode: 'insensitive' } },
+          { actor: { is: { name: { contains: opts.search, mode: 'insensitive' } } } },
+          { actor: { is: { phone: { contains: opts.search } } } },
+        ],
+      });
+    }
+
+    const from = opts.from ? new Date(opts.from) : null;
+    const to = opts.to ? new Date(opts.to) : null;
+    if ((from && !Number.isNaN(from.getTime())) || (to && !Number.isNaN(to.getTime()))) {
+      and.push({
+        serverTime: {
+          ...(from && !Number.isNaN(from.getTime()) ? { gte: from } : {}),
+          ...(to && !Number.isNaN(to.getTime()) ? { lte: to } : {}),
+        },
+      });
+    }
+
     const rows = await this.prisma.auditLog.findMany({
       where: {
         houseboatId,
         ...(opts.action ? { action: opts.action } : {}),
-        ...(before
-          ? {
-              OR: [
-                { serverTime: { lt: before.serverTime } },
-                {
-                  serverTime: before.serverTime,
-                  id: { lt: before.id },
-                },
-              ],
-            }
-          : {}),
+        ...(and.length ? { AND: and } : {}),
       },
       orderBy: [{ serverTime: 'desc' }, { id: 'desc' }],
       take: limit + 1,

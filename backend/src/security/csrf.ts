@@ -39,6 +39,26 @@ export function buildCsrf(secret: string, cookieSecure: boolean) {
     // Skip protection when there is no cookie session to forge, or when the
     // caller authenticates via Bearer header (non-browser client).
     skipCsrfProtection: (req: Request) => {
+      // Exempt the silent-refresh route. The Edge middleware refreshes the
+      // access token on navigation (before any page render), and cannot always
+      // present a CSRF token there — the hb_csrf cookie is minted lazily by GET
+      // /auth/csrf on the first mutating XHR, so on a cold navigation it may not
+      // exist yet. Without this, the proactive refresh 403s and an owner is
+      // bounced to login every ~15 minutes when the access token lapses.
+      //
+      // Safe: refresh already requires a valid HttpOnly hb_refresh JWT that
+      // cross-origin JS cannot read, sameSite blocks the cross-site form-post
+      // case, and the refresh token is single-use (rotated per call). A forced
+      // cross-site refresh could at most rotate the victim's own token — no
+      // privilege gain, no state mutation.
+      //
+      // Exact match: doubleCsrfProtection runs as raw Express middleware and the
+      // global 'api' prefix is preserved end-to-end (Next rewrites /api/* to
+      // /api/*), so req.path here is '/api/auth/refresh'. Match it exactly (with
+      // an optional trailing slash) so nothing else is widened.
+      if (req.path === '/api/auth/refresh' || req.path === '/api/auth/refresh/') {
+        return true;
+      }
       const cookies = (req as Request & { cookies?: Record<string, string> })
         .cookies;
       const hasCookieSession = Boolean(cookies?.[SESSION_COOKIE]);

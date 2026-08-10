@@ -16,6 +16,8 @@ export const OFFLINE_ALLOWED = [
   'mark_cash_paid',
   'mark_not_arrived',
   'date_change',
+  'maintenance_request', // create OR update a ticket; payload.op discriminates
+  'checkin_set', // booking check-in status, set on the departure manifest
 ] as const;
 export type OfflineAction = (typeof OFFLINE_ALLOWED)[number];
 

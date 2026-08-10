@@ -19,6 +19,6 @@ import { MoneyModule } from '../money/money.module';
     WaitlistService,
     OwnerBookingsService,
   ],
-  exports: [HoldsService, BookingService],
+  exports: [HoldsService, BookingService, OwnerBookingsService],
 })
 export class BookingModule {}

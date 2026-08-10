@@ -44,22 +44,32 @@ export class AuthController {
     };
   }
 
-  private setAuthCookies(res: Response, access: string, refresh: string): void {
+  private setAuthCookies(
+    res: Response,
+    access: string,
+    refresh: string,
+    rememberMe = false,
+  ): void {
     res.cookie(ACCESS_COOKIE, access, {
       ...this.cookieBase(),
-      maxAge: 15 * 60 * 1000, // 15m
+      maxAge: 15 * 60 * 1000, // 15m — middleware refreshes it silently
     });
     res.cookie(REFRESH_COOKIE, refresh, {
       ...this.cookieBase(),
-      maxAge: 30 * 24 * 60 * 60 * 1000, // 30d
+      // Remembered: persist 30d. Otherwise session-scoped (no maxAge) so it
+      // drops when the browser closes. The refresh JWT still carries its own
+      // 30d expiry either way; the cookie is what makes it survive a restart.
+      ...(rememberMe ? { maxAge: 30 * 24 * 60 * 60 * 1000 } : {}),
     });
   }
 
   /** Stable per-login id for CSRF binding — survives access-token rotation. */
-  private setSessionCookie(res: Response): void {
+  private setSessionCookie(res: Response, rememberMe = false): void {
     res.cookie(SESSION_COOKIE, randomUUID(), {
       ...this.cookieBase(),
-      maxAge: 30 * 24 * 60 * 60 * 1000, // 30d
+      // Track the refresh cookie's lifetime so CSRF binding lasts exactly as
+      // long as the session it protects.
+      ...(rememberMe ? { maxAge: 30 * 24 * 60 * 60 * 1000 } : {}),
     });
   }
 
@@ -87,8 +97,8 @@ export class AuthController {
   ) {
     // Pass the request so successes AND failures are audited with origin.
     const { account, tokens } = await this.auth.login(dto, req);
-    this.setAuthCookies(res, tokens.access, tokens.refresh);
-    this.setSessionCookie(res);
+    this.setAuthCookies(res, tokens.access, tokens.refresh, tokens.remember);
+    this.setSessionCookie(res, tokens.remember);
     return { account };
   }
 
@@ -134,7 +144,11 @@ export class AuthController {
     const token = cookies?.[REFRESH_COOKIE];
     if (!token) throw new UnauthorizedException('No refresh token');
     const tokens = await this.auth.refresh(token);
-    this.setAuthCookies(res, tokens.access, tokens.refresh);
+    // Only the auth cookies rotate here. hb_sid is deliberately NOT re-issued:
+    // the CSRF token is bound to it, so minting a new sid would invalidate the
+    // client's cached CSRF token and 403 its next state-changing request. The
+    // sid set at login already carries the right lifetime.
+    this.setAuthCookies(res, tokens.access, tokens.refresh, tokens.remember);
     return { ok: true };
   }
 

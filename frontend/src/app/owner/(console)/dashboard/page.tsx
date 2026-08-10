@@ -43,6 +43,7 @@ interface DashboardResponse {
     lowStockNames: string[];
     quotesWaiting: number;
     nextQuoteExpiresAt: string | null;
+    totalRevenue: string;
   };
   departuresToday: {
     id: string;
@@ -161,7 +162,7 @@ function buildTodos(d: DashboardResponse): TodoRow[] {
     todos.push({
       tone: 'warn',
       label: 'Maintenance',
-      detail: `${d.badges.maintenance} service or damage item${d.badges.maintenance > 1 ? 's' : ''} open`,
+      detail: `${d.badges.maintenance} open maintenance request${d.badges.maintenance > 1 ? 's' : ''}`,
       href: '/owner/maintenance',
       action: 'Open',
     });
@@ -211,16 +212,6 @@ export default function OwnerDashboardPage() {
 
       <Kpis>
         <Kpi
-          icon="⛴️"
-          label="Departing today"
-          value={k?.departingToday ?? '—'}
-          detail={
-            k && k.cabinsTotalToday > 0
-              ? `${k.cabinsSoldToday} of ${k.cabinsTotalToday} cabins sold`
-              : 'No departures scheduled'
-          }
-        />
-        <Kpi
           icon="💸"
           label="Payout pending"
           value={k ? money(k.payoutPending) : '—'}
@@ -234,11 +225,22 @@ export default function OwnerDashboardPage() {
           detail="Wages pending"
         />
         <Kpi
-          icon="📦"
-          label="Low stock"
-          value={k?.lowStock ?? '—'}
-          alert={Boolean(k && k.lowStock > 0)}
-          detail={k?.lowStockNames.length ? k.lowStockNames.join(' · ') : 'All above reorder'}
+          icon="💵"
+          label="Total revenue"
+          value={k ? money(k.totalRevenue) : '—'}
+          detail="Lifetime"
+        />
+        <Kpi
+          icon="🛏️"
+          label="Cabins booked"
+          value={k ? `${k.cabinsSoldToday} / ${k.cabinsTotalToday}` : '—'}
+          detail={
+            k
+              ? k.cabinsTotalToday > 0
+                ? `${k.cabinsTotalToday - k.cabinsSoldToday} free today`
+                : 'No departures today'
+              : undefined
+          }
         />
         <Kpi
           icon="💬"

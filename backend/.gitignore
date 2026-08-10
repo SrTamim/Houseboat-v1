@@ -1,0 +1,2 @@
+# Local storage driver output (STORAGE_DRIVER=local). Never commit uploads.
+/uploads/

@@ -25,9 +25,12 @@ export class ListMediaQueryDto {
   @IsOptional() @IsUUID() cabinId?: string;
 }
 
-/** Add a YouTube video to a boat/cabin gallery. */
+/**
+ * Add a video link to a boat/cabin gallery. Must be an https URL for an
+ * allowlisted provider — the service rejects anything that doesn't resolve.
+ */
 export class CreateVideoDto {
   @IsOptional() @IsUUID() cabinId?: string;
-  @IsUrl() youtubeUrl!: string;
+  @IsUrl({ protocols: ['https'], require_protocol: true }) videoUrl!: string;
   @IsOptional() @IsInt() @Min(0) sortOrder?: number;
 }

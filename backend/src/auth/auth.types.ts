@@ -5,6 +5,7 @@ export interface JwtPayload {
   isPlatform: boolean;
   type: 'access' | 'refresh';
   jti?: string; // present on refresh tokens — used for revocation
+  remember?: boolean; // refresh tokens only — "keep me signed in", survives rotation
 }
 
 /** Shape attached to req.user after AuthGuard runs. */

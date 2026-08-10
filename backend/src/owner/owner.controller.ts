@@ -15,7 +15,7 @@ import {
 
 /**
  * Owner console read surface: the aggregated views that don't belong to any
- * single domain module — dashboard, calendar, profit reports, guest directory
+ * single domain module — dashboard, profit reports, guest directory
  * and the boat's audit trail.
  *
  * These are the first routes to use the `reports` permission module, which the
@@ -35,15 +35,6 @@ export class OwnerController {
   @RequirePermission({ module: 'reports', action: 'view' })
   getDashboard(@Param('houseboatId') houseboatId: string) {
     return this.dashboard.dashboard(houseboatId);
-  }
-
-  @Get('calendar')
-  @RequirePermission({ module: 'trips', action: 'view' })
-  getCalendar(
-    @Param('houseboatId') houseboatId: string,
-    @Query() query: MonthQueryDto,
-  ) {
-    return this.dashboard.calendar(houseboatId, query.month);
   }
 
   @Get('reports/trips')

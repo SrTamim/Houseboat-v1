@@ -10,6 +10,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { PermissionMap } from '../permission.types';
 import { LEN_CODE, LEN_NAME } from '../../common/field-limits';
 
@@ -47,5 +48,6 @@ export class MySettingsDto {
    * Left open rather than a fixed DTO so adding an event type needs no
    * migration; the console owns which keys it renders.
    */
+  @ApiPropertyOptional({ type: 'object', additionalProperties: { type: 'boolean' } })
   @IsOptional() @IsObject() notificationPrefs?: Record<string, boolean>;
 }

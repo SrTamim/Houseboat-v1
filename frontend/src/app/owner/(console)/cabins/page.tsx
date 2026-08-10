@@ -16,7 +16,14 @@ import {
 import { Pill } from '@/components/owner/Pill';
 import { Drawer } from '@/components/owner/Drawer';
 import { CabGrid, type CabTile } from '@/components/owner/CabGrid';
+import {
+  MediaGallery,
+  MediaQueue,
+  uploadMediaImage,
+} from '@/components/owner/MediaGallery';
 import { apiErrorMessage } from '@/lib/owner/format';
+
+const MAX_CABIN_IMAGES = 6;
 
 interface BoatDetail {
   decks: {
@@ -98,6 +105,9 @@ export default function OwnerCabinsPage() {
   const [cabinName, setCabinName] = useState('');
   const [cabinDeck, setCabinDeck] = useState('');
   const [cabinCategory, setCabinCategory] = useState('');
+  // Images queued while creating a cabin (no cabinId exists yet). Uploaded in
+  // the background right after the cabin is created.
+  const [cabinImages, setCabinImages] = useState<File[]>([]);
 
   const boat = useSWR<BoatDetail>(`/houseboats/${boatId}/manage`, fetcher, {
     revalidateOnFocus: false,
@@ -151,6 +161,7 @@ export default function OwnerCabinsPage() {
     setCabinName(cabin?.name ?? '');
     setCabinDeck(cabin?.deckId ?? decks[0]?.id ?? '');
     setCabinCategory(cabin?.cabinCategoryId ?? categories[0]?.id ?? '');
+    setCabinImages([]);
     setDrawer({ kind: 'cabin', id: cabin?.id });
   }
 
@@ -184,8 +195,29 @@ export default function OwnerCabinsPage() {
           cabinCategoryId: cabinCategory,
           name: cabinName,
         };
-        if (drawer.id) await api.patch(`${base}/cabins/${drawer.id}`, body);
-        else await api.post(`${base}/cabins`, body);
+        if (drawer.id) {
+          await api.patch(`${base}/cabins/${drawer.id}`, body);
+        } else {
+          const { data: created } = await api.post<{ id: string }>(
+            `${base}/cabins`,
+            body,
+          );
+          // Background-upload the queued images — don't block closing the drawer.
+          // A failed upload doesn't undo the created cabin; surface it quietly.
+          if (cabinImages.length > 0 && created?.id) {
+            const queued = cabinImages;
+            void (async () => {
+              for (const file of queued) {
+                try {
+                  await uploadMediaImage(boatId, file, created.id);
+                } catch {
+                  setError('Cabin created, but some images failed to upload.');
+                }
+              }
+              await boat.mutate();
+            })();
+          }
+        }
       }
       setDrawer(null);
       await boat.mutate();
@@ -487,6 +519,22 @@ export default function OwnerCabinsPage() {
                     </option>
                   ))}
                 </select>
+              </Field>
+
+              <Field label={`Cabin photos (up to ${MAX_CABIN_IMAGES})`}>
+                {drawer.id ? (
+                  <MediaGallery
+                    houseboatId={boatId}
+                    cabinId={drawer.id}
+                    max={MAX_CABIN_IMAGES}
+                  />
+                ) : (
+                  <MediaQueue
+                    files={cabinImages}
+                    onChange={setCabinImages}
+                    max={MAX_CABIN_IMAGES}
+                  />
+                )}
               </Field>
             </>
           ) : null}

@@ -166,6 +166,9 @@ async function deleteBoatCascade(slug: string) {
   await prisma.tripPackage.deleteMany({ where: { houseboatId } });
   await prisma.groupPriceBand.deleteMany({ where: { houseboatId } });
   await prisma.quoteRequest.deleteMany({ where: { houseboatId } });
+  // Coupons key off the boat AND booking.couponId (SET NULL). Bookings are
+  // already gone above, so nothing blocks dropping them before the boat.
+  await prisma.coupon.deleteMany({ where: { houseboatId } });
   await prisma.cancellationPolicy.deleteMany({ where: { houseboatId } });
 
   // Staff tree.
@@ -177,6 +180,9 @@ async function deleteBoatCascade(slug: string) {
   });
   await prisma.houseboatStaff.deleteMany({ where: { houseboatId } });
 
+  // Media before cabins — houseboat_media.cabin_id FK is RESTRICT.
+  await prisma.houseboatMedia.deleteMany({ where: { houseboatId } });
+
   // Cabins → decks / categories.
   await prisma.houseboatCabin.deleteMany({
     where: { deck: { houseboatId } },
@@ -184,10 +190,8 @@ async function deleteBoatCascade(slug: string) {
   await prisma.houseboatDeck.deleteMany({ where: { houseboatId } });
   await prisma.houseboatCabinCategory.deleteMany({ where: { houseboatId } });
 
-  // Maintenance + inventory + costs.
-  await prisma.maintenanceServiceLog.deleteMany({ where: { houseboatId } });
-  await prisma.maintenanceTask.deleteMany({ where: { houseboatId } });
-  await prisma.damageLog.deleteMany({ where: { houseboatId } });
+  // Maintenance + inventory + costs. Request comments cascade on delete.
+  await prisma.maintenanceRequest.deleteMany({ where: { houseboatId } });
   await prisma.inventoryItem.deleteMany({ where: { houseboatId } });
   await prisma.cost.deleteMany({ where: { houseboatId } });
 
@@ -368,7 +372,7 @@ async function ensureDemoData(
   // Operating dates: next 30 days, only when currently empty.
   const boat = await prisma.houseboat.findUniqueOrThrow({
     where: { id: houseboatId },
-    select: { operatingDates: true, engineHours: true },
+    select: { operatingDates: true },
   });
   if (boat.operatingDates.length === 0) {
     await prisma.houseboat.update({
@@ -464,72 +468,98 @@ async function ensureDemoData(
     }
   }
 
-  // Maintenance: meter + tasks + one log + damage entries.
-  if (boat.engineHours === 0) {
-    await prisma.houseboat.update({
-      where: { id: houseboatId },
-      data: { engineHours: 1284, engineHoursUpdatedAt: new Date() },
-    });
-  }
-  const task = await prisma.maintenanceTask.findFirst({ where: { houseboatId } });
-  if (!task) {
-    const oil = await prisma.maintenanceTask.create({
+  // Maintenance requests: a spread of statuses and urgencies, one with a
+  // comment thread so the request detail view has something to show.
+  const existingRequest = await prisma.maintenanceRequest.findFirst({
+    where: { houseboatId },
+  });
+  if (!existingRequest) {
+    const inHours = (h: number) => new Date(Date.now() + h * 3_600_000);
+    const agoDays = (d: number) => new Date(Date.now() - d * 86_400_000);
+
+    const railing = await prisma.maintenanceRequest.create({
       data: {
         id: id(),
         houseboatId,
-        title: 'Engine oil change',
-        intervalKind: 'engine_hours',
-        intervalValue: 100,
-        dueAtHours: 1300,
-        lastDoneHours: 1200,
-        lastDoneAt: new Date(Date.now() - 20 * 86_400_000),
-        status: 'active',
+        topic: 'Railing loose on upper deck',
+        urgency: 'high',
+        status: 'in_progress',
+        requestedAt: inHours(6),
+        createdBy: ownerAccountId,
+        comments: {
+          create: [
+            {
+              id: id(),
+              body: 'Port-side railing bracket needs re-bolting before next trip.',
+              authorId: ownerAccountId,
+            },
+            {
+              id: id(),
+              body: 'Workshop coming tomorrow morning.',
+              statusChange: 'in_progress',
+              authorId: ownerAccountId,
+            },
+          ],
+        },
       },
     });
-    const due = new Date();
-    due.setUTCDate(due.getUTCDate() + 14);
-    await prisma.maintenanceTask.create({
+    void railing;
+
+    await prisma.maintenanceRequest.create({
       data: {
         id: id(),
         houseboatId,
-        title: 'Hull inspection',
-        intervalKind: 'calendar',
-        intervalValue: 30,
-        dueDate: due,
-        status: 'active',
+        topic: 'Generator oil top-up',
+        urgency: 'medium',
+        status: 'pending',
+        requestedAt: inHours(48),
+        createdBy: ownerAccountId,
       },
     });
-    await prisma.maintenanceServiceLog.create({
+
+    await prisma.maintenanceRequest.create({
       data: {
         id: id(),
         houseboatId,
-        taskId: oil.id,
-        serviceDate: new Date(Date.now() - 20 * 86_400_000),
-        engineHours: 1200,
-        cost: 2500,
-        note: 'Oil + filter changed at ghat workshop.',
-        loggedBy: ownerAccountId,
+        topic: 'Repaint life-jacket locker',
+        urgency: 'low',
+        status: 'pending',
+        requestedAt: inHours(120),
+        createdBy: ownerAccountId,
       },
     });
-    await prisma.damageLog.create({
+
+    await prisma.maintenanceRequest.create({
       data: {
         id: id(),
         houseboatId,
-        title: 'Railing loose on upper deck',
-        detail: 'Port-side railing bracket needs re-bolting.',
-        status: 'open',
-        reportedBy: ownerAccountId,
+        topic: 'Cabin 102 door latch',
+        urgency: 'medium',
+        status: 'complete',
+        requestedAt: agoDays(6),
+        closedAt: agoDays(5),
+        createdBy: ownerAccountId,
+        comments: {
+          create: {
+            id: id(),
+            body: 'Latch replaced, cost ৳800.',
+            statusChange: 'complete',
+            authorId: ownerAccountId,
+          },
+        },
       },
     });
-    await prisma.damageLog.create({
+
+    await prisma.maintenanceRequest.create({
       data: {
         id: id(),
         houseboatId,
-        title: 'Cabin 102 door latch',
-        status: 'fixed',
-        repairCost: 800,
-        reportedBy: ownerAccountId,
-        fixedAt: new Date(Date.now() - 5 * 86_400_000),
+        topic: 'Deck-light replacement (duplicate)',
+        urgency: 'low',
+        status: 'canceled',
+        requestedAt: agoDays(3),
+        closedAt: agoDays(3),
+        createdBy: ownerAccountId,
       },
     });
   }
@@ -777,8 +807,6 @@ async function reseedJolKolol(opts: {
       profileCompletePct: 100,
       operatingDates: upcomingDates(45),
       defaultCrew: [], // filled after staff are created
-      engineHours: 1284,
-      engineHoursUpdatedAt: new Date(),
     },
   });
   const houseboatId = boat.id;
@@ -873,11 +901,13 @@ async function reseedJolKolol(opts: {
     },
   });
 
-  // ---- Pricing: default + weekend profiles, full rule table each. ----
+  // ---- Pricing: route-scoped general/weekend/holiday, full rule table each. ----
   const generalProfile = await prisma.pricingProfile.create({
     data: {
       id: id(),
       houseboatId,
+      routeId,
+      priceType: 'general',
       name: 'General Day',
       isDefault: true,
       dates: [],
@@ -887,10 +917,24 @@ async function reseedJolKolol(opts: {
     data: {
       id: id(),
       houseboatId,
+      routeId,
+      priceType: 'weekend',
       name: 'Weekend',
       isDefault: false,
-      // Next two Fridays as weekend-priced dates.
-      dates: [dayOffset(4), dayOffset(11)],
+      // Weekend is weekday-driven (auto Fri/Sat) — no date list.
+      dates: [],
+    },
+  });
+  const holidayProfile = await prisma.pricingProfile.create({
+    data: {
+      id: id(),
+      houseboatId,
+      routeId,
+      priceType: 'holiday',
+      name: 'Holiday',
+      isDefault: false,
+      // A 3-day holiday range (e.g. Eid) — stored as individual days.
+      dates: [dayOffset(20), dayOffset(21), dayOffset(22)],
     },
   });
 
@@ -917,6 +961,14 @@ async function reseedJolKolol(opts: {
     { profileId: weekendProfile.id, categoryId: familyNonAc.id, occupancy: 2, price: 5000 },
     { profileId: weekendProfile.id, categoryId: familyNonAc.id, occupancy: 4, price: 4200 },
     { profileId: weekendProfile.id, categoryId: familyNonAc.id, occupancy: 6, price: 3800 },
+    // Holiday — Luxury AC (highest)
+    { profileId: holidayProfile.id, categoryId: luxuryAc.id, occupancy: 1, price: 8500 },
+    { profileId: holidayProfile.id, categoryId: luxuryAc.id, occupancy: 2, price: 7500 },
+    { profileId: holidayProfile.id, categoryId: luxuryAc.id, occupancy: 3, price: 7000 },
+    // Holiday — Family Non-AC (highest)
+    { profileId: holidayProfile.id, categoryId: familyNonAc.id, occupancy: 2, price: 6000 },
+    { profileId: holidayProfile.id, categoryId: familyNonAc.id, occupancy: 4, price: 5200 },
+    { profileId: holidayProfile.id, categoryId: familyNonAc.id, occupancy: 6, price: 4800 },
   ];
   for (const r of priceTable) {
     await prisma.pricingRule.create({
@@ -1365,8 +1417,159 @@ async function reseedJolKolol(opts: {
     },
   });
   void original;
-  void futureB;
   void weekendDep;
+
+  // ---- Media gallery: images + one video per allowlisted provider. ----
+  // Video URLs are canonical shapes that pass resolveVideoUrl() in
+  // src/media/video-providers.ts (youtube/vimeo/google_drive framable inline;
+  // facebook/instagram link out). One image is cabin-scoped, rest boat-level.
+  const mediaRows: {
+    kind: 'image' | 'video';
+    storageKey: string | null;
+    videoUrl: string | null;
+    videoProvider: string | null;
+    cabinId: string | null;
+    sortOrder: number;
+  }[] = [
+    { kind: 'image', storageKey: 'demo/jol-kolol/exterior.jpg', videoUrl: null, videoProvider: null, cabinId: null, sortOrder: 0 },
+    { kind: 'image', storageKey: 'demo/jol-kolol/deck.jpg', videoUrl: null, videoProvider: null, cabinId: null, sortOrder: 1 },
+    { kind: 'image', storageKey: 'demo/jol-kolol/luxury-cabin.jpg', videoUrl: null, videoProvider: null, cabinId: cabins[0].id, sortOrder: 2 },
+    { kind: 'video', storageKey: null, videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', videoProvider: 'youtube', cabinId: null, sortOrder: 3 },
+    { kind: 'video', storageKey: null, videoUrl: 'https://vimeo.com/76979871', videoProvider: 'vimeo', cabinId: null, sortOrder: 4 },
+    { kind: 'video', storageKey: null, videoUrl: 'https://drive.google.com/file/d/1a2B3c4D5e6F7g8H9i0J1k2L3m4N5o6P7/view', videoProvider: 'google_drive', cabinId: null, sortOrder: 5 },
+    { kind: 'video', storageKey: null, videoUrl: 'https://www.facebook.com/watch/?v=1234567890', videoProvider: 'facebook', cabinId: null, sortOrder: 6 },
+    { kind: 'video', storageKey: null, videoUrl: 'https://www.instagram.com/reel/CabcDEF1234/', videoProvider: 'instagram', cabinId: null, sortOrder: 7 },
+  ];
+  for (const m of mediaRows) {
+    await prisma.houseboatMedia.create({
+      data: { id: id(), houseboatId, uploadedBy: ownerAccountId, ...m },
+    });
+  }
+
+  // ---- Weekly schedule engine: one active schedule, 2 trip slots. ----
+  const schedule = await prisma.boatSchedule.create({
+    data: { id: id(), houseboatId, packageId: pkg.id, active: true },
+  });
+  await prisma.tripScheduleSlot.create({
+    data: {
+      id: id(),
+      scheduleId: schedule.id,
+      slotNo: 1,
+      weekdays: [4, 5], // Thu, Fri
+      pricingProfileId: generalProfile.id,
+    },
+  });
+  await prisma.tripScheduleSlot.create({
+    data: {
+      id: id(),
+      scheduleId: schedule.id,
+      slotNo: 2,
+      weekdays: [6], // Sat
+      pricingProfileId: weekendProfile.id,
+    },
+  });
+
+  // ---- Active cabin hold (10-min TTL) on a future departure. ----
+  await prisma.cabinHold.create({
+    data: {
+      id: id(),
+      cabinId: cabins[0].id,
+      departureId: futureB.id,
+      heldBy: ownerAccountId,
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+      state: 'held',
+    },
+  });
+
+  // ---- Waitlist entry on a future departure. ----
+  const waitlistCustomer = await ensureDemoAccount('+8801755550020', 'Habib Ullah');
+  await prisma.bookingWaitlist.create({
+    data: {
+      id: id(),
+      departureId: futureC.id,
+      customerId: waitlistCustomer.id,
+      partySize: 3,
+    },
+  });
+
+  // ---- Quote requests: one pending, one priced/sent. ----
+  const quoteCustomer = await ensureDemoAccount('+8801755550021', 'Reza Karim');
+  await prisma.quoteRequest.create({
+    data: {
+      id: id(),
+      houseboatId,
+      customerId: quoteCustomer.id,
+      date: dayOffset(12),
+      groupSize: 18,
+      specialNeeds: 'Vegetarian meals for the whole group.',
+      status: 'requested',
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    },
+  });
+  await prisma.quoteRequest.create({
+    data: {
+      id: id(),
+      houseboatId,
+      customerId: quoteCustomer.id,
+      date: dayOffset(16),
+      groupSize: 10,
+      specialNeeds: 'Anniversary decoration in one cabin.',
+      quotedPrice: 55000,
+      status: 'sent',
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    },
+  });
+
+  // ---- Coupon (now covered by deleteBoatCascade). ----
+  await prisma.coupon.create({
+    data: {
+      id: id(),
+      houseboatId,
+      code: 'MONSOON10',
+      kind: 'percent',
+      value: 10,
+      validFrom: dayOffset(-5),
+      validTo: dayOffset(30),
+      isActive: true,
+    },
+  });
+
+  // ---- Notifications. Keyed by accountId (not houseboatId), so the boat
+  // teardown doesn't clear them; clear this seed's accounts up front to stay
+  // idempotent, then reseed. ----
+  await prisma.notification.deleteMany({
+    where: { accountId: { in: [ownerAccountId, waitlistCustomer.id] } },
+  });
+  await prisma.notification.create({
+    data: {
+      id: id(),
+      accountId: ownerAccountId,
+      event: 'booking',
+      channel: 'sms',
+      delivered: true,
+      payload: { phone: '+8801755550001', message: 'New booking confirmed for Jol Kolol.' },
+    },
+  });
+  await prisma.notification.create({
+    data: {
+      id: id(),
+      accountId: ownerAccountId,
+      event: 'payment_due',
+      channel: 'email',
+      delivered: false,
+      payload: { email: 'owner@houseboat.test', subject: 'Payment due', message: 'A customer payment is outstanding.' },
+    },
+  });
+  await prisma.notification.create({
+    data: {
+      id: id(),
+      accountId: waitlistCustomer.id,
+      event: 'offer',
+      channel: 'sms',
+      delivered: true,
+      payload: { phone: '+8801755550020', message: 'A cabin opened up on your waitlisted trip.' },
+    },
+  });
 
   return houseboatId;
 }

@@ -3,10 +3,16 @@ import { AssetsController } from './assets.controller';
 import { HouseboatAdminService } from './houseboat-admin.service';
 import { RoutesService } from './routes.service';
 import { PlatformBoatsService } from './platform-boats.service';
+import { StorageService } from '../storage/storage.service';
 
 @Module({
   controllers: [AssetsController],
-  providers: [HouseboatAdminService, RoutesService, PlatformBoatsService],
+  providers: [
+    HouseboatAdminService,
+    RoutesService,
+    PlatformBoatsService,
+    StorageService,
+  ],
   exports: [HouseboatAdminService, RoutesService],
 })
 export class AssetsModule {}

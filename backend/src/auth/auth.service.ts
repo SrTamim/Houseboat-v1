@@ -28,7 +28,7 @@ export class AuthService {
     private readonly redis: RedisService,
   ) {}
 
-  private async signTokens(sub: string, isPlatform: boolean) {
+  private async signTokens(sub: string, isPlatform: boolean, remember = false) {
     const access = await this.jwt.signAsync(
       { sub, isPlatform, type: 'access' } satisfies JwtPayload,
       {
@@ -38,15 +38,17 @@ export class AuthService {
     );
     // Each refresh token carries a unique jti so it can be individually revoked
     // (on logout or rotation). Rotation makes a stolen token single-use.
+    // `remember` rides along so the "keep me signed in" choice survives every
+    // rotation — the cookie maxAge is re-derived from it on each refresh.
     const jti = randomUUID();
     const refresh = await this.jwt.signAsync(
-      { sub, isPlatform, type: 'refresh', jti } satisfies JwtPayload,
+      { sub, isPlatform, type: 'refresh', jti, remember } satisfies JwtPayload,
       {
         secret: this.config.get<string>('auth.refreshSecret'),
         expiresIn: this.config.get<string>('auth.refreshExpiresIn'),
       },
     );
-    return { access, refresh };
+    return { access, refresh, remember };
   }
 
   /** Seconds remaining until a decoded token's exp. Floor 0. */
@@ -125,7 +127,11 @@ export class AuthService {
       ...where,
     });
 
-    const tokens = await this.signTokens(account.id, account.isPlatform);
+    const tokens = await this.signTokens(
+      account.id,
+      account.isPlatform,
+      dto.rememberMe ?? false,
+    );
     return {
       account: {
         id: account.id,
@@ -177,7 +183,7 @@ export class AuthService {
       entityId: account.id,
     });
 
-    return this.signTokens(account.id, account.isPlatform);
+    return this.signTokens(account.id, account.isPlatform, payload.remember ?? false);
   }
 
   /** Revoke a refresh token (logout). No-op if the token is already invalid. */

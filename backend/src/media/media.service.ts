@@ -8,18 +8,18 @@ import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { AuditService } from '../audit/audit.service';
 import { newId } from '../common/uuid';
+import { resolveVideoUrl } from './video-providers';
 
 /** Resize/compress ceiling — gallery images never need more than this. */
 const MAX_EDGE = 1600;
+/** Square edge for the boat logo (cover-cropped, shown as a circle in the UI). */
+const LOGO_EDGE = 512;
 const WEBP_QUALITY = 80;
 
-/** Accepted YouTube URL shapes → the canonical watch id. */
-const YT_PATTERNS = [
-  /(?:youtube\.com\/watch\?v=)([\w-]{11})/,
-  /(?:youtu\.be\/)([\w-]{11})/,
-  /(?:youtube\.com\/embed\/)([\w-]{11})/,
-  /(?:youtube\.com\/shorts\/)([\w-]{11})/,
-];
+/** Per-gallery count caps (mirrored in the owner-console UI). */
+const MAX_BOAT_IMAGES = 12;
+const MAX_CABIN_IMAGES = 6;
+const MAX_VIDEOS = 5; // per gallery, boat and cabin alike
 
 @Injectable()
 export class MediaService {
@@ -44,25 +44,22 @@ export class MediaService {
     }
   }
 
-  /** Normalize any accepted YouTube URL to a canonical watch URL. */
-  private canonicalYoutube(url: string): string {
-    for (const re of YT_PATTERNS) {
-      const m = url.match(re);
-      if (m) return `https://www.youtube.com/watch?v=${m[1]}`;
-    }
-    throw new BadRequestException('Not a recognized YouTube URL');
-  }
-
   /** List a boat's media (optionally a single cabin's), ordered for display. */
   async list(houseboatId: string, cabinId?: string) {
     const rows = await this.prisma.houseboatMedia.findMany({
       where: { houseboatId, ...(cabinId ? { cabinId } : {}) },
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
     });
-    return rows.map((r) => ({
-      ...r,
-      url: r.storageKey ? this.storage.publicUrl(r.storageKey) : r.youtubeUrl,
-    }));
+    return rows.map((r) => {
+      // For videos, re-resolve the stored canonical URL so the embed URL is
+      // derived fresh from the allowlist — never persisted, never trusted raw.
+      const resolved = r.videoUrl ? resolveVideoUrl(r.videoUrl) : null;
+      return {
+        ...r,
+        url: r.storageKey ? this.storage.publicUrl(r.storageKey) : r.videoUrl,
+        embedUrl: resolved?.embedUrl ?? null,
+      };
+    });
   }
 
   /**
@@ -76,6 +73,22 @@ export class MediaService {
     input: { cabinId?: string; buffer: Buffer; sortOrder?: number },
   ) {
     if (input.cabinId) await this.assertCabinInBoat(input.cabinId, houseboatId);
+
+    // Enforce the per-gallery cap before spending CPU on compression. The
+    // frontend hides the add control at the cap; this is the backstop.
+    const cap = input.cabinId ? MAX_CABIN_IMAGES : MAX_BOAT_IMAGES;
+    const existing = await this.prisma.houseboatMedia.count({
+      where: {
+        houseboatId,
+        cabinId: input.cabinId ?? null,
+        kind: 'image',
+      },
+    });
+    if (existing >= cap) {
+      throw new BadRequestException(
+        `This gallery already has the maximum of ${cap} images`,
+      );
+    }
 
     let processed: Buffer;
     try {
@@ -120,21 +133,46 @@ export class MediaService {
     return { ...row, url: this.storage.publicUrl(key) };
   }
 
-  /** Add a YouTube video to a boat/cabin gallery. */
+  /**
+   * Add a video link to a boat/cabin gallery. The URL must match an allowlisted
+   * provider (YouTube/Vimeo/Google Drive/Facebook/Instagram); we store only the
+   * canonical form rebuilt server-side, never the raw input.
+   */
   async createVideo(
     houseboatId: string,
     actorId: string,
-    input: { cabinId?: string; youtubeUrl: string; sortOrder?: number },
+    input: { cabinId?: string; videoUrl: string; sortOrder?: number },
   ) {
     if (input.cabinId) await this.assertCabinInBoat(input.cabinId, houseboatId);
-    const youtubeUrl = this.canonicalYoutube(input.youtubeUrl);
+
+    const resolved = resolveVideoUrl(input.videoUrl);
+    if (!resolved) {
+      throw new BadRequestException(
+        'Link is not a supported video (YouTube, Vimeo, Google Drive, Facebook or Instagram)',
+      );
+    }
+
+    const existing = await this.prisma.houseboatMedia.count({
+      where: {
+        houseboatId,
+        cabinId: input.cabinId ?? null,
+        kind: 'video',
+      },
+    });
+    if (existing >= MAX_VIDEOS) {
+      throw new BadRequestException(
+        `This gallery already has the maximum of ${MAX_VIDEOS} videos`,
+      );
+    }
+
     const row = await this.prisma.houseboatMedia.create({
       data: {
         id: newId(),
         houseboatId,
         cabinId: input.cabinId,
         kind: 'video',
-        youtubeUrl,
+        videoUrl: resolved.canonicalUrl,
+        videoProvider: resolved.provider,
         sortOrder: input.sortOrder ?? 0,
         uploadedBy: actorId,
       },
@@ -146,7 +184,7 @@ export class MediaService {
       entityType: 'houseboat_media',
       entityId: row.id,
     });
-    return row;
+    return { ...row, embedUrl: resolved.embedUrl };
   }
 
   /** Delete a media item (and its R2 object if it's an image). */
@@ -167,6 +205,77 @@ export class MediaService {
       action: 'media_remove',
       entityType: 'houseboat_media',
       entityId: mediaId,
+    });
+    return { ok: true };
+  }
+
+  /**
+   * Upload the boat logo: a single square (512×512) WebP stored on the
+   * `Houseboat.logoStorageKey` column — not a gallery row. Re-uploading
+   * replaces the previous logo and deletes its R2 object.
+   */
+  async uploadLogo(houseboatId: string, actorId: string, buffer: Buffer) {
+    const boat = await this.prisma.houseboat.findUnique({
+      where: { id: houseboatId },
+      select: { logoStorageKey: true },
+    });
+    if (!boat) throw new NotFoundException('Houseboat not found');
+
+    let processed: Buffer;
+    try {
+      processed = await sharp(buffer)
+        .rotate() // honor EXIF orientation before stripping metadata
+        .resize(LOGO_EDGE, LOGO_EDGE, { fit: 'cover', position: 'centre' })
+        .webp({ quality: WEBP_QUALITY })
+        .toBuffer();
+    } catch {
+      throw new BadRequestException('Invalid or unsupported image file');
+    }
+
+    const key = `houseboats/${houseboatId}/logo/${newId()}.webp`;
+    await this.storage.putObject({
+      key,
+      body: processed,
+      contentType: 'image/webp',
+    });
+
+    await this.prisma.houseboat.update({
+      where: { id: houseboatId },
+      data: { logoStorageKey: key },
+    });
+    if (boat.logoStorageKey) {
+      await this.storage.delete(boat.logoStorageKey).catch(() => undefined);
+    }
+    await this.audit.log({
+      houseboatId,
+      actorAccountId: actorId,
+      action: 'houseboat_logo_update',
+      entityType: 'houseboat',
+      entityId: houseboatId,
+    });
+    return { logoUrl: this.storage.publicUrl(key) };
+  }
+
+  /** Remove the boat logo (its R2 object and the column). */
+  async removeLogo(houseboatId: string, actorId: string) {
+    const boat = await this.prisma.houseboat.findUnique({
+      where: { id: houseboatId },
+      select: { logoStorageKey: true },
+    });
+    if (!boat) throw new NotFoundException('Houseboat not found');
+    if (boat.logoStorageKey) {
+      await this.storage.delete(boat.logoStorageKey).catch(() => undefined);
+      await this.prisma.houseboat.update({
+        where: { id: houseboatId },
+        data: { logoStorageKey: null },
+      });
+    }
+    await this.audit.log({
+      houseboatId,
+      actorAccountId: actorId,
+      action: 'houseboat_logo_update',
+      entityType: 'houseboat',
+      entityId: houseboatId,
     });
     return { ok: true };
   }

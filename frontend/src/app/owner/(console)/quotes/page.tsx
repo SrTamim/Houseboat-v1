@@ -34,7 +34,7 @@ interface Quote {
   quotedPrice: string | null;
   status: string;
   expiresAt: string | null;
-  customer: { id: string; name: string | null; phone: string };
+  customer?: { id: string; name: string | null; phone: string | null };
 }
 
 const STATUS_TONES: Record<string, 'amb' | 'blue' | 'ok' | 'mut'> = {
@@ -138,8 +138,8 @@ export default function OwnerQuotesPage() {
               {rows.map((q) => (
                 <tr key={q.id}>
                   <td>
-                    <div className="t1">{q.customer.name ?? 'Guest'}</div>
-                    <div className="t2">{maskPhone(q.customer.phone)}</div>
+                    <div className="t1">{q.customer?.name ?? 'Guest'}</div>
+                    <div className="t2">{maskPhone(q.customer?.phone)}</div>
                   </td>
                   <td className="t2">{formatDate(q.date)}</td>
                   <td>{q.groupSize ?? '—'}</td>
@@ -205,8 +205,8 @@ export default function OwnerQuotesPage() {
 
             <Kv
               rows={[
-                ['Customer', open.customer.name ?? 'Guest'],
-                ['Phone', open.customer.phone],
+                ['Customer', open.customer?.name ?? 'Guest'],
+                ['Phone', open.customer?.phone ?? '—'],
                 ['Date', formatDate(open.date)],
                 ['Group size', open.groupSize ?? '—'],
                 ['Special needs', open.specialNeeds ?? '—'],

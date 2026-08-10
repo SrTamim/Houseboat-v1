@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import useSWR from 'swr';
 import { api, fetcher } from '@/lib/api';
 import { useActiveBoat } from '@/lib/owner/boat-context';
@@ -10,6 +10,7 @@ import {
   FilterBar,
   Seg,
   Field,
+  Select,
   Note,
   TableWrap,
   AsyncTable,
@@ -18,8 +19,23 @@ import {
 import { Drawer } from '@/components/owner/Drawer';
 import { money, apiErrorMessage } from '@/lib/owner/format';
 
-interface PricingProfile {
+type PriceType = 'general' | 'weekend' | 'holiday';
+
+const TYPES: { value: PriceType; label: string }[] = [
+  { value: 'general', label: 'General day' },
+  { value: 'weekend', label: 'Weekend' },
+  { value: 'holiday', label: 'Holiday' },
+];
+
+interface Route {
   id: string;
+  name: string;
+  region: string | null;
+}
+
+interface RoutePricingProfile {
+  id: string;
+  priceType: PriceType | null;
   name: string;
   isDefault: boolean;
   dates: string[];
@@ -56,61 +72,204 @@ function occupancyColumns(categories: BoatDetail['cabinCategories']): number[] {
   return Array.from({ length: Math.max(max, 1) }, (_, i) => i + 1);
 }
 
+const cellKey = (categoryId: string, occ: number) => `${categoryId}:${occ}`;
+
+const DAY_MS = 86_400_000;
+const MAX_DATES = 400; // matches backend ArrayMaxSize
+
+/** Inclusive list of ISO (yyyy-mm-dd) days from start to end. */
+function expandRange(startIso: string, endIso: string): string[] {
+  const out: string[] = [];
+  let t = Date.parse(`${startIso}T00:00:00Z`);
+  const end = Date.parse(`${endIso}T00:00:00Z`);
+  if (Number.isNaN(t) || Number.isNaN(end) || end < t) return out;
+  while (t <= end && out.length < MAX_DATES) {
+    out.push(new Date(t).toISOString().slice(0, 10));
+    t += DAY_MS;
+  }
+  return out;
+}
+
+/** Fold a sorted ISO-day list into consecutive-day ranges for display. */
+function toRanges(sorted: string[]): { start: string; end: string }[] {
+  const ranges: { start: string; end: string }[] = [];
+  for (const d of sorted) {
+    const last = ranges[ranges.length - 1];
+    if (last && Date.parse(`${d}T00:00:00Z`) === Date.parse(`${last.end}T00:00:00Z`) + DAY_MS) {
+      last.end = d;
+    } else {
+      ranges.push({ start: d, end: d });
+    }
+  }
+  return ranges;
+}
+
 export default function OwnerPricingPage() {
   const { boatId } = useActiveBoat();
-  const [activeProfile, setActiveProfile] = useState('');
-  const [bandOpen, setBandOpen] = useState(false);
+
+  const [routeId, setRouteId] = useState('');
+  const [activeType, setActiveType] = useState<PriceType>('general');
+
+  // Draft price cells keyed by `${categoryId}:${occupancy}` for the active type.
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [draftDates, setDraftDates] = useState<string[]>([]);
+  const [dateMode, setDateMode] = useState<'single' | 'range'>('single');
+  const [newDate, setNewDate] = useState('');
+  const [rangeStart, setRangeStart] = useState('');
+  const [rangeEnd, setRangeEnd] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
 
+  // Group-band drawer state (unchanged behavior).
+  const [bandOpen, setBandOpen] = useState(false);
   const [minPeople, setMinPeople] = useState('10');
   const [maxPeople, setMaxPeople] = useState('16');
   const [totalPrice, setTotalPrice] = useState('');
+  const [bandBusy, setBandBusy] = useState(false);
+  const [bandError, setBandError] = useState<string | null>(null);
 
-  const profiles = useSWR<PricingProfile[]>(
-    `/houseboats/${boatId}/pricing-profiles`,
-    fetcher,
-    { revalidateOnFocus: false },
-  );
-  const bands = useSWR<GroupBand[]>(`/houseboats/${boatId}/group-bands`, fetcher, {
-    revalidateOnFocus: false,
-  });
+  const routes = useSWR<Route[]>('/routes', fetcher, { revalidateOnFocus: false });
   const boat = useSWR<BoatDetail>(`/houseboats/${boatId}/manage`, fetcher, {
     revalidateOnFocus: false,
   });
+  const bands = useSWR<GroupBand[]>(`/houseboats/${boatId}/group-bands`, fetcher, {
+    revalidateOnFocus: false,
+  });
 
-  const list = profiles.data ?? [];
-  const currentId = activeProfile || list.find((p) => p.isDefault)?.id || list[0]?.id || '';
-  const current = list.find((p) => p.id === currentId);
-  // Memoised because `?? []` is a new array reference every render, which would
-  // otherwise invalidate the two memos below on each pass.
+  // Default the route selector to the first available route.
+  useEffect(() => {
+    if (!routeId && routes.data && routes.data.length > 0) {
+      setRouteId(routes.data[0].id);
+    }
+  }, [routes.data, routeId]);
+
+  const pricing = useSWR<RoutePricingProfile[]>(
+    boatId && routeId
+      ? `/houseboats/${boatId}/route-pricing?routeId=${routeId}`
+      : null,
+    fetcher,
+    { revalidateOnFocus: false },
+  );
+
   const categories = useMemo(
     () => boat.data?.cabinCategories ?? [],
     [boat.data?.cabinCategories],
   );
   const columns = useMemo(() => occupancyColumns(categories), [categories]);
 
-  // A price is missing when a category has no rule for an occupancy it can hold.
+  const current = useMemo(
+    () => pricing.data?.find((p) => p.priceType === activeType),
+    [pricing.data, activeType],
+  );
+
+  // Load the active type's saved prices into the editable draft whenever the
+  // route, type, or fetched data changes.
+  useEffect(() => {
+    if (!current) {
+      setDraft({});
+      setDraftDates([]);
+      return;
+    }
+    const next: Record<string, string> = {};
+    for (const r of current.rules) {
+      next[cellKey(r.cabinCategoryId, r.occupancy)] = String(Number(r.pricePerPerson));
+    }
+    setDraft(next);
+    setDraftDates(current.dates.map((d) => d.slice(0, 10)));
+    setSaved(false);
+    setError(null);
+  }, [current]);
+
+  function setCell(categoryId: string, occ: number, value: string) {
+    setSaved(false);
+    setDraft((d) => ({ ...d, [cellKey(categoryId, occ)]: value }));
+  }
+
+  function mergeDates(days: string[]) {
+    if (days.length === 0) return;
+    setDraftDates((prev) => {
+      const set = new Set(prev);
+      for (const d of days) set.add(d);
+      return [...set].sort();
+    });
+    setSaved(false);
+  }
+  function addSingle() {
+    if (!newDate) return;
+    mergeDates([newDate]);
+    setNewDate('');
+  }
+  function addRange() {
+    if (!rangeStart || !rangeEnd) return;
+    mergeDates(expandRange(rangeStart, rangeEnd));
+    setRangeStart('');
+    setRangeEnd('');
+  }
+  /** Remove a whole consecutive run (one displayed chip). */
+  function removeRange(start: string, end: string) {
+    const days = new Set(expandRange(start, end));
+    setDraftDates((prev) => prev.filter((x) => !days.has(x)));
+    setSaved(false);
+  }
+
+  // A price is missing when a category has no draft value for an occupancy it holds.
   const missing = useMemo(() => {
-    if (!current) return 0;
     let n = 0;
     for (const c of categories) {
       const cap = c.extendedCapacity ?? c.baseCapacity;
       for (let occ = 1; occ <= cap; occ++) {
-        const has = current.rules.some(
-          (r) => r.cabinCategoryId === c.id && r.occupancy === occ,
-        );
-        if (!has) n++;
+        const v = draft[cellKey(c.id, occ)];
+        if (v === undefined || v === '') n++;
       }
     }
     return n;
-  }, [current, categories]);
+  }, [draft, categories]);
+
+  async function save() {
+    if (busy || !routeId) return;
+    setBusy(true);
+    setError(null);
+    setSaved(false);
+    try {
+      const rules: {
+        cabinCategoryId: string;
+        occupancy: number;
+        pricePerPerson: number;
+      }[] = [];
+      for (const c of categories) {
+        const cap = c.extendedCapacity ?? c.baseCapacity;
+        for (let occ = 1; occ <= cap; occ++) {
+          const v = draft[cellKey(c.id, occ)];
+          if (v === undefined || v === '') continue;
+          rules.push({
+            cabinCategoryId: c.id,
+            occupancy: occ,
+            pricePerPerson: Number(v),
+          });
+        }
+      }
+      await api.put(`/houseboats/${boatId}/route-pricing`, {
+        routeId,
+        priceType: activeType,
+        // Only holiday carries dates; weekend is auto Fri/Sat, general is fallback.
+        dates: activeType === 'holiday' ? draftDates : [],
+        rules,
+      });
+      await pricing.mutate();
+      setSaved(true);
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not save the prices.'));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function addBand(e: React.FormEvent) {
     e.preventDefault();
-    if (busy || !totalPrice) return;
-    setBusy(true);
-    setError(null);
+    if (bandBusy || !totalPrice) return;
+    setBandBusy(true);
+    setBandError(null);
     try {
       await api.post(`/houseboats/${boatId}/group-bands`, {
         minPeople: Number(minPeople),
@@ -121,56 +280,177 @@ export default function OwnerPricingPage() {
       setTotalPrice('');
       await bands.mutate();
     } catch (err) {
-      setError(apiErrorMessage(err, 'Could not add the band.'));
+      setBandError(apiErrorMessage(err, 'Could not add the band.'));
     } finally {
-      setBusy(false);
+      setBandBusy(false);
     }
   }
+
+  const routeOptions = (routes.data ?? []).map((r) => ({
+    value: r.id,
+    label: r.region ? `${r.name} · ${r.region}` : r.name,
+  }));
 
   return (
     <>
       <PageHead
         title="Pricing"
-        desc="Each profile owns a full, independent price table — a weekend is not a multiplier on a weekday. Price is per person and varies by how many share the cabin."
+        desc="Pick a route, then set per-person prices for each cabin category and party size. Each route keeps its own General / Weekend / Holiday tables — switching routes never loses what you saved."
       />
-
-      {missing > 0 ? (
-        <Note kind="warn" style={{ marginBottom: 18 }}>
-          {missing} price{missing > 1 ? 's are' : ' is'} missing from this profile. A cabin
-          with no price for a given party size cannot be booked at that size.
-        </Note>
-      ) : null}
 
       <FilterBar>
         <AsyncBlock
-          isLoading={profiles.isLoading}
-          error={profiles.error}
-          isEmpty={list.length === 0}
-          onRetry={() => profiles.mutate()}
-          empty={<Note kind="warn">No pricing profiles yet.</Note>}
+          isLoading={routes.isLoading}
+          error={routes.error}
+          isEmpty={(routes.data?.length ?? 0) === 0}
+          onRetry={() => routes.mutate()}
+          empty={<Note kind="warn">No routes available.</Note>}
         >
-          <Seg
-            options={list.map((p) => ({
-              value: p.id,
-              label: p.isDefault ? `${p.name} (default)` : p.name,
-            }))}
-            value={currentId}
-            onChange={setActiveProfile}
-          />
+          <Field label="Route">
+            <Select
+              options={routeOptions}
+              value={routeId}
+              onChange={setRouteId}
+              ariaLabel="Route"
+            />
+          </Field>
         </AsyncBlock>
-        {current ? (
-          <span className="tag">
-            {current.isDefault
-              ? 'applies to every date without a special profile'
-              : `${current.dates.length} dates`}
-          </span>
-        ) : null}
+        <Seg
+          options={TYPES.map((t) => ({ value: t.value, label: t.label }))}
+          value={activeType}
+          onChange={(v) => setActiveType(v as PriceType)}
+        />
       </FilterBar>
 
+      {missing > 0 ? (
+        <Note kind="warn" style={{ marginTop: 14, marginBottom: 4 }}>
+          {missing} price{missing > 1 ? 's are' : ' is'} missing from this table. A cabin
+          with no price for a given party size cannot be booked at that size.
+        </Note>
+      ) : null}
+      {error ? (
+        <Note kind="danger" style={{ marginTop: 14, marginBottom: 4 }}>
+          {error}
+        </Note>
+      ) : null}
+      {saved ? (
+        <Note kind="ok" style={{ marginTop: 14, marginBottom: 4 }}>
+          Prices saved.
+        </Note>
+      ) : null}
+
+      {activeType === 'weekend' ? (
+        <Note kind="info" style={{ marginTop: 16 }}>
+          Weekend prices apply automatically every Friday &amp; Saturday. No dates to set —
+          just fill in the table below.
+        </Note>
+      ) : null}
+
+      {activeType === 'holiday' ? (
+        <Card
+          title="Holiday dates"
+          sub="Eid, public holidays — the exact days this price applies. Add a single day or a range."
+          style={{ marginTop: 16 }}
+          actions={
+            <Seg
+              options={[
+                { value: 'single', label: 'Single day' },
+                { value: 'range', label: 'Date range' },
+              ]}
+              value={dateMode}
+              onChange={(v) => setDateMode(v as 'single' | 'range')}
+            />
+          }
+        >
+          <div style={{ display: 'grid', gap: 12 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end' }}>
+              {dateMode === 'single' ? (
+                <>
+                  <Field label="Date">
+                    <input
+                      type="date"
+                      value={newDate}
+                      onChange={(e) => setNewDate(e.target.value)}
+                    />
+                  </Field>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-o"
+                    onClick={addSingle}
+                    disabled={!newDate}
+                  >
+                    ＋ Add day
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Field label="From">
+                    <input
+                      type="date"
+                      value={rangeStart}
+                      onChange={(e) => setRangeStart(e.target.value)}
+                    />
+                  </Field>
+                  <Field label="To">
+                    <input
+                      type="date"
+                      value={rangeEnd}
+                      min={rangeStart || undefined}
+                      onChange={(e) => setRangeEnd(e.target.value)}
+                    />
+                  </Field>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-o"
+                    onClick={addRange}
+                    disabled={!rangeStart || !rangeEnd || rangeEnd < rangeStart}
+                  >
+                    ＋ Add range
+                  </button>
+                </>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+              {draftDates.length === 0 ? (
+                <span className="t2">
+                  No holiday dates yet — add the days this price applies to.
+                </span>
+              ) : (
+                toRanges(draftDates).map((r) => (
+                  <span
+                    key={`${r.start}:${r.end}`}
+                    className="tag"
+                    style={{ display: 'inline-flex', gap: 6 }}
+                  >
+                    {r.start === r.end ? r.start : `${r.start} – ${r.end}`}
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-o"
+                      style={{ padding: '0 6px' }}
+                      onClick={() => removeRange(r.start, r.end)}
+                      aria-label={`Remove ${r.start}${r.end !== r.start ? ` to ${r.end}` : ''}`}
+                    >
+                      ✕
+                    </button>
+                  </span>
+                ))
+              )}
+            </div>
+          </div>
+        </Card>
+      ) : null}
+
       <Card
-        title={current ? `${current.name} · price per person` : 'Price table'}
+        title={`${TYPES.find((t) => t.value === activeType)?.label} · price per person`}
         sub="by cabin category and party size"
         flush
+        style={{ marginTop: 16 }}
+        actions={
+          <button className="btn btn-sm btn-b" onClick={save} disabled={busy || !routeId}>
+            {busy ? 'Saving…' : 'Save prices'}
+          </button>
+        }
       >
         <TableWrap minWidth={640}>
           <thead>
@@ -184,8 +464,8 @@ export default function OwnerPricingPage() {
             </tr>
           </thead>
           <AsyncTable
-            isLoading={boat.isLoading || profiles.isLoading}
-            error={boat.error ?? profiles.error}
+            isLoading={boat.isLoading || pricing.isLoading}
+            error={boat.error ?? pricing.error}
             isEmpty={categories.length === 0}
             onRetry={() => boat.mutate()}
             empty={
@@ -216,16 +496,18 @@ export default function OwnerPricingPage() {
                           </td>
                         );
                       }
-                      const rule = current?.rules.find(
-                        (r) => r.cabinCategoryId === cat.id && r.occupancy === occ,
-                      );
                       return (
-                        <td
-                          key={occ}
-                          className="num"
-                          style={rule ? undefined : { color: 'var(--warn)' }}
-                        >
-                          {rule ? money(rule.pricePerPerson) : 'not set'}
+                        <td key={occ} className="num">
+                          <input
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            inputMode="decimal"
+                            value={draft[cellKey(cat.id, occ)] ?? ''}
+                            onChange={(e) => setCell(cat.id, occ, e.target.value)}
+                            placeholder="—"
+                            style={{ width: 90, textAlign: 'right' }}
+                          />
                         </td>
                       );
                     })}
@@ -294,14 +576,18 @@ export default function OwnerPricingPage() {
             <button className="btn btn-o" onClick={() => setBandOpen(false)}>
               Cancel
             </button>
-            <button className="btn btn-b" onClick={addBand} disabled={busy || !totalPrice}>
-              {busy ? 'Adding…' : 'Add band'}
+            <button
+              className="btn btn-b"
+              onClick={addBand}
+              disabled={bandBusy || !totalPrice}
+            >
+              {bandBusy ? 'Adding…' : 'Add band'}
             </button>
           </>
         }
       >
         <form onSubmit={addBand} style={{ display: 'grid', gap: 12 }}>
-          {error ? <Note kind="danger">{error}</Note> : null}
+          {bandError ? <Note kind="danger">{bandError}</Note> : null}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <Field label="Min people">
               <input

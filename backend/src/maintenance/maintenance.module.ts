@@ -7,5 +7,6 @@ import { AuditModule } from '../audit/audit.module';
   imports: [AuditModule],
   controllers: [MaintenanceController],
   providers: [MaintenanceService],
+  exports: [MaintenanceService],
 })
 export class MaintenanceModule {}

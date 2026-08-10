@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import useSWR from 'swr';
 import { api, fetcher } from '@/lib/api';
 import { useActiveBoat } from '@/lib/owner/boat-context';
@@ -11,170 +11,193 @@ import {
   Kpis,
   Field,
   Note,
+  Search,
+  Seg,
+  FilterBar,
   TableWrap,
   AsyncTable,
 } from '@/components/owner/ui';
-import { Pill } from '@/components/owner/Pill';
+import { Pill, PillTone } from '@/components/owner/Pill';
 import { Drawer } from '@/components/owner/Drawer';
-import { money, formatDate, apiErrorMessage, humanize } from '@/lib/owner/format';
+import { formatDateTime, humanize, apiErrorMessage } from '@/lib/owner/format';
 
-interface MaintenanceSummary {
-  engineHours: number;
-  engineHoursUpdatedAt: string | null;
-  tasks: {
-    id: string;
-    title: string;
-    intervalKind: string;
-    intervalValue: number | null;
-    dueAtHours: number | null;
-    dueDate: string | null;
-    lastDoneAt: string | null;
-    lastDoneHours: number | null;
-    status: string;
-    dueState: string;
-  }[];
-  dueCount: number;
-  damage: {
-    id: string;
-    title: string;
-    detail: string | null;
-    status: string;
-    repairCost: string | null;
-    reportedAt: string;
-    fixedAt: string | null;
-  }[];
-  openDamageCount: number;
-  serviceLogs: {
-    id: string;
-    serviceDate: string;
-    engineHours: number | null;
-    cost: string | null;
-    note: string | null;
-    task: { title: string } | null;
-  }[];
-  lastServiceAt: string | null;
+interface RequestComment {
+  id: string;
+  body: string;
+  statusChange: string | null;
+  authorId: string | null;
+  createdAt: string;
 }
 
-const DUE_TONES: Record<string, 'ok' | 'warn' | 'danger'> = {
-  ok: 'ok',
-  due_soon: 'warn',
-  overdue: 'danger',
+interface MaintenanceRequest {
+  id: string;
+  topic: string;
+  urgency: string;
+  status: string;
+  requestedAt: string;
+  createdAt: string;
+  closedAt: string | null;
+  comments: RequestComment[];
+}
+
+interface RequestsSummary {
+  requests: MaintenanceRequest[];
+  kpis: {
+    total: number;
+    pending: number;
+    inProgress: number;
+    complete: number;
+    canceled: number;
+  };
+}
+
+const URGENCY_TONES: Record<string, PillTone> = {
+  low: 'mut',
+  medium: 'warn',
+  high: 'danger',
 };
 
-type DrawerKind = 'task' | 'damage' | 'hours' | null;
+const STATUS_TONES: Record<string, PillTone> = {
+  pending: 'amb',
+  in_progress: 'blue',
+  complete: 'ok',
+  canceled: 'mut',
+};
+
+const STATUS_FILTERS = [
+  { value: 'all', label: 'All' },
+  { value: 'pending', label: 'Pending' },
+  { value: 'in_progress', label: 'In progress' },
+  { value: 'complete', label: 'Complete' },
+  { value: 'canceled', label: 'Canceled' },
+];
 
 export default function OwnerMaintenancePage() {
   const { boatId } = useActiveBoat();
-  const [drawer, setDrawer] = useState<DrawerKind>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [title, setTitle] = useState('');
-  const [intervalKind, setIntervalKind] = useState('engine_hours');
-  const [intervalValue, setIntervalValue] = useState('100');
-  const [dueAtHours, setDueAtHours] = useState('');
-  const [dueDate, setDueDate] = useState('');
-  const [damageTitle, setDamageTitle] = useState('');
-  const [damageDetail, setDamageDetail] = useState('');
-  const [hours, setHours] = useState('');
+  // Filters (client-side over the loaded list).
+  const [q, setQ] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
 
-  const { data, error: loadError, isLoading, mutate } = useSWR<MaintenanceSummary>(
-    `/houseboats/${boatId}/maintenance`,
+  // Drawer: either the "new request" form or a request's detail view.
+  const [creating, setCreating] = useState(false);
+  const [openId, setOpenId] = useState<string | null>(null);
+
+  // New-request form state. Date/time is set by the server at creation.
+  const [topic, setTopic] = useState('');
+  const [urgency, setUrgency] = useState('medium');
+  const [openingComment, setOpeningComment] = useState('');
+
+  // Detail-drawer comment box.
+  const [comment, setComment] = useState('');
+
+  const { data, error: loadError, isLoading, mutate } = useSWR<RequestsSummary>(
+    boatId ? `/houseboats/${boatId}/maintenance/requests` : null,
     fetcher,
     { revalidateOnFocus: false },
   );
 
-  async function submit(e: React.FormEvent) {
+  const filtered = useMemo(() => {
+    const list = data?.requests ?? [];
+    const needle = q.trim().toLowerCase();
+    return list.filter((r) => {
+      if (statusFilter !== 'all' && r.status !== statusFilter) return false;
+      if (needle && !r.topic.toLowerCase().includes(needle)) return false;
+      return true;
+    });
+  }, [data?.requests, q, statusFilter]);
+
+  const openRequest = openId
+    ? data?.requests.find((r) => r.id === openId) ?? null
+    : null;
+
+  function resetForm() {
+    setTopic('');
+    setUrgency('medium');
+    setOpeningComment('');
+  }
+
+  async function createRequest(e: React.FormEvent) {
     e.preventDefault();
-    if (busyId) return;
-    setBusyId('form');
+    if (busy) return;
+    setBusy(true);
     setError(null);
     try {
-      if (drawer === 'task') {
-        await api.post(`/houseboats/${boatId}/maintenance/tasks`, {
-          title,
-          intervalKind,
-          intervalValue: intervalValue ? Number(intervalValue) : undefined,
-          dueAtHours:
-            intervalKind === 'engine_hours' && dueAtHours ? Number(dueAtHours) : undefined,
-          dueDate: intervalKind === 'calendar' && dueDate ? dueDate : undefined,
-        });
-        setTitle('');
-        setDueAtHours('');
-        setDueDate('');
-      } else if (drawer === 'damage') {
-        await api.post(`/houseboats/${boatId}/maintenance/damage`, {
-          title: damageTitle,
-          detail: damageDetail || undefined,
-        });
-        setDamageTitle('');
-        setDamageDetail('');
-      } else if (drawer === 'hours') {
-        await api.post(`/houseboats/${boatId}/maintenance/engine-hours`, {
-          hours: Number(hours),
-        });
-        setHours('');
-      }
-      setDrawer(null);
-      await mutate();
-    } catch (err) {
-      setError(apiErrorMessage(err, 'Could not save that.'));
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  async function completeTask(taskId: string) {
-    if (busyId) return;
-    setBusyId(taskId);
-    setError(null);
-    try {
-      await api.post(`/houseboats/${boatId}/maintenance/tasks/${taskId}/complete`, {});
-      await mutate();
-    } catch (err) {
-      setError(apiErrorMessage(err, 'Could not mark that serviced.'));
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  async function fixDamage(damageId: string) {
-    if (busyId) return;
-    setBusyId(damageId);
-    setError(null);
-    try {
-      await api.patch(`/houseboats/${boatId}/maintenance/damage/${damageId}`, {
-        status: 'fixed',
+      await api.post(`/houseboats/${boatId}/maintenance/requests`, {
+        topic,
+        urgency,
+        comment: openingComment || undefined,
       });
+      resetForm();
+      setCreating(false);
       await mutate();
     } catch (err) {
-      setError(apiErrorMessage(err, 'Could not close that damage entry.'));
+      setError(apiErrorMessage(err, 'Could not create that request.'));
     } finally {
-      setBusyId(null);
+      setBusy(false);
     }
   }
+
+  /** Change status, optionally with the comment typed in the detail drawer. */
+  async function changeStatus(requestId: string, status: string) {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.patch(`/houseboats/${boatId}/maintenance/requests/${requestId}`, {
+        status,
+        comment: comment.trim() || undefined,
+      });
+      setComment('');
+      await mutate();
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not update that request.'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function addComment(requestId: string) {
+    if (busy || !comment.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(
+        `/houseboats/${boatId}/maintenance/requests/${requestId}/comments`,
+        { body: comment.trim() },
+      );
+      setComment('');
+      await mutate();
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not add that comment.'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const kpis = data?.kpis;
 
   return (
     <>
       <PageHead
         title="Maintenance"
-        desc="The service schedule and damage log for the boat itself. Due-ness is worked out from the current meter reading, so it never goes stale."
+        desc="Requests raised against the boat — what needs doing, how urgent, and where each one stands. Add a comment as work progresses so the history stays with the request."
         actions={
-          <>
-            <button className="btn btn-o" onClick={() => setDrawer('hours')}>
-              Log engine hours
-            </button>
-            <button className="btn btn-o" onClick={() => setDrawer('damage')}>
-              ＋ Report damage
-            </button>
-            <button className="btn btn-b" onClick={() => setDrawer('task')}>
-              ＋ Service task
-            </button>
-          </>
+          <button
+            className="btn btn-b"
+            onClick={() => {
+              setError(null);
+              setCreating(true);
+            }}
+          >
+            ＋ New request
+          </button>
         }
       />
 
-      {error ? (
+      {error && !creating && !openId ? (
         <Note kind="danger" style={{ marginBottom: 18 }}>
           {error}
         </Note>
@@ -182,320 +205,270 @@ export default function OwnerMaintenancePage() {
 
       <Kpis>
         <Kpi
-          icon="⚙"
-          label="Engine hours"
-          value={data?.engineHours ?? '—'}
-          detail={
-            data?.engineHoursUpdatedAt
-              ? `Read ${formatDate(data.engineHoursUpdatedAt)}`
-              : 'Never logged'
-          }
+          icon="⏳"
+          label="Pending"
+          value={kpis?.pending ?? '—'}
+          alert={Boolean(kpis?.pending)}
+          detail="Not started yet"
         />
         <Kpi
-          icon="🛠"
-          label="Service due"
-          value={data?.dueCount ?? '—'}
-          alert={Boolean(data?.dueCount)}
-          detail="Overdue or due soon"
+          icon="🔧"
+          label="In progress"
+          value={kpis?.inProgress ?? '—'}
+          detail="Being worked on"
         />
+        <Kpi icon="✓" label="Complete" value={kpis?.complete ?? '—'} detail="Done" />
         <Kpi
-          icon="⚠"
-          label="Open damage"
-          value={data?.openDamageCount ?? '—'}
-          alert={Boolean(data?.openDamageCount)}
-          detail="Reported, not yet fixed"
-        />
-        <Kpi
-          icon="📅"
-          label="Last service"
-          value={data?.lastServiceAt ? formatDate(data.lastServiceAt) : '—'}
-          detail="From the service log"
+          icon="✕"
+          label="Canceled"
+          value={kpis?.canceled ?? '—'}
+          detail="Dropped"
         />
       </Kpis>
 
-      <div className="grid-2">
-        <div className="stack">
-          <Card title="Service schedule" flush>
-            <TableWrap minWidth={680}>
-              <thead>
-                <tr>
-                  <th>Task</th>
-                  <th>Interval</th>
-                  <th>Due</th>
-                  <th>Status</th>
-                  <th />
-                </tr>
-              </thead>
-              <AsyncTable
-                isLoading={isLoading}
-                error={loadError}
-                isEmpty={(data?.tasks.length ?? 0) === 0}
-                onRetry={() => mutate()}
-                empty={
-                  <div className="state">
-                    <div className="ic">🛠</div>
-                    <h4>No service tasks</h4>
-                    <p>Add the recurring jobs — oil change, hull inspection.</p>
-                  </div>
-                }
-              >
-                <tbody>
-                  {data?.tasks.map((t) => (
-                    <tr key={t.id}>
-                      <td>
-                        <div className="t1">{t.title}</div>
-                        <div className="t2">
-                          {t.lastDoneAt ? `Last done ${formatDate(t.lastDoneAt)}` : 'Never done'}
-                        </div>
-                      </td>
-                      <td className="t2">
-                        {t.intervalKind === 'engine_hours'
-                          ? `every ${t.intervalValue ?? '—'}h`
-                          : t.intervalKind === 'calendar'
-                            ? `every ${t.intervalValue ?? '—'} days`
-                            : 'per trip'}
-                      </td>
-                      <td className="t2">
-                        {t.dueAtHours !== null
-                          ? `${t.dueAtHours}h`
-                          : t.dueDate
-                            ? formatDate(t.dueDate)
-                            : '—'}
-                      </td>
-                      <td>
-                        <Pill tone={DUE_TONES[t.dueState] ?? 'mut'}>
-                          {humanize(t.dueState)}
-                        </Pill>
-                      </td>
-                      <td>
-                        <div className="rowact">
-                          <button
-                            className="btn btn-sm btn-ok"
-                            onClick={() => completeTask(t.id)}
-                            disabled={busyId === t.id}
-                          >
-                            {busyId === t.id ? 'Saving…' : 'Mark serviced'}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </AsyncTable>
-            </TableWrap>
-          </Card>
-
-          <Card title="Damage log" flush>
-            <TableWrap minWidth={620}>
-              <thead>
-                <tr>
-                  <th>Issue</th>
-                  <th>Reported</th>
-                  <th className="num">Repair cost</th>
-                  <th>Status</th>
-                  <th />
-                </tr>
-              </thead>
-              <AsyncTable
-                isLoading={isLoading}
-                error={loadError}
-                isEmpty={(data?.damage.length ?? 0) === 0}
-                onRetry={() => mutate()}
-                empty={
-                  <div className="state">
-                    <div className="ic">✓</div>
-                    <h4>Nothing broken</h4>
-                    <p>Report damage as crew find it so nothing is forgotten at the ghat.</p>
-                  </div>
-                }
-              >
-                <tbody>
-                  {data?.damage.map((d) => (
-                    <tr key={d.id}>
-                      <td>
-                        <div className="t1">{d.title}</div>
-                        {d.detail ? <div className="t2">{d.detail}</div> : null}
-                      </td>
-                      <td className="t2">{formatDate(d.reportedAt)}</td>
-                      <td className="num">{d.repairCost ? money(d.repairCost) : '—'}</td>
-                      <td>
-                        <Pill tone={d.status === 'open' ? 'danger' : 'ok'}>{d.status}</Pill>
-                      </td>
-                      <td>
-                        <div className="rowact">
-                          {d.status === 'open' ? (
-                            <button
-                              className="btn btn-sm btn-ok"
-                              onClick={() => fixDamage(d.id)}
-                              disabled={busyId === d.id}
-                            >
-                              {busyId === d.id ? 'Saving…' : 'Mark fixed'}
-                            </button>
-                          ) : null}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </AsyncTable>
-            </TableWrap>
-          </Card>
+      <Card title="Requests" flush>
+        <div style={{ padding: '14px 16px 0' }}>
+          <FilterBar>
+            <Search
+              placeholder="Search by topic…"
+              value={q}
+              onChange={setQ}
+            />
+            <Seg
+              options={STATUS_FILTERS}
+              value={statusFilter}
+              onChange={setStatusFilter}
+            />
+          </FilterBar>
         </div>
+        <TableWrap minWidth={720}>
+          <thead>
+            <tr>
+              <th>Topic</th>
+              <th>Urgency</th>
+              <th>Status</th>
+              <th className="num">Comments</th>
+              <th />
+            </tr>
+          </thead>
+          <AsyncTable
+            isLoading={isLoading}
+            error={loadError}
+            isEmpty={filtered.length === 0}
+            onRetry={() => mutate()}
+            empty={
+              <div className="state">
+                <div className="ic">🛠</div>
+                <h4>
+                  {(data?.requests.length ?? 0) === 0
+                    ? 'No requests yet'
+                    : 'Nothing matches'}
+                </h4>
+                <p>
+                  {(data?.requests.length ?? 0) === 0
+                    ? 'Raise a request when something on the boat needs attention.'
+                    : 'Try a different search or status filter.'}
+                </p>
+              </div>
+            }
+          >
+            <tbody>
+              {filtered.map((r) => (
+                <tr key={r.id}>
+                  <td>
+                    <div className="t1">{r.topic}</div>
+                    <div className="t2">{formatDateTime(r.requestedAt)}</div>
+                  </td>
+                  <td>
+                    <Pill tone={URGENCY_TONES[r.urgency] ?? 'mut'}>
+                      {humanize(r.urgency)}
+                    </Pill>
+                  </td>
+                  <td>
+                    <Pill tone={STATUS_TONES[r.status] ?? 'mut'}>
+                      {humanize(r.status)}
+                    </Pill>
+                  </td>
+                  <td className="num">{r.comments.length || '—'}</td>
+                  <td>
+                    <div className="rowact">
+                      <button
+                        className="btn btn-sm btn-o"
+                        onClick={() => {
+                          setError(null);
+                          setComment('');
+                          setOpenId(r.id);
+                        }}
+                      >
+                        View
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </AsyncTable>
+        </TableWrap>
+      </Card>
 
-        <Card title="Service history" flush>
-          <TableWrap minWidth={0}>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>What</th>
-                <th className="num">Cost</th>
-              </tr>
-            </thead>
-            <AsyncTable
-              isLoading={isLoading}
-              error={loadError}
-              isEmpty={(data?.serviceLogs.length ?? 0) === 0}
-              onRetry={() => mutate()}
-              empty={
-                <div className="state">
-                  <div className="ic">📜</div>
-                  <h4>No history</h4>
-                  <p>Completed services are recorded here.</p>
-                </div>
-              }
-            >
-              <tbody>
-                {data?.serviceLogs.map((l) => (
-                  <tr key={l.id}>
-                    <td className="t2">{formatDate(l.serviceDate)}</td>
-                    <td>
-                      <div className="t1">{l.task?.title ?? 'Ad-hoc service'}</div>
-                      {l.engineHours ? <div className="t2">at {l.engineHours}h</div> : null}
-                    </td>
-                    <td className="num">{l.cost ? money(l.cost) : '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </AsyncTable>
-          </TableWrap>
-        </Card>
-      </div>
-
+      {/* New request */}
       <Drawer
-        open={drawer !== null}
-        title={
-          drawer === 'task'
-            ? 'New service task'
-            : drawer === 'damage'
-              ? 'Report damage'
-              : 'Log engine hours'
-        }
-        onClose={() => setDrawer(null)}
+        open={creating}
+        title="New maintenance request"
+        onClose={() => setCreating(false)}
         footer={
           <>
-            <button className="btn btn-o" onClick={() => setDrawer(null)}>
+            <button className="btn btn-o" onClick={() => setCreating(false)}>
               Cancel
             </button>
-            <button className="btn btn-b" onClick={submit} disabled={busyId !== null}>
-              {busyId ? 'Saving…' : 'Save'}
+            <button className="btn btn-b" onClick={createRequest} disabled={busy}>
+              {busy ? 'Saving…' : 'Create request'}
             </button>
           </>
         }
       >
-        <form onSubmit={submit} style={{ display: 'grid', gap: 12 }}>
+        <form onSubmit={createRequest} style={{ display: 'grid', gap: 12 }}>
           {error ? <Note kind="danger">{error}</Note> : null}
-
-          {drawer === 'task' ? (
-            <>
-              <Field label="Task">
-                <input
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Engine oil change"
-                  required
-                />
-              </Field>
-              <Field label="Recurs by">
-                <select value={intervalKind} onChange={(e) => setIntervalKind(e.target.value)}>
-                  <option value="engine_hours">Engine hours</option>
-                  <option value="calendar">Calendar days</option>
-                  <option value="per_trip">Every trip</option>
-                </select>
-              </Field>
-              {intervalKind !== 'per_trip' ? (
-                <Field label={intervalKind === 'engine_hours' ? 'Every (hours)' : 'Every (days)'}>
-                  <input
-                    type="number"
-                    min={1}
-                    value={intervalValue}
-                    onChange={(e) => setIntervalValue(e.target.value)}
-                  />
-                </Field>
-              ) : null}
-              {intervalKind === 'engine_hours' ? (
-                <Field label="Next due at (hours)">
-                  <input
-                    type="number"
-                    min={0}
-                    value={dueAtHours}
-                    onChange={(e) => setDueAtHours(e.target.value)}
-                    placeholder={String((data?.engineHours ?? 0) + Number(intervalValue || 0))}
-                    required
-                  />
-                </Field>
-              ) : null}
-              {intervalKind === 'calendar' ? (
-                <Field label="Next due on">
-                  <input
-                    type="date"
-                    value={dueDate}
-                    onChange={(e) => setDueDate(e.target.value)}
-                    required
-                  />
-                </Field>
-              ) : null}
-            </>
-          ) : null}
-
-          {drawer === 'damage' ? (
-            <>
-              <Field label="What is wrong">
-                <input
-                  value={damageTitle}
-                  onChange={(e) => setDamageTitle(e.target.value)}
-                  placeholder="Railing loose on upper deck"
-                  required
-                />
-              </Field>
-              <Field label="Detail">
-                <textarea
-                  rows={3}
-                  value={damageDetail}
-                  onChange={(e) => setDamageDetail(e.target.value)}
-                />
-              </Field>
-            </>
-          ) : null}
-
-          {drawer === 'hours' ? (
-            <>
-              <Field label="Meter reading (hours)">
-                <input
-                  type="number"
-                  min={data?.engineHours ?? 0}
-                  value={hours}
-                  onChange={(e) => setHours(e.target.value)}
-                  placeholder={String(data?.engineHours ?? 0)}
-                  required
-                />
-              </Field>
-              <Note kind="info">
-                Current reading is {data?.engineHours ?? 0}h. A meter only counts up, so a
-                lower number is rejected — it would un-due every hours-based task.
-              </Note>
-            </>
-          ) : null}
+          <Field label="Topic">
+            <input
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+              placeholder="Railing loose on upper deck"
+              required
+            />
+          </Field>
+          <Field label="Urgency">
+            <select value={urgency} onChange={(e) => setUrgency(e.target.value)}>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
+          </Field>
+          <Field label="Opening comment (optional)">
+            <textarea
+              rows={3}
+              value={openingComment}
+              onChange={(e) => setOpeningComment(e.target.value)}
+              placeholder="Context, part numbers, who spotted it…"
+            />
+          </Field>
         </form>
+      </Drawer>
+
+      {/* Request detail + comment log */}
+      <Drawer
+        open={openId !== null}
+        title={openRequest?.topic ?? 'Request'}
+        onClose={() => setOpenId(null)}
+        footer={
+          <button className="btn btn-o" onClick={() => setOpenId(null)}>
+            Close
+          </button>
+        }
+      >
+        {openRequest ? (
+          <div style={{ display: 'grid', gap: 16 }}>
+            {error ? <Note kind="danger">{error}</Note> : null}
+
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <Pill tone={URGENCY_TONES[openRequest.urgency] ?? 'mut'}>
+                {humanize(openRequest.urgency)} urgency
+              </Pill>
+              <Pill tone={STATUS_TONES[openRequest.status] ?? 'mut'}>
+                {humanize(openRequest.status)}
+              </Pill>
+            </div>
+            <div className="t2">Raised {formatDateTime(openRequest.requestedAt)}</div>
+
+            {/* Status actions available from the current state. */}
+            <div className="rowact" style={{ flexWrap: 'wrap' }}>
+              {openRequest.status === 'pending' ? (
+                <button
+                  className="btn btn-sm btn-b"
+                  onClick={() => changeStatus(openRequest.id, 'in_progress')}
+                  disabled={busy}
+                >
+                  Start
+                </button>
+              ) : null}
+              {openRequest.status !== 'complete' &&
+              openRequest.status !== 'canceled' ? (
+                <>
+                  <button
+                    className="btn btn-sm btn-ok"
+                    onClick={() => changeStatus(openRequest.id, 'complete')}
+                    disabled={busy}
+                  >
+                    Mark complete
+                  </button>
+                  <button
+                    className="btn btn-sm btn-o"
+                    onClick={() => changeStatus(openRequest.id, 'canceled')}
+                    disabled={busy}
+                  >
+                    Cancel request
+                  </button>
+                </>
+              ) : (
+                <button
+                  className="btn btn-sm btn-o"
+                  onClick={() => changeStatus(openRequest.id, 'pending')}
+                  disabled={busy}
+                >
+                  Reopen
+                </button>
+              )}
+            </div>
+
+            <div>
+              <div className="t1" style={{ marginBottom: 8 }}>
+                Comments
+              </div>
+              {openRequest.comments.length === 0 ? (
+                <div className="t2">No comments yet.</div>
+              ) : (
+                <div style={{ display: 'grid', gap: 10 }}>
+                  {openRequest.comments.map((c) => (
+                    <div
+                      key={c.id}
+                      style={{
+                        borderLeft: '2px solid var(--line, #e5e7eb)',
+                        paddingLeft: 10,
+                      }}
+                    >
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        {c.statusChange ? (
+                          <Pill tone={STATUS_TONES[c.statusChange] ?? 'mut'}>
+                            → {humanize(c.statusChange)}
+                          </Pill>
+                        ) : null}
+                        <span className="t2">{formatDateTime(c.createdAt)}</span>
+                      </div>
+                      <div style={{ marginTop: 4 }}>{c.body}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <Field label="Add a comment">
+              <textarea
+                rows={3}
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                placeholder="Update, or a note to attach to the next status change…"
+              />
+            </Field>
+            <button
+              className="btn btn-o btn-sm"
+              onClick={() => addComment(openRequest.id)}
+              disabled={busy || !comment.trim()}
+              style={{ justifySelf: 'start' }}
+            >
+              {busy ? 'Saving…' : 'Add comment'}
+            </button>
+          </div>
+        ) : null}
       </Drawer>
     </>
   );

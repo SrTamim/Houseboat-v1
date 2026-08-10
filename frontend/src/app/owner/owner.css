@@ -36,7 +36,8 @@
   --body: #4b5568;
   --muted: #8b93a3;
   --chip: #eff1f5;
-  --field: #f3f5f8;
+  --field: #ffffff;
+  --field-line: #aeb6c4;
   --hover: #f6f7f9;
 
   /* elevation — layered (ambient + key) */
@@ -81,7 +82,8 @@
   --body: #a7b0c0;
   --muted: #6f7788;
   --chip: #1e222d;
-  --field: #12151d;
+  --field: #0e1119;
+  --field-line: #4c5468;
   --hover: #1b1f29;
 
   --e1: 0 1px 2px rgba(0, 0, 0, 0.5);
@@ -784,51 +786,79 @@ table.tbl { width: 100%; border-collapse: separate; border-spacing: 0; font-size
 .select:focus { outline: none; border-color: var(--blue); box-shadow: var(--ring); }
 
 /* ---------- form fields ---------- */
-.field {
-  position: relative;
-  border: 1px solid var(--hair);
-  border-radius: var(--r);
-  padding: 9px 14px;
-  background: var(--field);
-  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
-}
-.field:focus-within { border-color: var(--blue); box-shadow: var(--ring); }
+.field { display: block; }
 .field label {
   display: block;
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--muted);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  margin-bottom: 3px;
+  margin-bottom: 6px;
 }
-.field input,
+/* The control itself carries the visible box — so an empty field reads as an
+   input before it is focused. Checkboxes/radios are excluded (see grids). */
+.field input:not([type='checkbox']):not([type='radio']),
 .field select,
 .field textarea {
   width: 100%;
-  border: none;
-  background: none;
+  height: 42px;
+  border: 1px solid var(--field-line);
+  border-radius: var(--r);
+  background: var(--field);
+  padding: 0 12px;
   font-family: inherit;
   font-size: 15px;
   font-weight: 600;
   color: var(--ink);
-  padding: 0;
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.field input:not([type='checkbox']):not([type='radio']):hover,
+.field select:hover,
+.field textarea:hover { border-color: var(--muted); }
+.field input:not([type='checkbox']):not([type='radio']):focus,
+.field select:focus,
+.field textarea:focus {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: var(--ring);
+}
+.field textarea {
+  height: auto;
+  min-height: 96px;
+  padding: 10px 12px;
+  line-height: 1.5;
   resize: vertical;
 }
-.field input:focus,
-.field select:focus,
-.field textarea:focus { outline: none; }
 .field input::placeholder,
 .field textarea::placeholder { color: var(--muted); font-weight: 500; }
-/* Inline prefix (e.g. ৳, +880) sitting on the same line as the input. */
-.field .with-pre { display: flex; align-items: center; gap: 8px; }
+/* Inline prefix (e.g. ৳, +880): the wrapper is the box, the input goes bare. */
+.field .with-pre {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 42px;
+  border: 1px solid var(--field-line);
+  border-radius: var(--r);
+  background: var(--field);
+  padding: 0 12px;
+}
+.field .with-pre:focus-within { border-color: var(--blue); box-shadow: var(--ring); }
 .field .with-pre .pre {
   flex: none;
   font-size: 15px;
   font-weight: 700;
   color: var(--muted);
 }
-.field .with-pre input { flex: 1; width: auto; }
+.field .with-pre input {
+  flex: 1;
+  width: auto;
+  height: auto;
+  border: none;
+  background: none;
+  padding: 0;
+  box-shadow: none;
+}
 .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
 
 /* ---------- notes / misc ---------- */
@@ -964,6 +994,93 @@ table.tbl { width: 100%; border-collapse: separate; border-spacing: 0; font-size
 }
 .cab-act:hover { border-color: var(--blue); color: var(--blue); }
 .cab-act-del:hover { border-color: var(--danger); color: var(--danger); }
+
+/* ---------- media gallery (boat / cabin photos + video) ---------- */
+.media-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 10px;
+}
+.media-tile {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: var(--r-lg, 12px);
+  overflow: hidden;
+  border: 1px solid var(--hair);
+  background: var(--field);
+  box-shadow: var(--e1);
+}
+.media-tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.media-tile-video img { opacity: 0.85; }
+.media-tile iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+}
+.media-linkout {
+  display: block;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  text-decoration: none;
+}
+.media-linkout-label {
+  position: absolute;
+  inset: auto 0 0 0;
+  padding: 6px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: color-mix(in srgb, #000 60%, transparent);
+  text-align: center;
+}
+.media-video-fallback {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  font-size: 26px;
+  color: var(--muted);
+}
+.media-badge {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  background: color-mix(in srgb, #000 55%, transparent);
+  padding: 2px 6px;
+  border-radius: 999px;
+}
+.media-del {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: color-mix(in srgb, #000 55%, transparent);
+  color: #fff;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background var(--dur) var(--ease);
+}
+.media-del:hover { background: var(--danger); }
+.media-actions { display: flex; align-items: center; gap: 10px; }
+.media-video-add { display: flex; gap: 8px; align-items: center; }
+.media-video-add input { flex: 1; }
 
 /* facility checkbox grid (category drawer) */
 .facility-grid {
@@ -1442,6 +1559,107 @@ button.mcab:hover { border-color: var(--blue); transform: translateY(-2px); }
   }
   .drawer-sc, .df, .dh { display: none !important; }
 }
+
+/* Customer-facing invoice copy: lives inside the bookings drawer alongside the
+   owner's on-screen view, so it must stay hidden on screen (unlike the whole-
+   drawer .statement-print reports) and reveal only when printing. Colours are
+   fixed hex (not theme vars) because this always prints on white paper. */
+.invoice-print { display: none; }
+@media print {
+  .invoice-print, .invoice-print * { visibility: visible !important; }
+  .invoice-print {
+    display: block;
+    position: absolute; left: 0; top: 0; width: 100%;
+    padding: 0 8px; background: #fff; color: #111;
+    font-size: 12.5px;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+}
+
+/* ── Invoice (near-mono, one hairline accent — prints clean on B&W) ── */
+.inv-head {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 16px; padding: 4px 8px 16px;
+  border-bottom: 2px solid #1a73e8;   /* the single accent */
+}
+.inv-id { display: flex; align-items: center; gap: 12px; }
+.inv-logo {
+  width: 44px; height: 44px; border-radius: 50%;
+  object-fit: cover; border: 1px solid #e4e7ec; flex: none;
+}
+.inv-logo--ph {
+  display: grid; place-items: center;
+  background: #f8fafc; color: #475467; font-size: 16px; font-weight: 700;
+}
+.inv-name { font-size: 18px; font-weight: 800; letter-spacing: -0.01em; }
+.inv-tag {
+  margin-top: 1px; font-size: 11px; font-weight: 600;
+  letter-spacing: 0.18em; text-transform: uppercase; color: #667085;
+}
+.inv-band-meta { text-align: right; font-size: 12px; line-height: 1.5; color: #475467; }
+.inv-band-meta .inv-no { font-size: 14px; font-weight: 700; letter-spacing: 0.04em; color: #111; }
+
+.inv-parties {
+  display: flex; justify-content: space-between; gap: 24px;
+  padding: 18px 8px 20px;
+}
+.inv-parties h5 {
+  margin: 0 0 6px; font-size: 10.5px; font-weight: 700;
+  letter-spacing: 0.1em; text-transform: uppercase; color: #667085;
+}
+.inv-parties strong { display: block; font-size: 14px; }
+.inv-parties > div > div { color: #475467; margin-top: 2px; }
+.inv-trip { text-align: right; }
+
+.inv-status {
+  display: inline-block; margin-bottom: 8px; padding: 2px 10px;
+  border-radius: 999px; font-size: 11px; font-weight: 700;
+  letter-spacing: 0.03em; background: transparent; border: 1px solid currentColor;
+}
+.inv-status--paid { color: #12925a; }
+.inv-status--partial { color: #b7791f; }
+.inv-status--due { color: #d64242; }
+
+.inv-items { width: 100%; border-collapse: collapse; margin-top: 2px; }
+.inv-items th {
+  text-align: left; padding: 9px 8px; font-size: 10.5px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase; color: #667085;
+  border-top: 1px solid #e4e7ec; border-bottom: 1px solid #e4e7ec;
+}
+.inv-items td { padding: 12px 8px; border-bottom: 1px solid #eef1f4; vertical-align: top; }
+.inv-items .inv-c { text-align: center; }
+.inv-items th.num, .inv-items td.num { text-align: right; }
+.inv-sub { margin-top: 3px; font-size: 11px; color: #667085; }
+
+.inv-totals {
+  max-width: 300px; margin: 18px 8px 0 auto;
+  border: 1px solid #e4e7ec; border-radius: 8px; overflow: hidden;
+}
+.inv-row {
+  display: flex; justify-content: space-between; gap: 16px;
+  padding: 9px 14px; font-size: 13px;
+}
+.inv-row span:first-child { color: #475467; }
+.inv-neg span:last-child { color: #d64242; }
+.inv-grand {
+  border-top: 1px solid #e4e7ec; font-weight: 800; font-size: 15px;
+}
+.inv-grand span:first-child { color: #111; }
+.inv-due {
+  border-top: 1px solid #e4e7ec; font-weight: 800; color: #1a73e8;   /* accent */
+}
+.inv-due span:first-child { color: #1a73e8; }
+
+.inv-empty {
+  margin: 18px 8px; padding: 16px; text-align: center; color: #667085;
+  border: 1px dashed #d0d5dd; border-radius: 8px; font-size: 13px;
+}
+.inv-foot {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  margin: 26px 8px 0; padding-top: 14px;
+  font-size: 11.5px; color: #667085; border-top: 1px solid #eef1f4;
+}
+.inv-plat { letter-spacing: 0.04em; font-weight: 600; white-space: nowrap; }
 
 /* ── Reports charts ─────────────────────────────────────────── */
 .rp-grid {

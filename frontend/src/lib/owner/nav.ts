@@ -27,7 +27,6 @@ export const OWNER_NAV: OwnerNavGroup[] = [
     group: 'Overview',
     items: [
       { key: 'dashboard', icon: '▦', label: 'Dashboard', href: '/owner/dashboard' },
-      { key: 'calendar', icon: '🗓️', label: 'Calendar', href: '/owner/calendar' },
     ],
   },
   {
@@ -125,7 +124,6 @@ export const OWNER_NAV: OwnerNavGroup[] = [
         badgeWarn: true,
       },
       { key: 'reports', icon: '📈', label: 'Reports', href: '/owner/reports' },
-      { key: 'notifications', icon: '🔔', label: 'Notifications', href: '/owner/notifications' },
       { key: 'audit', icon: '📜', label: 'Audit log', href: '/owner/audit' },
       { key: 'sync', icon: '🔄', label: 'Sync', href: '/owner/sync' },
       { key: 'settings', icon: '⚙', label: 'Settings', href: '/owner/settings' },

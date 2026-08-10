@@ -19,7 +19,7 @@ import {
 import { BookingStatusPill, Pill } from '@/components/owner/Pill';
 import { Drawer } from '@/components/owner/Drawer';
 import { InvoiceBill } from '@/components/owner/Bill';
-import { money, formatDate, maskPhone, humanize } from '@/lib/owner/format';
+import { money, formatDate, maskPhone, humanize, initials } from '@/lib/owner/format';
 
 interface OwnerBooking {
   id: string;
@@ -86,7 +86,7 @@ const CURRENT_YEAR = new Date().getUTCFullYear();
 const YEARS = [CURRENT_YEAR - 1, CURRENT_YEAR, CURRENT_YEAR + 1];
 
 export default function OwnerBookingsPage() {
-  const { boatId } = useActiveBoat();
+  const { boatId, boat } = useActiveBoat();
   const [status, setStatus] = useState('');
   const [q, setQ] = useState('');
   const [date, setDate] = useState('');
@@ -119,6 +119,16 @@ export default function OwnerBookingsPage() {
   );
   const invoiceDetail =
     invoicePage?.items.find((i) => i.id === open?.invoice?.id) ?? null;
+
+  // Boat logo for the printed invoice header. Lives on the boat profile, not the
+  // /me/boats switcher payload, so fetch it from /manage. A booking-only member
+  // without `assets:view` gets 403 → data stays undefined → monogram fallback.
+  const { data: boatInfo } = useSWR<{ logoUrl: string | null }>(
+    open ? `/houseboats/${boatId}/manage` : null,
+    fetcher,
+    { revalidateOnFocus: false },
+  );
+  const logoUrl = boatInfo?.logoUrl ?? null;
 
   const options = [
     { value: '', label: 'All', count: counts?.all },
@@ -276,9 +286,14 @@ export default function OwnerBookingsPage() {
         title="Booking"
         onClose={() => setOpen(null)}
         footer={
-          <button className="btn btn-o" onClick={() => setOpen(null)}>
-            Close
-          </button>
+          <>
+            <button className="btn btn-o" onClick={() => setOpen(null)}>
+              Close
+            </button>
+            <button className="btn btn-b" onClick={() => window.print()}>
+              Print invoice
+            </button>
+          </>
         }
       >
         {open ? (
@@ -350,6 +365,134 @@ export default function OwnerBookingsPage() {
                 <span>This booking has no invoice.</span>
               </div>
             )}
+
+            {/* Customer-facing copy — hidden on screen, the only thing that
+                prints. Owner-only figures (commission / you receive / payout)
+                are deliberately excluded. */}
+            {(() => {
+              const guestName = open.guests[0]?.name ?? open.customer.name ?? '—';
+              const phone = open.guests[0]?.phone ?? open.customer.phone;
+              const trip = open.departure.package.durationLabel ?? '—';
+              const departure = formatDate(open.departure.startDate);
+              const invNo = open.invoice
+                ? `INV-${open.invoice.id.slice(-6).toUpperCase()}`
+                : 'INV-------';
+
+              const roomTotal = invoiceDetail?.roomTotal ?? open.invoice?.displayTotal;
+              const discount = invoiceDetail?.discountAmount ?? '0';
+              const total = invoiceDetail?.displayTotal ?? open.invoice?.displayTotal;
+              const paid = invoiceDetail?.amountPaid ?? open.invoice?.amountPaid;
+              const hasInvoice = total != null && paid != null;
+              const balanceDue = hasInvoice ? Number(total) - Number(paid) : 0;
+              const tone =
+                balanceDue <= 0 ? 'paid' : Number(paid) > 0 ? 'partial' : 'due';
+              const statusLabel = open.invoice
+                ? humanize(open.invoice.status)
+                : 'Unpaid';
+
+              return (
+                <div className="invoice-print">
+                  <div className="inv-head">
+                    <div className="inv-id">
+                      {logoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img className="inv-logo" src={logoUrl} alt="" />
+                      ) : (
+                        <span className="inv-logo inv-logo--ph">
+                          {initials(boat.name)}
+                        </span>
+                      )}
+                      <div>
+                        <div className="inv-name">{boat.name}</div>
+                        <div className="inv-tag">Invoice</div>
+                      </div>
+                    </div>
+                    <div className="inv-band-meta">
+                      <div className="inv-no">{invNo}</div>
+                      <div>Issued {formatDate(new Date())}</div>
+                    </div>
+                  </div>
+
+                  <div className="inv-parties">
+                    <div>
+                      <h5>Billed to</h5>
+                      <strong>{guestName}</strong>
+                      <div>{phone}</div>
+                    </div>
+                    <div className="inv-trip">
+                      {hasInvoice ? (
+                        <span className={`inv-status inv-status--${tone}`}>
+                          {statusLabel}
+                        </span>
+                      ) : null}
+                      <div>{open.departure.package.route.name}</div>
+                      <div>{trip}</div>
+                      <div>Departure {departure}</div>
+                    </div>
+                  </div>
+
+                  {hasInvoice ? (
+                    <>
+                      <table className="inv-items">
+                        <thead>
+                          <tr>
+                            <th>Description</th>
+                            <th className="inv-c">Guests</th>
+                            <th className="num">Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {open.cabins.map((c) => (
+                            <tr key={c.id}>
+                              <td>
+                                <strong>Cabin {c.cabin.name}</strong>
+                                <div className="inv-sub">
+                                  {trip} · Departure {departure}
+                                </div>
+                              </td>
+                              <td className="inv-c">{c.occupancy}</td>
+                              <td className="num">{money(c.roomPrice)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+
+                      <div className="inv-totals">
+                        <div className="inv-row">
+                          <span>Subtotal</span>
+                          <span>{money(roomTotal!)}</span>
+                        </div>
+                        {Number(discount) > 0 ? (
+                          <div className="inv-row inv-neg">
+                            <span>Coupon</span>
+                            <span>−{money(discount)}</span>
+                          </div>
+                        ) : null}
+                        <div className="inv-row inv-grand">
+                          <span>Total</span>
+                          <span>{money(total!)}</span>
+                        </div>
+                        <div className="inv-row">
+                          <span>Paid</span>
+                          <span>{money(paid!)}</span>
+                        </div>
+                        <div className="inv-row inv-due">
+                          <span>Balance due</span>
+                          <span>{money(balanceDue)}</span>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="inv-empty">No invoice issued.</div>
+                  )}
+
+                  <div className="inv-foot">
+                    <span>Thank you for booking with {boat.name}.</span>
+                    <span className="inv-plat">⚓ HaorBoat</span>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         ) : null}
       </Drawer>

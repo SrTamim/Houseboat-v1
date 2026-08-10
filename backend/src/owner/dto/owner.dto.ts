@@ -1,4 +1,5 @@
 import {
+  IsDateString,
   IsInt,
   IsOptional,
   IsString,
@@ -48,6 +49,12 @@ export class GuestsQueryDto {
 
 export class AuditQueryDto {
   @IsOptional() @IsString() @MaxLength(LEN_CODE) action?: string;
+  /** Substring match on the action string or the actor's name / phone. */
+  @IsOptional() @IsString() @MaxLength(LEN_NAME) search?: string;
+  /** ISO 8601 — inclusive lower bound on serverTime. */
+  @IsOptional() @IsDateString() from?: string;
+  /** ISO 8601 — inclusive upper bound on serverTime. */
+  @IsOptional() @IsDateString() to?: string;
   /**
    * Keyset cursor: "<serverTime ISO>|<id>". audit_log is partitioned by month
    * with a composite PK, so the generic id-only cursor in common/paginate

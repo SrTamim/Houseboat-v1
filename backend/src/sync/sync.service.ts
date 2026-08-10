@@ -3,6 +3,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RbacService } from '../rbac/rbac.service';
 import { OpsService } from '../ops/ops.service';
 import { AuditService } from '../audit/audit.service';
+import { MaintenanceService } from '../maintenance/maintenance.service';
+import { OwnerBookingsService } from '../booking/owner-bookings.service';
 import { OfflineAction, SyncIntentDto } from './dto/sync.dto';
 import { PermModule } from '../rbac/permission.types';
 import { newId } from '../common/uuid';
@@ -35,6 +37,10 @@ export class SyncService {
     mark_cash_paid: 'money',
     mark_not_arrived: 'bookings',
     date_change: 'bookings',
+    // Maintenance writes are gated on `assets` (see MaintenanceController); the
+    // manifest check-in is a `bookings` action.
+    maintenance_request: 'assets',
+    checkin_set: 'bookings',
   };
 
   constructor(
@@ -42,6 +48,8 @@ export class SyncService {
     private readonly rbac: RbacService,
     private readonly ops: OpsService,
     private readonly audit: AuditService,
+    private readonly maintenance: MaintenanceService,
+    private readonly bookings: OwnerBookingsService,
   ) {}
 
   async replay(
@@ -194,6 +202,52 @@ export class SyncService {
         });
         break;
       }
+      case 'checkin_set': {
+        // setCheckin already scopes its lookup to houseboatId (cross-boat safe)
+        // and writes its own booking audit row.
+        await this.bookings.setCheckin(
+          intent.houseboatId,
+          p.bookingId as string,
+          accountId,
+          p.status as 'pending' | 'checked_in' | 'absent',
+        );
+        break;
+      }
+      case 'maintenance_request': {
+        // payload.op discriminates create vs update; both reuse the maintenance
+        // service so ticket audit + comment side-effects stay consistent.
+        if (p.op === 'update') {
+          const requestId = p.requestId as string;
+          await this.assertEntityBoat(
+            'maintenance_request',
+            requestId,
+            intent.houseboatId,
+          );
+          await this.maintenance.updateRequest(
+            intent.houseboatId,
+            requestId,
+            accountId,
+            {
+              topic: p.topic as string | undefined,
+              urgency: p.urgency as 'low' | 'medium' | 'high' | undefined,
+              status: p.status as
+                | 'pending'
+                | 'in_progress'
+                | 'complete'
+                | 'canceled'
+                | undefined,
+              comment: p.comment as string | undefined,
+            },
+          );
+        } else {
+          await this.maintenance.createRequest(intent.houseboatId, accountId, {
+            topic: p.topic as string,
+            urgency: p.urgency as 'low' | 'medium' | 'high',
+            comment: p.comment as string | undefined,
+          });
+        }
+        break;
+      }
     }
 
     // Record the applied intent (append-only) with device + server time.
@@ -216,7 +270,12 @@ export class SyncService {
    * Boat-A member could drive a mutation on Boat-B's invoice/booking/departure.
    */
   private async assertEntityBoat(
-    kind: 'invoice' | 'booking' | 'departure' | 'inventory_item',
+    kind:
+      | 'invoice'
+      | 'booking'
+      | 'departure'
+      | 'inventory_item'
+      | 'maintenance_request',
     entityId: string,
     houseboatId: string,
   ): Promise<void> {
@@ -252,6 +311,14 @@ export class SyncService {
           select: { package: { select: { houseboatId: true } } },
         });
         boatId = d?.package?.houseboatId;
+        break;
+      }
+      case 'maintenance_request': {
+        const r = await this.prisma.maintenanceRequest.findUnique({
+          where: { id: entityId },
+          select: { houseboatId: true },
+        });
+        boatId = r?.houseboatId;
         break;
       }
     }

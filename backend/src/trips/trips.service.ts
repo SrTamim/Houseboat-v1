@@ -6,8 +6,14 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { newId } from '../common/uuid';
-import { CreatePackageDto, CreateDepartureDto } from './dto/trips.dto';
+import {
+  CreatePackageDto,
+  CreateDepartureDto,
+  UpdatePackageDto,
+  UpdateDepartureDto,
+} from './dto/trips.dto';
 
 /**
  * Trip packages + scheduled departures. Plan §7:
@@ -22,6 +28,7 @@ export class TripsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   createPackage(houseboatId: string, dto: CreatePackageDto) {
@@ -42,11 +49,87 @@ export class TripsService {
     });
   }
 
-  listPackages(houseboatId: string) {
+  async listPackages(houseboatId: string, activeRouteOnly = false) {
+    const where: Prisma.TripPackageWhereInput = { houseboatId };
+    if (activeRouteOnly) {
+      const activeLink = await this.prisma.houseboatRoute.findFirst({
+        where: { houseboatId },
+        select: { routeId: true },
+      });
+      // No linked route → no active-route packages.
+      where.routeId = activeLink?.routeId ?? '__none__';
+    }
     return this.prisma.tripPackage.findMany({
-      where: { houseboatId },
+      where,
       include: { route: true, departures: true },
     });
+  }
+
+  private async ownedPackage(houseboatId: string, packageId: string) {
+    const pkg = await this.prisma.tripPackage.findUnique({
+      where: { id: packageId },
+    });
+    if (!pkg || pkg.houseboatId !== houseboatId) {
+      throw new NotFoundException('Package not found for this boat');
+    }
+    return pkg;
+  }
+
+  async updatePackage(
+    houseboatId: string,
+    packageId: string,
+    dto: UpdatePackageDto,
+    actorId: string,
+  ) {
+    await this.ownedPackage(houseboatId, packageId);
+    const updated = await this.prisma.tripPackage.update({
+      where: { id: packageId },
+      data: {
+        routeId: dto.routeId,
+        durationDays: dto.durationDays,
+        durationLabel: dto.durationLabel,
+        departureGhat: dto.departureGhat,
+        returnGhat: dto.returnGhat,
+        meals: dto.meals,
+        included: dto.included,
+        excluded: dto.excluded,
+        cancellationPolicyId: dto.cancellationPolicyId,
+      },
+    });
+    await this.audit.log({
+      houseboatId,
+      actorAccountId: actorId,
+      action: 'package_update',
+      entityType: 'trip_package',
+      entityId: packageId,
+    });
+    return updated;
+  }
+
+  async deletePackage(houseboatId: string, packageId: string, actorId: string) {
+    await this.ownedPackage(houseboatId, packageId);
+    // Block if the package is in use — deleting one with departures/schedule would
+    // cascade into bookings. Owner must remove those first.
+    const [departures, schedules] = await Promise.all([
+      this.prisma.tripDeparture.count({ where: { packageId } }),
+      this.prisma.boatSchedule.count({ where: { packageId } }),
+    ]);
+    if (departures > 0 || schedules > 0) {
+      throw new BadRequestException(
+        'This package has departures or a schedule and cannot be deleted. Remove those first.',
+      );
+    }
+    const deleted = await this.prisma.tripPackage.delete({
+      where: { id: packageId },
+    });
+    await this.audit.log({
+      houseboatId,
+      actorAccountId: actorId,
+      action: 'package_delete',
+      entityType: 'trip_package',
+      entityId: packageId,
+    });
+    return deleted;
   }
 
   timeToDate(hhmm?: string): Date | undefined {
@@ -170,14 +253,133 @@ export class TripsService {
     });
   }
 
-  async cancelDeparture(departureId: string, actorId: string) {
-    const dep = await this.prisma.tripDeparture.update({
+  private async ownedDeparture(houseboatId: string, departureId: string) {
+    const dep = await this.prisma.tripDeparture.findUnique({
       where: { id: departureId },
-      data: { status: 'cancelled' },
+      include: { package: true },
+    });
+    if (!dep || dep.package.houseboatId !== houseboatId) {
+      throw new NotFoundException('Departure not found for this boat');
+    }
+    return dep;
+  }
+
+  async updateDeparture(
+    houseboatId: string,
+    departureId: string,
+    dto: UpdateDepartureDto,
+    actorId: string,
+  ) {
+    const dep = await this.ownedDeparture(houseboatId, departureId);
+
+    const data: Prisma.TripDepartureUpdateInput = {};
+
+    if (dto.startDate) {
+      const boat = await this.prisma.houseboat.findUnique({
+        where: { id: houseboatId },
+        select: { operatingDates: true },
+      });
+      const startDate = new Date(dto.startDate);
+      const startIso = startDate.toISOString().slice(0, 10);
+      const operating = (boat?.operatingDates ?? []).map((d) =>
+        d.toISOString().slice(0, 10),
+      );
+      if (!operating.includes(startIso)) {
+        throw new BadRequestException(
+          `${startIso} is not in this boat's operating dates`,
+        );
+      }
+      const endDate = new Date(startDate);
+      endDate.setUTCDate(endDate.getUTCDate() + dep.package.durationDays - 1);
+      data.startDate = startDate;
+      data.endDate = endDate;
+    }
+
+    if (dto.departureTime !== undefined) {
+      data.departureTime = this.timeToDate(dto.departureTime) ?? null;
+    }
+    if (dto.arrivalTime !== undefined) {
+      data.arrivalTime = this.timeToDate(dto.arrivalTime) ?? null;
+    }
+    if (dto.pricingProfileId !== undefined) {
+      data.pricingProfile = dto.pricingProfileId
+        ? { connect: { id: dto.pricingProfileId } }
+        : { disconnect: true };
+    }
+
+    const updated = await this.prisma.tripDeparture.update({
+      where: { id: departureId },
+      data,
     });
     await this.audit.log({
+      houseboatId,
+      actorAccountId: actorId,
+      action: 'departure_update',
+      entityType: 'trip_departure',
+      entityId: departureId,
+    });
+    return updated;
+  }
+
+  async cancelDeparture(
+    houseboatId: string,
+    departureId: string,
+    actorId: string,
+    reason: string,
+  ) {
+    await this.ownedDeparture(houseboatId, departureId);
+
+    // Affected customers to notify — active (non-cancelled) bookings on this trip.
+    const bookings = await this.prisma.booking.findMany({
+      where: { departureId, status: { not: 'cancelled' } },
+      select: { customer: { select: { id: true, phone: true, email: true } } },
+    });
+
+    const dep = await this.prisma.tripDeparture.update({
+      where: { id: departureId },
+      data: { status: 'cancelled', cancelReason: reason },
+    });
+
+    // Best-effort — notify() never throws back into this flow.
+    for (const b of bookings) {
+      await this.notifications.notify({
+        accountId: b.customer.id,
+        event: 'departure_cancelled',
+        to: { phone: b.customer.phone, email: b.customer.email ?? undefined },
+        subject: 'Your trip has been cancelled',
+        message: `The operator cancelled your upcoming trip. Reason: ${reason}. You can request a refund from your booking.`,
+      });
+    }
+
+    await this.audit.log({
+      houseboatId,
       actorAccountId: actorId,
       action: 'departure_cancel',
+      entityType: 'trip_departure',
+      entityId: departureId,
+      after: { reason, notified: bookings.length },
+    });
+    return dep;
+  }
+
+  /** Bring a cancelled departure back to scheduled (owner undo). */
+  async reviveDeparture(
+    houseboatId: string,
+    departureId: string,
+    actorId: string,
+  ) {
+    const existing = await this.ownedDeparture(houseboatId, departureId);
+    if (existing.status !== 'cancelled') {
+      throw new BadRequestException('Only a cancelled departure can be revived');
+    }
+    const dep = await this.prisma.tripDeparture.update({
+      where: { id: departureId },
+      data: { status: 'scheduled', cancelReason: null },
+    });
+    await this.audit.log({
+      houseboatId,
+      actorAccountId: actorId,
+      action: 'departure_revive',
       entityType: 'trip_departure',
       entityId: departureId,
     });

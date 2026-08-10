@@ -44,6 +44,7 @@ function OwnerLoginForm() {
   const [show, setShow] = useState(false);
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
+  const [remember, setRemember] = useState(true);
   const [busy, setBusy] = useState(false);
 
   // Step 2: which boat to open. Only shown when the account operates several.
@@ -79,7 +80,7 @@ function OwnerLoginForm() {
     clearCsrfToken();
 
     try {
-      await api.post('/auth/login', { phone: toE164(phone), password });
+      await api.post('/auth/login', { phone: toE164(phone), password, rememberMe: remember });
       // hb_sid rotates on successful login, so the token just used is stale.
       clearCsrfToken();
 
@@ -254,7 +255,12 @@ function OwnerLoginForm() {
 
             <div className="rowb">
               <label style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                <input type="checkbox" defaultChecked /> Keep me signed in
+                <input
+                  type="checkbox"
+                  checked={remember}
+                  onChange={(e) => setRemember(e.target.checked)}
+                />{' '}
+                Keep me signed in
               </label>
               <Link style={{ color: 'var(--blue)', fontWeight: 600 }} href="#">
                 Forgot password?

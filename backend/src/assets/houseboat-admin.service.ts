@@ -6,6 +6,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { RolesService } from '../rbac/roles.service';
 import { AuditService } from '../audit/audit.service';
+import { StorageService } from '../storage/storage.service';
 import { newId } from '../common/uuid';
 import { FULL_PERMISSIONS } from '../rbac/permission.types';
 import {
@@ -31,6 +32,7 @@ export class HouseboatAdminService {
     private readonly prisma: PrismaService,
     private readonly roles: RolesService,
     private readonly audit: AuditService,
+    private readonly storage: StorageService,
   ) {}
 
   private slugify(name: string): string {
@@ -151,8 +153,8 @@ export class HouseboatAdminService {
     return boat;
   }
 
-  get(houseboatId: string) {
-    return this.prisma.houseboat.findUnique({
+  async get(houseboatId: string) {
+    const boat = await this.prisma.houseboat.findUnique({
       where: { id: houseboatId },
       include: {
         decks: { orderBy: { position: 'asc' }, include: { cabins: true } },
@@ -160,6 +162,13 @@ export class HouseboatAdminService {
         routes: { include: { route: true } },
       },
     });
+    if (!boat) return boat;
+    return {
+      ...boat,
+      logoUrl: boat.logoStorageKey
+        ? this.storage.publicUrl(boat.logoStorageKey)
+        : null,
+    };
   }
 
   // ── Decks ──────────────────────────────────────────────────
@@ -414,9 +423,51 @@ export class HouseboatAdminService {
    * A boat runs exactly ONE route (§9) — the single source of truth the weekly
    * schedule reads. Setting a route replaces any existing link rather than
    * adding to it.
+   *
+   * Switching to a DIFFERENT route is guarded by the active schedule: if that
+   * schedule has bookings on its generated departures, the change is blocked
+   * (bookings must be resolved first). With no bookings, the active schedule is
+   * deactivated (its departures are kept as history) so it stops generating on
+   * the old route. Reselecting the old route later still surfaces those past
+   * departures and lets the owner re-save to resume.
    */
   async linkRoute(houseboatId: string, routeId: string) {
+    const current = await this.prisma.houseboatRoute.findFirst({
+      where: { houseboatId },
+      select: { routeId: true },
+    });
+    const isSwitch = !!current && current.routeId !== routeId;
+
     const link = await this.prisma.$transaction(async (tx) => {
+      if (isSwitch) {
+        const schedule = await tx.boatSchedule.findFirst({
+          where: { houseboatId, active: true },
+          include: { slots: { select: { id: true } } },
+        });
+        if (schedule) {
+          const slotIds = schedule.slots.map((s) => s.id);
+          const booked =
+            slotIds.length > 0
+              ? await tx.booking.count({
+                  where: {
+                    departure: { scheduleSlotId: { in: slotIds } },
+                    status: { not: 'cancelled' },
+                  },
+                })
+              : 0;
+          if (booked > 0) {
+            throw new ConflictException(
+              'This schedule has bookings — cancel or complete them before changing route.',
+            );
+          }
+          // Unbooked: retire the old-route schedule; departures stay as history.
+          await tx.boatSchedule.update({
+            where: { id: schedule.id },
+            data: { active: false },
+          });
+        }
+      }
+
       await tx.houseboatRoute.deleteMany({
         where: { houseboatId, routeId: { not: routeId } },
       });

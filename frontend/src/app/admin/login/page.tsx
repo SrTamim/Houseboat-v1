@@ -54,6 +54,7 @@ function LoginForm() {
   const [show, setShow] = useState(false);
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
+  const [remember, setRemember] = useState(true);
   const [busy, setBusy] = useState(false);
 
   // Why the console (or middleware, or the 401 handler) sent them here.
@@ -77,7 +78,7 @@ function LoginForm() {
     clearCsrfToken();
 
     try {
-      await api.post('/auth/login', { phone: toE164(phone), password });
+      await api.post('/auth/login', { phone: toE164(phone), password, rememberMe: remember });
 
       // hb_sid rotates again on a successful login, so the token we just used
       // is already stale for the next request.
@@ -214,7 +215,12 @@ function LoginForm() {
 
         <div className="login-row">
           <label className="login-chk">
-            <input type="checkbox" defaultChecked /> Keep me signed in
+            <input
+              type="checkbox"
+              checked={remember}
+              onChange={(e) => setRemember(e.target.checked)}
+            />{' '}
+            Keep me signed in
           </label>
           <Link className="login-link" href="#">
             Forgot password?

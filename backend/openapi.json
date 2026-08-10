@@ -522,7 +522,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -1080,6 +1087,50 @@
         ]
       }
     },
+    "/api/houseboats/{houseboatId}/media/logo": {
+      "post": {
+        "operationId": "MediaController_uploadLogo",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Media"
+        ]
+      },
+      "delete": {
+        "operationId": "MediaController_removeLogo",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Media"
+        ]
+      }
+    },
     "/api/houseboats/{houseboatId}/media/videos": {
       "post": {
         "operationId": "MediaController_createVideo",
@@ -1209,6 +1260,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "route",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -1254,6 +1313,76 @@
         },
         "responses": {
           "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Trips"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/packages/{packageId}": {
+      "patch": {
+        "operationId": "TripsController_updatePackage",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "packageId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePackageDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Trips"
+        ]
+      },
+      "delete": {
+        "operationId": "TripsController_deletePackage",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "packageId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
             "description": ""
           }
         },
@@ -1326,6 +1455,117 @@
         ]
       }
     },
+    "/api/houseboats/{houseboatId}/departures/{departureId}": {
+      "patch": {
+        "operationId": "TripsController_updateDeparture",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "departureId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDepartureDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Trips"
+        ]
+      },
+      "delete": {
+        "operationId": "TripsController_cancelDeparture",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "departureId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelDepartureDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Trips"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/departures/{departureId}/revive": {
+      "post": {
+        "operationId": "TripsController_reviveDeparture",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "departureId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Trips"
+        ]
+      }
+    },
     "/api/houseboats/{houseboatId}/pricing-profiles": {
       "get": {
         "operationId": "TripsController_listProfiles",
@@ -1334,6 +1574,14 @@
             "name": "houseboatId",
             "required": true,
             "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "route",
+            "required": true,
+            "in": "query",
             "schema": {
               "type": "string"
             }
@@ -1382,6 +1630,78 @@
         },
         "responses": {
           "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Trips"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/route-pricing": {
+      "get": {
+        "operationId": "TripsController_listRoutePricing",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "routeId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Trips"
+        ]
+      },
+      "put": {
+        "operationId": "TripsController_upsertRoutePricing",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertRoutePricingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
             "description": ""
           }
         },
@@ -2845,7 +3165,17 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -3707,6 +4037,172 @@
         "summary": "Replay a batch of offline intents. Returns a per-intent result plus a\nhuman summary (\"7 actions synced, 1 needs review\").",
         "tags": [
           "Sync"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/maintenance/requests": {
+      "get": {
+        "operationId": "MaintenanceController_requests",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Maintenance"
+        ]
+      },
+      "post": {
+        "operationId": "MaintenanceController_createRequest",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMaintenanceRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Maintenance"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/maintenance/requests/{requestId}": {
+      "patch": {
+        "operationId": "MaintenanceController_updateRequest",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "requestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMaintenanceRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Maintenance"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/maintenance/requests/{requestId}/comments": {
+      "post": {
+        "operationId": "MaintenanceController_addComment",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "requestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddRequestCommentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Maintenance"
         ]
       }
     },
@@ -4931,38 +5427,6 @@
         ]
       }
     },
-    "/api/houseboats/{houseboatId}/calendar": {
-      "get": {
-        "operationId": "OwnerController_getCalendar",
-        "parameters": [
-          {
-            "name": "houseboatId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "month",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "pattern": "MONTH_RE",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Owner"
-        ]
-      }
-    },
     "/api/houseboats/{houseboatId}/reports/trips": {
       "get": {
         "operationId": "OwnerController_tripReport",
@@ -5235,6 +5699,34 @@
             }
           },
           {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Substring match on the action string or the actor's name / phone.",
+            "schema": {
+              "maxLength": 120,
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "ISO 8601 — inclusive lower bound on serverTime.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "ISO 8601 — inclusive upper bound on serverTime.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "cursor",
             "required": false,
             "in": "query",
@@ -5298,305 +5790,6 @@
           "Owner"
         ]
       }
-    },
-    "/api/houseboats/{houseboatId}/maintenance": {
-      "get": {
-        "operationId": "MaintenanceController_summary",
-        "parameters": [
-          {
-            "name": "houseboatId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Maintenance"
-        ]
-      }
-    },
-    "/api/houseboats/{houseboatId}/maintenance/tasks": {
-      "post": {
-        "operationId": "MaintenanceController_createTask",
-        "parameters": [
-          {
-            "name": "houseboatId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateMaintenanceTaskDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Maintenance"
-        ]
-      }
-    },
-    "/api/houseboats/{houseboatId}/maintenance/tasks/{taskId}": {
-      "patch": {
-        "operationId": "MaintenanceController_updateTask",
-        "parameters": [
-          {
-            "name": "houseboatId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "taskId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateMaintenanceTaskDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Maintenance"
-        ]
-      }
-    },
-    "/api/houseboats/{houseboatId}/maintenance/tasks/{taskId}/complete": {
-      "post": {
-        "operationId": "MaintenanceController_completeTask",
-        "parameters": [
-          {
-            "name": "houseboatId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "taskId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CompleteTaskDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Maintenance"
-        ]
-      }
-    },
-    "/api/houseboats/{houseboatId}/maintenance/service-logs": {
-      "post": {
-        "operationId": "MaintenanceController_addServiceLog",
-        "parameters": [
-          {
-            "name": "houseboatId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateServiceLogDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Maintenance"
-        ]
-      }
-    },
-    "/api/houseboats/{houseboatId}/maintenance/damage": {
-      "get": {
-        "operationId": "MaintenanceController_listDamage",
-        "parameters": [
-          {
-            "name": "houseboatId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Maintenance"
-        ]
-      },
-      "post": {
-        "operationId": "MaintenanceController_reportDamage",
-        "parameters": [
-          {
-            "name": "houseboatId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateDamageDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Maintenance"
-        ]
-      }
-    },
-    "/api/houseboats/{houseboatId}/maintenance/damage/{damageId}": {
-      "patch": {
-        "operationId": "MaintenanceController_updateDamage",
-        "parameters": [
-          {
-            "name": "houseboatId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "damageId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateDamageDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Maintenance"
-        ]
-      }
-    },
-    "/api/houseboats/{houseboatId}/maintenance/engine-hours": {
-      "post": {
-        "operationId": "MaintenanceController_setEngineHours",
-        "parameters": [
-          {
-            "name": "houseboatId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SetEngineHoursDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Maintenance"
-        ]
-      }
     }
   },
   "info": {
@@ -5653,6 +5846,9 @@
           "password": {
             "type": "string",
             "maxLength": 72
+          },
+          "rememberMe": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -5665,7 +5861,10 @@
         "properties": {
           "notificationPrefs": {
             "type": "object",
-            "description": "Per-event notification toggles: {\"booking\":true,\"payment_due\":false,…}.\nLeft open rather than a fixed DTO so adding an event type needs no\nmigration; the console owns which keys it renders."
+            "description": "Per-event notification toggles: {\"booking\":true,\"payment_due\":false,…}.\nLeft open rather than a fixed DTO so adding an event type needs no\nmigration; the console owns which keys it renders.",
+            "additionalProperties": {
+              "type": "boolean"
+            }
           }
         }
       },
@@ -6090,7 +6289,7 @@
           "cabinId": {
             "type": "string"
           },
-          "youtubeUrl": {
+          "videoUrl": {
             "type": "string",
             "format": "uri"
           },
@@ -6100,7 +6299,7 @@
           }
         },
         "required": [
-          "youtubeUrl"
+          "videoUrl"
         ]
       },
       "ScheduleSlotDto": {
@@ -6109,10 +6308,11 @@
           "slotNo": {
             "type": "number",
             "minimum": 1,
-            "maximum": 3
+            "maximum": 7
           },
           "weekdays": {
-            "description": "Days of week, 0=Sun … 6=Sat.",
+            "description": "Days of week, 0=Sun … 6=Sat. At least one required.",
+            "minItems": 1,
             "maxItems": 7,
             "type": "array",
             "items": {
@@ -6132,7 +6332,9 @@
         },
         "required": [
           "slotNo",
-          "weekdays"
+          "weekdays",
+          "departureTime",
+          "pricingProfileId"
         ]
       },
       "SaveScheduleDto": {
@@ -6146,7 +6348,7 @@
             "type": "boolean"
           },
           "slots": {
-            "maxItems": 3,
+            "maxItems": 7,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ScheduleSlotDto"
@@ -6204,6 +6406,48 @@
           "durationDays"
         ]
       },
+      "UpdatePackageDto": {
+        "type": "object",
+        "properties": {
+          "routeId": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "durationDays": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 365
+          },
+          "durationLabel": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "departureGhat": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "returnGhat": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "meals": {
+            "type": "string",
+            "maxLength": 5000
+          },
+          "included": {
+            "type": "string",
+            "maxLength": 5000
+          },
+          "excluded": {
+            "type": "string",
+            "maxLength": 5000
+          },
+          "cancellationPolicyId": {
+            "type": "string",
+            "maxLength": 64
+          }
+        }
+      },
       "CreateDepartureDto": {
         "type": "object",
         "properties": {
@@ -6230,6 +6474,38 @@
         "required": [
           "packageId",
           "startDate"
+        ]
+      },
+      "UpdateDepartureDto": {
+        "type": "object",
+        "properties": {
+          "startDate": {
+            "type": "string"
+          },
+          "departureTime": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "arrivalTime": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "pricingProfileId": {
+            "type": "string",
+            "maxLength": 64
+          }
+        }
+      },
+      "CancelDepartureDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 5000
+          }
+        },
+        "required": [
+          "reason"
         ]
       },
       "PriceRuleDto": {
@@ -6284,6 +6560,45 @@
         },
         "required": [
           "name",
+          "rules"
+        ]
+      },
+      "UpsertRoutePricingDto": {
+        "type": "object",
+        "properties": {
+          "routeId": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "priceType": {
+            "type": "string",
+            "enum": [
+              "general",
+              "weekend",
+              "holiday"
+            ]
+          },
+          "dates": {
+            "description": "ISO dates this type applies to — only meaningful for `holiday` (a range is\nexpanded client-side into individual days). Weekend is weekday-driven\n(auto Fri/Sat) and general is the fallback; both ignore this field.",
+            "maxItems": 400,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          "rules": {
+            "description": "Full independent price table for this type on this route.",
+            "maxItems": 500,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PriceRuleDto"
+            }
+          }
+        },
+        "required": [
+          "routeId",
+          "priceType",
           "rules"
         ]
       },
@@ -7244,7 +7559,9 @@
               "stock_movement",
               "mark_cash_paid",
               "mark_not_arrived",
-              "date_change"
+              "date_change",
+              "maintenance_request",
+              "checkin_set"
             ]
           },
           "payload": {
@@ -7276,6 +7593,75 @@
         },
         "required": [
           "intents"
+        ]
+      },
+      "CreateMaintenanceRequestDto": {
+        "type": "object",
+        "properties": {
+          "topic": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "urgency": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "comment": {
+            "type": "string",
+            "description": "Optional opening note, stored as the first comment.",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "topic",
+          "urgency"
+        ]
+      },
+      "UpdateMaintenanceRequestDto": {
+        "type": "object",
+        "properties": {
+          "topic": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "urgency": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "in_progress",
+              "complete",
+              "canceled"
+            ]
+          },
+          "comment": {
+            "type": "string",
+            "description": "Comment attached to this change; when `status` is set it tags the transition.",
+            "maxLength": 500
+          }
+        }
+      },
+      "AddRequestCommentDto": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "body"
         ]
       },
       "UpsertBillingConfigDto": {
@@ -7357,173 +7743,6 @@
         },
         "required": [
           "isPlatform"
-        ]
-      },
-      "CreateMaintenanceTaskDto": {
-        "type": "object",
-        "properties": {
-          "title": {
-            "type": "string",
-            "maxLength": 120
-          },
-          "intervalKind": {
-            "type": "string",
-            "enum": [
-              "engine_hours",
-              "calendar",
-              "per_trip"
-            ]
-          },
-          "intervalValue": {
-            "type": "number",
-            "description": "hours for engine_hours, days for calendar; ignored for per_trip.",
-            "minimum": 1,
-            "maximum": 1000000
-          },
-          "dueAtHours": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 1000000
-          },
-          "dueDate": {
-            "type": "string"
-          },
-          "notes": {
-            "type": "string",
-            "maxLength": 500
-          }
-        },
-        "required": [
-          "title",
-          "intervalKind"
-        ]
-      },
-      "UpdateMaintenanceTaskDto": {
-        "type": "object",
-        "properties": {
-          "title": {
-            "type": "string",
-            "maxLength": 120
-          },
-          "intervalValue": {
-            "type": "number",
-            "minimum": 1,
-            "maximum": 1000000
-          },
-          "dueAtHours": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 1000000
-          },
-          "dueDate": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "active",
-              "paused"
-            ]
-          },
-          "notes": {
-            "type": "string",
-            "maxLength": 500
-          }
-        }
-      },
-      "CompleteTaskDto": {
-        "type": "object",
-        "properties": {
-          "serviceDate": {
-            "type": "string"
-          },
-          "engineHours": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 1000000
-          },
-          "cost": {
-            "type": "number",
-            "minimum": 0
-          },
-          "note": {
-            "type": "string",
-            "maxLength": 500
-          }
-        }
-      },
-      "CreateServiceLogDto": {
-        "type": "object",
-        "properties": {
-          "serviceDate": {
-            "type": "string"
-          },
-          "engineHours": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 1000000
-          },
-          "cost": {
-            "type": "number",
-            "minimum": 0
-          },
-          "note": {
-            "type": "string",
-            "maxLength": 500
-          },
-          "taskId": {
-            "type": "string",
-            "maxLength": 120
-          }
-        }
-      },
-      "CreateDamageDto": {
-        "type": "object",
-        "properties": {
-          "title": {
-            "type": "string",
-            "maxLength": 120
-          },
-          "detail": {
-            "type": "string",
-            "maxLength": 500
-          }
-        },
-        "required": [
-          "title"
-        ]
-      },
-      "UpdateDamageDto": {
-        "type": "object",
-        "properties": {
-          "status": {
-            "type": "string",
-            "enum": [
-              "open",
-              "fixed"
-            ]
-          },
-          "repairCost": {
-            "type": "number",
-            "minimum": 0
-          },
-          "detail": {
-            "type": "string",
-            "maxLength": 500
-          }
-        }
-      },
-      "SetEngineHoursDto": {
-        "type": "object",
-        "properties": {
-          "hours": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 1000000
-          }
-        },
-        "required": [
-          "hours"
         ]
       }
     }

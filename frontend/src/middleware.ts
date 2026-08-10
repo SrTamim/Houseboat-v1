@@ -34,6 +34,19 @@ import {
  */
 const ACCESS_COOKIE = 'hb_access';
 const REFRESH_COOKIE = 'hb_refresh';
+/**
+ * Readable (httpOnly:false) double-submit CSRF cookie. Its value is
+ * "<token>|<hash>"; the backend validates the x-csrf-token header against the
+ * token half only. Present only after GET /auth/csrf has run (lazily, on the
+ * first mutating XHR), so it may be absent on a cold navigation.
+ */
+const CSRF_COOKIE = 'hb_csrf';
+
+/**
+ * Server-side API origin. A relative '/api/...' fetch has no origin in the Edge
+ * middleware, so this must be absolute — same target the RSC session check uses.
+ */
+const API_ORIGIN = process.env.API_PROXY_TARGET ?? 'http://localhost:4000';
 
 /** Routes that require a session. Keeps the CSP path and the auth path separate. */
 function needsSession(pathname: string): boolean {
@@ -71,6 +84,72 @@ function hasSessionCookie(req: NextRequest): boolean {
   return req.cookies.has(ACCESS_COOKIE) || req.cookies.has(REFRESH_COOKIE);
 }
 
+/**
+ * Access token lives 15 minutes; refresh lives 30 days. If the access cookie has
+ * lapsed but the refresh cookie is still present, the session is fully
+ * recoverable — but the server-side layout check (getOwnerSession → /auth/me)
+ * does NOT refresh, so it would bounce an actively-working owner to login the
+ * moment they navigate after 15 minutes.
+ *
+ * Refresh here, before the layout runs: call the backend with the caller's
+ * cookies and, on success, replay its Set-Cookie headers onto our response so
+ * the fresh hb_access reaches both the browser and the downstream RSC fetch.
+ * This is the only place in the request lifecycle that can both mint the new
+ * token (it has no JWT secret, so it delegates to the backend) and write the
+ * cookie back. On any failure it returns null and the normal existence redirect
+ * takes over — a failed refresh must never hard-fail the navigation.
+ */
+interface RefreshResult {
+  /** Raw Set-Cookie header lines to replay onto the browser response. */
+  setCookies: string[];
+  /** Parsed name→value for the rotated cookies, to patch the same-request cookie header. */
+  pairs: Record<string, string>;
+}
+
+async function tryRefresh(req: NextRequest): Promise<RefreshResult | null> {
+  const cookieHeader = req.cookies.toString();
+  const headers: Record<string, string> = { cookie: cookieHeader };
+  // Send a correct CSRF header when we can, so the refresh is correct by
+  // construction regardless of the backend's refresh-route exemption. The
+  // hb_csrf cookie is "<token>|<hash>"; validation compares the header to the
+  // token half only. When the cookie is absent (cold navigation), send no
+  // header — never fabricate one; the backend exemption covers that case.
+  const csrf = req.cookies.get(CSRF_COOKIE)?.value;
+  if (csrf) headers['x-csrf-token'] = csrf.split('|', 1)[0];
+  try {
+    const r = await fetch(`${API_ORIGIN}/api/auth/refresh`, {
+      method: 'POST',
+      headers,
+      cache: 'no-store',
+    });
+    if (!r.ok) return null;
+    // getSetCookie() returns each Set-Cookie header separately (access + refresh),
+    // which a plain .get('set-cookie') would fold into one comma-joined string.
+    const setCookies = r.headers.getSetCookie();
+    if (!setCookies.length) return null;
+    const pairs: Record<string, string> = {};
+    for (const line of setCookies) {
+      const [nameValue] = line.split(';');
+      const eq = nameValue.indexOf('=');
+      if (eq > 0) pairs[nameValue.slice(0, eq).trim()] = nameValue.slice(eq + 1).trim();
+    }
+    return { setCookies, pairs };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Video-embed hosts, allowlisted for frame-src. Only providers we inline-embed
+ * (see media/video-providers.ts): YouTube, Vimeo, Google Drive. Facebook and
+ * Instagram are link-out only, so they are deliberately NOT frameable here.
+ */
+const EMBED_FRAME_HOSTS =
+  'https://www.youtube-nocookie.com https://player.vimeo.com https://drive.google.com';
+
+/** Provider image hosts used for link-out thumbnails. */
+const EMBED_IMG_HOSTS = 'https://img.youtube.com';
+
 function buildCsp(nonce: string, isDev: boolean): string {
   const directives = [
     "default-src 'self'",
@@ -83,12 +162,14 @@ function buildCsp(nonce: string, isDev: boolean): string {
     // Next injects styles at runtime; there is no nonce-able hook for them.
     // Style injection is a far weaker vector than script execution.
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob:",
+    `img-src 'self' data: blob: ${EMBED_IMG_HOSTS}`,
     "font-src 'self' data:",
     // Same-origin only: the browser talks to /api/*, which is rewritten
     // server-side to the backend.
     `connect-src 'self'${isDev ? ' ws: http://localhost:*' : ''}`,
     "frame-ancestors 'none'",
+    // Only the allowlisted video-embed hosts may be framed; nothing else.
+    `frame-src ${EMBED_FRAME_HOSTS}`,
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
@@ -97,8 +178,35 @@ function buildCsp(nonce: string, isDev: boolean): string {
   return directives.join('; ');
 }
 
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
+
+  // Proactive refresh: session needed, access cookie gone, but refresh still
+  // valid → mint a fresh access token before the layout's /auth/me runs, so an
+  // active owner isn't logged out at the 15-minute mark. Only attempt when the
+  // access cookie is actually absent, never on every request (refresh rotates a
+  // single-use token). refreshedCookies is replayed onto the final response.
+  let refreshed: RefreshResult | null = null;
+  if (
+    needsSession(pathname) &&
+    !req.cookies.has(ACCESS_COOKIE) &&
+    req.cookies.has(REFRESH_COOKIE)
+  ) {
+    refreshed = await tryRefresh(req);
+  }
+
+  // Patch this request's cookie header so the downstream RSC layout check
+  // (getOwnerSession → /auth/me) sees the fresh token on THIS navigation, not
+  // only the next one. Built explicitly rather than relying on cookies.set()
+  // reflecting into req.headers, which it does not in Next 15.
+  let forwardHeaders: Headers | null = null;
+  if (refreshed) {
+    for (const [name, value] of Object.entries(refreshed.pairs)) {
+      req.cookies.set(name, value);
+    }
+    forwardHeaders = new Headers(req.headers);
+    forwardHeaders.set('cookie', req.cookies.toString());
+  }
 
   if (needsSession(pathname) && !hasSessionCookie(req)) {
     // Preserve where they were headed so login can return them there.
@@ -120,16 +228,28 @@ export function middleware(req: NextRequest) {
   const nonce = crypto.randomUUID().replace(/-/g, '');
   const csp = buildCsp(nonce, isDev);
 
-  // Set CSP on the RESPONSE only.
+  // CSP goes on the RESPONSE only.
   //
-  // Do NOT also set it on the request headers via NextResponse.next({request}).
+  // Do NOT set CSP on the request headers via NextResponse.next({request}).
   // Next reads a request-side CSP back when deciding how to emit assets, and in
   // dev that stopped it emitting any CSS at all — stylesheets 404'd and every
   // page rendered unstyled. The nonce doesn't need to reach the render tree
   // either: Next parses it off this response header for its own bundle tags,
   // and the inline theme script is allowed by hash (see lib/theme-script.ts).
-  const res = NextResponse.next();
+  //
+  // Forwarding the refreshed COOKIE header on the request is a separate, safe
+  // pattern — it carries the rotated hb_access to the RSC render this request,
+  // and does NOT put CSP on the request, so the asset-emission bug above stays
+  // avoided. When nothing was refreshed we pass a plain next() unchanged.
+  const res = forwardHeaders
+    ? NextResponse.next({ request: { headers: forwardHeaders } })
+    : NextResponse.next();
   res.headers.set('content-security-policy', csp);
+  // Replay the rotated auth cookies to the browser (append, not set — there are
+  // two of them, and one Set-Cookie per header line is required to store both).
+  if (refreshed) {
+    for (const c of refreshed.setCookies) res.headers.append('set-cookie', c);
+  }
   return res;
 }
 

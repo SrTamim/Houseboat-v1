@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsEmail,
   IsOptional,
   IsString,
@@ -46,4 +47,10 @@ export class LoginDto {
   @IsString()
   @MaxLength(PASSWORD_MAX)
   password!: string;
+
+  // "Keep me signed in": when true, the refresh/session cookies get a 30-day
+  // maxAge; when false/absent they are session-scoped and drop on browser close.
+  @IsOptional()
+  @IsBoolean()
+  rememberMe?: boolean;
 }

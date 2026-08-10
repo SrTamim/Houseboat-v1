@@ -24,7 +24,6 @@ interface TripPackage {
   returnGhat: string | null;
   meals: string | null;
   included: string | null;
-  excluded: string | null;
   route: { id: string; name: string; region: string | null };
   departures: { id: string; status: string }[];
 }
@@ -44,20 +43,57 @@ function chips(value: string | null): string[] {
     .filter(Boolean);
 }
 
+const MEAL_OPTIONS = [
+  'Breakfast',
+  'Snacks before lunch',
+  'Lunch',
+  'Evening snacks',
+  'Dinner',
+];
+
+/** Split stored meals string into checked-known + free-text extras. */
+function parseMeals(raw: string | null | undefined) {
+  const parts = (raw ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const known = new Set<string>();
+  const extras: string[] = [];
+  const lookup = new Map(MEAL_OPTIONS.map((o) => [o.toLowerCase(), o]));
+  for (const p of parts) {
+    const hit = lookup.get(p.toLowerCase());
+    if (hit) known.add(hit);
+    else extras.push(p);
+  }
+  return { known, extras: extras.join(', ') };
+}
+
+/** Join checked meals + extras into one comma string (deduped). */
+function serializeMeals(checked: Set<string>, extras: string): string {
+  const extraList = extras
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const all = [...MEAL_OPTIONS.filter((o) => checked.has(o)), ...extraList];
+  return [...new Set(all)].join(', ');
+}
+
 export default function OwnerPackagesPage() {
   const { boatId } = useActiveBoat();
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<TripPackage | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pageError, setPageError] = useState<string | null>(null);
 
   const [routeId, setRouteId] = useState('');
   const [durationDays, setDurationDays] = useState('2');
   const [durationLabel, setDurationLabel] = useState('');
   const [departureGhat, setDepartureGhat] = useState('');
   const [returnGhat, setReturnGhat] = useState('');
-  const [meals, setMeals] = useState('');
+  const [mealSet, setMealSet] = useState<Set<string>>(new Set());
+  const [mealExtras, setMealExtras] = useState('');
   const [included, setIncluded] = useState('');
-  const [excluded, setExcluded] = useState('');
 
   const packages = useSWR<TripPackage[]>(`/houseboats/${boatId}/packages`, fetcher, {
     revalidateOnFocus: false,
@@ -71,32 +107,94 @@ export default function OwnerPackagesPage() {
 
   const routes = (boat.data?.routes ?? []).map((r) => r.route);
 
-  async function create(e: React.FormEvent) {
+  function resetForm() {
+    setRouteId('');
+    setDurationDays('2');
+    setDurationLabel('');
+    setDepartureGhat('');
+    setReturnGhat('');
+    setMealSet(new Set());
+    setMealExtras('');
+    setIncluded('');
+  }
+
+  function toggleMeal(name: string, on: boolean) {
+    setMealSet((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(name);
+      else next.delete(name);
+      return next;
+    });
+  }
+
+  function openCreate() {
+    setEditing(null);
+    setError(null);
+    resetForm();
+    setOpen(true);
+  }
+
+  function openEdit(p: TripPackage) {
+    setEditing(p);
+    setError(null);
+    setRouteId(p.route.id);
+    setDurationDays(String(p.durationDays));
+    setDurationLabel(p.durationLabel ?? '');
+    setDepartureGhat(p.departureGhat ?? '');
+    setReturnGhat(p.returnGhat ?? '');
+    const m = parseMeals(p.meals);
+    setMealSet(m.known);
+    setMealExtras(m.extras);
+    setIncluded(p.included ?? '');
+    setOpen(true);
+  }
+
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (busy || !routeId) return;
     setBusy(true);
     setError(null);
     try {
-      await api.post(`/houseboats/${boatId}/packages`, {
+      const body = {
         routeId,
         durationDays: Number(durationDays),
         durationLabel: durationLabel || undefined,
         departureGhat: departureGhat || undefined,
         returnGhat: returnGhat || undefined,
-        meals: meals || undefined,
+        meals: serializeMeals(mealSet, mealExtras) || undefined,
         included: included || undefined,
-        excluded: excluded || undefined,
-      });
+      };
+      if (editing) {
+        await api.patch(`/houseboats/${boatId}/packages/${editing.id}`, body);
+      } else {
+        await api.post(`/houseboats/${boatId}/packages`, body);
+      }
       setOpen(false);
-      setDurationLabel('');
-      setDepartureGhat('');
-      setReturnGhat('');
-      setMeals('');
-      setIncluded('');
-      setExcluded('');
+      setEditing(null);
+      resetForm();
       await packages.mutate();
     } catch (err) {
-      setError(apiErrorMessage(err, 'Could not create the package.'));
+      setError(
+        apiErrorMessage(
+          err,
+          editing ? 'Could not save the package.' : 'Could not create the package.',
+        ),
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(p: TripPackage) {
+    if (busy) return;
+    if (!window.confirm(`Delete "${p.route.name}"? This can't be undone.`)) return;
+    setBusy(true);
+    setPageError(null);
+    try {
+      await api.delete(`/houseboats/${boatId}/packages/${p.id}`);
+      await packages.mutate();
+    } catch (err) {
+      setPageError(apiErrorMessage(err, 'Could not delete the package.'));
     } finally {
       setBusy(false);
     }
@@ -108,11 +206,17 @@ export default function OwnerPackagesPage() {
         title="Trip packages"
         desc="A package is a route plus a duration — the thing a customer actually books. Departures are scheduled against a package."
         actions={
-          <button className="btn btn-b" onClick={() => setOpen(true)} disabled={routes.length === 0}>
+          <button className="btn btn-b" onClick={openCreate} disabled={routes.length === 0}>
             ＋ New package
           </button>
         }
       />
+
+      {pageError ? (
+        <Note kind="danger" style={{ marginBottom: 18 }}>
+          {pageError}
+        </Note>
+      ) : null}
 
       {routes.length === 0 && !boat.isLoading ? (
         <Note kind="warn" style={{ marginBottom: 18 }}>
@@ -149,9 +253,21 @@ export default function OwnerPackagesPage() {
                 title={`${p.route.name} · ${p.durationLabel ?? `${p.durationDays} days`}`}
                 sub={p.route.region ?? undefined}
                 actions={
-                  <Pill tone={live > 0 ? 'ok' : 'mut'}>
-                    {live > 0 ? `${live} departures` : 'no departures'}
-                  </Pill>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Pill tone={live > 0 ? 'ok' : 'mut'}>
+                      {live > 0 ? `${live} departures` : 'no departures'}
+                    </Pill>
+                    <button className="btn btn-o btn-sm" onClick={() => openEdit(p)}>
+                      Edit
+                    </button>
+                    <button
+                      className="btn btn-o btn-sm"
+                      onClick={() => remove(p)}
+                      disabled={busy}
+                    >
+                      Delete
+                    </button>
+                  </div>
                 }
               >
                 <div className="grid-2">
@@ -189,30 +305,8 @@ export default function OwnerPackagesPage() {
                           <span className="t2">Not listed</span>
                         )}
                       </div>
-                    </div>
-                    <div>
-                      <div
-                        style={{
-                          fontSize: 10.5,
-                          fontWeight: 700,
-                          textTransform: 'uppercase',
-                          letterSpacing: '.06em',
-                          color: 'var(--muted)',
-                          marginBottom: 6,
-                        }}
-                      >
-                        Excluded
-                      </div>
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                        {chips(p.excluded).length > 0 ? (
-                          chips(p.excluded).map((c) => (
-                            <span className="tag" key={c}>
-                              {c}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="t2">Not listed</span>
-                        )}
+                      <div className="t2" style={{ marginTop: 8, fontSize: 12 }}>
+                        Anything not listed here is not included.
                       </div>
                     </div>
                   </div>
@@ -225,20 +319,26 @@ export default function OwnerPackagesPage() {
 
       <Drawer
         open={open}
-        title="New package"
+        title={editing ? 'Edit package' : 'New package'}
         onClose={() => setOpen(false)}
         footer={
           <>
             <button className="btn btn-o" onClick={() => setOpen(false)}>
               Cancel
             </button>
-            <button className="btn btn-b" onClick={create} disabled={busy || !routeId}>
-              {busy ? 'Creating…' : 'Create package'}
+            <button className="btn btn-b" onClick={submit} disabled={busy || !routeId}>
+              {busy
+                ? editing
+                  ? 'Saving…'
+                  : 'Creating…'
+                : editing
+                  ? 'Save changes'
+                  : 'Create package'}
             </button>
           </>
         }
       >
-        <form onSubmit={create} style={{ display: 'grid', gap: 12 }}>
+        <form onSubmit={submit} style={{ display: 'grid', gap: 12 }}>
           {error ? <Note kind="danger">{error}</Note> : null}
 
           <Field label="Route">
@@ -286,10 +386,23 @@ export default function OwnerPackagesPage() {
           </div>
 
           <Field label="Meals">
+            <div className="facility-grid">
+              {MEAL_OPTIONS.map((opt) => (
+                <label key={opt} className="facility-opt">
+                  <input
+                    type="checkbox"
+                    checked={mealSet.has(opt)}
+                    onChange={(e) => toggleMeal(opt, e.target.checked)}
+                  />
+                  {opt}
+                </label>
+              ))}
+            </div>
             <input
-              value={meals}
-              onChange={(e) => setMeals(e.target.value)}
-              placeholder="Breakfast, lunch, dinner"
+              value={mealExtras}
+              onChange={(e) => setMealExtras(e.target.value)}
+              placeholder="Other (comma separated) — optional"
+              style={{ marginTop: 8 }}
             />
           </Field>
 
@@ -299,14 +412,10 @@ export default function OwnerPackagesPage() {
               onChange={(e) => setIncluded(e.target.value)}
               placeholder="Guide, life jackets, generator"
             />
-          </Field>
-
-          <Field label="Excluded (comma separated)">
-            <input
-              value={excluded}
-              onChange={(e) => setExcluded(e.target.value)}
-              placeholder="Transport to ghat, entry fees"
-            />
+            <Note kind="info" style={{ marginTop: 8 }}>
+              Anything you don&apos;t list here counts as not included — no need for
+              a separate excluded list.
+            </Note>
           </Field>
         </form>
       </Drawer>

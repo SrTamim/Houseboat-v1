@@ -30,6 +30,12 @@ interface AuditRow {
  * this page reads that rather than a queue of its own. The device-side capture
  * queue does not exist yet — when it does, the pending half of this page gets a
  * real source instead of the note below.
+ *
+ * The replay engine logs BOTH applied intents and failures with syncedOffline
+ * set: a failure lands as action 'sync_conflict' (unauthorized / conflict /
+ * error). We split on that so a conflict is never shown as "applied" — which
+ * would silently hide the exact money-losing outcome the Conflicts card warns
+ * about.
  */
 export default function OwnerSyncPage() {
   const { boatId } = useActiveBoat();
@@ -40,7 +46,9 @@ export default function OwnerSyncPage() {
     { revalidateOnFocus: false },
   );
 
-  const replayed = (data?.items ?? []).filter((r) => r.syncedOffline);
+  const rows = (data?.items ?? []).filter((r) => r.syncedOffline);
+  const applied = rows.filter((r) => r.action !== 'sync_conflict');
+  const needsReview = rows.filter((r) => r.action === 'sync_conflict');
 
   return (
     <>
@@ -69,7 +77,7 @@ export default function OwnerSyncPage() {
           <AsyncTable
             isLoading={isLoading}
             error={error}
-            isEmpty={replayed.length === 0}
+            isEmpty={applied.length === 0}
             onRetry={() => mutate()}
             empty={
               <div className="state">
@@ -83,7 +91,7 @@ export default function OwnerSyncPage() {
             }
           >
             <tbody>
-              {replayed.map((r) => (
+              {applied.map((r) => (
                 <tr key={`${r.serverTime}-${r.id}`}>
                   <td className="t1">{humanize(r.action)}</td>
                   <td className="t2">{r.actor?.name ?? r.actor?.phone ?? 'system'}</td>
@@ -99,29 +107,71 @@ export default function OwnerSyncPage() {
         </TableWrap>
       </Card>
 
-      <div className="grid-2" style={{ marginTop: 20 }}>
-        <Card title="How replay decides">
-          <div className="stack" style={{ gap: 10 }}>
-            <Note kind="info">
-              A replayed action is re-authorised against the permissions you had at the
-              time it was taken, not the ones you have now. Losing access mid-trip does not
-              retroactively approve what was queued.
-            </Note>
-            <Note kind="info">
-              Repeats are harmless: an action that already landed is recognised and logged
-              rather than applied twice.
-            </Note>
-          </div>
-        </Card>
+      <Card
+        title="Conflicts"
+        sub="captured offline but not applied — a person decides"
+        flush
+        style={{ marginTop: 20 }}
+      >
+        <Note kind="warn" style={{ margin: '0 0 12px' }}>
+          Conflicting or unauthorised outcomes — the classic being a booking marked paid
+          on one device and voided on another, or an action queued after the actor lost
+          access — are never merged automatically. They are surfaced here for a person to
+          decide, because guessing would silently lose money either way.
+        </Note>
+        <TableWrap minWidth={760}>
+          <thead>
+            <tr>
+              <th>Action</th>
+              <th>Actor</th>
+              <th>Device time</th>
+              <th>Server time</th>
+              <th>Outcome</th>
+            </tr>
+          </thead>
+          <AsyncTable
+            isLoading={isLoading}
+            error={error}
+            isEmpty={needsReview.length === 0}
+            onRetry={() => mutate()}
+            empty={
+              <div className="state">
+                <div className="ic">✅</div>
+                <h4>No conflicts</h4>
+                <p>Every replayed action was authorised and applied cleanly.</p>
+              </div>
+            }
+          >
+            <tbody>
+              {needsReview.map((r) => (
+                <tr key={`${r.serverTime}-${r.id}`}>
+                  <td className="t1">{humanize(r.action)}</td>
+                  <td className="t2">{r.actor?.name ?? r.actor?.phone ?? 'system'}</td>
+                  <td className="t2">{r.deviceTime ? formatDateTime(r.deviceTime) : '—'}</td>
+                  <td className="t2">{formatDateTime(r.serverTime)}</td>
+                  <td>
+                    <Pill tone="danger">needs review</Pill>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </AsyncTable>
+        </TableWrap>
+      </Card>
 
-        <Card title="Conflicts">
-          <Note kind="warn">
-            Conflicting outcomes — the classic being a booking marked paid on one device
-            and voided on another — are never merged automatically. They are surfaced for
-            a person to decide, because guessing would silently lose money either way.
+      <Card title="How replay decides" style={{ marginTop: 20 }}>
+        <div className="stack" style={{ gap: 10 }}>
+          <Note kind="info">
+            A replayed action is re-authorised against the permissions you had at the
+            time it was taken, not the ones you have now. Losing access mid-trip does not
+            retroactively approve what was queued.
           </Note>
-        </Card>
-      </div>
+          <Note kind="info">
+            Repeats are harmless: an action that already landed is recognised and logged
+            rather than applied twice.
+          </Note>
+        </div>
+      </Card>
     </>
   );
 }

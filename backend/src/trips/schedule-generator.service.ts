@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -9,7 +14,7 @@ import { SaveScheduleDto } from './dto/trips.dto';
 
 /**
  * Weekly recurring schedule (§1). The owner picks a package (its route is the
- * boat's route) and up to 3 trip slots, each with its own weekdays. This
+ * boat's route) and up to 7 trip slots, each with its own weekdays. This
  * service generates trip_departure rows for a rolling window ahead and a daily
  * cron keeps that window populated. Generation is idempotent: a (slot, date)
  * that already has a departure is skipped.
@@ -41,57 +46,160 @@ export class ScheduleGeneratorService {
   }
 
   /**
-   * Save (create/replace) the boat's weekly schedule and generate the rolling
-   * window immediately. Deactivates any previous active schedule; already-
-   * generated future departures are KEPT (plan decision).
+   * Save the boat's weekly schedule and generate the rolling window immediately.
+   *
+   * Re-saving UPDATES the existing active schedule in place rather than creating
+   * a fresh one. This is what prevents duplicate departures: the generator dedupes
+   * on `scheduleSlotId|date`, so reusing the same slot ids keeps already-generated
+   * future departures from being re-created. Reconciliation never hard-deletes a
+   * departure or a slot (their FK children have no cascade) — it CANCELS future
+   * unbooked departures that no longer match, and leaves cleared slots in place
+   * with empty weekdays. Past departures and booked departures are never touched.
    */
   async saveSchedule(houseboatId: string, actorId: string, dto: SaveScheduleDto) {
     const pkg = await this.prisma.tripPackage.findFirst({
       where: { id: dto.packageId, houseboatId },
-      select: { id: true },
+      select: { id: true, routeId: true },
     });
     if (!pkg) throw new NotFoundException('Package not found for this boat');
 
-    const schedule = await this.prisma.$transaction(async (tx) => {
-      // One active schedule per boat — retire the old one.
-      await tx.boatSchedule.updateMany({
-        where: { houseboatId, active: true },
-        data: { active: false },
-      });
-
-      const created = await tx.boatSchedule.create({
-        data: {
-          id: newId(),
-          houseboatId,
-          packageId: dto.packageId,
-          active: dto.active ?? true,
-        },
-      });
-
-      await tx.tripScheduleSlot.createMany({
-        data: dto.slots.map((s) => ({
-          id: newId(),
-          scheduleId: created.id,
-          slotNo: s.slotNo,
-          weekdays: s.weekdays,
-          departureTime: this.trips.timeToDate(s.departureTime),
-          pricingProfileId: s.pricingProfileId,
-        })),
-      });
-
-      return created;
+    // The schedule may only use packages on the boat's active route.
+    const activeLink = await this.prisma.houseboatRoute.findFirst({
+      where: { houseboatId },
+      select: { routeId: true },
     });
+    if (!activeLink || pkg.routeId !== activeLink.routeId) {
+      throw new BadRequestException(
+        "This package is not on the boat's active route",
+      );
+    }
+
+    const existing = await this.prisma.boatSchedule.findFirst({
+      where: { houseboatId, active: true },
+      include: { slots: true },
+    });
+
+    // Incoming slots keyed by slotNo (weekdays already filtered by the caller;
+    // a slot absent from the payload is treated as cleared → empty weekdays).
+    const bySlotNo = new Map(dto.slots.map((s) => [s.slotNo, s]));
+
+    let scheduleId: string;
+
+    if (!existing) {
+      // ── First-time path: create the schedule + its slots. ──
+      const created = await this.prisma.$transaction(async (tx) => {
+        const sched = await tx.boatSchedule.create({
+          data: {
+            id: newId(),
+            houseboatId,
+            packageId: dto.packageId,
+            active: dto.active ?? true,
+          },
+        });
+        await tx.tripScheduleSlot.createMany({
+          data: dto.slots.map((s) => ({
+            id: newId(),
+            scheduleId: sched.id,
+            slotNo: s.slotNo,
+            weekdays: s.weekdays,
+            departureTime: this.trips.timeToDate(s.departureTime),
+            pricingProfileId: s.pricingProfileId,
+          })),
+        });
+        return sched;
+      });
+      scheduleId = created.id;
+    } else {
+      // ── Re-save path: reconcile the existing schedule in place. ──
+      scheduleId = existing.id;
+      const today = new Date();
+      today.setUTCHours(0, 0, 0, 0);
+
+      await this.prisma.$transaction(async (tx) => {
+        // Retire any OTHER active schedules (defensive — should be at most one).
+        await tx.boatSchedule.updateMany({
+          where: { houseboatId, active: true, id: { not: existing.id } },
+          data: { active: false },
+        });
+
+        await tx.boatSchedule.update({
+          where: { id: existing.id },
+          data: { packageId: dto.packageId, active: true },
+        });
+
+        // Upsert slots 1..7 by (scheduleId, slotNo), preserving slot ids so
+        // departures stay linked. Slots not in the payload are cleared to [].
+        for (let slotNo = 1; slotNo <= 7; slotNo++) {
+          const incoming = bySlotNo.get(slotNo);
+          await tx.tripScheduleSlot.upsert({
+            where: { scheduleId_slotNo: { scheduleId: existing.id, slotNo } },
+            create: {
+              id: newId(),
+              scheduleId: existing.id,
+              slotNo,
+              weekdays: incoming?.weekdays ?? [],
+              departureTime: this.trips.timeToDate(incoming?.departureTime),
+              pricingProfileId: incoming?.pricingProfileId ?? null,
+            },
+            update: {
+              weekdays: incoming?.weekdays ?? [],
+              departureTime: this.trips.timeToDate(incoming?.departureTime),
+              pricingProfileId: incoming?.pricingProfileId ?? null,
+            },
+          });
+        }
+
+        // Reconcile FUTURE departures against the new slot definitions.
+        const slotIds = existing.slots.map((s) => s.id);
+        if (slotIds.length > 0) {
+          const future = await tx.tripDeparture.findMany({
+            where: {
+              scheduleSlotId: { in: slotIds },
+              startDate: { gte: today },
+              status: 'scheduled',
+            },
+            include: { _count: { select: { bookings: true } } },
+          });
+
+          for (const d of future) {
+            if (d._count.bookings > 0) continue; // never touch a booked trip
+            const slot = existing.slots.find((s) => s.id === d.scheduleSlotId);
+            const incoming = slot ? bySlotNo.get(slot.slotNo) : undefined;
+            const weekdays = incoming?.weekdays ?? [];
+            const dow = d.startDate.getUTCDay();
+
+            if (!weekdays.includes(dow)) {
+              // Owner removed this weekday → cancel the unbooked departure.
+              await tx.tripDeparture.update({
+                where: { id: d.id },
+                data: { status: 'cancelled' },
+              });
+            } else {
+              // Still runs — push any time/pricing changes onto the unbooked row.
+              await tx.tripDeparture.update({
+                where: { id: d.id },
+                data: {
+                  departureTime:
+                    this.trips.timeToDate(incoming?.departureTime) ?? null,
+                  pricingProfileId: incoming?.pricingProfileId ?? null,
+                },
+              });
+            }
+          }
+        }
+      });
+    }
 
     await this.audit.log({
       houseboatId,
       actorAccountId: actorId,
       action: 'schedule_save',
       entityType: 'boat_schedule',
-      entityId: schedule.id,
+      entityId: scheduleId,
       after: { packageId: dto.packageId, slots: dto.slots.length },
     });
 
-    const generated = await this.generateForSchedule(schedule.id);
+    const generated = await this.generateForSchedule(scheduleId);
     return { ...(await this.getSchedule(houseboatId)), generated };
   }
 

@@ -284,6 +284,7 @@ export class BookingService {
           cabin.cabinCategoryId,
           baseCap,
           departure.startDate,
+          departure.package.routeId,
         );
       } else {
         // Buyout price for an open seat = full base capacity at the owner-set rate.
@@ -295,6 +296,7 @@ export class BookingService {
             cabin.cabinCategoryId,
             occupancy,
             departure.startDate,
+            departure.package.routeId,
           );
           roomPrice = priceForParty({
             pricePerPerson: perPerson,
@@ -665,7 +667,7 @@ export class BookingService {
 
     const newDep = await this.prisma.tripDeparture.findUnique({
       where: { id: newDepartureId },
-      include: { package: { select: { houseboatId: true } } },
+      include: { package: { select: { houseboatId: true, routeId: true } } },
     });
     if (!newDep) throw new NotFoundException('Target departure not found');
     if (newDep.status !== 'scheduled') {
@@ -691,6 +693,7 @@ export class BookingService {
         bc.cabin.cabinCategoryId,
         bc.occupancy,
         newDep.startDate,
+        newDep.package.routeId,
       );
       roomTotal = add(roomTotal, price);
     }
@@ -901,7 +904,9 @@ export class BookingService {
         booking: {
           include: {
             invoice: true,
-            departure: { include: { package: { select: { houseboatId: true } } } },
+            departure: {
+              include: { package: { select: { houseboatId: true, routeId: true } } },
+            },
           },
         },
       },
@@ -925,6 +930,7 @@ export class BookingService {
       seat.cabin.cabinCategoryId,
       occupancy,
       seat.booking.departure.startDate,
+      seat.booking.departure.package.routeId,
     );
 
     const billing = await this.prisma.houseboatBillingConfig.findFirst({

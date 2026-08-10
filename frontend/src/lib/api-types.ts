@@ -554,6 +554,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/houseboats/{houseboatId}/media/logo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["MediaController_uploadLogo"];
+        delete: operations["MediaController_removeLogo"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/houseboats/{houseboatId}/media/videos": {
         parameters: {
             query?: never;
@@ -618,6 +634,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/houseboats/{houseboatId}/packages/{packageId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["TripsController_deletePackage"];
+        options?: never;
+        head?: never;
+        patch: operations["TripsController_updatePackage"];
+        trace?: never;
+    };
     "/api/houseboats/{houseboatId}/departures": {
         parameters: {
             query?: never;
@@ -634,6 +666,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/houseboats/{houseboatId}/departures/{departureId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["TripsController_cancelDeparture"];
+        options?: never;
+        head?: never;
+        patch: operations["TripsController_updateDeparture"];
+        trace?: never;
+    };
+    "/api/houseboats/{houseboatId}/departures/{departureId}/revive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["TripsController_reviveDeparture"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/houseboats/{houseboatId}/pricing-profiles": {
         parameters: {
             query?: never;
@@ -644,6 +708,22 @@ export interface paths {
         get: operations["TripsController_listProfiles"];
         put?: never;
         post: operations["TripsController_createProfile"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/houseboats/{houseboatId}/route-pricing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["TripsController_listRoutePricing"];
+        put: operations["TripsController_upsertRoutePricing"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1726,6 +1806,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/houseboats/{houseboatId}/maintenance/requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["MaintenanceController_requests"];
+        put?: never;
+        post: operations["MaintenanceController_createRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/houseboats/{houseboatId}/maintenance/requests/{requestId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["MaintenanceController_updateRequest"];
+        trace?: never;
+    };
+    "/api/houseboats/{houseboatId}/maintenance/requests/{requestId}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["MaintenanceController_addComment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/platform/finance/payout-batches": {
         parameters: {
             query?: never;
@@ -2238,22 +2366,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/houseboats/{houseboatId}/calendar": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["OwnerController_getCalendar"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/houseboats/{houseboatId}/reports/trips": {
         parameters: {
             query?: never;
@@ -2278,6 +2390,23 @@ export interface paths {
             cookie?: never;
         };
         get: operations["OwnerController_monthlyReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/houseboats/{houseboatId}/reports/financials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Reports page: period KPIs, cost breakdown and 12-month trend for charts. */
+        get: operations["OwnerController_financials"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2369,134 +2498,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/houseboats/{houseboatId}/maintenance": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["MaintenanceController_summary"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/houseboats/{houseboatId}/maintenance/tasks": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["MaintenanceController_createTask"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/houseboats/{houseboatId}/maintenance/tasks/{taskId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch: operations["MaintenanceController_updateTask"];
-        trace?: never;
-    };
-    "/api/houseboats/{houseboatId}/maintenance/tasks/{taskId}/complete": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["MaintenanceController_completeTask"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/houseboats/{houseboatId}/maintenance/service-logs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["MaintenanceController_addServiceLog"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/houseboats/{houseboatId}/maintenance/damage": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["MaintenanceController_listDamage"];
-        put?: never;
-        post: operations["MaintenanceController_reportDamage"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/houseboats/{houseboatId}/maintenance/damage/{damageId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch: operations["MaintenanceController_updateDamage"];
-        trace?: never;
-    };
-    "/api/houseboats/{houseboatId}/maintenance/engine-hours": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["MaintenanceController_setEngineHours"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2511,6 +2512,7 @@ export interface components {
         LoginDto: {
             phone: string;
             password: string;
+            rememberMe?: boolean;
         };
         MySettingsDto: {
             /**
@@ -2518,7 +2520,9 @@ export interface components {
              *     Left open rather than a fixed DTO so adding an event type needs no
              *     migration; the console owns which keys it renders.
              */
-            notificationPrefs?: Record<string, never>;
+            notificationPrefs?: {
+                [key: string]: boolean;
+            };
         };
         CreateRoleDto: {
             name: string;
@@ -2633,15 +2637,15 @@ export interface components {
         CreateVideoDto: {
             cabinId?: string;
             /** Format: uri */
-            youtubeUrl: string;
+            videoUrl: string;
             sortOrder?: number;
         };
         ScheduleSlotDto: {
             slotNo: number;
-            /** @description Days of week, 0=Sun … 6=Sat. */
+            /** @description Days of week, 0=Sun … 6=Sat. At least one required. */
             weekdays: number[];
-            departureTime?: string;
-            pricingProfileId?: string;
+            departureTime: string;
+            pricingProfileId: string;
         };
         SaveScheduleDto: {
             packageId: string;
@@ -2659,12 +2663,32 @@ export interface components {
             excluded?: string;
             cancellationPolicyId?: string;
         };
+        UpdatePackageDto: {
+            routeId?: string;
+            durationDays?: number;
+            durationLabel?: string;
+            departureGhat?: string;
+            returnGhat?: string;
+            meals?: string;
+            included?: string;
+            excluded?: string;
+            cancellationPolicyId?: string;
+        };
         CreateDepartureDto: {
             packageId: string;
             startDate: string;
             departureTime?: string;
             arrivalTime?: string;
             pricingProfileId?: string;
+        };
+        UpdateDepartureDto: {
+            startDate?: string;
+            departureTime?: string;
+            arrivalTime?: string;
+            pricingProfileId?: string;
+        };
+        CancelDepartureDto: {
+            reason: string;
         };
         PriceRuleDto: {
             cabinCategoryId: string;
@@ -2677,6 +2701,19 @@ export interface components {
             /** @description ISO date strings the profile applies to. Empty for the default profile. */
             dates?: string[];
             /** @description Full independent price table for this profile. */
+            rules: components["schemas"]["PriceRuleDto"][];
+        };
+        UpsertRoutePricingDto: {
+            routeId: string;
+            /** @enum {string} */
+            priceType: "general" | "weekend" | "holiday";
+            /**
+             * @description ISO dates this type applies to — only meaningful for `holiday` (a range is
+             *     expanded client-side into individual days). Weekend is weekday-driven
+             *     (auto Fri/Sat) and general is the fallback; both ignore this field.
+             */
+            dates?: string[];
+            /** @description Full independent price table for this type on this route. */
             rules: components["schemas"]["PriceRuleDto"][];
         };
         GroupBandDto: {
@@ -2949,13 +2986,32 @@ export interface components {
             intentId: string;
             houseboatId: string;
             /** @enum {string} */
-            action: "cost_add" | "stock_movement" | "mark_cash_paid" | "mark_not_arrived" | "date_change";
+            action: "cost_add" | "stock_movement" | "mark_cash_paid" | "mark_not_arrived" | "date_change" | "maintenance_request" | "checkin_set";
             payload: Record<string, never>;
             /** @description Device clock when the action was taken (may be manipulated). */
             deviceTime: string;
         };
         SyncBatchDto: {
             intents: components["schemas"]["SyncIntentDto"][];
+        };
+        CreateMaintenanceRequestDto: {
+            topic: string;
+            /** @enum {string} */
+            urgency: "low" | "medium" | "high";
+            /** @description Optional opening note, stored as the first comment. */
+            comment?: string;
+        };
+        UpdateMaintenanceRequestDto: {
+            topic?: string;
+            /** @enum {string} */
+            urgency?: "low" | "medium" | "high";
+            /** @enum {string} */
+            status?: "pending" | "in_progress" | "complete" | "canceled";
+            /** @description Comment attached to this change; when `status` is set it tags the transition. */
+            comment?: string;
+        };
+        AddRequestCommentDto: {
+            body: string;
         };
         UpsertBillingConfigDto: {
             commissionPct?: number | null;
@@ -2980,51 +3036,6 @@ export interface components {
         };
         SetPlatformStaffDto: {
             isPlatform: boolean;
-        };
-        CreateMaintenanceTaskDto: {
-            title: string;
-            /** @enum {string} */
-            intervalKind: "engine_hours" | "calendar" | "per_trip";
-            /** @description hours for engine_hours, days for calendar; ignored for per_trip. */
-            intervalValue?: number;
-            dueAtHours?: number;
-            dueDate?: string;
-            notes?: string;
-        };
-        UpdateMaintenanceTaskDto: {
-            title?: string;
-            intervalValue?: number;
-            dueAtHours?: number;
-            dueDate?: string;
-            /** @enum {string} */
-            status?: "active" | "paused";
-            notes?: string;
-        };
-        CompleteTaskDto: {
-            serviceDate?: string;
-            engineHours?: number;
-            cost?: number;
-            note?: string;
-        };
-        CreateServiceLogDto: {
-            serviceDate?: string;
-            engineHours?: number;
-            cost?: number;
-            note?: string;
-            taskId?: string;
-        };
-        CreateDamageDto: {
-            title: string;
-            detail?: string;
-        };
-        UpdateDamageDto: {
-            /** @enum {string} */
-            status?: "open" | "fixed";
-            repairCost?: number;
-            detail?: string;
-        };
-        SetEngineHoursDto: {
-            hours: number;
         };
     };
     responses: never;
@@ -3470,7 +3481,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -3860,6 +3873,44 @@ export interface operations {
             };
         };
     };
+    MediaController_uploadLogo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MediaController_removeLogo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     MediaController_createVideo: {
         parameters: {
             query?: never;
@@ -3947,7 +3998,9 @@ export interface operations {
     };
     TripsController_listPackages: {
         parameters: {
-            query?: never;
+            query: {
+                route: string;
+            };
             header?: never;
             path: {
                 houseboatId: string;
@@ -3982,6 +4035,50 @@ export interface operations {
         };
         responses: {
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    TripsController_deletePackage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+                packageId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    TripsController_updatePackage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+                packageId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePackageDto"];
+            };
+        };
+        responses: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4033,9 +4130,79 @@ export interface operations {
             };
         };
     };
-    TripsController_listProfiles: {
+    TripsController_cancelDeparture: {
         parameters: {
             query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+                departureId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CancelDepartureDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    TripsController_updateDeparture: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+                departureId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateDepartureDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    TripsController_reviveDeparture: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+                departureId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    TripsController_listProfiles: {
+        parameters: {
+            query: {
+                route: string;
+            };
             header?: never;
             path: {
                 houseboatId: string;
@@ -4070,6 +4237,52 @@ export interface operations {
         };
         responses: {
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    TripsController_listRoutePricing: {
+        parameters: {
+            query: {
+                routeId: string;
+            };
+            header?: never;
+            path: {
+                houseboatId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+        };
+    };
+    TripsController_upsertRoutePricing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpsertRoutePricingDto"];
+            };
+        };
+        responses: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5090,7 +5303,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>[];
+                };
             };
         };
     };
@@ -5754,6 +5969,103 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["SyncBatchDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MaintenanceController_requests: {
+        parameters: {
+            query: {
+                q: string;
+                status: string;
+            };
+            header?: never;
+            path: {
+                houseboatId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MaintenanceController_createRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateMaintenanceRequestDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    MaintenanceController_updateRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+                requestId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateMaintenanceRequestDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    MaintenanceController_addComment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+                requestId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddRequestCommentDto"];
             };
         };
         responses: {
@@ -6482,27 +6794,6 @@ export interface operations {
             };
         };
     };
-    OwnerController_getCalendar: {
-        parameters: {
-            query?: {
-                month?: string;
-            };
-            header?: never;
-            path: {
-                houseboatId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
     OwnerController_tripReport: {
         parameters: {
             query?: {
@@ -6529,6 +6820,33 @@ export interface operations {
             query?: {
                 /** @description How many months back to summarise, ending with the current one. */
                 months?: number;
+            };
+            header?: never;
+            path: {
+                houseboatId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OwnerController_financials: {
+        parameters: {
+            query?: {
+                /** @description 1–12. Omit for the current month. */
+                month?: number;
+                /**
+                 * @description Calendar year. Omit (with `month` set) to sum that month across every year
+                 *     on record — the "every January" seasonality view.
+                 */
+                year?: number;
             };
             header?: never;
             path: {
@@ -6627,6 +6945,12 @@ export interface operations {
         parameters: {
             query?: {
                 action?: string;
+                /** @description Substring match on the action string or the actor's name / phone. */
+                search?: string;
+                /** @description ISO 8601 — inclusive lower bound on serverTime. */
+                from?: string;
+                /** @description ISO 8601 — inclusive upper bound on serverTime. */
+                to?: string;
                 /**
                  * @description Keyset cursor: "<serverTime ISO>|<id>". audit_log is partitioned by month
                  *     with a composite PK, so the generic id-only cursor in common/paginate
@@ -6669,208 +6993,6 @@ export interface operations {
                 content: {
                     "application/json": string[];
                 };
-            };
-        };
-    };
-    MaintenanceController_summary: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                houseboatId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    MaintenanceController_createTask: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                houseboatId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateMaintenanceTaskDto"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    MaintenanceController_updateTask: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                houseboatId: string;
-                taskId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateMaintenanceTaskDto"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    MaintenanceController_completeTask: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                houseboatId: string;
-                taskId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CompleteTaskDto"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    MaintenanceController_addServiceLog: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                houseboatId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateServiceLogDto"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    MaintenanceController_listDamage: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                houseboatId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    MaintenanceController_reportDamage: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                houseboatId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateDamageDto"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    MaintenanceController_updateDamage: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                houseboatId: string;
-                damageId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateDamageDto"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    MaintenanceController_setEngineHours: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                houseboatId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SetEngineHoursDto"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
         };
     };

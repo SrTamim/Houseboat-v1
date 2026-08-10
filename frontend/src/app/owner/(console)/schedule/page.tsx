@@ -13,6 +13,7 @@ import {
   AsyncTable,
 } from '@/components/owner/ui';
 import { DepartureStatusPill, Pill } from '@/components/owner/Pill';
+import { Drawer } from '@/components/owner/Drawer';
 import { apiErrorMessage, formatDate, weekday } from '@/lib/owner/format';
 
 interface Departure {
@@ -22,6 +23,7 @@ interface Departure {
   departureTime: string | null;
   availableCount: number;
   status: string;
+  cancelReason: string | null;
   scheduleSlotId: string | null;
   pricingProfileId: string | null;
   package: { id: string; durationLabel: string | null; route: { name: string } };
@@ -65,7 +67,12 @@ const DAYS = [
   { n: 6, label: 'Sat' },
 ];
 
-const SLOT_COUNT = 3;
+const SLOT_COUNT = 7;
+
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
 
 function emptySlots(): ScheduleSlot[] {
   return Array.from({ length: SLOT_COUNT }, (_, i) => ({
@@ -86,18 +93,39 @@ export default function OwnerSchedulePage() {
   const { boatId } = useActiveBoat();
   const [packageId, setPackageId] = useState('');
   const [slots, setSlots] = useState<ScheduleSlot[]>(emptySlots());
+  const [tripsPerWeek, setTripsPerWeek] = useState(3);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
 
+  // ── Departures table: month/year filter (defaults to current month) ──
+  const now = new Date();
+  const [filterYear, setFilterYear] = useState(now.getUTCFullYear());
+  const [filterMonth, setFilterMonth] = useState(now.getUTCMonth()); // 0..11
+  const [showCancelled, setShowCancelled] = useState(false);
+
+  // ── Departure edit drawer ──
+  const [editDep, setEditDep] = useState<Departure | null>(null);
+  const [editDate, setEditDate] = useState('');
+  const [editTime, setEditTime] = useState('');
+  const [editProfile, setEditProfile] = useState('');
+  const [rowBusy, setRowBusy] = useState(false);
+  const [rowError, setRowError] = useState<string | null>(null);
+
+  // ── Cancel-departure dialog ──
+  const [cancelDep, setCancelDep] = useState<Departure | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+
   const schedule = useSWR<Schedule | null>(`/houseboats/${boatId}/schedule`, fetcher, {
     revalidateOnFocus: false,
   });
-  const packages = useSWR<TripPackage[]>(`/houseboats/${boatId}/packages`, fetcher, {
-    revalidateOnFocus: false,
-  });
+  const packages = useSWR<TripPackage[]>(
+    `/houseboats/${boatId}/packages?route=active`,
+    fetcher,
+    { revalidateOnFocus: false },
+  );
   const profiles = useSWR<PricingProfile[]>(
-    `/houseboats/${boatId}/pricing-profiles`,
+    `/houseboats/${boatId}/pricing-profiles?route=active`,
     fetcher,
     { revalidateOnFocus: false },
   );
@@ -111,10 +139,12 @@ export default function OwnerSchedulePage() {
     if (!s) {
       setPackageId('');
       setSlots(emptySlots());
+      setTripsPerWeek(3);
       return;
     }
     setPackageId(s.packageId);
     const base = emptySlots();
+    let maxSlot = 0;
     for (const slot of s.slots) {
       const idx = slot.slotNo - 1;
       if (idx >= 0 && idx < SLOT_COUNT) {
@@ -124,9 +154,11 @@ export default function OwnerSchedulePage() {
           departureTime: timeHHmm(slot.departureTime) || '07:30',
           pricingProfileId: slot.pricingProfileId,
         };
+        if (slot.weekdays.length > 0) maxSlot = Math.max(maxSlot, slot.slotNo);
       }
     }
     setSlots(base);
+    setTripsPerWeek(maxSlot || 3);
   }, [schedule.data]);
 
   function toggleDay(slotIdx: number, day: number) {
@@ -151,6 +183,24 @@ export default function OwnerSchedulePage() {
   async function save(e: React.FormEvent) {
     e.preventDefault();
     if (busy || !packageId) return;
+
+    // Every visible trip needs weekdays, a departure time, and a pricing profile.
+    const visible = slots.slice(0, tripsPerWeek);
+    for (const s of visible) {
+      if (s.weekdays.length === 0) {
+        setError(`Trip ${s.slotNo}: pick at least one weekday.`);
+        return;
+      }
+      if (!s.departureTime) {
+        setError(`Trip ${s.slotNo}: set a departure time.`);
+        return;
+      }
+      if (!s.pricingProfileId) {
+        setError(`Trip ${s.slotNo}: choose a pricing profile.`);
+        return;
+      }
+    }
+
     setBusy(true);
     setError(null);
     setSaved(null);
@@ -158,14 +208,12 @@ export default function OwnerSchedulePage() {
       const payload = {
         packageId,
         active: true,
-        slots: slots
-          .filter((s) => s.weekdays.length > 0)
-          .map((s) => ({
-            slotNo: s.slotNo,
-            weekdays: s.weekdays,
-            departureTime: s.departureTime || undefined,
-            pricingProfileId: s.pricingProfileId || undefined,
-          })),
+        slots: visible.map((s) => ({
+          slotNo: s.slotNo,
+          weekdays: s.weekdays,
+          departureTime: s.departureTime,
+          pricingProfileId: s.pricingProfileId,
+        })),
       };
       const res = await api.put(`/houseboats/${boatId}/schedule`, payload);
       const generated = (res.data as { generated?: number })?.generated ?? 0;
@@ -185,8 +233,102 @@ export default function OwnerSchedulePage() {
     }
   }
 
+  function stepMonth(delta: number) {
+    let m = filterMonth + delta;
+    let y = filterYear;
+    if (m < 0) {
+      m = 11;
+      y -= 1;
+    } else if (m > 11) {
+      m = 0;
+      y += 1;
+    }
+    setFilterMonth(m);
+    setFilterYear(y);
+  }
+
+  function openEditDeparture(d: Departure) {
+    setEditDep(d);
+    setRowError(null);
+    setEditDate(d.startDate.slice(0, 10));
+    setEditTime(timeHHmm(d.departureTime));
+    setEditProfile(d.pricingProfileId ?? '');
+  }
+
+  async function saveDeparture(e: React.FormEvent) {
+    e.preventDefault();
+    if (rowBusy || !editDep) return;
+    setRowBusy(true);
+    setRowError(null);
+    try {
+      await api.patch(`/houseboats/${boatId}/departures/${editDep.id}`, {
+        startDate: editDate || undefined,
+        departureTime: editTime || undefined,
+        pricingProfileId: editProfile || undefined,
+      });
+      setEditDep(null);
+      await departures.mutate();
+    } catch (err) {
+      setRowError(apiErrorMessage(err, 'Could not update the departure.'));
+    } finally {
+      setRowBusy(false);
+    }
+  }
+
+  function openCancelDeparture(d: Departure) {
+    setCancelDep(d);
+    setCancelReason('');
+    setRowError(null);
+  }
+
+  async function submitCancel(e: React.FormEvent) {
+    e.preventDefault();
+    if (rowBusy || !cancelDep || !cancelReason.trim()) return;
+    setRowBusy(true);
+    setRowError(null);
+    try {
+      await api.delete(`/houseboats/${boatId}/departures/${cancelDep.id}`, {
+        data: { reason: cancelReason.trim() },
+      });
+      setCancelDep(null);
+      await departures.mutate();
+    } catch (err) {
+      setRowError(apiErrorMessage(err, 'Could not cancel the departure.'));
+    } finally {
+      setRowBusy(false);
+    }
+  }
+
+  async function reviveDeparture(d: Departure) {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(`/houseboats/${boatId}/departures/${d.id}/revive`);
+      await departures.mutate();
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not revive the departure.'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const profileName = new Map((profiles.data ?? []).map((p) => [p.id, p.name]));
-  const rows = (departures.data ?? []).filter((d) => d.status === 'scheduled');
+
+  // Filter to the selected month/year. Current & future months show only
+  // upcoming (scheduled) trips; past months show every status for history.
+  // "Show cancelled" surfaces cancelled trips in current/future months too.
+  const curYM = now.getUTCFullYear() * 12 + now.getUTCMonth();
+  const selYM = filterYear * 12 + filterMonth;
+  const isPastMonth = selYM < curYM;
+  const rows = (departures.data ?? []).filter((d) => {
+    const dt = new Date(d.startDate);
+    if (dt.getUTCFullYear() !== filterYear || dt.getUTCMonth() !== filterMonth)
+      return false;
+    if (isPastMonth) return true;
+    if (d.status === 'scheduled') return true;
+    return showCancelled && d.status === 'cancelled';
+  });
   const noPackages = (packages.data?.length ?? 0) === 0 && !packages.isLoading;
 
   return (
@@ -209,8 +351,8 @@ export default function OwnerSchedulePage() {
 
       {noPackages ? (
         <Note kind="warn" style={{ marginBottom: 18 }}>
-          Create a trip package first — the schedule generates departures from a package
-          (its route is the boat&apos;s route).
+          No packages on your active route — create a package for the boat&apos;s route
+          first. The schedule generates departures from that route&apos;s package.
         </Note>
       ) : null}
 
@@ -232,7 +374,20 @@ export default function OwnerSchedulePage() {
               </select>
             </Field>
 
-            {slots.map((slot, idx) => (
+            <Field label="Trips per week">
+              <select
+                value={tripsPerWeek}
+                onChange={(e) => setTripsPerWeek(Number(e.target.value))}
+              >
+                {[1, 2, 3, 4, 5, 6, 7].map((n) => (
+                  <option key={n} value={n}>
+                    {n} {n === 1 ? 'trip' : 'trips'} per week
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            {slots.slice(0, tripsPerWeek).map((slot, idx) => (
               <div
                 key={slot.slotNo}
                 style={{
@@ -244,8 +399,15 @@ export default function OwnerSchedulePage() {
                 }}
               >
                 <div style={{ fontWeight: 600 }}>Trip {slot.slotNo}</div>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  {DAYS.map((d) => {
+                <div>
+                  <div
+                    className="t2"
+                    style={{ marginBottom: 6 }}
+                  >
+                    Days <span style={{ color: 'var(--danger)' }}>*</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {DAYS.map((d) => {
                     const on = slot.weekdays.includes(d.n);
                     return (
                       <button
@@ -254,27 +416,30 @@ export default function OwnerSchedulePage() {
                         className={`btn btn-sm ${on ? 'btn-b' : 'btn-o'}`}
                         onClick={() => toggleDay(idx, d.n)}
                       >
-                        {d.label}
-                      </button>
-                    );
-                  })}
+                          {d.label}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
                 <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                  <Field label="Departure time">
+                  <Field label="Departure time *">
                     <input
                       type="time"
+                      required
                       value={slot.departureTime ?? ''}
                       onChange={(e) => setSlotField(idx, { departureTime: e.target.value })}
                     />
                   </Field>
-                  <Field label="Pricing profile">
+                  <Field label="Pricing profile *">
                     <select
+                      required
                       value={slot.pricingProfileId ?? ''}
                       onChange={(e) =>
                         setSlotField(idx, { pricingProfileId: e.target.value || null })
                       }
                     >
-                      <option value="">Use the date&apos;s profile</option>
+                      <option value="">Choose a pricing profile…</option>
                       {(profiles.data ?? []).map((p) => (
                         <option key={p.id} value={p.id}>
                           {p.name}
@@ -302,12 +467,73 @@ export default function OwnerSchedulePage() {
 
       <Note kind="info" style={{ margin: '16px 0' }}>
         Only dates in your operating dates carry a departure — set them on the boat profile
-        first. A slot with no days selected is ignored. Changing the route on your profile
-        starts a fresh schedule.
+        first. Every trip needs days, a departure time, and a pricing profile. Changing the
+        route on your profile starts a fresh schedule.
       </Note>
 
-      <Card title="Generated departures" sub="upcoming" flush>
-        <TableWrap minWidth={760}>
+      <Card
+        title="Generated departures"
+        sub={`${MONTHS[filterMonth]} ${filterYear}`}
+        flush
+        actions={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                fontSize: 13,
+                marginRight: 4,
+                cursor: 'pointer',
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={showCancelled}
+                onChange={(e) => setShowCancelled(e.target.checked)}
+              />
+              Show cancelled
+            </label>
+            <button
+              type="button"
+              className="btn btn-o btn-sm"
+              onClick={() => stepMonth(-1)}
+            >
+              ‹ Prev
+            </button>
+            <select
+              value={filterMonth}
+              onChange={(e) => setFilterMonth(Number(e.target.value))}
+            >
+              {MONTHS.map((m, i) => (
+                <option key={m} value={i}>
+                  {m}
+                </option>
+              ))}
+            </select>
+            <select
+              value={filterYear}
+              onChange={(e) => setFilterYear(Number(e.target.value))}
+            >
+              {[now.getUTCFullYear() - 1, now.getUTCFullYear(), now.getUTCFullYear() + 1].map(
+                (y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ),
+              )}
+            </select>
+            <button
+              type="button"
+              className="btn btn-o btn-sm"
+              onClick={() => stepMonth(1)}
+            >
+              Next ›
+            </button>
+          </div>
+        }
+      >
+        <TableWrap minWidth={860}>
           <thead>
             <tr>
               <th>Date</th>
@@ -316,6 +542,7 @@ export default function OwnerSchedulePage() {
               <th>Pricing</th>
               <th>Available</th>
               <th>Status</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <AsyncTable
@@ -326,8 +553,10 @@ export default function OwnerSchedulePage() {
             empty={
               <div className="state">
                 <div className="ic">📅</div>
-                <h4>Nothing generated yet</h4>
-                <p>Save a weekly schedule to auto-fill departures.</p>
+                <h4>No departures in {MONTHS[filterMonth]} {filterYear}</h4>
+                <p>
+                  Save a weekly schedule to auto-fill departures, or pick another month.
+                </p>
               </div>
             }
           >
@@ -358,6 +587,43 @@ export default function OwnerSchedulePage() {
                   <td className="t1">{d.availableCount}</td>
                   <td>
                     <DepartureStatusPill status={d.status} />
+                    {d.status === 'cancelled' && d.cancelReason ? (
+                      <div className="t2" style={{ marginTop: 4, maxWidth: 240 }}>
+                        {d.cancelReason}
+                      </div>
+                    ) : null}
+                  </td>
+                  <td>
+                    {d.status === 'scheduled' ? (
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button
+                          type="button"
+                          className="btn btn-o btn-sm"
+                          onClick={() => openEditDeparture(d)}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-o btn-sm"
+                          onClick={() => openCancelDeparture(d)}
+                          disabled={busy}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : d.status === 'cancelled' ? (
+                      <button
+                        type="button"
+                        className="btn btn-o btn-sm"
+                        onClick={() => reviveDeparture(d)}
+                        disabled={busy}
+                      >
+                        Revive
+                      </button>
+                    ) : (
+                      <span className="t2">—</span>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -365,6 +631,91 @@ export default function OwnerSchedulePage() {
           </AsyncTable>
         </TableWrap>
       </Card>
+
+      <Drawer
+        open={!!editDep}
+        title="Edit departure"
+        onClose={() => setEditDep(null)}
+        footer={
+          <>
+            <button className="btn btn-o" onClick={() => setEditDep(null)}>
+              Cancel
+            </button>
+            <button className="btn btn-b" onClick={saveDeparture} disabled={rowBusy}>
+              {rowBusy ? 'Saving…' : 'Save changes'}
+            </button>
+          </>
+        }
+      >
+        <form onSubmit={saveDeparture} style={{ display: 'grid', gap: 12 }}>
+          {rowError ? <Note kind="danger">{rowError}</Note> : null}
+          <Field label="Date">
+            <input
+              type="date"
+              value={editDate}
+              onChange={(e) => setEditDate(e.target.value)}
+            />
+          </Field>
+          <Field label="Departure time">
+            <input
+              type="time"
+              value={editTime}
+              onChange={(e) => setEditTime(e.target.value)}
+            />
+          </Field>
+          <Field label="Pricing profile">
+            <select value={editProfile} onChange={(e) => setEditProfile(e.target.value)}>
+              <option value="">Use the date&apos;s profile</option>
+              {(profiles.data ?? []).map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                  {p.isDefault ? ' (default)' : ''}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Note kind="info">
+            The date must be one of your operating dates, or the save is rejected.
+          </Note>
+        </form>
+      </Drawer>
+
+      <Drawer
+        open={!!cancelDep}
+        title="Cancel departure"
+        onClose={() => setCancelDep(null)}
+        footer={
+          <>
+            <button className="btn btn-o" onClick={() => setCancelDep(null)}>
+              Keep it
+            </button>
+            <button
+              className="btn btn-b"
+              onClick={submitCancel}
+              disabled={rowBusy || !cancelReason.trim()}
+            >
+              {rowBusy ? 'Cancelling…' : 'Cancel departure'}
+            </button>
+          </>
+        }
+      >
+        <form onSubmit={submitCancel} style={{ display: 'grid', gap: 12 }}>
+          {rowError ? <Note kind="danger">{rowError}</Note> : null}
+          <Field label="Reason (shown to customers)">
+            <textarea
+              rows={3}
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder="Why is this trip cancelled?"
+              required
+            />
+          </Field>
+          <Note kind="warn">
+            Customers with a booking on this trip will be notified and can request a
+            refund. Saving the schedule later will not bring this date back — use Revive.
+          </Note>
+        </form>
+      </Drawer>
     </>
   );
 }

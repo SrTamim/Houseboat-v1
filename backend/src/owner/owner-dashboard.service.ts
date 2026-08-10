@@ -46,8 +46,7 @@ export class OwnerDashboardService {
       unpaidPayroll,
       inventory,
       quotes,
-      openDamage,
-      maintenanceTasks,
+      openRequests,
       waitlistCount,
       pendingRefunds,
       weekBookings,
@@ -56,6 +55,7 @@ export class OwnerDashboardService {
       billingConfig,
       unpaidSubscription,
       locked,
+      lifetimeBookings,
     ] = await Promise.all([
       this.prisma.houseboat.findUniqueOrThrow({
         where: { id: houseboatId },
@@ -66,7 +66,6 @@ export class OwnerDashboardService {
           status: true,
           profileCompletePct: true,
           bankAccount: true,
-          engineHours: true,
         },
       }),
       this.prisma.tripDeparture.findMany({
@@ -102,10 +101,8 @@ export class OwnerDashboardService {
         select: { id: true, expiresAt: true, groupSize: true },
         orderBy: { expiresAt: 'asc' },
       }),
-      this.prisma.damageLog.count({ where: { houseboatId, status: 'open' } }),
-      this.prisma.maintenanceTask.findMany({
-        where: { houseboatId, status: 'active' },
-        select: { dueAtHours: true, dueDate: true, intervalKind: true },
+      this.prisma.maintenanceRequest.count({
+        where: { houseboatId, status: { in: ['pending', 'in_progress'] } },
       }),
       this.prisma.bookingWaitlist.count({
         where: { departure: { package: { houseboatId } } },
@@ -145,6 +142,15 @@ export class OwnerDashboardService {
         orderBy: { issuedAt: 'asc' },
       }),
       this.rbac.isBillingLocked(houseboatId),
+      // Lifetime room revenue: every confirmed/completed booking's room total,
+      // no date bound. Same shape as the weekly rollup above.
+      this.prisma.booking.findMany({
+        where: {
+          departure: { package: { houseboatId } },
+          status: { in: ['confirmed', 'completed'] },
+        },
+        select: { invoice: { select: { roomTotal: true } } },
+      }),
     ]);
 
     const payoutTotal = pendingBatches.reduce(
@@ -162,16 +168,6 @@ export class OwnerDashboardService {
         money(i.currentQty).lessThanOrEqualTo(money(i.reorderThreshold)),
     );
 
-    const dueMaintenance = maintenanceTasks.filter((t) => {
-      if (t.intervalKind === 'engine_hours' && t.dueAtHours !== null) {
-        return boat.engineHours >= t.dueAtHours - 25;
-      }
-      if (t.intervalKind === 'calendar' && t.dueDate) {
-        return t.dueDate.getTime() - Date.now() <= 7 * DAY_MS;
-      }
-      return false;
-    }).length;
-
     const weekRoom = weekBookings.reduce(
       (sum, b) => add(sum, money(b.invoice?.roomTotal ?? 0)),
       ZERO,
@@ -182,6 +178,11 @@ export class OwnerDashboardService {
     );
     const weekCostTotal = weekCosts.reduce(
       (sum, c) => add(sum, money(c.amount)),
+      ZERO,
+    );
+
+    const lifetimeRoom = lifetimeBookings.reduce(
+      (sum, b) => add(sum, money(b.invoice?.roomTotal ?? 0)),
       ZERO,
     );
 
@@ -224,6 +225,7 @@ export class OwnerDashboardService {
         lowStockNames: lowStock.map((i) => i.name),
         quotesWaiting: quotes.length,
         nextQuoteExpiresAt: quotes[0]?.expiresAt ?? null,
+        totalRevenue: lifetimeRoom.toFixed(2),
       },
       departuresToday: departures,
       week: {
@@ -258,62 +260,9 @@ export class OwnerDashboardService {
         refunds: pendingRefunds,
         payroll: unpaidPayroll,
         inventory: lowStock.length,
-        maintenance: dueMaintenance + openDamage,
+        maintenance: openRequests,
         billing: unpaidSubscription ? 1 : 0,
       },
-    };
-  }
-
-  /**
-   * Month view for the trip calendar: which days the boat operates and what is
-   * scheduled on each. `month` is YYYY-MM, defaulting to the current month.
-   */
-  async calendar(houseboatId: string, month?: string) {
-    const now = new Date();
-    const [year, mon] = month
-      ? month.split('-').map(Number)
-      : [now.getUTCFullYear(), now.getUTCMonth() + 1];
-    const from = new Date(Date.UTC(year, mon - 1, 1));
-    const to = new Date(Date.UTC(year, mon, 1));
-
-    const [boat, departures] = await Promise.all([
-      this.prisma.houseboat.findUniqueOrThrow({
-        where: { id: houseboatId },
-        select: { operatingDates: true },
-      }),
-      this.prisma.tripDeparture.findMany({
-        where: { package: { houseboatId }, startDate: { gte: from, lt: to } },
-        include: {
-          package: { select: { durationLabel: true, durationDays: true } },
-          pricingProfile: { select: { name: true } },
-          bookings: {
-            where: { status: { in: ['confirmed', 'completed'] } },
-            select: { cabins: { select: { id: true } } },
-          },
-        },
-        orderBy: { startDate: 'asc' },
-      }),
-    ]);
-
-    return {
-      month: `${year}-${String(mon).padStart(2, '0')}`,
-      operatingDates: boat.operatingDates
-        .filter((d) => d >= from && d < to)
-        .map((d) => d.toISOString().slice(0, 10)),
-      departures: departures.map((d) => {
-        const cabinsSold = d.bookings.reduce((n, b) => n + b.cabins.length, 0);
-        return {
-          id: d.id,
-          date: d.startDate.toISOString().slice(0, 10),
-          endDate: d.endDate?.toISOString().slice(0, 10) ?? null,
-          label: d.package.durationLabel,
-          durationDays: d.package.durationDays,
-          profile: d.pricingProfile?.name ?? null,
-          status: d.status,
-          cabinsSold,
-          cabinsTotal: cabinsSold + d.availableCount,
-        };
-      }),
     };
   }
 }

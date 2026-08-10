@@ -54,11 +54,14 @@ export class PlatformOpsService {
         from: get<string>('notifications.emailFrom') ?? null,
       },
       storage: {
+        // Local driver is always ready (writes to disk); R2 needs its creds.
         configured:
-          Boolean(get<string>('storage.endpoint')) &&
-          Boolean(get<string>('storage.bucket')) &&
-          Boolean(get<string>('storage.accessKeyId')) &&
-          Boolean(get<string>('storage.secretAccessKey')),
+          (get<string>('storage.driver') ?? 'local') === 'local' ||
+          (Boolean(get<string>('storage.endpoint')) &&
+            Boolean(get<string>('storage.bucket')) &&
+            Boolean(get<string>('storage.accessKeyId')) &&
+            Boolean(get<string>('storage.secretAccessKey'))),
+        driver: get<string>('storage.driver') ?? 'local',
         bucket: get<string>('storage.bucket') ?? null,
       },
       push: {

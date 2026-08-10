@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { api, clearCsrfToken } from '@/lib/api';
 import type { OwnerUser } from '@/lib/owner/session';
@@ -83,9 +82,6 @@ export function OwnerChrome({
             <div className="crumb">{boat.name}</div>
           </div>
           <div className="sp" />
-          <Link className="icon-btn" href="/owner/notifications" aria-label="Notifications">
-            🔔
-          </Link>
           <ThemeToggle />
           <div className="whoami">
             <span className="av">{initials(displayName)}</span>
