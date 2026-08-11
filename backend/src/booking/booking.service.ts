@@ -1099,4 +1099,44 @@ export class BookingService {
       orderBy: { createdAt: 'desc' },
     });
   }
+
+  /**
+   * Public, hold-free price preview for a hypothetical cabin selection. This is
+   * the single source of truth for every price the customer UI shows — the
+   * client never computes totals itself (no NIGHTS multiplier, no service fee,
+   * child pricing follows the boat's policy). No holds are taken and nothing is
+   * written; the customer commits later via checkout.
+   *
+   * `throwOnUnpriced:false` so a cabin with no configured rate comes back marked
+   * `priced:false` instead of failing the whole quote; no owner overrides or
+   * discounts (those are POS-only). Coupon is validated + applied server-side.
+   */
+  async quote(dto: {
+    departureId: string;
+    cabins: PriceableCabin[];
+    couponCode?: string;
+  }) {
+    const { cabinRows, coupon, bill } = await this.priceSelection(dto, {
+      throwOnUnpriced: false,
+    });
+    // A coupon "applied" when it resolved AND actually reduced the total. The
+    // client shows discountAmount; couponApplied just drives the ✓/✗ chip so it
+    // never has to guess validity from client state.
+    const discounted = bill.discountAmount.greaterThan(ZERO);
+    return {
+      perCabin: cabinRows.map((r) => ({
+        cabinId: r.cabinId,
+        adults: r.adults,
+        children: r.children,
+        occupancy: r.occupancy,
+        isOpenSeat: r.isOpenSeat,
+        roomPrice: r.roomPrice.toFixed(2),
+        priced: r.priced,
+      })),
+      couponApplied: !!coupon && discounted,
+      roomTotal: bill.roomTotal.toFixed(2),
+      discountAmount: bill.discountAmount.toFixed(2),
+      displayTotal: bill.displayTotal.toFixed(2),
+    };
+  }
 }

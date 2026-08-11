@@ -42,6 +42,35 @@ export class CabinSelectionDto {
   @IsOptional() @IsBoolean() openSeat?: boolean;
 }
 
+/**
+ * A cabin selection for a price quote — same as CabinSelectionDto but WITHOUT
+ * a holdId. Quotes are hold-free (they price a hypothetical selection before the
+ * customer commits), so no cabin is locked and no hold exists yet.
+ */
+export class QuoteCabinDto {
+  @IsString() @MaxLength(LEN_CODE) cabinId!: string;
+  @IsInt() @Min(1) adults!: number;
+  @IsOptional() @IsInt() @Min(0) children?: number;
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @IsInt({ each: true })
+  @Min(0, { each: true })
+  @Max(120, { each: true })
+  childAges?: number[];
+  @IsOptional() @IsBoolean() openSeat?: boolean;
+}
+
+export class QuoteDto {
+  @IsString() @MaxLength(LEN_CODE) departureId!: string;
+  @ValidateNested({ each: true })
+  @Type(() => QuoteCabinDto)
+  @IsArray()
+  @ArrayMaxSize(50)
+  cabins!: QuoteCabinDto[];
+  @IsOptional() @IsString() @MaxLength(LEN_CODE) couponCode?: string;
+}
+
 export class CheckoutDto {
   @IsString() @MaxLength(LEN_CODE) departureId!: string;
   @ValidateNested({ each: true })

@@ -362,6 +362,14 @@
         "operationId": "RbacController_updateMember",
         "parameters": [
           {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "membershipId",
             "required": true,
             "in": "path",
@@ -395,6 +403,14 @@
         "operationId": "RbacController_changeRole",
         "parameters": [
           {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "membershipId",
             "required": true,
             "in": "path",
@@ -427,6 +443,14 @@
       "post": {
         "operationId": "RbacController_exitMember",
         "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "membershipId",
             "required": true,
@@ -483,6 +507,195 @@
         ]
       }
     },
+    "/api/houseboats/search": {
+      "get": {
+        "operationId": "HouseboatsController_search",
+        "parameters": [
+          {
+            "name": "route",
+            "required": false,
+            "in": "query",
+            "description": "Route id or region text match.",
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "name": "date",
+            "required": false,
+            "in": "query",
+            "description": "Only boats with a scheduled, available departure on/after this date.",
+            "schema": {
+              "maxLength": 32,
+              "type": "string"
+            }
+          },
+          {
+            "name": "ac",
+            "required": false,
+            "in": "query",
+            "description": "'ac' → has an AC category; 'nonac' → has a non-AC category; 'both'/absent → no filter.",
+            "schema": {
+              "enum": [
+                "ac",
+                "nonac",
+                "both"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "minPrice",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "maxPrice",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "guests",
+            "required": false,
+            "in": "query",
+            "description": "At least one cabin category that seats this many.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "type": "number"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "price_asc",
+                "price_desc",
+                "rating",
+                "newest"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "GET /houseboats/search — public filtered search. Static path, declared\nbefore the `:slug` catch-all so \"search\" isn't read as a slug.",
+        "tags": [
+          "Houseboats"
+        ]
+      }
+    },
+    "/api/houseboats/{slug}/departures": {
+      "get": {
+        "operationId": "HouseboatsController_departures",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "GET /houseboats/:slug/departures?from&to — public bookable departures.\nDeclared before `:slug` so the more specific path wins.",
+        "tags": [
+          "Houseboats"
+        ]
+      }
+    },
+    "/api/houseboats/{slug}/group-bands": {
+      "get": {
+        "operationId": "HouseboatsController_groupBands",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "GET /houseboats/:slug/group-bands — public full-boat buyout bands.",
+        "tags": [
+          "Houseboats"
+        ]
+      }
+    },
+    "/api/houseboats/{slug}/departures/{departureId}/cabins": {
+      "get": {
+        "operationId": "HouseboatsController_departureCabins",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "departureId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "GET /houseboats/:slug/departures/:departureId/cabins — public per-cabin\navailability snapshot for the boat detail page. Declared before `:slug` so\nthe more specific path wins.",
+        "tags": [
+          "Houseboats"
+        ]
+      }
+    },
     "/api/houseboats/{slug}": {
       "get": {
         "operationId": "HouseboatsController_getBySlug",
@@ -504,6 +717,70 @@
         "summary": "GET /houseboats/:slug — public boat detail.",
         "tags": [
           "Houseboats"
+        ]
+      }
+    },
+    "/api/me/credits": {
+      "get": {
+        "operationId": "MeController_credits",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "GET /me/credits — wallet balance + credit history.",
+        "tags": [
+          "Me"
+        ]
+      }
+    },
+    "/api/me/notifications/{id}/read": {
+      "post": {
+        "operationId": "MeController_markRead",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "POST /me/notifications/:id/read — mark one inbox item read.",
+        "tags": [
+          "Me"
+        ]
+      }
+    },
+    "/api/me": {
+      "patch": {
+        "operationId": "MeController_updateProfile",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfileDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "PATCH /me — update the caller's own profile.",
+        "tags": [
+          "Me"
         ]
       }
     },
@@ -1761,6 +2038,31 @@
         },
         "tags": [
           "Trips"
+        ]
+      }
+    },
+    "/api/booking/quote": {
+      "post": {
+        "operationId": "BookingController_quote",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuoteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Public, hold-free price preview. The boat page calls this on the current\ncabin selection to show a server-authoritative total (client never computes\nprices). Anonymous users can price before the login-at-checkout wall.",
+        "tags": [
+          "Booking"
         ]
       }
     },
@@ -3480,6 +3782,14 @@
         "operationId": "HrController_runPayroll",
         "parameters": [
           {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "staffId",
             "required": true,
             "in": "path",
@@ -3511,6 +3821,14 @@
         "operationId": "HrController_listPayroll",
         "parameters": [
           {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "staffId",
             "required": true,
             "in": "path",
@@ -3534,6 +3852,14 @@
         "operationId": "HrController_markPaid",
         "parameters": [
           {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "payrollId",
             "required": true,
             "in": "path",
@@ -3556,6 +3882,14 @@
       "patch": {
         "operationId": "HrController_adjustPayroll",
         "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "payrollId",
             "required": true,
@@ -3852,6 +4186,14 @@
         "operationId": "OpsController_recordMovement",
         "parameters": [
           {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "itemId",
             "required": true,
             "in": "path",
@@ -3986,6 +4328,14 @@
             "name": "reviewId",
             "required": true,
             "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "query",
             "schema": {
               "type": "string"
             }
@@ -5961,6 +6311,24 @@
           "roleId"
         ]
       },
+      "UpdateProfileDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "phone": {
+            "type": "string",
+            "pattern": "BD_PHONE"
+          },
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "format": "email"
+          }
+        }
+      },
       "FoodMenuDto": {
         "type": "object",
         "properties": {
@@ -6624,6 +6992,63 @@
           "totalPrice"
         ]
       },
+      "QuoteCabinDto": {
+        "type": "object",
+        "properties": {
+          "cabinId": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "adults": {
+            "type": "number",
+            "minimum": 1
+          },
+          "children": {
+            "type": "number",
+            "minimum": 0
+          },
+          "childAges": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "number",
+              "maximum": 120,
+              "minimum": 0
+            }
+          },
+          "openSeat": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "cabinId",
+          "adults"
+        ]
+      },
+      "QuoteDto": {
+        "type": "object",
+        "properties": {
+          "departureId": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "cabins": {
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuoteCabinDto"
+            }
+          },
+          "couponCode": {
+            "type": "string",
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "departureId",
+          "cabins"
+        ]
+      },
       "HoldCabinDto": {
         "type": "object",
         "properties": {
@@ -6703,6 +7128,11 @@
             "type": "string",
             "maxLength": 64
           },
+          "leadGuestNid": {
+            "type": "string",
+            "description": "Lead guest NID / passport. Stored encrypted at rest; never echoed back.",
+            "maxLength": 64
+          },
           "specialInstructions": {
             "type": "string",
             "maxLength": 500
@@ -6749,6 +7179,11 @@
           },
           "leadGuestPhone": {
             "type": "string",
+            "maxLength": 64
+          },
+          "leadGuestNid": {
+            "type": "string",
+            "description": "Lead guest NID / passport. Stored encrypted at rest; never echoed back.",
             "maxLength": 64
           },
           "specialInstructions": {
@@ -7009,6 +7444,10 @@
           "specialInstructions": {
             "type": "string",
             "maxLength": 500
+          },
+          "attachToExisting": {
+            "type": "boolean",
+            "description": "Operator confirmation to attach this sale to a pre-existing account when the\ntyped phone already belongs to a customer under a different name. Without it\nthe checkout refuses (409), so a mistyped number can't silently land the\nbooking on a stranger."
           },
           "paymentMethod": {
             "type": "string",

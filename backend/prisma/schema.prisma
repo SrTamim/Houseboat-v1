@@ -1082,6 +1082,8 @@ model Notification {
   /// sms / email
   channel   String
   delivered Boolean  @default(false)
+  /// when the customer marked this read in their account inbox; NULL = unread
+  readAt    DateTime? @map("read_at") @db.Timestamptz
   /// minimal replay payload for console resend: {phone?, email?, subject?, html?, message?, bookingId?}.
   /// NULL = row predates this column and cannot be resent.
   payload   Json?

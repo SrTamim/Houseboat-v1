@@ -3,7 +3,7 @@ import { Throttle } from '@nestjs/throttler';
 import { HoldsService } from './holds.service';
 import { BookingService } from './booking.service';
 import { WaitlistService } from './waitlist.service';
-import { CurrentUser } from '../auth/decorators';
+import { CurrentUser, Public } from '../auth/decorators';
 import { AuthUser } from '../auth/auth.types';
 import {
   HoldCabinDto,
@@ -12,6 +12,7 @@ import {
   RescheduleDto,
   JoinOpenSeatDto,
   GroupCheckoutDto,
+  QuoteDto,
 } from './dto/booking.dto';
 
 /**
@@ -25,6 +26,28 @@ export class BookingController {
     private readonly booking: BookingService,
     private readonly waitlist: WaitlistService,
   ) {}
+
+  /**
+   * Public, hold-free price preview. The boat page calls this on the current
+   * cabin selection to show a server-authoritative total (client never computes
+   * prices). Anonymous users can price before the login-at-checkout wall.
+   */
+  @Public()
+  @Throttle({ default: { ttl: 60_000, limit: 60 } })
+  @Post('quote')
+  quote(@Body() dto: QuoteDto) {
+    return this.booking.quote({
+      departureId: dto.departureId,
+      cabins: dto.cabins.map((c) => ({
+        cabinId: c.cabinId,
+        adults: c.adults,
+        children: c.children,
+        childAges: c.childAges,
+        openSeat: c.openSeat,
+      })),
+      couponCode: dto.couponCode,
+    });
+  }
 
   /** Take a hold on one cabin. Returns server-authoritative expires_at. */
   // Tighter than the global 120/min: holds lock availability, so a flood is a
