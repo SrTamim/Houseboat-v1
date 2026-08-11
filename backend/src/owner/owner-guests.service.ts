@@ -153,7 +153,11 @@ export class OwnerGuestsService {
       'Repeat',
     ];
     const esc = (v: unknown) => {
-      const s = v === null || v === undefined ? '' : String(v);
+      let s = v === null || v === undefined ? '' : String(v);
+      // CSV formula injection: a cell starting with = + - @ (or tab/CR) is run as
+      // a formula by Excel/Sheets. Guest names are attacker-controlled, so prefix
+      // such values with a single quote to force them to be read as text.
+      if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
       // Quote if the value contains a comma, quote, or newline; double inner quotes.
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };

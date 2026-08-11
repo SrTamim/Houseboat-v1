@@ -225,10 +225,17 @@ export class RefundsService {
       'money',
       'edit',
     );
-    // DB CHECK also enforces this, but fail early with a clear message.
+    // Full 3-person separation: requester, verifier and completer must all be
+    // distinct. The DB CHECK covers verifier != completer; enforce the other two
+    // pairings here so a 2-person pair can't push a refund through end-to-end.
     if (refund.verifiedBy === completerId) {
       throw new ForbiddenException(
         'Separation of duties: verifier cannot complete the same refund',
+      );
+    }
+    if (refund.requestedBy === completerId) {
+      throw new ForbiddenException(
+        'Separation of duties: requester cannot complete the same refund',
       );
     }
     this.assertWithinWindow(refund.claimDeadline);

@@ -184,6 +184,7 @@ export class OpsService {
    * records the discrepancy. Returns a low-stock flag for consumables.
    */
   async recordMovement(
+    houseboatId: string,
     itemId: string,
     actorId: string,
     dto: StockMovementDto,
@@ -192,6 +193,11 @@ export class OpsService {
       where: { id: itemId },
     });
     if (!item) throw new NotFoundException('Inventory item not found');
+    // IDOR guard: the item must belong to the boat the caller was authorized
+    // against — the controller only checks permission on the URL :houseboatId.
+    if (item.houseboatId !== houseboatId) {
+      throw new NotFoundException('Inventory item not found');
+    }
 
     const result = await this.prisma.$transaction(async (tx) => {
       let expectedQty: number | undefined;
@@ -307,19 +313,30 @@ export class OpsService {
   }
 
   /** Create or edit the owner's reply to a review (§7). */
-  replyToReview(reviewId: string, reply: string) {
-    return this.prisma.review.update({
-      where: { id: reviewId },
+  async replyToReview(houseboatId: string, reviewId: string, reply: string) {
+    // Scope the write to the boat the caller was authorized against: the guard
+    // resolves permission from the request-supplied houseboatId, so without this
+    // a reviewId from another boat would still be writable (IDOR).
+    const res = await this.prisma.review.updateMany({
+      where: { id: reviewId, houseboatId },
       data: { ownerReply: reply },
     });
+    if (res.count === 0) {
+      throw new NotFoundException('Review not found on this houseboat');
+    }
+    return { id: reviewId, ownerReply: reply };
   }
 
   /** Remove the owner's reply (§7). */
-  deleteReviewReply(reviewId: string) {
-    return this.prisma.review.update({
-      where: { id: reviewId },
+  async deleteReviewReply(houseboatId: string, reviewId: string) {
+    const res = await this.prisma.review.updateMany({
+      where: { id: reviewId, houseboatId },
       data: { ownerReply: null },
     });
+    if (res.count === 0) {
+      throw new NotFoundException('Review not found on this houseboat');
+    }
+    return { id: reviewId, ownerReply: null };
   }
 
   // ── Notifications ──────────────────────────────────────────

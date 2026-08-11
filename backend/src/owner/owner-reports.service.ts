@@ -65,24 +65,32 @@ export class OwnerReportsService {
       }),
     ]);
 
-    const departures = await this.prisma.tripDeparture.findMany({
-      where: { package: { houseboatId }, startDate: { gte: from, lt: to } },
-      include: {
-        package: { select: { durationLabel: true } },
-        bookings: {
-          where: { status: { in: ['confirmed', 'completed'] } },
-          select: {
-            cabins: { select: { id: true, occupancy: true } },
-            invoice: {
-              select: { roomTotal: true, commission: true },
+    const [departures, cabinCount] = await Promise.all([
+      this.prisma.tripDeparture.findMany({
+        where: { package: { houseboatId }, startDate: { gte: from, lt: to } },
+        include: {
+          package: { select: { durationLabel: true } },
+          bookings: {
+            where: { status: { in: ['confirmed', 'completed'] } },
+            select: {
+              cabins: { select: { id: true, occupancy: true } },
+              invoice: {
+                select: { roomTotal: true, commission: true },
+              },
             },
           },
+          costs: { select: { amount: true } },
+          crew: { select: { staff: { select: { perTripRate: true } } } },
         },
-        costs: { select: { amount: true } },
-        crew: { select: { staff: { select: { perTripRate: true } } } },
-      },
-      orderBy: { startDate: 'asc' },
-    });
+        orderBy: { startDate: 'asc' },
+      }),
+      // Rated boat capacity — stable, unlike per-departure availableCount which
+      // dips while cabins are merely held. Caveat: this is the CURRENT cabin
+      // count, so fill% for a past month uses today's capacity if the boat has
+      // since added/removed cabins. Accepted trade — stability over exact
+      // historical capacity (which we don't snapshot per departure).
+      this.prisma.houseboatCabin.count({ where: { deck: { houseboatId } } }),
+    ]);
 
     const rows = departures.map((d) => {
       const revenue = d.bookings.reduce(
@@ -108,7 +116,7 @@ export class OwnerReportsService {
         label: d.package.durationLabel,
         status: d.status,
         cabinsSold,
-        cabinsTotal: cabinsSold + d.availableCount,
+        cabinsTotal: Math.max(cabinCount, cabinsSold),
         guests: d.bookings.reduce(
           (n, b) => n + b.cabins.reduce((c, cab) => c + cab.occupancy, 0),
           0,
@@ -328,14 +336,13 @@ export class OwnerReportsService {
   ) {
     const dateOr = ranges.map((r) => ({ gte: r.from, lt: r.to }));
 
-    const [departures, costs, payrolls] = await Promise.all([
+    const [departures, costs, payrolls, cabinCount] = await Promise.all([
       this.prisma.tripDeparture.findMany({
         where: {
           package: { houseboatId },
           OR: dateOr.map((d) => ({ startDate: d })),
         },
         select: {
-          availableCount: true,
           bookings: {
             where: { status: { in: ['confirmed', 'completed'] } },
             select: {
@@ -358,6 +365,10 @@ export class OwnerReportsService {
         },
         select: { totalAmount: true },
       }),
+      // Rated boat capacity, stable across live holds (see tripReport). Caveat:
+      // CURRENT count — historical-month fill% uses today's capacity if cabins
+      // changed since. Accepted trade (stability over per-departure snapshotting).
+      this.prisma.houseboatCabin.count({ where: { deck: { houseboatId } } }),
     ]);
 
     let revenue = ZERO;
@@ -374,7 +385,9 @@ export class OwnerReportsService {
         for (const c of b.cabins) guests += c.occupancy;
       }
       sold += deptSold;
-      capacity += deptSold + d.availableCount;
+      // Each departure is generated at full boat capacity; use it (guarding an
+      // oversell) rather than the hold-sensitive availableCount.
+      capacity += Math.max(cabinCount, deptSold);
     }
 
     const operatingCosts = costs.reduce((s, c) => add(s, money(c.amount)), ZERO);

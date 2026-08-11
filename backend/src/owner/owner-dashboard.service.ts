@@ -56,6 +56,7 @@ export class OwnerDashboardService {
       unpaidSubscription,
       locked,
       lifetimeBookings,
+      cabinCount,
     ] = await Promise.all([
       this.prisma.houseboat.findUniqueOrThrow({
         where: { id: houseboatId },
@@ -151,6 +152,13 @@ export class OwnerDashboardService {
         },
         select: { invoice: { select: { roomTotal: true } } },
       }),
+      // The boat's true cabin capacity. Departures are generated with
+      // availableCount = this count, so it's the rated capacity of every
+      // departure — and, unlike availableCount, it does NOT move when a cabin is
+      // merely held, so occupancy figures stay stable.
+      this.prisma.houseboatCabin.count({
+        where: { deck: { houseboatId } },
+      }),
     ]);
 
     const payoutTotal = pendingBatches.reduce(
@@ -195,7 +203,9 @@ export class OwnerDashboardService {
         departureTime: d.departureTime,
         status: d.status,
         cabinsSold,
-        cabinsTotal: cabinsSold + d.availableCount,
+        // Rated boat capacity, not live availableCount (which dips on holds).
+        // max() covers a counter oversell beyond rated capacity.
+        cabinsTotal: Math.max(cabinCount, cabinsSold),
         guests: d.bookings.reduce(
           (n, b) => n + b.cabins.reduce((c, cab) => c + cab.occupancy, 0),
           0,

@@ -159,7 +159,7 @@ export class SyncService {
       case 'stock_movement': {
         const itemId = p.itemId as string;
         await this.assertEntityBoat('inventory_item', itemId, intent.houseboatId);
-        await this.ops.recordMovement(itemId, accountId, {
+        await this.ops.recordMovement(intent.houseboatId, itemId, accountId, {
           direction: p.direction as 'in' | 'out' | 'count',
           qty: Number(p.qty),
           tripId: p.tripId as string | undefined,

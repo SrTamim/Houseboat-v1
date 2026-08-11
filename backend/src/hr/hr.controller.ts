@@ -70,36 +70,42 @@ export class HrController {
   @Post('houseboats/:houseboatId/staff/:staffId/payroll')
   @RequirePermission({ module: 'staff', action: 'edit' })
   runPayroll(
+    @Param('houseboatId') houseboatId: string,
     @Param('staffId') staffId: string,
     @CurrentUser() user: AuthUser,
     @Body() dto: PayrollDto,
   ) {
-    return this.hr.runPayroll(staffId, dto, user.id);
+    return this.hr.runPayroll(houseboatId, staffId, dto, user.id);
   }
 
   @Post('houseboats/:houseboatId/payroll/:payrollId/paid')
   @RequirePermission({ module: 'staff', action: 'edit' })
   markPaid(
+    @Param('houseboatId') houseboatId: string,
     @Param('payrollId') payrollId: string,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.hr.markPayrollPaid(payrollId, user.id);
+    return this.hr.markPayrollPaid(houseboatId, payrollId, user.id);
   }
 
   @Patch('houseboats/:houseboatId/payroll/:payrollId')
   @RequirePermission({ module: 'staff', action: 'edit' })
   adjustPayroll(
+    @Param('houseboatId') houseboatId: string,
     @Param('payrollId') payrollId: string,
     @CurrentUser() user: AuthUser,
     @Body() dto: AdjustPayrollDto,
   ) {
-    return this.hr.adjustPayroll(payrollId, dto, user.id);
+    return this.hr.adjustPayroll(houseboatId, payrollId, dto, user.id);
   }
 
   @Get('houseboats/:houseboatId/staff/:staffId/payroll')
   @RequirePermission({ module: 'staff', action: 'view' })
-  listPayroll(@Param('staffId') staffId: string) {
-    return this.hr.listPayroll(staffId);
+  listPayroll(
+    @Param('houseboatId') houseboatId: string,
+    @Param('staffId') staffId: string,
+  ) {
+    return this.hr.listPayroll(houseboatId, staffId);
   }
 
   // ── Attendance report (monthly) ────────────────────────────

@@ -18,7 +18,11 @@ describe('OwnerBookingsService.posCheckout — hold conversion', () => {
   function makeService(invoice: { id: string; displayTotal: string } | null = null) {
     const prisma = {
       tripDeparture: { findFirst: jest.fn().mockResolvedValue(DEPARTURE) },
-      account: { upsert: jest.fn().mockResolvedValue({ id: 'cust-1' }) },
+      // New walk-in: no existing account → checkout creates one.
+      account: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({ id: 'cust-1' }),
+      },
     };
     const holds = {
       hold: jest.fn().mockResolvedValue({ id: 'should-not-be-called' }),
@@ -124,7 +128,10 @@ describe('OwnerBookingsService.posCheckout — partial payment', () => {
   function svc(displayTotal = '5000.00') {
     const prisma = {
       tripDeparture: { findFirst: jest.fn().mockResolvedValue({ id: 'dep-1' }) },
-      account: { upsert: jest.fn().mockResolvedValue({ id: 'cust-1' }) },
+      account: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({ id: 'cust-1' }),
+      },
     };
     const holds = { hold: jest.fn(), listActiveForDeparture: jest.fn() };
     const booking = {
@@ -165,6 +172,75 @@ describe('OwnerBookingsService.posCheckout — partial payment', () => {
     const { service, payments } = svc('5000.00');
     await service.posCheckout('boat-1', 'owner-1', { ...base, amountPaid: 0 });
     expect(payments.recordPayment).not.toHaveBeenCalled();
+  });
+});
+
+describe('OwnerBookingsService.posCheckout — account collision guard', () => {
+  const base = {
+    departureId: 'dep-1',
+    customerName: 'Farhana',
+    customerPhone: '+8801711222290',
+    holds: [{ cabinId: 'cab-1', holdId: 'h-1', adults: 2 }],
+  };
+
+  function svc(existing: { id: string; name: string | null } | null) {
+    const prisma = {
+      tripDeparture: { findFirst: jest.fn().mockResolvedValue({ id: 'dep-1' }) },
+      account: {
+        findUnique: jest.fn().mockResolvedValue(existing),
+        create: jest.fn().mockResolvedValue({ id: 'new-cust' }),
+      },
+    };
+    const holds = { hold: jest.fn(), listActiveForDeparture: jest.fn() };
+    const booking = {
+      checkout: jest.fn().mockResolvedValue({
+        booking: { id: 'bk-1' },
+        invoice: null,
+      }),
+      priceSelection: jest.fn(),
+    };
+    const payments = { recordPayment: jest.fn().mockResolvedValue(undefined) };
+    const audit = { log: jest.fn().mockResolvedValue(undefined) };
+    const service = new OwnerBookingsService(
+      prisma as never, holds as never, booking as never,
+      payments as never, {} as never, audit as never,
+    );
+    return { service, prisma, booking };
+  }
+
+  it('refuses to attach to an existing account with a different name', async () => {
+    const { service, booking } = svc({ id: 'other', name: 'Someone Else' });
+    await expect(
+      service.posCheckout('boat-1', 'owner-1', base),
+    ).rejects.toMatchObject({ status: 409 });
+    // The sale never proceeds.
+    expect(booking.checkout).not.toHaveBeenCalled();
+  });
+
+  it('attaches to the existing account when the operator confirms', async () => {
+    const { service, prisma, booking } = svc({ id: 'other', name: 'Someone Else' });
+    await service.posCheckout('boat-1', 'owner-1', {
+      ...base,
+      attachToExisting: true,
+    });
+    expect(prisma.account.create).not.toHaveBeenCalled();
+    expect(booking.checkout).toHaveBeenCalledWith(
+      'other',
+      'owner-1',
+      expect.any(Object),
+      expect.any(Object),
+    );
+  });
+
+  it('attaches silently when the name matches (no confirm needed)', async () => {
+    const { service, booking } = svc({ id: 'same', name: 'Farhana' });
+    await service.posCheckout('boat-1', 'owner-1', base);
+    expect(booking.checkout).toHaveBeenCalledWith(
+      'same',
+      'owner-1',
+      expect.any(Object),
+      expect.any(Object),
+    );
   });
 });
 

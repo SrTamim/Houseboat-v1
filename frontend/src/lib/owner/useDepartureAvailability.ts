@@ -35,10 +35,19 @@ export interface DepartureAvailability {
 
 export function useDepartureAvailability(
   departureId: string | null | undefined,
+  /**
+   * Called when a cabin is CONVERTED (a hold became a confirmed booking),
+   * possibly by another operator. Lets the caller revalidate its bookings list
+   * so the just-sold cabin stops showing as free before the next manual refetch.
+   */
+  onConverted?: () => void,
 ): DepartureAvailability {
   const [held, setHeld] = useState<Set<string>>(new Set());
   const [connected, setConnected] = useState(false);
   const socketRef = useRef<Socket | null>(null);
+  // Keep the latest callback without re-subscribing the socket on every render.
+  const onConvertedRef = useRef(onConverted);
+  onConvertedRef.current = onConverted;
 
   useEffect(() => {
     // Reset when the watched departure changes; a stale set would lock cabins
@@ -72,6 +81,9 @@ export function useDepartureAvailability(
           else next.delete(msg.cabinId);
           return next;
         });
+        // A conversion means a new confirmed booking exists — tell the caller so
+        // it can pull the bookings list and mark the cabin sold, not free.
+        if (msg.state === 'converted') onConvertedRef.current?.();
       },
     );
 

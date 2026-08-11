@@ -1,6 +1,8 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
@@ -27,6 +29,8 @@ import {
  */
 @Injectable()
 export class OwnerBookingsService {
+  private readonly logger = new Logger(OwnerBookingsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly holds: HoldsService,
@@ -354,17 +358,40 @@ export class OwnerBookingsService {
     // Find-or-create the walk-in customer. No password: they never log in
     // through this path, and a placeholder hash would be a credential we'd have
     // to manage. They can register later on the same phone.
-    const customer = await this.prisma.account.upsert({
+    //
+    // Guard against silently attaching the sale to a stranger: if the typed phone
+    // already belongs to an account whose name doesn't match what the operator
+    // typed, that is very likely a mistyped number. We refuse (409) unless the
+    // operator explicitly confirms attaching to the existing customer — otherwise
+    // the walk-in's booking, history and credits would land on someone else.
+    const existing = await this.prisma.account.findUnique({
       where: { phone: dto.customerPhone },
-      update: {},
-      create: {
-        id: newId(),
-        name: dto.customerName,
-        phone: dto.customerPhone,
-        phoneVerified: false,
-      },
-      select: { id: true },
+      select: { id: true, name: true },
     });
+
+    let customer: { id: string };
+    if (existing) {
+      const nameMatches =
+        (existing.name ?? '').trim().toLowerCase() ===
+        dto.customerName.trim().toLowerCase();
+      if (!nameMatches && !dto.attachToExisting) {
+        throw new ConflictException(
+          'An account with this phone already exists under a different name. ' +
+            'Confirm you want to attach this sale to that customer, or re-check the number.',
+        );
+      }
+      customer = { id: existing.id };
+    } else {
+      customer = await this.prisma.account.create({
+        data: {
+          id: newId(),
+          name: dto.customerName,
+          phone: dto.customerPhone,
+          phoneVerified: false,
+        },
+        select: { id: true },
+      });
+    }
 
     // Build the per-cabin selections that checkout converts. Two ways in:
     //  - `holds`: the counter grid already took the holds on select (and started
@@ -442,14 +469,30 @@ export class OwnerBookingsService {
     // remaining due is implicit (displayTotal − amountPaid); recordPayment
     // accumulates. A zero payment records nothing and leaves the invoice due.
     const paid = dto.amountPaid ?? Number(result.invoice?.displayTotal ?? 0);
-    if (dto.paymentMethod && result.invoice && paid > 0) {
-      await this.payments
-        .recordPayment(result.invoice.id, actorId, false, {
+    const attemptedPayment = Boolean(
+      dto.paymentMethod && result.invoice && paid > 0,
+    );
+    // Whether the counter payment actually landed. The sale itself already
+    // committed; a payment failure here must NOT silently vanish (money would
+    // read as collected while amountPaid stayed 0). We surface it instead so the
+    // audit trail stays truthful and the UI can prompt the operator to re-record.
+    let paymentRecorded = false;
+    if (attemptedPayment && result.invoice && dto.paymentMethod) {
+      try {
+        await this.payments.recordPayment(result.invoice.id, actorId, false, {
           amount: paid,
           method: dto.paymentMethod,
           receivedBy: actorId,
-        })
-        .catch(() => undefined);
+        });
+        paymentRecorded = true;
+      } catch (err) {
+        // Non-fatal to the sale, but loud: log it and leave paymentRecorded false
+        // so the audit `after` below does not claim money was collected.
+        this.logger.error(
+          `POS payment failed to record for invoice ${result.invoice.id} (booking ${result.booking.id})`,
+          err instanceof Error ? err.stack : String(err),
+        );
+      }
     }
 
     await this.audit.log({
@@ -461,10 +504,17 @@ export class OwnerBookingsService {
       after: {
         cabins: selections.length,
         customerPhone: dto.customerPhone,
-        paymentMethod: dto.paymentMethod ?? null,
+        // Only record the method when the payment actually landed — otherwise the
+        // trail would show a collection that never happened.
+        paymentMethod: paymentRecorded ? dto.paymentMethod : null,
       },
     });
 
-    return result;
+    return {
+      ...result,
+      // True when a payment was attempted (method + non-zero amount) but did not
+      // record — the UI warns the operator to re-record it on the Departure page.
+      paymentFailed: attemptedPayment && !paymentRecorded,
+    };
   }
 }

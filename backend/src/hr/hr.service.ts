@@ -139,6 +139,19 @@ export class HrService {
     if (!staff) throw new NotFoundException('Crew member not found on this houseboat.');
   }
 
+  /**
+   * A payrollId must belong to this houseboat (via its staff) before we mutate
+   * it. The controller only authorizes the :houseboatId in the URL — without
+   * this, a payrollId from another boat would pass the guard (IDOR).
+   */
+  private async assertPayrollOwned(houseboatId: string, payrollId: string) {
+    const payroll = await this.prisma.staffPayroll.findFirst({
+      where: { id: payrollId, staff: { houseboatId } },
+      select: { id: true },
+    });
+    if (!payroll) throw new NotFoundException('Payroll record not found on this houseboat.');
+  }
+
   async updateStaff(houseboatId: string, staffId: string, dto: UpdateStaffDto) {
     await this.assertStaffOwned(houseboatId, staffId);
     return this.prisma.houseboatStaff.update({
@@ -316,7 +329,13 @@ export class HrService {
   }
 
   // ── Payroll ────────────────────────────────────────────────
-  async runPayroll(staffId: string, dto: PayrollDto, actorId: string) {
+  async runPayroll(
+    houseboatId: string,
+    staffId: string,
+    dto: PayrollDto,
+    actorId: string,
+  ) {
+    await this.assertStaffOwned(houseboatId, staffId);
     const staff = await this.prisma.houseboatStaff.findUnique({
       where: { id: staffId },
     });
@@ -374,12 +393,14 @@ export class HrService {
     return payroll;
   }
 
-  async markPayrollPaid(payrollId: string, actorId: string) {
+  async markPayrollPaid(houseboatId: string, payrollId: string, actorId: string) {
+    await this.assertPayrollOwned(houseboatId, payrollId);
     const payroll = await this.prisma.staffPayroll.update({
       where: { id: payrollId },
       data: { paid: true, paidAt: new Date(), paidBy: actorId },
     });
     await this.audit.log({
+      houseboatId,
       actorAccountId: actorId,
       action: 'payroll_paid',
       entityType: 'staff_payroll',
@@ -394,7 +415,13 @@ export class HrService {
    * fixed. `total` is recomputed from the (unchanged) base. Optionally flip the
    * paid flag, so an owner who marked-paid by mistake can revert.
    */
-  async adjustPayroll(payrollId: string, dto: AdjustPayrollDto, actorId: string) {
+  async adjustPayroll(
+    houseboatId: string,
+    payrollId: string,
+    dto: AdjustPayrollDto,
+    actorId: string,
+  ) {
+    await this.assertPayrollOwned(houseboatId, payrollId);
     const existing = await this.prisma.staffPayroll.findUnique({
       where: { id: payrollId },
       include: { staff: { select: { houseboatId: true } } },
@@ -446,7 +473,8 @@ export class HrService {
     return payroll;
   }
 
-  listPayroll(staffId: string) {
+  async listPayroll(houseboatId: string, staffId: string) {
+    await this.assertStaffOwned(houseboatId, staffId);
     return this.prisma.staffPayroll.findMany({
       where: { staffId },
       orderBy: { period: 'desc' },

@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import { OpsService } from './ops.service';
 import { RequirePermission } from '../rbac/require-permission.decorator';
@@ -70,11 +71,12 @@ export class OpsController {
   @Post('houseboats/:houseboatId/inventory/:itemId/movements')
   @RequirePermission({ module: 'inventory', action: 'edit' })
   recordMovement(
+    @Param('houseboatId') houseboatId: string,
     @Param('itemId') itemId: string,
     @CurrentUser() user: AuthUser,
     @Body() dto: StockMovementDto,
   ) {
-    return this.ops.recordMovement(itemId, user.id, dto);
+    return this.ops.recordMovement(houseboatId, itemId, user.id, dto);
   }
 
   // ── Reviews ────────────────────────────────────────────────
@@ -102,9 +104,10 @@ export class OpsController {
   })
   replyReview(
     @Param('reviewId') reviewId: string,
+    @Body('houseboatId') houseboatId: string,
     @Body('reply') reply: string,
   ) {
-    return this.ops.replyToReview(reviewId, reply);
+    return this.ops.replyToReview(houseboatId, reviewId, reply);
   }
 
   @Patch('reviews/:reviewId/reply')
@@ -116,9 +119,10 @@ export class OpsController {
   })
   editReviewReply(
     @Param('reviewId') reviewId: string,
+    @Body('houseboatId') houseboatId: string,
     @Body('reply') reply: string,
   ) {
-    return this.ops.replyToReview(reviewId, reply);
+    return this.ops.replyToReview(houseboatId, reviewId, reply);
   }
 
   @Delete('reviews/:reviewId/reply')
@@ -128,8 +132,11 @@ export class OpsController {
     boatIdFrom: 'query',
     boatIdKey: 'houseboatId',
   })
-  deleteReviewReply(@Param('reviewId') reviewId: string) {
-    return this.ops.deleteReviewReply(reviewId);
+  deleteReviewReply(
+    @Param('reviewId') reviewId: string,
+    @Query('houseboatId') houseboatId: string,
+  ) {
+    return this.ops.deleteReviewReply(houseboatId, reviewId);
   }
 
   // ── Notifications ──────────────────────────────────────────

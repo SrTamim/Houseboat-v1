@@ -127,29 +127,32 @@ export class RbacController {
   @Patch('houseboats/:houseboatId/members/:membershipId')
   @RequirePermission({ module: 'settings', action: 'edit' })
   updateMember(
+    @Param('houseboatId') houseboatId: string,
     @Param('membershipId') membershipId: string,
     @CurrentUser() user: AuthUser,
     @Body() dto: UpdateMemberDto,
   ) {
-    return this.members.updateMember(membershipId, dto, user.id);
+    return this.members.updateMember(membershipId, houseboatId, dto, user.id);
   }
 
   @Patch('houseboats/:houseboatId/members/:membershipId/role')
   @RequirePermission({ module: 'settings', action: 'edit' })
   changeRole(
+    @Param('houseboatId') houseboatId: string,
     @Param('membershipId') membershipId: string,
     @CurrentUser() user: AuthUser,
     @Body() dto: ChangeRoleDto,
   ) {
-    return this.members.changeRole(membershipId, dto.roleId, user.id);
+    return this.members.changeRole(membershipId, houseboatId, dto.roleId, user.id);
   }
 
   @Post('houseboats/:houseboatId/members/:membershipId/exit')
   @RequirePermission({ module: 'settings', action: 'edit' })
   exitMember(
+    @Param('houseboatId') houseboatId: string,
     @Param('membershipId') membershipId: string,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.members.exitMember(membershipId, user.id);
+    return this.members.exitMember(membershipId, houseboatId, user.id);
   }
 }

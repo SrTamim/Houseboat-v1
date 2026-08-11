@@ -84,6 +84,19 @@ export default function OwnerDeparturePage() {
     revalidateOnFocus: false,
   });
 
+  // Rated boat capacity, from the cabin layout. availableCount on the departure
+  // dips while cabins are merely held, so it can't be trusted for the "x / total"
+  // manifest count — the boat's actual cabin count can.
+  const boatLayout = useSWR<{ decks: { cabins: unknown[] }[] }>(
+    `/houseboats/${boatId}/manage`,
+    fetcher,
+    { revalidateOnFocus: false },
+  );
+  const cabinCount = (boatLayout.data?.decks ?? []).reduce(
+    (n, d) => n + d.cabins.length,
+    0,
+  );
+
   // All departures, newest first.
   const all = useMemo(
     () =>
@@ -137,7 +150,9 @@ export default function OwnerDeparturePage() {
   );
 
   const cabinsSold = bookings.items.reduce((n, b) => n + b.cabins.length, 0);
-  const totalCabins = (active?.availableCount ?? 0) + cabinsSold;
+  // Rated capacity (guarding a counter oversell), not availableCount + sold —
+  // the former is stable, the latter shifts as cabins are held/released.
+  const totalCabins = Math.max(cabinCount, cabinsSold);
   const onboard = bookings.items.filter((b) => b.checkinStatus === 'checked_in').length;
   const guests = bookings.items.reduce(
     (n, b) => n + b.cabins.reduce((c, cab) => c + cab.occupancy, 0),
@@ -253,7 +268,9 @@ export default function OwnerDeparturePage() {
               icon="🚪"
               label="Cabins sold"
               value={`${cabinsSold} / ${totalCabins}`}
-              detail={`${active.availableCount} still free`}
+              // Capacity minus confirmed sales — consistent with the value above.
+              // (availableCount would dip on live holds and disagree with it.)
+              detail={`${totalCabins - cabinsSold} unsold`}
             />
             <Kpi
               icon="✅"

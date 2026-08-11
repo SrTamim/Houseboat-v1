@@ -150,6 +150,10 @@ export default function OwnerPosPage() {
   const [holding, setHolding] = useState<string | null>(null); // cabinId mid-hold
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
+  // Set when the backend refuses (409) because the typed phone belongs to an
+  // existing customer under a different name. Shows a confirm prompt that resubmits
+  // with attachToExisting.
+  const [attachConflict, setAttachConflict] = useState(false);
 
   const departures = useSWR<Departure[]>(`/houseboats/${boatId}/departures`, fetcher, {
     revalidateOnFocus: false,
@@ -185,8 +189,13 @@ export default function OwnerPosPage() {
     { revalidateOnFocus: false },
   );
 
-  // Live held-cabin set for this departure (backend /rt gateway).
-  const live = useDepartureAvailability(activeId || null);
+  // Live held-cabin set for this departure (backend /rt gateway). On a conversion
+  // (someone else completed a sale) refresh the bookings + holds reads so the
+  // cabin flips to 'booked' instead of lingering as 'free'.
+  const live = useDepartureAvailability(activeId || null, () => {
+    void taken.mutate();
+    void seededHolds.mutate();
+  });
 
   // Cabins others are holding = seed ∪ live socket set, minus my own picks
   // (mine render as 'selected', not 'held').
@@ -412,6 +421,11 @@ export default function OwnerPosPage() {
   const paidStr = amountPaid;
   const paidNum = paidStr === '' ? 0 : Math.max(0, Number(paidStr));
   const dueNum = Math.max(0, total - paidNum);
+  // Guard against overpayment: the backend rejects amountPaid > displayTotal, so
+  // block the sale here (rather than silently clamping, which would leave the
+  // typed value disagreeing with what's charged) and tell the operator why.
+  // `total > 0` avoids a false block before the quote has priced the cart.
+  const overpaid = total > 0 && paidNum > total;
 
   // Changing the date/departure while cabins are held would strand those holds
   // (they'd tick down invisibly on the old departure). Release them first.
@@ -425,39 +439,61 @@ export default function OwnerPosPage() {
     setError(null);
   };
 
-  async function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent, attachToExisting = false) {
     e.preventDefault();
     if (busy || picked.length === 0 || !activeId) return;
     if (unpricedCabin) {
       setError(`Set a price for cabin ${unpricedCabin.name} before confirming.`);
       return;
     }
+    if (overpaid) {
+      setError(`Paid can't exceed the total (${money(total.toFixed(2))}).`);
+      return;
+    }
     setBusy(true);
     setError(null);
     setDone(null);
+    if (!attachToExisting) setAttachConflict(false);
     try {
-      const res = await api.post<{ id: string }>(`/houseboats/${boatId}/pos/bookings`, {
-        departureId: activeId,
-        customerName,
-        customerPhone: toE164(customerPhone),
-        // Convert the holds already taken on select — do NOT re-hold.
-        holds: picked.map((p) => ({
-          cabinId: p.cabinId,
-          holdId: p.holdId,
-          adults: p.adults,
-          children: p.children || undefined,
-          priceOverride: p.priceOverride,
-        })),
-        couponCode: couponCode || undefined,
-        referenceName: referenceName || undefined,
-        specialInstructions: note || undefined,
-        paymentMethod,
-        discount: discount ? Number(discount) : undefined,
-        // What the customer actually handed over. Send the resolved paid value
-        // (defaults to the full total unless the operator edited it).
-        amountPaid: paidNum,
-      });
-      setDone(res.data.id);
+      const res = await api.post<{
+        booking: { id: string };
+        invoice?: { id: string } | null;
+        paymentFailed?: boolean;
+      }>(
+        `/houseboats/${boatId}/pos/bookings`,
+        {
+          departureId: activeId,
+          customerName,
+          customerPhone: toE164(customerPhone),
+          // Convert the holds already taken on select — do NOT re-hold.
+          holds: picked.map((p) => ({
+            cabinId: p.cabinId,
+            holdId: p.holdId,
+            adults: p.adults,
+            children: p.children || undefined,
+            priceOverride: p.priceOverride,
+          })),
+          couponCode: couponCode || undefined,
+          referenceName: referenceName || undefined,
+          specialInstructions: note || undefined,
+          paymentMethod,
+          discount: discount ? Number(discount) : undefined,
+          // What the customer actually handed over. Send the resolved paid value
+          // (defaults to the full total unless the operator edited it).
+          amountPaid: paidNum,
+          // Confirm attaching to a pre-existing account under a different name.
+          attachToExisting: attachToExisting || undefined,
+        },
+      );
+      // The sale committed; warn if the payment line failed to record so it isn't
+      // silently lost (the booking still exists and the invoice stays due).
+      if (res.data.paymentFailed) {
+        setError(
+          'Sale created, but the payment did NOT record. Re-record it on the Departure page.',
+        );
+      }
+      setDone(res.data.booking.id);
+      setAttachConflict(false);
       setPicked([]);
       setHoldExpiresAt(null);
       setCustomerName('');
@@ -471,12 +507,25 @@ export default function OwnerPosPage() {
       setQuote(null);
       await Promise.all([taken.mutate(), departures.mutate(), seededHolds.mutate()]);
     } catch (err) {
-      setError(
-        apiErrorMessage(
-          err,
-          'Could not complete the sale. A cabin may have just been taken — re-check the layout.',
-        ),
-      );
+      // 409 = the phone already belongs to a customer under a different name.
+      // Offer to attach rather than silently booking onto a stranger.
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (status === 409 && !attachToExisting) {
+        setAttachConflict(true);
+        setError(
+          apiErrorMessage(
+            err,
+            'This phone already belongs to a customer under a different name.',
+          ),
+        );
+      } else {
+        setError(
+          apiErrorMessage(
+            err,
+            'Could not complete the sale. A cabin may have just been taken — re-check the layout.',
+          ),
+        );
+      }
     } finally {
       setBusy(false);
     }
@@ -497,12 +546,25 @@ export default function OwnerPosPage() {
 
       {done ? (
         <Note kind="ok" style={{ marginBottom: 18 }}>
-          Sale complete. Record the payment at check-in on the Departure page.
+          Sale complete. Any payment you entered is recorded now; collect and record any
+          remaining due on the Departure page.
         </Note>
       ) : null}
       {error ? (
         <Note kind="danger" style={{ marginBottom: 18 }}>
           {error}
+          {attachConflict ? (
+            <div style={{ marginTop: 10 }}>
+              <button
+                type="button"
+                className="btn btn-sm btn-b"
+                disabled={busy}
+                onClick={(ev) => submit(ev, true)}
+              >
+                Attach to existing customer &amp; confirm sale
+              </button>
+            </div>
+          ) : null}
         </Note>
       ) : null}
 
@@ -760,6 +822,13 @@ export default function OwnerPosPage() {
                   </Field>
 
                   <Bill rows={[{ label: 'Due', value: dueNum, total: true }]} />
+
+                  {overpaid ? (
+                    <Note kind="danger">
+                      Paid can’t exceed the total ({money(total.toFixed(2))}). Lower it to
+                      continue.
+                    </Note>
+                  ) : null}
                 </>
               ) : null}
 
@@ -792,15 +861,16 @@ export default function OwnerPosPage() {
               <button
                 className="btn btn-b"
                 type="submit"
-                disabled={busy || picked.length === 0 || Boolean(unpricedCabin)}
+                disabled={busy || picked.length === 0 || Boolean(unpricedCabin) || overpaid}
                 style={{ justifyContent: 'center' }}
               >
                 {busy ? 'Completing…' : 'Confirm sale →'}
               </button>
 
               <Note kind="warn">
-                Payment taken here is your own money, not part of the platform payout.
-                Record it at check-in on the Departure page.
+                Payment taken here is your own money, not part of the platform payout. What
+                you enter in “Paid now” is recorded against the invoice on confirm; collect
+                any remaining due later on the Departure page.
               </Note>
             </form>
           </Card>

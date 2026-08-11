@@ -1,6 +1,7 @@
 import {
   ArrayMaxSize,
   IsArray,
+  IsBoolean,
   IsDateString,
   IsIn,
   IsInt,
@@ -111,6 +112,14 @@ export class PosCheckoutDto {
   @IsOptional() @IsString() @MaxLength(LEN_CODE) couponCode?: string;
   @IsOptional() @IsString() @MaxLength(LEN_NAME) referenceName?: string;
   @IsOptional() @IsString() @MaxLength(LEN_TEXT) specialInstructions?: string;
+
+  /**
+   * Operator confirmation to attach this sale to a pre-existing account when the
+   * typed phone already belongs to a customer under a different name. Without it
+   * the checkout refuses (409), so a mistyped number can't silently land the
+   * booking on a stranger.
+   */
+  @IsOptional() @IsBoolean() attachToExisting?: boolean;
   /** Owner's personal collection channel for cash taken at the counter (§6). */
   @IsOptional() @IsIn(OWNER_PAYMENT_METHODS) paymentMethod?: (typeof OWNER_PAYMENT_METHODS)[number];
 

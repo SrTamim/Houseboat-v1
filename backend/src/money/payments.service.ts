@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -124,6 +125,17 @@ export class PaymentsService {
           'edit',
         );
 
+        const newPaid = add(money(invoice.amountPaid), money(input.amount));
+
+        // Reject overpayment: amountPaid must never exceed what the invoice bills.
+        // Fat-finger protection — an owner typing 50000 for a 5000 sale would
+        // otherwise inflate collected revenue and payout.
+        if (newPaid.greaterThan(money(invoice.displayTotal))) {
+          throw new BadRequestException(
+            'Payment exceeds the amount due on this invoice',
+          );
+        }
+
         await tx.invoicePayment.create({
           data: {
             id: newId(),
@@ -136,11 +148,16 @@ export class PaymentsService {
           },
         });
 
-        const newPaid = add(money(invoice.amountPaid), money(input.amount));
-        // Only advance to 'paid' from customer_due; partial payments stay 'paid'.
+        // Only advance customer_due → paid once the invoice is FULLY settled. A
+        // partial deposit stays customer_due (still due) so it can't be swept into
+        // a payout for the full dueToBoat while money is still owed. This mirrors
+        // booking.service.checkout's own paid-vs-due decision.
+        const fullySettled = newPaid.greaterThanOrEqualTo(money(invoice.displayTotal));
         const nextStatus: InvoiceStatus =
-          invoice.status === 'customer_due' ? 'paid' : (invoice.status as InvoiceStatus);
-        if (invoice.status === 'customer_due') {
+          invoice.status === 'customer_due' && fullySettled
+            ? 'paid'
+            : (invoice.status as InvoiceStatus);
+        if (invoice.status === 'customer_due' && fullySettled) {
           assertTransition('customer_due', 'paid');
         }
 
@@ -205,11 +222,17 @@ export class PaymentsService {
         });
 
         const newPaid = add(money(invoice.amountPaid), money(input.amount));
+        // Only advance customer_due → paid once fully settled — the gateway
+        // supports deposits (partial payments), so a partial IPN must leave the
+        // invoice customer_due (not payout-eligible) rather than flip it to paid
+        // for the full dueToBoat. Mirrors recordPayment. No overpay reject here:
+        // the gateway is authoritative and dropping a real IPN would lose money.
+        const fullySettled = newPaid.greaterThanOrEqualTo(money(invoice.displayTotal));
         const nextStatus: InvoiceStatus =
-          invoice.status === 'customer_due'
+          invoice.status === 'customer_due' && fullySettled
             ? 'paid'
             : (invoice.status as InvoiceStatus);
-        if (invoice.status === 'customer_due') {
+        if (invoice.status === 'customer_due' && fullySettled) {
           assertTransition('customer_due', 'paid');
         }
 
@@ -259,6 +282,14 @@ export class PaymentsService {
       'money',
       'edit',
     );
+    // A verify must not certify an invoice that isn't fully paid — otherwise a
+    // partial receipt could be marked payment_verified with a balance still owed.
+    // (Owner cash never reaches here: it settles paid → in_payout with no verify.)
+    if (money(invoice.amountPaid).lessThan(money(invoice.displayTotal))) {
+      throw new BadRequestException(
+        'Cannot verify a payment while the invoice is not fully paid',
+      );
+    }
     assertTransition(invoice.status as InvoiceStatus, 'payment_verified');
 
     // Stamp the verifier on the most recent payment.

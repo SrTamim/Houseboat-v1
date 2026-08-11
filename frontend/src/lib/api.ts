@@ -1,6 +1,7 @@
 import axios, { type InternalAxiosRequestConfig } from 'axios';
 import type { paths, components } from './api-types';
 import { LOGIN_PATH, loginUrl } from './admin/login-url';
+import { OWNER_LOGIN_PATH, ownerLoginUrl } from './owner/login-url';
 
 /**
  * Shared axios instance. Talks to /api (proxied to the NestJS backend in
@@ -110,13 +111,19 @@ api.interceptors.response.use(
         // Refresh failed: the session is genuinely gone.
         if (typeof window !== 'undefined') {
           csrfToken = null;
-          if (!window.location.pathname.startsWith(LOGIN_PATH)) {
+          const path = window.location.pathname;
+          // Route the bounce to the console the user was actually in. The owner
+          // and admin login URLs clamp ?next= to their own path prefix, so using
+          // the admin builder for an owner would drop the destination AND land
+          // them on the wrong login form.
+          const inOwner = path.startsWith('/owner');
+          const loginPath = inOwner ? OWNER_LOGIN_PATH : LOGIN_PATH;
+          const build = inOwner ? ownerLoginUrl : loginUrl;
+          if (!path.startsWith(loginPath)) {
             // Preserve where they were so sign-in returns them there.
-            // loginUrl() clamps the destination, so a 401 on the public site
-            // yields a bare login path rather than a non-admin ?next=.
             window.location.assign(
-              loginUrl({
-                next: window.location.pathname + window.location.search,
+              build({
+                next: path + window.location.search,
                 reason: 'session_expired',
               }),
             );

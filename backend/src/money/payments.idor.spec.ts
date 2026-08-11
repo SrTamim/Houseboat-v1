@@ -8,7 +8,14 @@ import { PaymentsService } from './payments.service';
  * write happens.
  */
 describe('PaymentsService — IDOR guard', () => {
-  const INVOICE = { id: 'inv-1', houseboatId: 'boat-Y', status: 'customer_due', amountPaid: '0' };
+  const INVOICE = {
+    id: 'inv-1',
+    houseboatId: 'boat-Y',
+    status: 'customer_due',
+    amountPaid: '0',
+    // A 100 payment fully settles this invoice → customer_due advances to paid.
+    displayTotal: '100',
+  };
 
   function makeService(assertImpl: jest.Mock) {
     const tx = {
