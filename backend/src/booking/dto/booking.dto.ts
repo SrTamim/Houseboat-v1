@@ -53,6 +53,8 @@ export class CheckoutDto {
   // Lead guest (captured at checkout for contact).
   @IsString() @MaxLength(LEN_NAME) leadGuestName!: string;
   @IsOptional() @IsString() @MaxLength(LEN_CODE) leadGuestPhone?: string;
+  /** Lead guest NID / passport. Stored encrypted at rest; never echoed back. */
+  @IsOptional() @IsString() @MaxLength(LEN_CODE) leadGuestNid?: string;
 
   @IsOptional() @IsString() @MaxLength(LEN_TEXT) specialInstructions?: string;
   @IsOptional() @IsString() @MaxLength(LEN_CODE) couponCode?: string;
@@ -85,6 +87,8 @@ export class GroupCheckoutDto {
   @IsInt() @Min(1) headcount!: number;
   @IsString() @MaxLength(LEN_NAME) leadGuestName!: string;
   @IsOptional() @IsString() @MaxLength(LEN_CODE) leadGuestPhone?: string;
+  /** Lead guest NID / passport. Stored encrypted at rest; never echoed back. */
+  @IsOptional() @IsString() @MaxLength(LEN_CODE) leadGuestNid?: string;
   @IsOptional() @IsString() @MaxLength(LEN_TEXT) specialInstructions?: string;
   @IsOptional() @IsString() @MaxLength(LEN_NAME) referenceName?: string;
   @IsOptional() @IsBoolean() useCredit?: boolean;

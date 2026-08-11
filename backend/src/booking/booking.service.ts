@@ -4,12 +4,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { PricingService } from '../pricing/pricing.service';
 import { AuditService } from '../audit/audit.service';
 import { RbacService } from '../rbac/rbac.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AvailabilityGateway } from '../realtime/availability.gateway';
+import { encryptJson } from '../common/crypto';
 import { newId } from '../common/uuid';
 import { money, ZERO, add, sub } from '../common/money';
 import { buildBill, CouponInput } from '../common/billing';
@@ -65,7 +67,18 @@ export class BookingService {
     private readonly rbac: RbacService,
     private readonly notifications: NotificationsService,
     private readonly realtime: AvailabilityGateway,
+    private readonly config: ConfigService,
   ) {}
+
+  /**
+   * Encrypt a NID/passport for at-rest storage, or return null when absent.
+   * Ciphertext is never returned to clients or logged (redacted in pino).
+   */
+  private encryptNid(nid?: string): string | null {
+    const v = nid?.trim();
+    if (!v) return null;
+    return encryptJson(v, this.config.get<string>('encryptionKey') ?? '');
+  }
 
   /** Notify every waitlisted customer that a place freed (plan §2, all at once). */
   private async notifyWaitlist(
@@ -414,6 +427,7 @@ export class BookingService {
           bookingId: booking.id,
           name: dto.leadGuestName,
           phone: dto.leadGuestPhone,
+          nidEncrypted: this.encryptNid(dto.leadGuestNid),
         },
       });
 
@@ -487,6 +501,7 @@ export class BookingService {
       headcount: number;
       leadGuestName: string;
       leadGuestPhone?: string;
+      leadGuestNid?: string;
       specialInstructions?: string;
       referenceName?: string;
       useCredit?: boolean;
@@ -549,6 +564,7 @@ export class BookingService {
           bookingId: booking.id,
           name: dto.leadGuestName,
           phone: dto.leadGuestPhone,
+          nidEncrypted: this.encryptNid(dto.leadGuestNid),
         },
       });
 
@@ -1052,16 +1068,28 @@ export class BookingService {
     });
   }
 
-  async get(bookingId: string) {
-    return this.prisma.booking.findUnique({
+  async get(bookingId: string, actorId: string, isPlatform: boolean) {
+    const booking = await this.prisma.booking.findUnique({
       where: { id: bookingId },
       include: {
         cabins: { include: { cabin: true } },
-        guests: true,
+        // Never surface nidEncrypted — ciphertext is useless to clients and
+        // shouldn't ride in API responses.
+        guests: { select: { id: true, name: true, phone: true } },
         invoice: true,
         departure: { include: { package: { include: { route: true } } } },
       },
     });
+    if (!booking) throw new NotFoundException('Booking not found');
+    // Authorization: the booking's own customer, or a member with bookings:view.
+    // Without this any authenticated account could read any booking's guest PII
+    // and invoice by id (IDOR). Mirrors cancel()'s ownership check.
+    if (booking.customerId !== actorId) {
+      const houseboatId = booking.invoice?.houseboatId;
+      if (!houseboatId) throw new NotFoundException('Booking not found');
+      await this.rbac.assert(actorId, isPlatform, houseboatId, 'bookings', 'view');
+    }
+    return booking;
   }
 
   listForCustomer(customerId: string) {

@@ -544,6 +544,9 @@ model BookingGuest {
   /// lead guest only — captured at checkout for contact
   name      String
   phone     String?
+  /// National ID / passport, encrypted at rest (AES-256-GCM, common/crypto.ts).
+  /// Ciphertext only — never returned in list responses, redacted in logs.
+  nidEncrypted String? @map("nid_encrypted")
 
   booking Booking @relation(fields: [bookingId], references: [id])
 

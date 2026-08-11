@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { HoldsService } from './holds.service';
 import { BookingService } from './booking.service';
 import { WaitlistService } from './waitlist.service';
@@ -26,14 +27,19 @@ export class BookingController {
   ) {}
 
   /** Take a hold on one cabin. Returns server-authoritative expires_at. */
+  // Tighter than the global 120/min: holds lock availability, so a flood is a
+  // denial-of-availability vector. Per-cabin Redis cap (5/10s) also applies.
+  @Throttle({ default: { ttl: 60_000, limit: 30 } })
   @Post('hold')
   hold(@CurrentUser() user: AuthUser, @Body() dto: HoldCabinDto) {
     return this.holds.hold(dto.cabinId, dto.departureId, user.id);
   }
 
   @Post('hold/:holdId/release')
-  release(@Param('holdId') holdId: string) {
-    return this.holds.release(holdId).then(() => ({ ok: true }));
+  release(@Param('holdId') holdId: string, @CurrentUser() user: AuthUser) {
+    return this.holds
+      .release(holdId, user.id, user.isPlatform)
+      .then(() => ({ ok: true }));
   }
 
   @Get('departures/:departureId/my-holds')
@@ -45,6 +51,7 @@ export class BookingController {
   }
 
   /** Convert holds → confirmed booking + invoice. Instant confirmation. */
+  @Throttle({ default: { ttl: 60_000, limit: 15 } })
   @Post('checkout')
   checkout(@CurrentUser() user: AuthUser, @Body() dto: CheckoutDto) {
     // Customer books for themselves here; POS mode would pass a different customerId.
@@ -52,14 +59,15 @@ export class BookingController {
   }
 
   /** Full-boat group buyout: pick a band + headcount, one total, one payer. */
+  @Throttle({ default: { ttl: 60_000, limit: 15 } })
   @Post('group-checkout')
   groupCheckout(@CurrentUser() user: AuthUser, @Body() dto: GroupCheckoutDto) {
     return this.booking.groupCheckout(user.id, user.id, dto);
   }
 
   @Get(':bookingId')
-  get(@Param('bookingId') bookingId: string) {
-    return this.booking.get(bookingId);
+  get(@Param('bookingId') bookingId: string, @CurrentUser() user: AuthUser) {
+    return this.booking.get(bookingId, user.id, user.isPlatform);
   }
 
   @Get()
@@ -67,6 +75,7 @@ export class BookingController {
     return this.booking.listForCustomer(user.id);
   }
 
+  @Throttle({ default: { ttl: 60_000, limit: 20 } })
   @Post('waitlist')
   joinWaitlist(@CurrentUser() user: AuthUser, @Body() dto: WaitlistDto) {
     return this.waitlist.join(dto.departureId, user.id, dto.partySize);

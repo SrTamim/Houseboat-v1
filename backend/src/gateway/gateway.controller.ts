@@ -66,6 +66,9 @@ export class GatewayController {
   }
 
   /** Start a hosted payment for an invoice. Returns the URL to redirect to. */
+  // Payment initiation is per-account state-changing and hits the gateway API;
+  // tighter than the global limit to bound abuse and gateway spend.
+  @Throttle({ default: { ttl: 60_000, limit: 20 } })
   @Post('initiate')
   async initiate(
     @CurrentUser() user: AuthUser,

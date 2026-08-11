@@ -18,6 +18,16 @@ import { randomUUID } from 'crypto';
 import { RegisterDto, LoginDto } from './dto/auth.dto';
 import { JwtPayload, normalizePhone } from './auth.types';
 
+/**
+ * Login lockout: after this many consecutive failures for one phone within the
+ * window, further logins are refused until the window elapses. On top of the
+ * per-IP @Throttle on the route (10/min) — this bounds a distributed attack on
+ * a single account. Tuned to be invisible to a normal user (a real person rarely
+ * fumbles a password 8× in 15 min) while stopping credential-stuffing.
+ */
+const LOGIN_LOCK_THRESHOLD = 8;
+const LOGIN_LOCK_WINDOW_S = 15 * 60;
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -90,6 +100,26 @@ export class AuthService {
   async login(dto: LoginDto, ctx?: AuditRequestLike) {
     const where = auditContext(ctx);
     const phone = normalizePhone(dto.phone);
+
+    // Progressive lockout: after LOGIN_LOCK_THRESHOLD consecutive failures for
+    // this phone, refuse logins for LOGIN_LOCK_WINDOW_S. This defends a single
+    // targeted account across many IPs — the per-IP @Throttle on the route can't.
+    // Keyed on the phone (the login identity), not the account id, so it also
+    // covers guessing against a non-existent account. Best-effort: a lockout
+    // store outage never hard-fails login (the @Throttle still bounds rate).
+    if ((await this.redis.loginFailCount(phone)) >= LOGIN_LOCK_THRESHOLD) {
+      await this.audit.tryLog({
+        actorAccountId: null,
+        action: 'account_login_locked',
+        entityType: 'account',
+        after: { phone },
+        ...where,
+      });
+      throw new UnauthorizedException(
+        'Too many failed attempts. Try again later.',
+      );
+    }
+
     const account = await this.prisma.account.findUnique({ where: { phone } });
 
     /**
@@ -99,8 +129,10 @@ export class AuthService {
      * point at, and the FK would reject a fabricated id); the attempted phone
      * goes in `after` so the attempt is still attributable.
      */
-    const logFailure = (reason: string) =>
-      this.audit.tryLog({
+    const logFailure = async (reason: string) => {
+      // Count toward lockout AND record for audit. Both keyed on phone.
+      await this.redis.recordLoginFailure(phone, LOGIN_LOCK_WINDOW_S);
+      await this.audit.tryLog({
         actorAccountId: account?.id ?? null,
         action: 'account_login_failed',
         entityType: 'account',
@@ -108,6 +140,7 @@ export class AuthService {
         after: { phone, reason },
         ...where,
       });
+    };
 
     if (!account || !account.passwordHash) {
       await logFailure('unknown_account');
@@ -119,6 +152,8 @@ export class AuthService {
       throw new UnauthorizedException('Invalid phone or password');
     }
 
+    // Success clears the failure counter so a legitimate login resets lockout.
+    await this.redis.clearLoginFailures(phone);
     await this.audit.log({
       actorAccountId: account.id,
       action: 'account_login',

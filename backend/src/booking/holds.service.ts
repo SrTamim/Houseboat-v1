@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -126,11 +127,21 @@ export class HoldsService {
     }
   }
 
-  /** Release a held cabin (payment failed, or user removed it). Idempotent. */
-  async release(holdId: string) {
+  /**
+   * Release a held cabin (payment failed, or user removed it). Idempotent.
+   *
+   * `actorId` is the caller: a live hold may only be released by the account that
+   * took it (else any authenticated user could release anyone's hold and grief
+   * availability). An already-resolved/absent hold stays a silent no-op so the
+   * idempotent contract holds. Pass `isPlatform` for staff/POS override.
+   */
+  async release(holdId: string, actorId: string, isPlatform = false) {
     const released = await this.prisma.$transaction(async (tx) => {
       const hold = await tx.cabinHold.findUnique({ where: { id: holdId } });
       if (!hold || hold.state !== 'held') return null; // already resolved — no-op
+      if (hold.heldBy !== actorId && !isPlatform) {
+        throw new ForbiddenException('This hold belongs to another account');
+      }
       await tx.cabinHold.update({
         where: { id: holdId },
         data: { state: 'released' },

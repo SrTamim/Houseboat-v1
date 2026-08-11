@@ -42,6 +42,7 @@ describe('BookingService.priceSelection — over-capacity oversell', () => {
       {} as never, // rbac
       {} as never, // notifications
       {} as never, // realtime
+      { get: () => 'test-key' } as never, // config
     );
     return { service, pricing };
   }
