@@ -162,8 +162,8 @@ async function tryRefresh(req: NextRequest): Promise<RefreshResult | null> {
 const EMBED_FRAME_HOSTS =
   'https://www.youtube-nocookie.com https://player.vimeo.com https://drive.google.com';
 
-/** Provider image hosts used for link-out thumbnails. */
-const EMBED_IMG_HOSTS = 'https://img.youtube.com';
+/** Provider image hosts: YouTube thumbnails + Unsplash stock photos (boat/hero imagery). */
+const EMBED_IMG_HOSTS = 'https://img.youtube.com https://images.unsplash.com';
 
 function buildCsp(nonce: string, isDev: boolean): string {
   const directives = [

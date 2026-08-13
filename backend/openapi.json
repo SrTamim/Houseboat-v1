@@ -735,6 +735,30 @@
         ]
       }
     },
+    "/api/me/invoices/{id}": {
+      "get": {
+        "operationId": "MeController_invoice",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "GET /me/invoices/:id — one of the caller's own invoices (payment poll).",
+        "tags": [
+          "Me"
+        ]
+      }
+    },
     "/api/me/notifications/{id}/read": {
       "post": {
         "operationId": "MeController_markRead",
@@ -2187,6 +2211,52 @@
         ]
       }
     },
+    "/api/booking/waitlist": {
+      "get": {
+        "operationId": "BookingController_myWaitlist",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Booking"
+        ]
+      },
+      "post": {
+        "operationId": "BookingController_joinWaitlist",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WaitlistDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Booking"
+        ]
+      }
+    },
     "/api/booking/{bookingId}": {
       "get": {
         "operationId": "BookingController_get",
@@ -2241,20 +2311,19 @@
         ]
       }
     },
-    "/api/booking/waitlist": {
+    "/api/booking/waitlist/{id}/leave": {
       "post": {
-        "operationId": "BookingController_joinWaitlist",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/WaitlistDto"
-              }
+        "operationId": "BookingController_leaveWaitlist",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
             }
           }
-        },
+        ],
         "responses": {
           "201": {
             "description": ""

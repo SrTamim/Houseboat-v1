@@ -409,6 +409,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/me/invoices/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GET /me/invoices/:id — one of the caller's own invoices (payment poll). */
+        get: operations["MeController_invoice"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/me/notifications/{id}/read": {
         parameters: {
             query?: never;
@@ -979,6 +996,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/booking/waitlist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["BookingController_myWaitlist"];
+        put?: never;
+        post: operations["BookingController_joinWaitlist"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/booking/{bookingId}": {
         parameters: {
             query?: never;
@@ -1011,7 +1044,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/booking/waitlist": {
+    "/api/booking/waitlist/{id}/leave": {
         parameters: {
             query?: never;
             header?: never;
@@ -1020,7 +1053,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["BookingController_joinWaitlist"];
+        post: operations["BookingController_leaveWaitlist"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3755,6 +3788,25 @@ export interface operations {
             };
         };
     };
+    MeController_invoice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     MeController_markRead: {
         parameters: {
             query?: never;
@@ -4783,6 +4835,46 @@ export interface operations {
             };
         };
     };
+    BookingController_myWaitlist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+        };
+    };
+    BookingController_joinWaitlist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WaitlistDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     BookingController_get: {
         parameters: {
             query?: never;
@@ -4823,18 +4915,16 @@ export interface operations {
             };
         };
     };
-    BookingController_joinWaitlist: {
+    BookingController_leaveWaitlist: {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                id: string;
+            };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WaitlistDto"];
-            };
-        };
+        requestBody?: never;
         responses: {
             201: {
                 headers: {

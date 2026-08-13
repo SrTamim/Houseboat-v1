@@ -14,6 +14,7 @@ import '@fontsource/hind-siliguri/400.css';
 import '@fontsource/hind-siliguri/600.css';
 import '@fontsource/hind-siliguri/700.css';
 import './customer.css';
+import './_home/home-effects.css';
 
 export const metadata: Metadata = {
   title: 'HaorBoat — Book a houseboat on Bangladesh’s haors',

@@ -88,6 +88,13 @@ export class BookingController {
     return this.booking.groupCheckout(user.id, user.id, dto);
   }
 
+  // Static GET paths MUST be declared before the ':bookingId' catch-all, or
+  // "/booking/waitlist" would be read as a bookingId.
+  @Get('waitlist')
+  myWaitlist(@CurrentUser() user: AuthUser) {
+    return this.waitlist.listForCustomer(user.id);
+  }
+
   @Get(':bookingId')
   get(@Param('bookingId') bookingId: string, @CurrentUser() user: AuthUser) {
     return this.booking.get(bookingId, user.id, user.isPlatform);
@@ -102,6 +109,11 @@ export class BookingController {
   @Post('waitlist')
   joinWaitlist(@CurrentUser() user: AuthUser, @Body() dto: WaitlistDto) {
     return this.waitlist.join(dto.departureId, user.id, dto.partySize);
+  }
+
+  @Post('waitlist/:id/leave')
+  leaveWaitlist(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.waitlist.leave(id, user.id);
   }
 
   /** Book a spare place on an open-seat cabin (Path §3). Drops the first booker's bill. */

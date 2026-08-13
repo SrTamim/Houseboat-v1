@@ -152,6 +152,7 @@ export class HouseboatsService {
         hasAc,
         hasNonAc,
         maxCapacity,
+        cabinCount: b.cabinCategories.length,
         ratingAvg,
       };
     });

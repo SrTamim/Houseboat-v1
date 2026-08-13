@@ -18,6 +18,7 @@ export interface SearchBoat {
   hasAc: boolean;
   hasNonAc: boolean;
   maxCapacity: number;
+  cabinCount: number;
   ratingAvg: number | null;
 }
 
@@ -111,4 +112,101 @@ export interface Hold {
   expiresAt: string;
   cabinId?: string;
   departureId?: string;
+}
+
+/** One row of GET /booking (the customer's trips). */
+export interface TripListItem {
+  id: string;
+  type: string;
+  status: string;
+  checkinStatus: string;
+  headcount: number | null;
+  referenceName: string | null;
+  createdAt: string;
+  invoice: {
+    id: string;
+    status: string;
+    displayTotal: string;
+    amountPaid: string;
+  } | null;
+  departure: {
+    id: string;
+    startDate: string;
+    endDate: string | null;
+  } | null;
+}
+
+/** GET /booking/:id — full booking detail. */
+export interface BookingDetail {
+  id: string;
+  type: string;
+  status: string;
+  checkinStatus: string;
+  referenceName: string | null;
+  cabins: {
+    id: string;
+    adults: number;
+    children: number;
+    occupancy: number;
+    roomPrice: string;
+    isOpenSeat: boolean;
+    cabin: { name: string } | null;
+  }[];
+  guests: { id: string; name: string; phone: string | null }[];
+  invoice: {
+    id: string;
+    status: string;
+    displayTotal: string;
+    amountPaid: string;
+    discountAmount: string;
+  } | null;
+  departure: {
+    id: string;
+    startDate: string;
+    endDate: string | null;
+    package: {
+      durationLabel: string | null;
+      route: { name: string; region: string | null } | null;
+    } | null;
+  } | null;
+}
+
+/** GET /me/credits. */
+export interface WalletView {
+  balance: string;
+  credits: {
+    id: string;
+    amount: string;
+    status: string;
+    sourceInvoiceId: string | null;
+    usedInInvoiceId: string | null;
+  }[];
+}
+
+/** GET /booking/waitlist row. */
+export interface WaitlistEntry {
+  id: string;
+  partySize: number;
+  createdAt: string;
+  departure: {
+    id: string;
+    startDate: string;
+    availableCount: number;
+    package: {
+      durationLabel: string | null;
+      houseboat: { name: string; slug: string };
+      route: { name: string; region: string | null } | null;
+    } | null;
+  } | null;
+}
+
+/** GET /me/notifications row. */
+export interface NotificationItem {
+  id: string;
+  event: string;
+  channel: string;
+  delivered: boolean;
+  readAt: string | null;
+  payload: unknown;
+  at: string;
 }

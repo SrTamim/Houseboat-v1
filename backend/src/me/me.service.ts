@@ -50,6 +50,33 @@ export class MeService {
     };
   }
 
+  /**
+   * One of the caller's own invoices (for the payment-return poll). Scoped by
+   * customerId so a caller can never read another account's invoice by id.
+   */
+  async invoice(accountId: string, invoiceId: string) {
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id: invoiceId, customerId: accountId },
+      select: {
+        id: true,
+        bookingId: true,
+        status: true,
+        displayTotal: true,
+        amountPaid: true,
+        discountAmount: true,
+      },
+    });
+    if (!invoice) throw new NotFoundException('Invoice not found');
+    return {
+      id: invoice.id,
+      bookingId: invoice.bookingId,
+      status: invoice.status,
+      displayTotal: invoice.displayTotal.toFixed(2),
+      amountPaid: invoice.amountPaid.toFixed(2),
+      discountAmount: invoice.discountAmount.toFixed(2),
+    };
+  }
+
   /** The caller's notification inbox, newest first. */
   listNotifications(accountId: string) {
     return this.prisma.notification.findMany({

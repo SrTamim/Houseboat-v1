@@ -19,6 +19,12 @@ export class MeController {
     return this.me.credits(user.id);
   }
 
+  /** GET /me/invoices/:id — one of the caller's own invoices (payment poll). */
+  @Get('invoices/:id')
+  invoice(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.me.invoice(user.id, id);
+  }
+
   /** POST /me/notifications/:id/read — mark one inbox item read. */
   @Post('notifications/:id/read')
   markRead(@CurrentUser() user: AuthUser, @Param('id') id: string) {
