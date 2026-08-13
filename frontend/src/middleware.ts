@@ -6,6 +6,11 @@ import {
   OWNER_SIGNUP_PATH,
   ownerLoginUrl,
 } from '@/lib/owner/login-url';
+import {
+  CUSTOMER_LOGIN_PATH,
+  CUSTOMER_REGISTER_PATH,
+  customerLoginUrl,
+} from '@/lib/customer/login-url';
 
 /**
  * Two jobs, both per-request:
@@ -59,6 +64,16 @@ function needsSession(pathname: string): boolean {
       !pathname.startsWith(OWNER_SIGNUP_PATH)
     );
   }
+  // The customer account area is gated; its own login/register are not. The rest
+  // of the customer app (/, /search, /boat/*, /checkout, /booking/*) is public
+  // browse — checkout enforces auth server-side (holds require a session), and
+  // the client shows a login-to-continue gate there rather than a hard redirect.
+  if (pathname.startsWith('/account')) {
+    return (
+      !pathname.startsWith(CUSTOMER_LOGIN_PATH) &&
+      !pathname.startsWith(CUSTOMER_REGISTER_PATH)
+    );
+  }
   return false;
 }
 
@@ -70,9 +85,9 @@ function needsSession(pathname: string): boolean {
  * it and land the owner on the dashboard instead of where they were going.
  */
 function loginUrlFor(pathname: string, next: string): string {
-  return pathname.startsWith('/owner')
-    ? ownerLoginUrl({ next })
-    : loginUrl({ next });
+  if (pathname.startsWith('/owner')) return ownerLoginUrl({ next });
+  if (pathname.startsWith('/account')) return customerLoginUrl({ next });
+  return loginUrl({ next });
 }
 
 /**
