@@ -20,6 +20,12 @@ export interface SearchBoat {
   maxCapacity: number;
   cabinCount: number;
   ratingAvg: number | null;
+  /**
+   * Rolled-up cabin-category facilities text, used by the search Amenities
+   * filter. Optional: the field is added to the search projection in a
+   * follow-up step, so older responses simply omit it.
+   */
+  facilities?: string[];
 }
 
 /** GET /houseboats/:slug — boat detail. */

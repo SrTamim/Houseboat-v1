@@ -1,46 +1,16 @@
 import Link from 'next/link';
 import type { SearchBoat } from '@/lib/customer/types';
+import { badgeFor, photoFor } from '@/lib/customer/boat-card';
 import { money } from '@/lib/owner/format';
 
 /**
- * Stock scenery photos (from the design preview). The backend has no per-boat
- * image yet, so each card gets a stable photo derived from its id — same boat
- * always shows the same photo, and the grid looks varied like the preview.
- */
-const PHOTOS = [
-  'photo-1520454974749-611b7248ffdb',
-  'photo-1502680390469-be75c86b636f',
-  'photo-1503437313881-503a91226402',
-  'photo-1444201983204-c43cbd584d93',
-  'photo-1470071459604-3b5ec3a7fe05',
-  'photo-1439066615861-d1af74d74000',
-  'photo-1516426122078-c23e76319801',
-  'photo-1544551763-46a013bb70d5',
-];
-
-/** Small deterministic hash so a given boat always maps to the same photo. */
-function photoFor(key: string): string {
-  let h = 0;
-  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) | 0;
-  const id = PHOTOS[Math.abs(h) % PHOTOS.length];
-  return `https://images.unsplash.com/${id}?auto=format&fit=crop&w=640&q=65`;
-}
-
-/**
- * Overlay badge, derived from data we already have (first match wins). There is
- * no discount data yet, so the amber `-15%` variant is never produced.
- */
-function badgeFor(boat: SearchBoat): string | null {
-  if (boat.ratingAvg != null && boat.ratingAvg >= 4.8) return 'Top rated';
-  if (boat.safetyFeatures.length > 0) return 'Safety-verified';
-  if (boat.hasAc && !boat.hasNonAc) return 'All AC';
-  return null;
-}
-
-/**
- * Boat result card, shared by the home "featured" grid and the search results.
+ * Home "featured" boat card (design: haorboat-home-v2.html lines 225–246).
  * Tailwind utilities keyed off the CSS-var design tokens (bg-raise-1, text-ink,
  * …) so it auto-switches with the [data-theme] dark toggle.
+ *
+ * The search results use the denser SearchBoatCard instead — see that file for
+ * the spec diff. Photo/badge helpers are shared via lib/customer/boat-card.ts so
+ * the two cards cannot drift.
  */
 export function BoatCard({ boat }: { boat: SearchBoat }) {
   const region = boat.routes[0]?.route;
