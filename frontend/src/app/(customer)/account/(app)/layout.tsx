@@ -1,14 +1,18 @@
-import { redirect } from 'next/navigation';
 import { CustomerNav } from '@/components/customer/CustomerNav';
 import { AccountSidebar } from '@/components/customer/AccountSidebar';
+import { AccountSignedOut } from '@/components/customer/AccountSignedOut';
 import { getCustomerSession } from '@/lib/customer/session';
-import { customerLoginUrl } from '@/lib/customer/login-url';
 
 /**
- * Gated account shell. The authoritative auth check (middleware only tests that
- * a cookie exists). An anonymous/expired session is bounced to login with a
- * ?next= back here; an API outage is surfaced rather than misreported as
- * signed-out.
+ * Account shell, and the authoritative front-end auth check — the middleware
+ * deliberately does not gate /account/* (customer sign-in is a modal, so there
+ * is no login page to redirect to).
+ *
+ * When there's no session it renders AccountSignedOut INSTEAD of `children`.
+ * That substitution is load-bearing: every account page fetches its data with
+ * SWR on mount, so rendering them signed-out would fire a burst of 401s and
+ * paint error states. An API outage is surfaced as such rather than misreported
+ * as signed-out — offering a sign-in that cannot succeed would just confuse.
  */
 export default async function AccountLayout({
   children,
@@ -16,15 +20,18 @@ export default async function AccountLayout({
   children: React.ReactNode;
 }) {
   const session = await getCustomerSession();
-
-  if (session.status === 'anonymous') {
-    redirect(customerLoginUrl({ next: '/account/trips', reason: 'session_expired' }));
-  }
-  if (session.status === 'unavailable') {
-    redirect(customerLoginUrl({ reason: 'backend_down' }));
-  }
-
   const user = session.status === 'authenticated' ? session.user : null;
+
+  if (!user) {
+    return (
+      <>
+        <CustomerNav user={null} />
+        <AccountSignedOut
+          reason={session.status === 'unavailable' ? 'backend_down' : 'session_expired'}
+        />
+      </>
+    );
+  }
 
   return (
     <>

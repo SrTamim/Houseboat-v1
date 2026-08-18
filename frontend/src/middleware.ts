@@ -6,11 +6,6 @@ import {
   OWNER_SIGNUP_PATH,
   ownerLoginUrl,
 } from '@/lib/owner/login-url';
-import {
-  CUSTOMER_LOGIN_PATH,
-  CUSTOMER_REGISTER_PATH,
-  customerLoginUrl,
-} from '@/lib/customer/login-url';
 
 /**
  * Two jobs, both per-request:
@@ -64,16 +59,12 @@ function needsSession(pathname: string): boolean {
       !pathname.startsWith(OWNER_SIGNUP_PATH)
     );
   }
-  // The customer account area is gated; its own login/register are not. The rest
-  // of the customer app (/, /search, /boat/*, /checkout, /booking/*) is public
-  // browse — checkout enforces auth server-side (holds require a session), and
-  // the client shows a login-to-continue gate there rather than a hard redirect.
-  if (pathname.startsWith('/account')) {
-    return (
-      !pathname.startsWith(CUSTOMER_LOGIN_PATH) &&
-      !pathname.startsWith(CUSTOMER_REGISTER_PATH)
-    );
-  }
+  // The whole customer app — including /account/* — is deliberately NOT gated
+  // here. Customer sign-in is a modal with no page to redirect to, so the
+  // account shell renders its own signed-out state (see
+  // app/(customer)/account/(app)/layout.tsx) and offers the modal in place.
+  // That layout's /auth/me check remains the authoritative gate, and the API
+  // routes enforce it for real regardless of anything decided here.
   return false;
 }
 
@@ -83,10 +74,11 @@ function needsSession(pathname: string): boolean {
  * The two builders are not interchangeable: each clamps ?next= to its own path
  * prefix, so using the admin one for an /owner destination would silently drop
  * it and land the owner on the dashboard instead of where they were going.
+ *
+ * Customers are absent by design — they have no login page to be sent to.
  */
 function loginUrlFor(pathname: string, next: string): string {
   if (pathname.startsWith('/owner')) return ownerLoginUrl({ next });
-  if (pathname.startsWith('/account')) return customerLoginUrl({ next });
   return loginUrl({ next });
 }
 

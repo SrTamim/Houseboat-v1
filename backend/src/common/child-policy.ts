@@ -3,8 +3,13 @@ import { Money, money, round2, add } from './money';
 /**
  * Child pricing (plan §pricing + houseboat.child_policy). Age bands charge a
  * fraction of the per-person price, e.g. [{min:0,max:3,chargePct:0},
- * {min:3,max:5,chargePct:50},{min:5,max:99,chargePct:100}] = 0-3 free, 3-5 half,
- * 5+ full. A child whose age matches no band is charged full (safe default).
+ * {min:4,max:5,chargePct:50},{min:6,max:99,chargePct:100}] = 0-3 free, 4-5 half,
+ * 6+ full. A child whose age matches no band is charged full (safe default).
+ *
+ * Both ends are INCLUSIVE — the owner's editor labels these "Age from"/"Age to",
+ * so a 0-3 band covers 0, 1, 2 AND 3. Treating max as exclusive dropped the top
+ * age of every band into the "no band" default, which both flagged a valid age as
+ * unpriced and quietly charged that child full fare.
  */
 export interface ChildBand {
   min?: number;
@@ -18,9 +23,11 @@ export function childChargeFraction(
   age: number,
 ): number {
   if (!Array.isArray(policy) || policy.length === 0) return 1; // no policy → full
-  // First band whose [min,max) contains the age. max is exclusive.
+  // First band whose [min,max] contains the age — both bounds inclusive, matching
+  // the owner's "Age from"/"Age to" inputs. First match wins, as the owner UI
+  // states, so any hand-entered overlap resolves deterministically.
   const band = policy.find(
-    (b) => age >= (b.min ?? 0) && age < (b.max ?? Infinity),
+    (b) => age >= (b.min ?? 0) && age <= (b.max ?? Infinity),
   );
   if (!band) return 1; // unmatched age → full charge
   return Math.max(0, Math.min(100, band.chargePct ?? 100)) / 100;

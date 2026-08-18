@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { THEME_SCRIPT } from '@/lib/theme-script';
+import { AuthModalProvider } from '@/components/customer/AuthModalProvider';
 // Self-hosted customer fonts — matches the approved design previews.
 // Space Grotesk (display) + Inter (body) + Hind Siliguri (Bangla). Loaded here,
 // NOT via Google Fonts CDN, so CSP font-src 'self' is satisfied.
@@ -29,6 +30,10 @@ export const metadata: Metadata = {
  * THEME_SCRIPT is reused verbatim (its CSP hash is allowlisted in middleware.ts,
  * so any variant would be blocked). No nonce — same hydration-mismatch reason as
  * owner/admin.
+ *
+ * AuthModalProvider is the client boundary for sign-in. It wraps every customer
+ * route because the modal can be opened from anywhere — the nav, the checkout
+ * pay wall, the boat waitlist — and must render above whatever page is showing.
  */
 export default function CustomerRootLayout({
   children,
@@ -38,7 +43,7 @@ export default function CustomerRootLayout({
   return (
     <>
       <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
-      {children}
+      <AuthModalProvider>{children}</AuthModalProvider>
     </>
   );
 }

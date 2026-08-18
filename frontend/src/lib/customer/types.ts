@@ -11,7 +11,8 @@ export interface SearchBoat {
   name: string;
   slug: string;
   description: string | null;
-  safetyFeatures: string[];
+  /** Free-text on the boat row (Prisma `String?`), not a list. */
+  safetyFeatures: string | null;
   routes: { route: { name: string; region: string | null } }[];
   reviewCount: number;
   priceFrom: number | null;
@@ -28,15 +29,47 @@ export interface SearchBoat {
   facilities?: string[];
 }
 
+/** Owner-entered meal plan (Prisma `Houseboat.foodMenu` JSON). */
+export interface FoodMenu {
+  breakfast?: string;
+  brunch?: string;
+  lunch?: string;
+  snacks?: string;
+  dinner?: string;
+}
+
+/** One age band of `Houseboat.childPolicy` — `chargePct` of the adult fare. */
+export interface ChildPolicyBand {
+  min: number;
+  max: number;
+  chargePct: number;
+}
+
 /** GET /houseboats/:slug — boat detail. */
 export interface BoatDetail {
   id: string;
   name: string;
   slug: string;
   description: string | null;
-  safetyFeatures: string[];
-  foodMenu: unknown;
-  childPolicy: unknown;
+  /** Free-text on the boat row (Prisma `String?`), not a list. */
+  safetyFeatures: string | null;
+  /** `{ breakfast, brunch, lunch, snacks, dinner }` — any field may be blank. */
+  foodMenu: FoodMenu | null;
+  childPolicy: ChildPolicyBand[] | null;
+  /**
+   * Boat-level gallery, already resolved to public URLs by the API
+   * (StorageService.publicUrl → root-relative `/uploads/*` under the dev
+   * driver). Empty when the owner has uploaded nothing.
+   */
+  photos: string[];
+  ratingAvg: number | null;
+  reviewCount: number;
+  reviews: {
+    id: string;
+    rating: number;
+    text: string | null;
+    customer: { name: string | null } | null;
+  }[];
   decks: {
     id: string;
     name: string;
@@ -46,11 +79,17 @@ export interface BoatDetail {
       name: string;
       gridRow: number | null;
       gridCol: number | null;
+      /** Cabin gallery, same URL treatment as `photos` above. */
+      photos: string[];
+      /** Lowest per-person pricing rule for the cabin's category. */
+      pricePerPerson: number | null;
       category: {
         name: string;
         isAc: boolean;
         baseCapacity: number;
-        facilities: string[];
+        extendedCapacity: number | null;
+        /** Free-text on the category row — a single string, not a list. */
+        facilities: string | null;
       };
     }[];
   }[];
@@ -77,8 +116,20 @@ export interface Departure {
 /** One cabin in the per-cabin availability snapshot. */
 export interface CabinAvailability {
   cabinId: string;
-  state: 'available' | 'booked' | 'open_seat';
+  /**
+   * `held_by_me` is a live hold owned by THIS viewer (account or hb_gid cookie),
+   * `held_by_other` is someone else's live hold (temporary — it lapses in ~10
+   * min), and `booked` is a genuinely sold cabin. The server draws all three
+   * distinctions because the client cannot: without them the guest's own cabin
+   * reads as fully booked after a reload, and a cabin someone is merely holding
+   * looks permanently gone.
+   */
+  state: 'available' | 'booked' | 'open_seat' | 'held_by_me' | 'held_by_other';
   spare: number;
+  /** Present only on `held_by_me`: the viewer's own countdown, ISO string. */
+  holdExpiresAt?: string;
+  /** Present only on `held_by_me`: this viewer's hold id, for release/checkout. */
+  holdId?: string;
 }
 
 export interface DepartureCabins {
@@ -142,13 +193,36 @@ export interface TripListItem {
   } | null;
 }
 
-/** GET /booking/:id — full booking detail. */
+/**
+ * GET /me/invoices/:id — the payment-return poll. Money is `.toFixed(2)`'d
+ * server-side here, unlike GET /booking/:id which serializes raw Decimals.
+ */
+export interface InvoiceView {
+  id: string;
+  bookingId: string;
+  status: string;
+  displayTotal: string;
+  amountPaid: string;
+  discountAmount: string;
+}
+
+/**
+ * GET /booking/:id — full booking detail.
+ *
+ * Money arrives as a *string* (Prisma Decimal serializes that way) — but as raw
+ * `toJSON()` output, so "1234.5", not "1234.50". Always render it through
+ * `money()`; never do arithmetic on the raw value.
+ *
+ * NID is deliberately absent: `BookingGuest.nidEncrypted` is ciphertext and the
+ * backend never echoes it.
+ */
 export interface BookingDetail {
   id: string;
   type: string;
   status: string;
   checkinStatus: string;
   referenceName: string | null;
+  createdAt?: string;
   cabins: {
     id: string;
     adults: number;
@@ -156,23 +230,42 @@ export interface BookingDetail {
     occupancy: number;
     roomPrice: string;
     isOpenSeat: boolean;
-    cabin: { name: string } | null;
+    cabin: {
+      name: string;
+      deck?: { name: string } | null;
+      category?: { name: string; isAc: boolean } | null;
+    } | null;
   }[];
   guests: { id: string; name: string; phone: string | null }[];
+  customer?: { name: string | null; email: string | null; phone: string } | null;
+  coupon?: { code: string } | null;
   invoice: {
     id: string;
     status: string;
     displayTotal: string;
     amountPaid: string;
     discountAmount: string;
+    roomTotal?: string;
+    payments?: { amount: string; method: string; paidAt: string | null }[];
   } | null;
   departure: {
     id: string;
     startDate: string;
     endDate: string | null;
+    departureTime?: string | null;
     package: {
       durationLabel: string | null;
+      durationDays?: number;
+      departureGhat?: string | null;
+      returnGhat?: string | null;
       route: { name: string; region: string | null } | null;
+      /** `logoUrl` is resolved server-side from the storage key (root-relative). */
+      houseboat?: {
+        id: string;
+        name: string;
+        slug: string;
+        logoUrl?: string | null;
+      } | null;
     } | null;
   } | null;
 }

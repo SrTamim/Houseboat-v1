@@ -1,7 +1,17 @@
-import { BadRequestException, Controller, Get, Param, Query } from '@nestjs/common';
+import {
+  BadRequestException,
+  Controller,
+  Get,
+  Param,
+  Query,
+  Req,
+} from '@nestjs/common';
+import type { Request } from 'express';
 import { HouseboatsService } from './houseboats.service';
 import { SearchHouseboatsDto } from './dto/search.dto';
-import { Public } from '../auth/decorators';
+import { CurrentUser, Public } from '../auth/decorators';
+import { AuthUser } from '../auth/auth.types';
+import { readGuestToken } from '../booking/guest-token';
 
 /** Parse an optional YYYY-MM-DD query param into a Date, or undefined. */
 function parseDate(value: string | undefined, field: string): Date | undefined {
@@ -69,8 +79,16 @@ export class HouseboatsController {
   departureCabins(
     @Param('slug') slug: string,
     @Param('departureId') departureId: string,
+    @CurrentUser() user: AuthUser | undefined,
+    @Req() req: Request,
   ) {
-    return this.houseboats.departureCabinAvailability(slug, departureId);
+    // Identify the viewer so their OWN hold comes back as held_by_me instead of
+    // "booked". Read-only: deliberately readGuestToken, never ensureGuestToken —
+    // minting a cookie on a page-view read would tag visitors who never book.
+    return this.houseboats.departureCabinAvailability(slug, departureId, {
+      accountId: user?.id ?? null,
+      guestToken: readGuestToken(req),
+    });
   }
 
   /** GET /houseboats/:slug — public boat detail. */

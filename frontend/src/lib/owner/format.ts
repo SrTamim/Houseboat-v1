@@ -64,6 +64,26 @@ export function formatDateTime(value: string | Date | null | undefined): string 
   })}`;
 }
 
+/**
+ * Clock time from a Prisma `@db.Time` column: "07:30:00" → "07:30 AM".
+ *
+ * Postgres `time` carries no date, so the driver hands it back anchored to
+ * 1970-01-01Z — only the clock part means anything. It MUST be read back in UTC:
+ * rendering in the viewer's zone shifts a 07:30 departure to 01:30 PM on a
+ * UTC+6 machine. Returns '' (not '—') so callers can suppress a separator.
+ */
+export function formatTime(value: string | Date | null | undefined): string {
+  if (!value) return '';
+  const d = typeof value === 'string' ? new Date(value) : value;
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: 'UTC',
+  });
+}
+
 /** Weekday for calendar and departure rows: "Tue". */
 export function weekday(value: string | Date | null | undefined): string {
   if (!value) return '';

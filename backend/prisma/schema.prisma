@@ -544,6 +544,10 @@ model BookingGuest {
   /// lead guest only — captured at checkout for contact
   name      String
   phone     String?
+  /// Lead-guest contact email for the voucher. Plaintext (a contact address,
+  /// not an identity document) and per-booking, since the booker is often not
+  /// the traveller.
+  email     String?
   /// National ID / passport, encrypted at rest (AES-256-GCM, common/crypto.ts).
   /// Ciphertext only — never returned in list responses, redacted in logs.
   nidEncrypted String? @map("nid_encrypted")
@@ -581,18 +585,34 @@ model CabinHold {
   id          String   @id @db.Uuid
   cabinId     String   @map("cabin_id") @db.Uuid
   departureId String   @map("departure_id") @db.Uuid
-  heldBy      String   @map("held_by") @db.Uuid
+  /// Account owner. NULL when a signed-out visitor took the hold — then
+  /// heldByToken identifies the browser instead. Exactly one of the two is set
+  /// (CHECK cabin_hold_one_owner).
+  heldBy      String?  @map("held_by") @db.Uuid
+  /// Guest owner: opaque per-browser id from the hb_gid cookie. Claimed onto an
+  /// account at login so checkout can convert the hold.
+  heldByToken String?  @map("held_by_token")
   /// 10-min TTL; server clock authoritative, not the device
   expiresAt   DateTime @map("expires_at") @db.Timestamptz
+  /// When the one-and-only checkout extension (+10 min) was granted. NULL =
+  /// never extended. Server-side so reloading checkout cannot stack more time.
+  extendedAt  DateTime? @map("extended_at") @db.Timestamptz
+  /// Last heartbeat from the page holding this cabin. The sweeper reclaims a
+  /// hold that stops reporting, so closing a tab frees cabins in ~2 min instead
+  /// of waiting out the TTL. NULL = never reported (owner POS) and is NEVER
+  /// reclaimed on the heartbeat rule — expiry alone governs those.
+  lastSeenAt  DateTime? @map("last_seen_at") @db.Timestamptz
   /// held / converted / released
   state       String   @default("held")
 
   cabin     HouseboatCabin @relation(fields: [cabinId], references: [id])
   departure TripDeparture  @relation(fields: [departureId], references: [id])
-  heldByAccount Account    @relation(fields: [heldBy], references: [id])
+  heldByAccount Account?   @relation(fields: [heldBy], references: [id])
 
   @@index([departureId])
   @@index([expiresAt])
+  @@index([heldByToken])
+  @@index([lastSeenAt])
   @@map("cabin_hold")
 }
 

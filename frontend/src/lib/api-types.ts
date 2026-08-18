@@ -946,6 +946,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/booking/departures/{departureId}/extend-holds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Grant the one checkout extension (+10 min on the time REMAINING) for this
+         *     caller's cart. Called when the checkout page opens so a guest filling in
+         *     the form does not lose their cabins mid-typing.
+         *
+         *     Public for the same reason the hold routes are: the guest holds cabins
+         *     before the login-at-checkout wall. Ownership is not checked separately —
+         *     the service scopes by account or hb_gid, so a caller can only ever extend
+         *     their own holds. Idempotent: a reload gets the unchanged expiry back.
+         */
+        post: operations["BookingController_extendHolds"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/booking/departures/{departureId}/heartbeat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["BookingController_heartbeat"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/booking/departures/{departureId}/my-holds": {
         parameters: {
             query?: never;
@@ -1667,6 +1709,36 @@ export interface paths {
         put?: never;
         /** Start a hosted payment for an invoice. Returns the URL to redirect to. */
         post: operations["GatewayController_initiate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/gateway/sslcommerz/dev/settle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Settle an invoice WITHOUT taking money, so a booking can be confirmed
+         *     before the payment gateway is configured.
+         *
+         *     Gated on `gateway.bypass` (PAYMENTS_BYPASS=true). Off by default, so an
+         *     unset production environment refuses every call even if this route ships.
+         *     Delete the route — or just clear the flag — once SSLCommerz is live; the
+         *     whole `initiate` → hosted page → IPN path is untouched and still works.
+         *
+         *     Ownership, status and amount checks are the same ones `initiate` applies,
+         *     and the payment itself goes through the identical `recordGatewayPayment`
+         *     used by the IPN — so a 50% advance records as a partial and correctly
+         *     leaves the invoice `customer_due`, exactly as a real deposit would.
+         */
+        post: operations["GatewayController_devSettle"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2688,7 +2760,12 @@ export interface components {
         RegisterDto: {
             phone: string;
             password: string;
-            name?: string;
+            /**
+             * @description Required: every booking, voucher and boarding list is read by a human at
+             *     the ghat, so an account with no name is not usable operationally.
+             *     Trimmed before length-checking so "   " cannot pass as a name.
+             */
+            name: string;
             /** Format: email */
             email?: string;
         };
@@ -2948,6 +3025,11 @@ export interface components {
             cabins: components["schemas"]["CabinSelectionDto"][];
             leadGuestName: string;
             leadGuestPhone?: string;
+            /**
+             * Format: email
+             * @description Voucher/e-ticket address. Per-booking: the payer is often not the traveller.
+             */
+            leadGuestEmail?: string;
             /** @description Lead guest NID / passport. Stored encrypted at rest; never echoed back. */
             leadGuestNid?: string;
             specialInstructions?: string;
@@ -2964,6 +3046,11 @@ export interface components {
             headcount: number;
             leadGuestName: string;
             leadGuestPhone?: string;
+            /**
+             * Format: email
+             * @description Voucher/e-ticket address. Per-booking: the payer is often not the traveller.
+             */
+            leadGuestEmail?: string;
             /** @description Lead guest NID / passport. Stored encrypted at rest; never echoed back. */
             leadGuestNid?: string;
             specialInstructions?: string;
@@ -4774,6 +4861,44 @@ export interface operations {
             };
         };
     };
+    BookingController_extendHolds: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                departureId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    BookingController_heartbeat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                departureId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     BookingController_myHolds: {
         parameters: {
             query?: never;
@@ -5832,6 +5957,27 @@ export interface operations {
         };
     };
     GatewayController_initiate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InitiatePaymentDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    GatewayController_devSettle: {
         parameters: {
             query?: never;
             header?: never;

@@ -7,6 +7,7 @@ import {
   MinLength,
   Matches,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 // Bangladeshi mobile: +8801XXXXXXXXX or 01XXXXXXXXX
 const BD_PHONE = /^(?:\+?8801|01)[3-9]\d{8}$/;
@@ -28,10 +29,16 @@ export class RegisterDto {
   @MaxLength(PASSWORD_MAX)
   password!: string;
 
-  @IsOptional()
+  /**
+   * Required: every booking, voucher and boarding list is read by a human at
+   * the ghat, so an account with no name is not usable operationally.
+   * Trimmed before length-checking so "   " cannot pass as a name.
+   */
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
+  @MinLength(2, { message: 'name must be at least 2 characters' })
   @MaxLength(120)
-  name?: string;
+  name!: string;
 
   @IsOptional()
   @IsEmail()

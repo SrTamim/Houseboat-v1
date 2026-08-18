@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PricingService } from '../pricing/pricing.service';
+import { StorageService } from '../storage/storage.service';
 
 /**
  * Public-facing houseboat read model. Only `live` boats are ever exposed
@@ -11,6 +12,7 @@ export class HouseboatsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly pricing: PricingService,
+    private readonly storage: StorageService,
   ) {}
 
   /** Resolve a live boat's id from its public slug, or 404. */
@@ -206,6 +208,13 @@ export class HouseboatsService {
         safetyFeatures: true,
         foodMenu: true,
         childPolicy: true,
+        // Boat-level gallery only: cabin-scoped rows carry a cabinId and are
+        // selected per-cabin below.
+        media: {
+          where: { kind: 'image', cabinId: null },
+          select: { storageKey: true },
+          orderBy: { sortOrder: 'asc' },
+        },
         decks: {
           select: {
             id: true,
@@ -217,12 +226,19 @@ export class HouseboatsService {
                 name: true,
                 gridRow: true,
                 gridCol: true,
+                media: {
+                  where: { kind: 'image' },
+                  select: { storageKey: true },
+                  orderBy: { sortOrder: 'asc' },
+                },
                 category: {
                   select: {
                     name: true,
                     isAc: true,
                     baseCapacity: true,
+                    extendedCapacity: true,
                     facilities: true,
+                    pricingRules: { select: { pricePerPerson: true } },
                   },
                 },
               },
@@ -233,13 +249,59 @@ export class HouseboatsService {
         routes: {
           select: { route: { select: { name: true, region: true } } },
         },
+        _count: { select: { reviews: true } },
+        reviews: {
+          select: {
+            id: true,
+            rating: true,
+            text: true,
+            customer: { select: { name: true } },
+          },
+          take: 6,
+        },
       },
     });
 
     if (!boat) {
       throw new NotFoundException(`No live houseboat found for "${slug}"`);
     }
-    return boat;
+
+    // Rating rolled up the same way `search` does (lines 139–142), so a boat
+    // shows an identical score on the results grid and on its detail page.
+    const ratingCount = boat.reviews.length;
+    const ratingAvg = ratingCount
+      ? boat.reviews.reduce((s, r) => s + r.rating, 0) / ratingCount
+      : null;
+
+    // storageKey → public URL via StorageService, never by string concatenation:
+    // the local dev driver returns a root-relative /uploads/* path so uploaded
+    // images stay same-origin and satisfy CSP `img-src 'self'`.
+    const urls = (rows: { storageKey: string | null }[]) =>
+      rows.map((m) => m.storageKey).filter((k): k is string => !!k).map((k) => this.storage.publicUrl(k));
+
+    return {
+      ...boat,
+      media: undefined,
+      photos: urls(boat.media),
+      ratingAvg,
+      reviewCount: boat._count.reviews,
+      decks: boat.decks.map((d) => ({
+        ...d,
+        cabins: d.cabins.map((c) => {
+          const prices = c.category.pricingRules
+            .map((r) => Number(r.pricePerPerson))
+            .filter((n) => n > 0);
+          const { pricingRules, ...category } = c.category;
+          return {
+            ...c,
+            media: undefined,
+            photos: urls(c.media),
+            pricePerPerson: prices.length ? Math.min(...prices) : null,
+            category,
+          };
+        }),
+      })),
+    };
   }
 
   /**
@@ -249,16 +311,35 @@ export class HouseboatsService {
    * `cabin` socket deltas on top of this snapshot.
    *
    * A cabin is:
-   *   - `booked`    — a live hold, OR a confirmed booking_cabin that is not an
-   *                   open seat (the whole room is taken).
+   *   - `held_by_me`    — a live hold owned by THIS viewer (account or hb_gid).
+   *   - `held_by_other` — a live hold owned by someone else. Temporary: it
+   *                       expires in ~10 minutes and the cabin usually comes
+   *                       back, which is why it is not lumped in with `booked`.
+   *   - `booked`    — a confirmed booking_cabin that is not an open seat (the
+   *                   room is genuinely sold).
    *   - `open_seat` — a confirmed booking_cabin flagged isOpenSeat with spare
    *                   capacity left; `spare` = capacity − current occupancy.
    *   - `available` — no live hold and no booking_cabin.
    *
+   * `held_by_me` exists because this snapshot is the boat page's seed state, and
+   * a hold is invisible in it otherwise: reporting the viewer's OWN cabin as
+   * "booked" made their selection read as fully booked after a reload, flash
+   * booked for a moment while their own hold request was in flight, and stay
+   * booked for up to a minute after expiry while the sweeper caught up. The
+   * client cannot tell the difference on its own — only the server knows who
+   * owns the row.
+   *
+   * `viewer` is optional: an anonymous caller (no session, no hb_gid cookie)
+   * matches no hold, so every branch returns exactly what it did before.
+   *
    * Only reads live/scheduled departures of a live boat; 404 otherwise so a
    * suspended boat's availability can't be probed.
    */
-  async departureCabinAvailability(slug: string, departureId: string) {
+  async departureCabinAvailability(
+    slug: string,
+    departureId: string,
+    viewer?: { accountId: string | null; guestToken: string | null },
+  ) {
     const departure = await this.prisma.tripDeparture.findFirst({
       where: {
         id: departureId,
@@ -306,22 +387,65 @@ export class HouseboatsService {
         },
         select: { cabinId: true, occupancy: true, isOpenSeat: true },
       }),
-      // Cabins currently held (unexpired) by anyone.
+      // Cabins currently held (unexpired) by anyone. The owner columns come
+      // along so a hold can be attributed to the viewer rather than lumped in
+      // with everyone else's.
       this.prisma.cabinHold.findMany({
         where: { departureId, state: 'held', expiresAt: { gt: now } },
-        select: { cabinId: true },
+        select: {
+          id: true,
+          cabinId: true,
+          heldBy: true,
+          heldByToken: true,
+          expiresAt: true,
+        },
       }),
     ]);
 
-    const heldIds = new Set(holds.map((h) => h.cabinId));
+    const holdByCabin = new Map(holds.map((h) => [h.cabinId, h]));
     const bookingByCabin = new Map(
       bookingCabins.map((bc) => [bc.cabinId, bc]),
     );
+    /**
+     * Whose hold this is. Null owners never match: an anonymous viewer has no
+     * accountId and no guestToken, so `null === null` must not be allowed to
+     * hand them someone else's cabin.
+     */
+    const ownedByViewer = (hold: {
+      heldBy: string | null;
+      heldByToken: string | null;
+    }) => {
+      if (!viewer) return false;
+      if (hold.heldBy && viewer.accountId) return hold.heldBy === viewer.accountId;
+      if (hold.heldByToken && viewer.guestToken) {
+        return hold.heldByToken === viewer.guestToken;
+      }
+      return false;
+    };
 
     const allCabins = departure.package.houseboat.decks.flatMap((d) => d.cabins);
     const cabins = allCabins.map((cabin) => {
-      if (heldIds.has(cabin.id)) {
-        return { cabinId: cabin.id, state: 'booked' as const, spare: 0 };
+      const hold = holdByCabin.get(cabin.id);
+      if (hold) {
+        return ownedByViewer(hold)
+          ? {
+              cabinId: cabin.id,
+              state: 'held_by_me' as const,
+              spare: 0,
+              // The viewer's own countdown, so the page can resume the real
+              // remaining time after a reload without a second request.
+              holdExpiresAt: hold.expiresAt,
+              // Only ever sent to the account/browser that owns the row — the
+              // same id their own POST /booking/hold returned. The page needs it
+              // to release the cabin on deselect and to convert it at checkout.
+              holdId: hold.id,
+            }
+          : // Someone else's hold — temporary (10 min) and usually lapses, so it
+            // is NOT the same as a sold cabin. Kept distinct from `booked` so the
+            // page can say "on hold by another guest" instead of "fully booked".
+            // No holdId/expiresAt/owner: a stranger's hold identity and countdown
+            // are not this viewer's business.
+            { cabinId: cabin.id, state: 'held_by_other' as const, spare: 0 };
       }
       const bc = bookingByCabin.get(cabin.id);
       if (bc) {

@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  ForbiddenException,
   Get,
   NotFoundException,
   Post,
@@ -114,6 +115,66 @@ export class GatewayController {
       customerEmail: invoice.customer?.email ?? undefined,
     });
     return { gatewayPageUrl };
+  }
+
+  /**
+   * Settle an invoice WITHOUT taking money, so a booking can be confirmed
+   * before the payment gateway is configured.
+   *
+   * Gated on `gateway.bypass` (PAYMENTS_BYPASS=true). Off by default, so an
+   * unset production environment refuses every call even if this route ships.
+   * Delete the route — or just clear the flag — once SSLCommerz is live; the
+   * whole `initiate` → hosted page → IPN path is untouched and still works.
+   *
+   * Ownership, status and amount checks are the same ones `initiate` applies,
+   * and the payment itself goes through the identical `recordGatewayPayment`
+   * used by the IPN — so a 50% advance records as a partial and correctly
+   * leaves the invoice `customer_due`, exactly as a real deposit would.
+   */
+  @Throttle({ default: { ttl: 60_000, limit: 20 } })
+  @Post('dev/settle')
+  async devSettle(@CurrentUser() user: AuthUser, @Body() dto: InitiatePaymentDto) {
+    if (!this.config.get<boolean>('gateway.bypass')) {
+      throw new ForbiddenException('Payment bypass is disabled');
+    }
+
+    const invoice = await this.prisma.invoice.findUnique({
+      where: { id: dto.invoiceId },
+    });
+    if (!invoice) throw new NotFoundException('Invoice not found');
+
+    // Same guard as initiate: own the invoice, or hold money:edit on the boat.
+    if (invoice.customerId !== user.id) {
+      await this.rbac.assert(
+        user.id,
+        user.isPlatform,
+        invoice.houseboatId,
+        'money',
+        'edit',
+      );
+    }
+    if (invoice.status !== 'customer_due') {
+      throw new BadRequestException('Invoice is not awaiting payment');
+    }
+
+    const outstanding = sub(money(invoice.displayTotal), money(invoice.amountPaid));
+    const amount = dto.amount ?? Number(outstanding.toFixed(2));
+    if (amount <= 0 || money(amount).greaterThan(outstanding)) {
+      throw new BadRequestException('Invalid payment amount');
+    }
+
+    const result = await this.payments.recordGatewayPayment({
+      invoiceId: invoice.id,
+      amount,
+      gatewayToken: `bypass:${invoice.id}:${randomUUID()}`,
+    });
+
+    // Mirrors the IPN: recordGatewayPayment returns null on a replayed token,
+    // and the e-ticket must only fire on a real first settlement.
+    if (result) {
+      await this.sendETicket(invoice.id).catch(() => undefined);
+    }
+    return { invoiceId: invoice.id };
   }
 
   /**

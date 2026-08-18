@@ -2,11 +2,17 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { AvailabilityGateway } from '../realtime/availability.gateway';
+import { HOLD_GRACE_MIN } from './holds.service';
 
 /**
- * Releases holds whose expires_at has passed. Runs every minute. Idempotent:
- * only flips rows still in state='held', and increments available_count exactly
- * once per released hold — a second run finds nothing to do (plan §2).
+ * Reclaims holds that are no longer live, on two independent rules:
+ *   1. expires_at has passed — the hard TTL.
+ *   2. the page holding them stopped heartbeating for HOLD_GRACE_MIN — an
+ *      abandoned tab, which would otherwise sit on the cabins until (1).
+ *
+ * Runs every minute. Idempotent: only flips rows still in state='held', and
+ * increments available_count exactly once per released hold — a second run finds
+ * nothing to do (plan §2).
  *
  * Server time is authoritative; a manipulated device clock cannot keep a hold
  * alive past its server-computed expiry.
@@ -23,16 +29,34 @@ export class HoldSweeperService {
   @Cron(CronExpression.EVERY_MINUTE)
   async sweep(): Promise<void> {
     const now = new Date();
+    const staleBefore = new Date(now.getTime() - HOLD_GRACE_MIN * 60_000);
     // Process in one transaction per batch so count updates stay consistent.
-    const expired = await this.prisma.cabinHold.findMany({
-      where: { state: 'held', expiresAt: { lte: now } },
+    const reclaimable = await this.prisma.cabinHold.findMany({
+      where: {
+        state: 'held',
+        OR: [
+          // Hard deadline: the hold ran out of time.
+          { expiresAt: { lte: now } },
+          // Abandoned page: it was reporting in, then went quiet. This is what
+          // frees cabins when a tab is closed, since unload events cannot be
+          // relied on.
+          //
+          // A hold that never reported (last_seen_at NULL) is NOT stale — the
+          // owner POS takes holds through the same endpoint as customers and
+          // never heartbeats, so cancelling those would kill counter sales
+          // mid-transaction. SQL already guarantees this (NULL < ts is never
+          // true, so a NULL row cannot match `lt`); `not: null` states the
+          // requirement explicitly so a future edit cannot quietly lose it.
+          { lastSeenAt: { not: null, lt: staleBefore } },
+        ],
+      },
       select: { id: true, departureId: true, cabinId: true },
       take: 500,
     });
-    if (expired.length === 0) return;
+    if (reclaimable.length === 0) return;
 
     const touched = new Set<string>();
-    for (const hold of expired) {
+    for (const hold of reclaimable) {
       const didRelease = await this.prisma.$transaction(async (tx) => {
         // Re-check state inside the tx — another worker may have got here first.
         const fresh = await tx.cabinHold.findUnique({
@@ -64,6 +88,6 @@ export class HoldSweeperService {
       });
       if (dep) this.realtime.emitAvailability(departureId, dep.availableCount);
     }
-    this.logger.debug(`Swept ${expired.length} expired hold(s)`);
+    this.logger.debug(`Swept ${reclaimable.length} stale/expired hold(s)`);
   }
 }

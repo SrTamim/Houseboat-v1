@@ -52,6 +52,13 @@ export default () => ({
     sandbox: process.env.SSLCZ_SANDBOX !== 'false', // default sandbox in dev
     storeId: process.env.SSLCZ_STORE_ID,
     storePassword: process.env.SSLCZ_STORE_PASSWORD,
+    /**
+     * Confirm bookings without taking money, for use before the gateway is
+     * configured. Opt-in by exact string: an unset, empty or misspelled value
+     * leaves it OFF, so a production deploy cannot mint free bookings even if
+     * the route ships.
+     */
+    bypass: process.env.PAYMENTS_BYPASS === 'true',
   },
 
   // Public base URLs for building gateway success/fail/IPN redirects + e-tickets.

@@ -12,7 +12,17 @@ import { AvailabilityGateway } from '../realtime/availability.gateway';
 import { newId } from '../common/uuid';
 
 export const HOLD_TTL_MIN = 10;
-export const HOLD_PAYMENT_EXTENSION_MIN = 5;
+/** One-off grant when the guest reaches checkout, ADDED to the time remaining. */
+export const HOLD_CHECKOUT_EXTENSION_MIN = 10;
+/**
+ * How long a hold may go without a heartbeat before the sweeper reclaims it.
+ *
+ * Two minutes, not thirty seconds: Chrome throttles background timers to once a
+ * minute after a tab has been hidden a while, so a 30s heartbeat still lands
+ * ~2 pings inside this window. A tighter grace would punish a guest who simply
+ * switched apps mid-booking.
+ */
+export const HOLD_GRACE_MIN = 2;
 /** Per-cabin hold-attempt rate limit — absorbs the waitlist click spike (§2). */
 const HOLD_RATE_WINDOW_SEC = 10;
 const HOLD_RATE_MAX = 5;
@@ -61,9 +71,32 @@ export class HoldsService {
    * taken") if another party holds/booked it. Extends a shared cart expiry by
    * returning the new expires_at so the client counts down from the server.
    */
-  async hold(cabinId: string, departureId: string, heldBy: string) {
+  async hold(
+    cabinId: string,
+    departureId: string,
+    heldBy: string | null,
+    /**
+     * Guest owner, when the caller is not signed in. Exactly one of heldBy /
+     * heldByToken is set — the DB enforces it (cabin_hold_one_owner). Appended
+     * as an optional 4th argument so existing callers (owner POS,
+     * owner-bookings.service.ts) are unaffected.
+     */
+    heldByToken?: string | null,
+    /**
+     * Cap on how many cabins this caller may hold at once on this departure.
+     * Opt-in: the customer routes pass MAX_CABINS_PER_BOOKING, the owner POS
+     * passes nothing — counter staff legitimately sell more cabins than a
+     * self-service booking allows.
+     */
+    maxCabins?: number,
+  ) {
+    if (!heldBy === !heldByToken) {
+      throw new ConflictException('A hold needs exactly one owner');
+    }
     await this.assertHoldRate(cabinId);
     const expiresAt = new Date(Date.now() + HOLD_TTL_MIN * 60_000);
+    // Whose cart this hold joins — an account's or a browser's.
+    const owner = heldBy ? { heldBy } : { heldByToken };
     try {
       const held = await this.prisma.$transaction(async (tx) => {
         const dep = await tx.tripDeparture.findUnique({
@@ -78,23 +111,66 @@ export class HoldsService {
           throw new ConflictException('No cabins available on this departure');
         }
 
+        // Per-booking cabin cap. Counted inside the transaction so two fast
+        // clicks cannot both read "3 held" and both insert a 4th.
+        if (maxCabins != null) {
+          const alreadyHeld = await tx.cabinHold.count({
+            where: {
+              departureId,
+              ...owner,
+              state: 'held',
+              expiresAt: { gt: new Date() },
+            },
+          });
+          if (alreadyHeld >= maxCabins) {
+            throw new ConflictException(
+              `You can book up to ${maxCabins} cabins per booking`,
+            );
+          }
+        }
+
+        // If this cart already runs longer than a fresh 10 minutes — it was
+        // extended at checkout — the new cabin joins THAT deadline instead of
+        // dragging the cart back to its own.
+        const longest = await tx.cabinHold.aggregate({
+          where: {
+            departureId,
+            ...owner,
+            state: 'held',
+            expiresAt: { gt: expiresAt },
+          },
+          _max: { expiresAt: true },
+        });
+        const cartExpiresAt = longest._max.expiresAt ?? expiresAt;
+
         const created = await tx.cabinHold.create({
           data: {
             id: newId(),
             cabinId,
             departureId,
-            heldBy,
-            expiresAt,
+            ...owner,
+            expiresAt: cartExpiresAt,
             state: 'held',
           },
         });
 
         // Shared cart expiry (plan §2): all of this caller's active holds on this
         // departure share ONE countdown, extended to the newest hold. Sweep the
-        // whole cart onto the new expires_at.
+        // whole cart onto the new expires_at. Scoped by whichever owner applies,
+        // so a guest's cabins share one countdown exactly as an account's do.
+        //
+        // Never sweep BACKWARDS past a granted checkout extension: an extended
+        // cart sits at up to 20 minutes, so a plain 10-minute hold taken
+        // afterwards would silently claw that time back — and extended_at is
+        // already spent, so the guest could not win it again.
         await tx.cabinHold.updateMany({
-          where: { departureId, heldBy, state: 'held' },
-          data: { expiresAt },
+          where: {
+            departureId,
+            ...owner,
+            state: 'held',
+            expiresAt: { lt: cartExpiresAt },
+          },
+          data: { expiresAt: cartExpiresAt },
         });
 
         // Same transaction: reflect the taken cabin in denormalized availability.
@@ -106,7 +182,10 @@ export class HoldsService {
 
         return {
           id: created.id,
-          expiresAt,
+          // The cart's shared deadline, which may be later than this hold's own
+          // 10 minutes if the cart was already extended. The client counts down
+          // to what it gets back here.
+          expiresAt: cartExpiresAt,
           availableCount: dep2.availableCount,
         };
       });
@@ -135,11 +214,23 @@ export class HoldsService {
    * availability). An already-resolved/absent hold stays a silent no-op so the
    * idempotent contract holds. Pass `isPlatform` for staff/POS override.
    */
-  async release(holdId: string, actorId: string, isPlatform = false) {
+  async release(
+    holdId: string,
+    actorId: string | null,
+    isPlatform = false,
+    /** Guest caller's hb_gid, when not signed in. */
+    actorToken?: string | null,
+  ) {
     const released = await this.prisma.$transaction(async (tx) => {
       const hold = await tx.cabinHold.findUnique({ where: { id: holdId } });
       if (!hold || hold.state !== 'held') return null; // already resolved — no-op
-      if (hold.heldBy !== actorId && !isPlatform) {
+      // A guest may only release the holds their own browser took; the token is
+      // matched exactly as an account id is, so one visitor cannot free
+      // another's cabins.
+      const owns = hold.heldBy
+        ? actorId != null && hold.heldBy === actorId
+        : actorToken != null && hold.heldByToken === actorToken;
+      if (!owns && !isPlatform) {
         throw new ForbiddenException('This hold belongs to another account');
       }
       await tx.cabinHold.update({
@@ -164,23 +255,136 @@ export class HoldsService {
     }
   }
 
-  /** Extend a hold once on payment initiation (+5 min) to cover the gateway round-trip. */
-  async extendForPayment(holdId: string) {
-    const newExpiry = new Date(
-      Date.now() + HOLD_PAYMENT_EXTENSION_MIN * 60_000,
-    );
-    await this.prisma.cabinHold.updateMany({
-      where: { id: holdId, state: 'held' },
-      data: { expiresAt: newExpiry },
+  /**
+   * Grant the one checkout extension for a caller's whole cart on a departure.
+   *
+   * Additive, not absolute: +10 min on top of whatever is LEFT, so a hold with
+   * 8 minutes remaining goes to 18, never down to 10. Cart-scoped because
+   * hold() keeps every hold of one owner on one departure on a single shared
+   * expiry (see the sweep above) — extending one row would desync the
+   * countdown the client displays.
+   *
+   * Once only, enforced by extended_at rather than by the client: reloading
+   * checkout calls this again and gets the unchanged expiry back, so the worst
+   * case life of a hold is 20 minutes, not unbounded.
+   */
+  async extendForCheckout(
+    departureId: string,
+    heldBy: string | null,
+    heldByToken?: string | null,
+  ): Promise<{ expiresAt: Date; extended: boolean }> {
+    const owner = heldBy ? { heldBy } : { heldByToken };
+    return this.prisma.$transaction(async (tx) => {
+      const holds = await tx.cabinHold.findMany({
+        where: {
+          departureId,
+          ...owner,
+          state: 'held',
+          expiresAt: { gt: new Date() },
+        },
+        select: { expiresAt: true, extendedAt: true },
+      });
+      if (holds.length === 0) {
+        // Nothing live to extend — the sweeper already took them, or this
+        // caller never held anything here. The client sends the guest back to
+        // the boat page rather than failing later at checkout.
+        throw new ConflictException('Your cabin hold has expired');
+      }
+
+      // The cart shares one expiry, but read the max defensively so a partial
+      // row never shortens the others.
+      const current = holds.reduce(
+        (max, h) => (h.expiresAt > max ? h.expiresAt : max),
+        holds[0].expiresAt,
+      );
+      // Any row already stamped means the grant is spent for this cart.
+      if (holds.some((h) => h.extendedAt != null)) {
+        return { expiresAt: current, extended: false };
+      }
+
+      const expiresAt = new Date(
+        current.getTime() + HOLD_CHECKOUT_EXTENSION_MIN * 60_000,
+      );
+      await tx.cabinHold.updateMany({
+        where: { departureId, ...owner, state: 'held' },
+        data: { expiresAt, extendedAt: new Date() },
+      });
+      return { expiresAt, extended: true };
     });
-    return newExpiry;
   }
 
-  /** Active holds for a user on a departure (their cart). */
-  listActive(departureId: string, heldBy: string) {
-    return this.prisma.cabinHold.findMany({
-      where: { departureId, heldBy, state: 'held', expiresAt: { gt: new Date() } },
+  /**
+   * "I am still here" — stamp lastSeenAt on this caller's live holds.
+   *
+   * The page holding cabins calls this every ~30s. The sweeper reclaims holds
+   * whose heartbeat has gone quiet for HOLD_GRACE_MIN, which is what lets a
+   * closed tab free its cabins in ~2 minutes instead of the full TTL.
+   *
+   * Deliberately does NOT touch expiresAt: presence is not entitlement, and a
+   * parked tab must still hit its 10-minute deadline. Returns the unchanged
+   * expiry so the client can correct clock drift for free.
+   *
+   * Owner-scoped exactly like extendForCheckout, so one caller can never keep
+   * another's holds alive.
+   */
+  async touchHolds(
+    departureId: string,
+    heldBy: string | null,
+    heldByToken?: string | null,
+  ): Promise<{ ok: boolean; expiresAt: Date | null }> {
+    const owner = heldBy ? { heldBy } : { heldByToken };
+    const now = new Date();
+    const { count } = await this.prisma.cabinHold.updateMany({
+      where: {
+        departureId,
+        ...owner,
+        state: 'held',
+        expiresAt: { gt: now },
+      },
+      data: { lastSeenAt: now },
     });
+    if (count === 0) return { ok: false, expiresAt: null };
+    // The cart shares one expiry; read it back so the client stays in sync.
+    const live = await this.prisma.cabinHold.findFirst({
+      where: { departureId, ...owner, state: 'held', expiresAt: { gt: now } },
+      select: { expiresAt: true },
+      orderBy: { expiresAt: 'desc' },
+    });
+    return { ok: true, expiresAt: live?.expiresAt ?? null };
+  }
+
+  /** Active holds for a caller on a departure (their cart), account or guest. */
+  listActive(
+    departureId: string,
+    heldBy: string | null,
+    heldByToken?: string | null,
+  ) {
+    const owner = heldBy ? { heldBy } : { heldByToken };
+    return this.prisma.cabinHold.findMany({
+      where: { departureId, ...owner, state: 'held', expiresAt: { gt: new Date() } },
+    });
+  }
+
+  /**
+   * Transfer a browser's live holds onto the account that just signed in.
+   *
+   * Load-bearing: BookingService.checkout() converts holds with
+   * `heldBy: bookedBy`, so a hold still owned by a token would match nothing and
+   * the customer's own checkout would fail with "a held cabin expired or was
+   * taken". Called right after login, before checkout can submit.
+   *
+   * Only live holds move. Expired/released/converted rows are history and stay
+   * attributed to the guest session that made them.
+   */
+  async claimForAccount(token: string, accountId: string): Promise<number> {
+    const { count } = await this.prisma.cabinHold.updateMany({
+      where: { heldByToken: token, state: 'held', expiresAt: { gt: new Date() } },
+      data: { heldBy: accountId, heldByToken: null },
+    });
+    if (count > 0) {
+      this.logger.log(`Claimed ${count} guest hold(s) for account ${accountId}`);
+    }
+    return count;
   }
 
   /**

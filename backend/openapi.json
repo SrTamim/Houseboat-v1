@@ -2138,6 +2138,53 @@
         ]
       }
     },
+    "/api/booking/departures/{departureId}/extend-holds": {
+      "post": {
+        "operationId": "BookingController_extendHolds",
+        "parameters": [
+          {
+            "name": "departureId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Grant the one checkout extension (+10 min on the time REMAINING) for this\ncaller's cart. Called when the checkout page opens so a guest filling in\nthe form does not lose their cabins mid-typing.\n\nPublic for the same reason the hold routes are: the guest holds cabins\nbefore the login-at-checkout wall. Ownership is not checked separately —\nthe service scopes by account or hb_gid, so a caller can only ever extend\ntheir own holds. Idempotent: a reload gets the unchanged expiry back.",
+        "tags": [
+          "Booking"
+        ]
+      }
+    },
+    "/api/booking/departures/{departureId}/heartbeat": {
+      "post": {
+        "operationId": "BookingController_heartbeat",
+        "parameters": [
+          {
+            "name": "departureId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Booking"
+        ]
+      }
+    },
     "/api/booking/departures/{departureId}/my-holds": {
       "get": {
         "operationId": "BookingController_myHolds",
@@ -3644,6 +3691,31 @@
           }
         },
         "summary": "Start a hosted payment for an invoice. Returns the URL to redirect to.",
+        "tags": [
+          "Gateway"
+        ]
+      }
+    },
+    "/api/gateway/sslcommerz/dev/settle": {
+      "post": {
+        "operationId": "GatewayController_devSettle",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InitiatePaymentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Settle an invoice WITHOUT taking money, so a booking can be confirmed\nbefore the payment gateway is configured.\n\nGated on `gateway.bypass` (PAYMENTS_BYPASS=true). Off by default, so an\nunset production environment refuses every call even if this route ships.\nDelete the route — or just clear the flag — once SSLCommerz is live; the\nwhole `initiate` → hosted page → IPN path is untouched and still works.\n\nOwnership, status and amount checks are the same ones `initiate` applies,\nand the payment itself goes through the identical `recordGatewayPayment`\nused by the IPN — so a 50% advance records as a partial and correctly\nleaves the invoice `customer_due`, exactly as a real deposit would.",
         "tags": [
           "Gateway"
         ]
@@ -6242,6 +6314,8 @@
           },
           "name": {
             "type": "string",
+            "description": "Required: every booking, voucher and boarding list is read by a human at\nthe ghat, so an account with no name is not usable operationally.\nTrimmed before length-checking so \"   \" cannot pass as a name.",
+            "minLength": 2,
             "maxLength": 120
           },
           "email": {
@@ -6252,7 +6326,8 @@
         },
         "required": [
           "phone",
-          "password"
+          "password",
+          "name"
         ]
       },
       "LoginDto": {
@@ -7074,10 +7149,10 @@
           },
           "children": {
             "type": "number",
-            "minimum": 0
+            "minimum": 0,
+            "maximum": 4
           },
           "childAges": {
-            "maxItems": 20,
             "type": "array",
             "items": {
               "type": "number",
@@ -7152,11 +7227,11 @@
           },
           "children": {
             "type": "number",
-            "minimum": 0
+            "minimum": 0,
+            "maximum": 4
           },
           "childAges": {
             "description": "Ages of the children, so each is charged per the boat's child_policy age\nbands. If omitted, children are charged full. Length should match children.",
-            "maxItems": 20,
             "type": "array",
             "items": {
               "type": "number",
@@ -7183,7 +7258,6 @@
             "maxLength": 64
           },
           "cabins": {
-            "maxItems": 50,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/CabinSelectionDto"
@@ -7196,6 +7270,12 @@
           "leadGuestPhone": {
             "type": "string",
             "maxLength": 64
+          },
+          "leadGuestEmail": {
+            "type": "string",
+            "description": "Voucher/e-ticket address. Per-booking: the payer is often not the traveller.",
+            "maxLength": 254,
+            "format": "email"
           },
           "leadGuestNid": {
             "type": "string",
@@ -7249,6 +7329,12 @@
           "leadGuestPhone": {
             "type": "string",
             "maxLength": 64
+          },
+          "leadGuestEmail": {
+            "type": "string",
+            "description": "Voucher/e-ticket address. Per-booking: the payer is often not the traveller.",
+            "maxLength": 254,
+            "format": "email"
           },
           "leadGuestNid": {
             "type": "string",
