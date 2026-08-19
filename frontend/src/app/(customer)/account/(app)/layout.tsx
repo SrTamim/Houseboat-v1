@@ -1,6 +1,7 @@
 import { CustomerNav } from '@/components/customer/CustomerNav';
 import { AccountSidebar } from '@/components/customer/AccountSidebar';
 import { AccountSignedOut } from '@/components/customer/AccountSignedOut';
+import { AmbientMotion } from '@/components/customer/AmbientMotion';
 import { getCustomerSession } from '@/lib/customer/session';
 
 /**
@@ -35,10 +36,11 @@ export default async function AccountLayout({
 
   return (
     <>
+      <AmbientMotion />
       <CustomerNav user={user} />
-      <div className="shell">
+      <div className="mx-auto grid max-w-wrap grid-cols-1 items-start gap-7 px-6 pb-16 pt-7 md:grid-cols-[236px_1fr]">
         <AccountSidebar />
-        <main className="main">{children}</main>
+        <main className="grid min-w-0 gap-[18px]">{children}</main>
       </div>
     </>
   );

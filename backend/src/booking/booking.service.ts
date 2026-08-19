@@ -87,14 +87,28 @@ export class BookingService {
     return encryptJson(v, this.config.get<string>('encryptionKey') ?? '');
   }
 
-  /** Notify every waitlisted customer that a place freed (plan §2, all at once). */
+  /**
+   * Tell the waitlist that a place freed (plan §2 — all at once, no queue, the
+   * link routes through a normal hold so first-to-hold wins).
+   *
+   * Scoped to the cabins that actually freed: someone waiting on cabin B should
+   * not be texted because cabin A opened. Rows with a NULL cabin mean "any cabin
+   * on this trip", so they are always included.
+   */
   private async notifyWaitlist(
     departureId: string,
     boatName: string,
+    freedCabinIds: string[],
   ): Promise<void> {
     const waiting = await this.prisma.bookingWaitlist.findMany({
-      where: { departureId },
-      include: { customer: { select: { id: true, phone: true, email: true } } },
+      where: {
+        departureId,
+        OR: [{ cabinId: null }, { cabinId: { in: freedCabinIds } }],
+      },
+      include: {
+        customer: { select: { id: true, phone: true, email: true } },
+        cabin: { select: { name: true } },
+      },
     });
     await Promise.all(
       waiting.map((w) =>
@@ -106,7 +120,11 @@ export class BookingService {
             email: w.customer.email ?? undefined,
           },
           subject: `A place opened on ${boatName}`,
-          message: `A cabin just freed on ${boatName}. First to book wins — grab it now.`,
+          // Name the cabin when they asked for a specific one — an alert they
+          // can act on beats a generic "something freed".
+          message: w.cabin
+            ? `${w.cabin.name} just freed on ${boatName}. First to book wins — grab it now.`
+            : `A cabin just freed on ${boatName}. First to book wins — grab it now.`,
         }),
       ),
     );
@@ -941,6 +959,7 @@ export class BookingService {
     await this.notifyWaitlist(
       booking.departureId,
       booking.departure.package.houseboat.name,
+      booking.cabins.map((c) => c.cabinId),
     ).catch(() => undefined);
 
     return {

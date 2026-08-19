@@ -7,6 +7,8 @@ export interface CustomerUser {
   email: string | null;
   phoneVerified: boolean;
   isPlatform: boolean;
+  /** National ID / passport (plaintext), null if not set. */
+  nid?: string | null;
 }
 
 /**

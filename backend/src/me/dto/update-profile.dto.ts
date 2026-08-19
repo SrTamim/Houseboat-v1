@@ -18,4 +18,7 @@ export class UpdateProfileDto {
   phone?: string;
 
   @IsOptional() @IsEmail() @MaxLength(254) email?: string;
+
+  /** National ID / passport. Plaintext; empty string clears it. */
+  @IsOptional() @IsString() @MaxLength(64) nid?: string;
 }

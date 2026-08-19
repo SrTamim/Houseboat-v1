@@ -124,6 +124,11 @@ export class CheckoutDto {
 export class WaitlistDto {
   @IsString() @MaxLength(LEN_CODE) departureId!: string;
   @IsInt() @Min(1) partySize!: number;
+  /**
+   * Wait for one specific cabin. Omitted = any cabin on the trip, which is what
+   * every row created before per-cabin waitlisting means.
+   */
+  @IsOptional() @IsString() @MaxLength(LEN_CODE) cabinId?: string;
 }
 
 export class RescheduleDto {

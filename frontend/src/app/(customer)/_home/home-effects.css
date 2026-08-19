@@ -201,6 +201,14 @@
 /* headline entrance — word-by-word rise (words wrapped by a client effect) */
 .hero-title .w {
   display: inline-block;
+  /* Re-apply the gradient text-clip on each word. The span inherits the parent's
+     transparent text-fill but NOT its background, so without this the words paint
+     transparent-on-nothing -> invisible. */
+  background: linear-gradient(100deg, #fff 20%, #bfe0ff 40%, #fff 55%, #ffe6b0 70%, #fff 85%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
   opacity: 0;
   transform: translateY(28px) rotateX(-40deg);
   transform-origin: bottom;

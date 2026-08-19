@@ -508,6 +508,9 @@ export function BoatBooking({
       await api.post('/booking/waitlist', {
         departureId: departure.id,
         partySize: 1,
+        // Wait for THIS cabin, not merely the trip — so several cabins can be
+        // waitlisted separately and the alert names the one that freed.
+        cabinId,
       });
       setWaitlisted((w) => ({ ...w, [cabinId]: true }));
     } catch {

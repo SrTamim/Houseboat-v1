@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -6,8 +7,10 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { money, ZERO, add } from '../common/money';
+import { newId } from '../common/uuid';
 import { normalizePhone } from '../auth/auth.types';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { CreateCashoutDto } from './dto/cashout.dto';
 
 /**
  * Customer self-service account reads/writes. Every method is scoped to the
@@ -22,24 +25,47 @@ export class MeService {
    * Wallet: open (unspent) credits and their sum, newest first. Credits are the
    * platform's "wallet" — refund overpayments land here and are spent FIFO at
    * the next checkout.
+   *
+   * `pending_cashout` credits are locked against an open cash-out request: they
+   * do NOT count toward the spendable balance and are reported separately as
+   * `pendingCashout` so the UI can show a "being reviewed" banner.
    */
   async credits(accountId: string) {
-    const credits = await this.prisma.customerCredit.findMany({
-      where: { accountId },
-      orderBy: { id: 'desc' },
-      select: {
-        id: true,
-        amount: true,
-        status: true,
-        sourceInvoiceId: true,
-        usedInInvoiceId: true,
-      },
-    });
+    const [credits, pendingRequest] = await Promise.all([
+      this.prisma.customerCredit.findMany({
+        where: { accountId },
+        orderBy: { id: 'desc' },
+        select: {
+          id: true,
+          amount: true,
+          status: true,
+          sourceInvoiceId: true,
+          usedInInvoiceId: true,
+        },
+      }),
+      this.prisma.cashoutRequest.findFirst({
+        where: { accountId, status: 'pending' },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, amount: true, method: true, createdAt: true },
+      }),
+    ]);
     const balance = credits
       .filter((c) => c.status === 'open')
       .reduce((sum, c) => add(sum, money(c.amount)), ZERO);
+    const pendingCashout = credits
+      .filter((c) => c.status === 'pending_cashout')
+      .reduce((sum, c) => add(sum, money(c.amount)), ZERO);
     return {
       balance: balance.toFixed(2),
+      pendingCashout: pendingCashout.toFixed(2),
+      pendingRequest: pendingRequest
+        ? {
+            id: pendingRequest.id,
+            amount: money(pendingRequest.amount).toFixed(2),
+            method: pendingRequest.method,
+            createdAt: pendingRequest.createdAt.toISOString(),
+          }
+        : null,
       credits: credits.map((c) => ({
         id: c.id,
         amount: money(c.amount).toFixed(2),
@@ -48,6 +74,57 @@ export class MeService {
         usedInInvoiceId: c.usedInInvoiceId,
       })),
     };
+  }
+
+  /**
+   * Request a cash-out of the caller's entire open wallet balance to
+   * bKash/Nagad/bank. In one transaction: sum the open credits, reject if zero or
+   * if a request is already pending, create the request, and flip every open
+   * credit to `pending_cashout` so it can't be spent on a booking meanwhile.
+   */
+  async createCashout(accountId: string, dto: CreateCashoutDto) {
+    if (dto.method === 'bank' && !dto.bankName?.trim()) {
+      throw new BadRequestException('Bank name is required for a bank cash-out');
+    }
+    return this.prisma.$transaction(async (tx) => {
+      const already = await tx.cashoutRequest.findFirst({
+        where: { accountId, status: 'pending' },
+        select: { id: true },
+      });
+      if (already) {
+        throw new ConflictException('You already have a cash-out being reviewed');
+      }
+      const open = await tx.customerCredit.findMany({
+        where: { accountId, status: 'open' },
+        select: { id: true, amount: true },
+      });
+      const total = open.reduce((sum, c) => add(sum, money(c.amount)), ZERO);
+      if (!total.greaterThan(ZERO)) {
+        throw new BadRequestException('No wallet balance to cash out');
+      }
+      await tx.customerCredit.updateMany({
+        where: { accountId, status: 'open' },
+        data: { status: 'pending_cashout' },
+      });
+      return tx.cashoutRequest.create({
+        data: {
+          id: newId(),
+          accountId,
+          amount: total,
+          method: dto.method,
+          accountRef: dto.accountRef.trim(),
+          bankName: dto.bankName?.trim() || null,
+          status: 'pending',
+        },
+        select: {
+          id: true,
+          amount: true,
+          method: true,
+          status: true,
+          createdAt: true,
+        },
+      });
+    });
   }
 
   /**
@@ -114,6 +191,8 @@ export class MeService {
     if (dto.name !== undefined) data.name = dto.name;
     if (dto.email !== undefined) data.email = dto.email;
     if (dto.phone !== undefined) data.phone = normalizePhone(dto.phone);
+    // NID is plaintext (not a secret) — blank clears it.
+    if (dto.nid !== undefined) data.nid = dto.nid.trim() || null;
 
     try {
       const account = await this.prisma.account.update({
@@ -126,6 +205,7 @@ export class MeService {
           email: true,
           phoneVerified: true,
           isPlatform: true,
+          nid: true,
         },
       });
       return account;

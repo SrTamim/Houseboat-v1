@@ -759,6 +759,31 @@
         ]
       }
     },
+    "/api/me/cashout": {
+      "post": {
+        "operationId": "MeController_cashout",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCashoutDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "POST /me/cashout — request withdrawal of the caller's full open balance.",
+        "tags": [
+          "Me"
+        ]
+      }
+    },
     "/api/me/notifications/{id}/read": {
       "post": {
         "operationId": "MeController_markRead",
@@ -2264,17 +2289,7 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object"
-                  }
-                }
-              }
-            }
+            "description": ""
           }
         },
         "tags": [
@@ -4959,7 +4974,8 @@
             "schema": {
               "enum": [
                 "open",
-                "used"
+                "used",
+                "pending_cashout"
               ],
               "type": "string"
             }
@@ -4987,6 +5003,100 @@
         ],
         "responses": {
           "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PlatformFinance"
+        ]
+      }
+    },
+    "/api/platform/finance/cashouts": {
+      "get": {
+        "operationId": "PlatformFinanceController_listCashouts",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "pending",
+                "approved",
+                "rejected"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "id of the last row from the previous page.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PlatformFinance"
+        ]
+      }
+    },
+    "/api/platform/finance/cashouts/{id}/approve": {
+      "post": {
+        "operationId": "PlatformFinanceController_approveCashout",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "PlatformFinance"
+        ]
+      }
+    },
+    "/api/platform/finance/cashouts/{id}/reject": {
+      "post": {
+        "operationId": "PlatformFinanceController_rejectCashout",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
             "description": ""
           }
         },
@@ -6455,6 +6565,34 @@
           "roleId"
         ]
       },
+      "CreateCashoutDto": {
+        "type": "object",
+        "properties": {
+          "method": {
+            "type": "string",
+            "enum": [
+              "bkash",
+              "nagad",
+              "bank"
+            ]
+          },
+          "accountRef": {
+            "type": "string",
+            "description": "bKash/Nagad number, or bank account number.",
+            "minLength": 3,
+            "maxLength": 64
+          },
+          "bankName": {
+            "type": "string",
+            "description": "Required in practice for method=bank; validated in the service.",
+            "maxLength": 120
+          }
+        },
+        "required": [
+          "method",
+          "accountRef"
+        ]
+      },
       "UpdateProfileDto": {
         "type": "object",
         "properties": {
@@ -6470,6 +6608,11 @@
             "type": "string",
             "maxLength": 254,
             "format": "email"
+          },
+          "nid": {
+            "type": "string",
+            "description": "National ID / passport. Plaintext; empty string clears it.",
+            "maxLength": 64
           }
         }
       },
@@ -7369,6 +7512,11 @@
           "partySize": {
             "type": "number",
             "minimum": 1
+          },
+          "cabinId": {
+            "type": "string",
+            "description": "Wait for one specific cabin. Omitted = any cabin on the trip, which is what\nevery row created before per-cabin waitlisting means.",
+            "maxLength": 64
           }
         },
         "required": [

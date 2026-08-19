@@ -3,6 +3,7 @@ import { MeService } from './me.service';
 import { CurrentUser } from '../auth/decorators';
 import { AuthUser } from '../auth/auth.types';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { CreateCashoutDto } from './dto/cashout.dto';
 
 /**
  * Customer "my account" surface. Auth-required (no @Public); every action is
@@ -23,6 +24,12 @@ export class MeController {
   @Get('invoices/:id')
   invoice(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.me.invoice(user.id, id);
+  }
+
+  /** POST /me/cashout — request withdrawal of the caller's full open balance. */
+  @Post('cashout')
+  cashout(@CurrentUser() user: AuthUser, @Body() dto: CreateCashoutDto) {
+    return this.me.createCashout(user.id, dto);
   }
 
   /** POST /me/notifications/:id/read — mark one inbox item read. */

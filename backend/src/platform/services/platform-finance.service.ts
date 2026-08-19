@@ -4,6 +4,7 @@ import { AuditService } from '../../audit/audit.service';
 import { newId } from '../../common/uuid';
 import { cursorArgs, toPage, type Page } from '../../common/paginate';
 import type {
+  ListCashoutsQueryDto,
   ListCouponsQueryDto,
   ListCreditsQueryDto,
   ListInvoicesQueryDto,
@@ -178,6 +179,88 @@ export class PlatformFinanceService {
       },
     });
     return toPage(rows, query);
+  }
+
+  /** Customer cash-out requests across all accounts, newest first. */
+  async listCashouts(query: ListCashoutsQueryDto): Promise<Page<{ id: string }>> {
+    const rows = await this.prisma.cashoutRequest.findMany({
+      ...cursorArgs(query),
+      where: { status: query.status ?? undefined },
+      select: {
+        id: true,
+        amount: true,
+        method: true,
+        accountRef: true,
+        bankName: true,
+        status: true,
+        note: true,
+        createdAt: true,
+        resolvedAt: true,
+        account: { select: { id: true, name: true, phone: true } },
+        resolvedByAccount: { select: { id: true, name: true } },
+      },
+    });
+    return toPage(rows, query);
+  }
+
+  /**
+   * Approve a pending cash-out: mark it approved and burn its locked credits
+   * (pending_cashout → used) so the money leaves the wallet. Idempotent guard:
+   * only a `pending` request can be resolved.
+   */
+  async approveCashout(id: string, actorId: string) {
+    return this.resolveCashout(id, actorId, 'approved');
+  }
+
+  /**
+   * Reject a pending cash-out: mark it rejected and return its locked credits
+   * (pending_cashout → open) so the balance is spendable again.
+   */
+  async rejectCashout(id: string, actorId: string) {
+    return this.resolveCashout(id, actorId, 'rejected');
+  }
+
+  private async resolveCashout(
+    id: string,
+    actorId: string,
+    outcome: 'approved' | 'rejected',
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const req = await tx.cashoutRequest.findUnique({
+        where: { id },
+        select: { id: true, accountId: true, status: true, amount: true },
+      });
+      if (!req) throw new NotFoundException('Cash-out request not found');
+      if (req.status !== 'pending') {
+        throw new NotFoundException('Cash-out request is already resolved');
+      }
+      // Move this account's locked credits: approved → used (spent as cash-out),
+      // rejected → open (back to spendable balance).
+      await tx.customerCredit.updateMany({
+        where: { accountId: req.accountId, status: 'pending_cashout' },
+        data: { status: outcome === 'approved' ? 'used' : 'open' },
+      });
+      const updated = await tx.cashoutRequest.update({
+        where: { id },
+        data: {
+          status: outcome,
+          resolvedAt: new Date(),
+          resolvedByAccountId: actorId,
+        },
+        select: { id: true, status: true, amount: true, resolvedAt: true },
+      });
+      await this.audit.log(
+        {
+          actorAccountId: actorId,
+          action: `cashout_${outcome}`,
+          entityType: 'cashout_request',
+          entityId: id,
+          after: { amount: req.amount.toString(), status: outcome },
+        },
+        tx,
+      );
+      return updated;
+    });
   }
 
   /** Monthly platform bills to boats, across all boats. */

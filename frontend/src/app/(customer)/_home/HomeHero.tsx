@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
+import type { CSSProperties } from 'react';
 import useSWR from 'swr';
 import { fetcher } from '@/lib/api';
 import type { SearchBoat } from '@/lib/customer/types';
@@ -124,14 +125,16 @@ export function HomeHero() {
           <h1 className="hero-title mt-[18px] font-display text-[44px] font-semibold leading-[1.15] tracking-[-0.03em] max-[640px]:text-[32px]">
             {words
               ? words.map((w, i) => (
-                  <span
-                    key={i}
-                    className="w"
-                    style={{ '--d': `${(0.15 + i * 0.075).toFixed(3)}s` } as React.CSSProperties}
-                  >
-                    {w}
+                  <Fragment key={i}>
+                    <span
+                      className="w"
+                      style={{ '--d': `${(0.15 + i * 0.075).toFixed(3)}s` } as CSSProperties}
+                    >
+                      {w}
+                    </span>
+                    {/* space lives outside the inline-block span, else it collapses at the edge */}
                     {i < words.length - 1 ? ' ' : ''}
-                  </span>
+                  </Fragment>
                 ))
               : HERO_TITLE}
           </h1>

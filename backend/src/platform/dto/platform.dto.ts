@@ -117,8 +117,14 @@ export class ListRefundsQueryDto extends PageQueryDto {
 
 export class ListCreditsQueryDto extends PageQueryDto {
   @IsOptional()
-  @IsIn(['open', 'used'])
-  status?: 'open' | 'used';
+  @IsIn(['open', 'used', 'pending_cashout'])
+  status?: 'open' | 'used' | 'pending_cashout';
+}
+
+export class ListCashoutsQueryDto extends PageQueryDto {
+  @IsOptional()
+  @IsIn(['pending', 'approved', 'rejected'])
+  status?: 'pending' | 'approved' | 'rejected';
 }
 
 export class ListSubscriptionInvoicesQueryDto extends PageQueryDto {

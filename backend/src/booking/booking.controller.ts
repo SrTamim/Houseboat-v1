@@ -222,7 +222,12 @@ export class BookingController {
   @Throttle({ default: { ttl: 60_000, limit: 20 } })
   @Post('waitlist')
   joinWaitlist(@CurrentUser() user: AuthUser, @Body() dto: WaitlistDto) {
-    return this.waitlist.join(dto.departureId, user.id, dto.partySize);
+    return this.waitlist.join(
+      dto.departureId,
+      user.id,
+      dto.partySize,
+      dto.cabinId,
+    );
   }
 
   @Post('waitlist/:id/leave')

@@ -253,6 +253,7 @@ export class AuthService {
         phoneVerified: true,
         isPlatform: true,
         createdAt: true,
+        nid: true,
       },
     });
   }

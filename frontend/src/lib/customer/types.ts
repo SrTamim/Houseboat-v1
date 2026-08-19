@@ -253,6 +253,15 @@ export interface BookingDetail {
     startDate: string;
     endDate: string | null;
     departureTime?: string | null;
+    /**
+     * Departure lifecycle: scheduled / in_progress / completed / cancelled.
+     * `cancelled` here means the OWNER cancelled the whole departure — that is
+     * how a customer's booking becomes host-cancelled (they are then entitled to
+     * a refund), distinct from the customer cancelling their own booking.
+     */
+    status?: string;
+    /** Owner-supplied reason, present when the departure was host-cancelled. */
+    cancelReason?: string | null;
     package: {
       durationLabel: string | null;
       durationDays?: number;
@@ -273,9 +282,19 @@ export interface BookingDetail {
 /** GET /me/credits. */
 export interface WalletView {
   balance: string;
+  /** Sum of credits locked against an open cash-out request (not spendable). */
+  pendingCashout: string;
+  /** The caller's currently-pending cash-out request, if any. */
+  pendingRequest: {
+    id: string;
+    amount: string;
+    method: string;
+    createdAt: string;
+  } | null;
   credits: {
     id: string;
     amount: string;
+    /** open | used | pending_cashout */
     status: string;
     sourceInvoiceId: string | null;
     usedInInvoiceId: string | null;
@@ -287,9 +306,22 @@ export interface WaitlistEntry {
   id: string;
   partySize: number;
   createdAt: string;
+  /**
+   * The specific cabin waited on. Null/absent = any cabin on the trip, which is
+   * what entries created before per-cabin waitlisting mean.
+   */
+  cabin?: { id: string; name: string; deck: { name: string } | null } | null;
+  /**
+   * Has the waited-for cabin freed? For a cabin-specific row this answers about
+   * that cabin; for a trip-level row it falls back to "any cabin is free".
+   * Prefer this over `departure.availableCount`, which is always trip-wide.
+   */
+  cabinFree?: boolean;
   departure: {
     id: string;
     startDate: string;
+    endDate: string | null;
+    departureTime: string | null;
     availableCount: number;
     package: {
       durationLabel: string | null;

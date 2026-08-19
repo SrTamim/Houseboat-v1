@@ -426,6 +426,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/me/cashout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** POST /me/cashout — request withdrawal of the caller's full open balance. */
+        post: operations["MeController_cashout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/me/notifications/{id}/read": {
         parameters: {
             query?: never;
@@ -2189,6 +2206,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/platform/finance/cashouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PlatformFinanceController_listCashouts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/finance/cashouts/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["PlatformFinanceController_approveCashout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/finance/cashouts/{id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["PlatformFinanceController_rejectCashout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/platform/finance/subscription-invoices": {
         parameters: {
             query?: never;
@@ -2808,11 +2873,21 @@ export interface components {
         ChangeRoleDto: {
             roleId: string;
         };
+        CreateCashoutDto: {
+            /** @enum {string} */
+            method: "bkash" | "nagad" | "bank";
+            /** @description bKash/Nagad number, or bank account number. */
+            accountRef: string;
+            /** @description Required in practice for method=bank; validated in the service. */
+            bankName?: string;
+        };
         UpdateProfileDto: {
             name?: string;
             phone?: string;
             /** Format: email */
             email?: string;
+            /** @description National ID / passport. Plaintext; empty string clears it. */
+            nid?: string;
         };
         FoodMenuDto: {
             breakfast?: string;
@@ -3060,6 +3135,11 @@ export interface components {
         WaitlistDto: {
             departureId: string;
             partySize: number;
+            /**
+             * @description Wait for one specific cabin. Omitted = any cabin on the trip, which is what
+             *     every row created before per-cabin waitlisting means.
+             */
+            cabinId?: string;
         };
         JoinOpenSeatDto: {
             openSeatCabinId: string;
@@ -3887,6 +3967,27 @@ export interface operations {
         requestBody?: never;
         responses: {
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MeController_cashout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCashoutDto"];
+            };
+        };
+        responses: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4973,9 +5074,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>[];
-                };
+                content?: never;
             };
         };
     };
@@ -6789,7 +6888,7 @@ export interface operations {
     PlatformFinanceController_listCredits: {
         parameters: {
             query?: {
-                status?: "open" | "used";
+                status?: "open" | "used" | "pending_cashout";
                 limit?: number;
                 /** @description id of the last row from the previous page. */
                 cursor?: string;
@@ -6801,6 +6900,66 @@ export interface operations {
         requestBody?: never;
         responses: {
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformFinanceController_listCashouts: {
+        parameters: {
+            query?: {
+                status?: "pending" | "approved" | "rejected";
+                limit?: number;
+                /** @description id of the last row from the previous page. */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformFinanceController_approveCashout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformFinanceController_rejectCashout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };

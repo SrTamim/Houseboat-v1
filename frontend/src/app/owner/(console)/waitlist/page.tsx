@@ -14,7 +14,14 @@ interface WaitlistGroup {
   label: string | null;
   cabinsFree: number;
   partySizes: number[];
-  entries: { id: string; name: string | null; phone: string; partySize: number }[];
+  entries: {
+    id: string;
+    name: string | null;
+    phone: string;
+    partySize: number;
+    /** Null = waiting on any cabin of this trip. */
+    cabinName?: string | null;
+  }[];
 }
 
 export default function OwnerWaitlistPage() {
@@ -104,9 +111,15 @@ export default function OwnerWaitlistPage() {
                   <td>
                     <div className="t1">{g.entries.length}</div>
                     <div className="t2">
+                      {/* Name the cabin when there is one: the same customer can
+                          appear on several rows of one trip, and without it those
+                          read as duplicate entries. */}
                       {g.entries
                         .slice(0, 2)
-                        .map((e) => e.name ?? maskPhone(e.phone))
+                        .map((e) => {
+                          const who = e.name ?? maskPhone(e.phone);
+                          return e.cabinName ? `${who} (${e.cabinName})` : who;
+                        })
                         .join(', ')}
                       {g.entries.length > 2 ? ` +${g.entries.length - 2}` : ''}
                     </div>
