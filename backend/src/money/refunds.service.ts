@@ -105,12 +105,12 @@ export class RefundsService {
     });
     if (!invoice) throw new NotFoundException('Invoice not found');
 
-    // IDOR guard: caller must have money:edit on THIS invoice's boat.
+    // IDOR guard: caller must have refunds:edit on THIS invoice's boat.
     await this.rbac.assert(
       requesterId,
       isPlatform,
       invoice.houseboatId,
-      'money',
+      'refunds',
       'edit',
     );
 
@@ -177,7 +177,7 @@ export class RefundsService {
       verifierId,
       isPlatform,
       refund.invoice.houseboatId,
-      'money',
+      'refunds',
       'edit',
     );
     if (refund.requestedBy === verifierId) {
@@ -222,7 +222,7 @@ export class RefundsService {
       completerId,
       isPlatform,
       refund.invoice.houseboatId,
-      'money',
+      'refunds',
       'edit',
     );
     // Full 3-person separation: requester, verifier and completer must all be
@@ -288,7 +288,7 @@ export class RefundsService {
       actorId,
       isPlatform,
       refund.invoice.houseboatId,
-      'money',
+      'refunds',
       'edit',
     );
 

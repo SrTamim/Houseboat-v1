@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { newId } from '../common/uuid';
@@ -88,6 +93,46 @@ export class MembershipService {
     // foreign permission map.
     await this.assertRoleOnBoat(input.roleId, houseboatId);
 
+    // A person is a member of a boat at most once. An active row → reject; an
+    // exited row → reactivate it (re-hire) rather than insert a second row. The
+    // uq_member_active partial index is the DB backstop for this.
+    const existing = await this.prisma.houseboatMember.findFirst({
+      where: { accountId: account.id, houseboatId },
+      orderBy: { startDate: 'desc' },
+    });
+
+    if (existing && existing.status === 'active') {
+      throw new ConflictException('This person is already a member of this boat.');
+    }
+
+    if (existing) {
+      // Reactivate the exited row with the freshly chosen role/share.
+      const membership = await this.prisma.houseboatMember.update({
+        where: { id: existing.id },
+        data: {
+          roleId: input.roleId,
+          shareholderPct: input.shareholderPct,
+          startDate: new Date(),
+          status: 'active',
+          endDate: null,
+        },
+      });
+      await this.audit.log({
+        houseboatId,
+        actorAccountId: actorId,
+        action: 'member_reactivate',
+        entityType: 'houseboat_member',
+        entityId: membership.id,
+        before: {
+          roleId: existing.roleId,
+          status: existing.status,
+          endDate: existing.endDate,
+        },
+        after: { accountId: account.id, roleId: input.roleId, status: 'active' },
+      });
+      return membership;
+    }
+
     const membership = await this.prisma.houseboatMember.create({
       data: {
         id: newId(),
@@ -109,6 +154,43 @@ export class MembershipService {
       after: { accountId: account.id, roleId: input.roleId },
     });
     return membership;
+  }
+
+  /**
+   * Hard-delete a membership (remove the person from the boat entirely). Unlike
+   * exit (soft, keeps the row + history), this drops the row. Blocked when the
+   * member has recorded owner distributions — owner_distribution.membership_id is
+   * a RESTRICT FK, and deleting would either fail or orphan financial history;
+   * the owner should exit them instead in that case. The audit row is written
+   * BEFORE the delete (audit_log has no FK to the member, so it survives).
+   */
+  async deleteMember(membershipId: string, houseboatId: string, actorId: string) {
+    const membership = await this.ownedMembership(membershipId, houseboatId);
+
+    const distributions = await this.prisma.ownerDistribution.count({
+      where: { membershipId },
+    });
+    if (distributions > 0) {
+      throw new BadRequestException(
+        "This member has recorded shareholder distributions and can't be deleted — exit them instead to keep the financial record.",
+      );
+    }
+
+    await this.audit.log({
+      houseboatId,
+      actorAccountId: actorId,
+      action: 'member_delete',
+      entityType: 'houseboat_member',
+      entityId: membershipId,
+      before: {
+        accountId: membership.accountId,
+        roleId: membership.roleId,
+        status: membership.status,
+      },
+    });
+
+    await this.prisma.houseboatMember.delete({ where: { id: membershipId } });
+    return { deleted: true };
   }
 
   async exitMember(membershipId: string, houseboatId: string, actorId: string) {

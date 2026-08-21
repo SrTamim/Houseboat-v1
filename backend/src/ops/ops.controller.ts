@@ -97,7 +97,7 @@ export class OpsController {
 
   @Post('reviews/:reviewId/reply')
   @RequirePermission({
-    module: 'settings',
+    module: 'reviews',
     action: 'edit',
     boatIdFrom: 'body',
     boatIdKey: 'houseboatId',
@@ -112,7 +112,7 @@ export class OpsController {
 
   @Patch('reviews/:reviewId/reply')
   @RequirePermission({
-    module: 'settings',
+    module: 'reviews',
     action: 'edit',
     boatIdFrom: 'body',
     boatIdKey: 'houseboatId',
@@ -127,7 +127,7 @@ export class OpsController {
 
   @Delete('reviews/:reviewId/reply')
   @RequirePermission({
-    module: 'settings',
+    module: 'reviews',
     action: 'edit',
     boatIdFrom: 'query',
     boatIdKey: 'houseboatId',

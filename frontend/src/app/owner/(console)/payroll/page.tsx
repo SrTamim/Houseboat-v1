@@ -17,6 +17,7 @@ import {
   TableWrap,
   AsyncTable,
 } from '@/components/owner/ui';
+import { BTN_B, BTN_O, BTN_OK, BTN_SM } from '@/components/owner/buttons';
 import { Pill } from '@/components/owner/Pill';
 import { Drawer } from '@/components/owner/Drawer';
 import { money, formatDate, maskPhone, apiErrorMessage } from '@/lib/owner/format';
@@ -298,10 +299,12 @@ export default function OwnerPayrollPage() {
             isEmpty={filtered.length === 0}
             onRetry={() => staff.mutate()}
             empty={
-              <div className="state">
-                <div className="ic">{search ? '🔍' : '💰'}</div>
-                <h4>{search ? 'No crew match your search' : 'No crew to pay'}</h4>
-                <p>
+              <div className="px-6 py-11 text-center text-muted">
+                <div className="mb-2.5 text-[26px]">{search ? '🔍' : '💰'}</div>
+                <h4 className="mb-1.5 text-[15px] text-ink">
+                  {search ? 'No crew match your search' : 'No crew to pay'}
+                </h4>
+                <p className="mx-auto max-w-[46ch] text-[13px] leading-[1.55]">
                   {search
                     ? 'Try a different name, phone, basis or status.'
                     : 'Add crew before calculating payroll.'}
@@ -346,7 +349,7 @@ export default function OwnerPayrollPage() {
                     <div className="rowact">
                       {!payroll ? (
                         <button
-                          className="btn btn-sm btn-b"
+                          className={`${BTN_B} ${BTN_SM}`}
                           onClick={() => openCalculate(s)}
                           disabled={busyId === s.id}
                         >
@@ -356,7 +359,7 @@ export default function OwnerPayrollPage() {
                         <>
                           {!payroll.paid ? (
                             <button
-                              className="btn btn-sm btn-ok"
+                              className={`${BTN_OK} ${BTN_SM}`}
                               onClick={() => markPaid(payroll)}
                               disabled={busyId === payroll.id}
                             >
@@ -364,7 +367,7 @@ export default function OwnerPayrollPage() {
                             </button>
                           ) : null}
                           <button
-                            className="btn btn-sm btn-o"
+                            className={`${BTN_O} ${BTN_SM}`}
                             onClick={() => openAdjust(s, payroll)}
                             disabled={busyId === payroll.id}
                           >
@@ -373,7 +376,7 @@ export default function OwnerPayrollPage() {
                         </>
                       )}
                       <button
-                        className="btn btn-sm btn-o"
+                        className={`${BTN_O} ${BTN_SM}`}
                         onClick={() => setStatementFor(s)}
                       >
                         Statement
@@ -397,11 +400,11 @@ export default function OwnerPayrollPage() {
         onClose={() => setDrawer(null)}
         footer={
           <>
-            <button className="btn btn-o" onClick={() => setDrawer(null)}>
+            <button className={BTN_O} onClick={() => setDrawer(null)}>
               Cancel
             </button>
             <button
-              className="btn btn-b"
+              className={BTN_B}
               onClick={submitDrawer}
               disabled={busyId !== null}
             >
@@ -494,10 +497,10 @@ function StatementDrawer({
       onClose={onClose}
       footer={
         <>
-          <button className="btn btn-o" onClick={onClose}>
+          <button className={BTN_O} onClick={onClose}>
             Close
           </button>
-          <button className="btn btn-b" onClick={() => window.print()}>
+          <button className={BTN_B} onClick={() => window.print()}>
             Download PDF
           </button>
         </>

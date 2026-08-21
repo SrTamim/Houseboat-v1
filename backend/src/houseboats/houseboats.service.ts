@@ -255,6 +255,7 @@ export class HouseboatsService {
             id: true,
             rating: true,
             text: true,
+            ownerReply: true,
             customer: { select: { name: true } },
           },
           take: 6,

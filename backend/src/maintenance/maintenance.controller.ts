@@ -19,7 +19,7 @@ export class MaintenanceController {
   constructor(private readonly maintenance: MaintenanceService) {}
 
   @Get('requests')
-  @RequirePermission({ module: 'assets', action: 'view' })
+  @RequirePermission({ module: 'maintenance', action: 'view' })
   requests(
     @Param('houseboatId') houseboatId: string,
     @Query('q') q?: string,
@@ -29,7 +29,7 @@ export class MaintenanceController {
   }
 
   @Post('requests')
-  @RequirePermission({ module: 'assets', action: 'edit' })
+  @RequirePermission({ module: 'maintenance', action: 'edit' })
   createRequest(
     @Param('houseboatId') houseboatId: string,
     @CurrentUser() user: AuthUser,
@@ -39,7 +39,7 @@ export class MaintenanceController {
   }
 
   @Patch('requests/:requestId')
-  @RequirePermission({ module: 'assets', action: 'edit' })
+  @RequirePermission({ module: 'maintenance', action: 'edit' })
   updateRequest(
     @Param('houseboatId') houseboatId: string,
     @Param('requestId') requestId: string,
@@ -50,7 +50,7 @@ export class MaintenanceController {
   }
 
   @Post('requests/:requestId/comments')
-  @RequirePermission({ module: 'assets', action: 'edit' })
+  @RequirePermission({ module: 'maintenance', action: 'edit' })
   addComment(
     @Param('houseboatId') houseboatId: string,
     @Param('requestId') requestId: string,

@@ -11,7 +11,9 @@ import {
   Note,
   TableWrap,
   AsyncTable,
+  EmptyState,
 } from '@/components/owner/ui';
+import { BTN_B, BTN_O, BTN_SM } from '@/components/owner/buttons';
 import { Pill } from '@/components/owner/Pill';
 import { Drawer } from '@/components/owner/Drawer';
 import { apiErrorMessage, normalizeDigits } from '@/lib/owner/format';
@@ -163,7 +165,7 @@ export default function OwnerInventoryPage() {
         title="Inventory"
         desc="Consumables warn you when they drop below the reorder level. Durables are counted when you choose — not automatically after every trip."
         actions={
-          <button className="btn btn-b" onClick={() => setAddOpen(true)}>
+          <button className={BTN_B} onClick={() => setAddOpen(true)}>
             ＋ Add item
           </button>
         }
@@ -182,7 +184,7 @@ export default function OwnerInventoryPage() {
         style={{ marginBottom: 20 }}
         actions={
           <input
-            className="inv-search"
+            className="min-w-[200px] rounded-[10px] border border-hair bg-raise-2 px-[11px] py-[7px] text-[13px] font-medium text-ink placeholder:text-muted focus:border-ink focus:outline-none"
             type="search"
             value={consumableSearch}
             onChange={(e) => setConsumableSearch(e.target.value)}
@@ -208,17 +210,17 @@ export default function OwnerInventoryPage() {
             onRetry={() => mutate()}
             empty={
               consumableSearch.trim() ? (
-                <div className="state">
-                  <div className="ic">🔍</div>
-                  <h4>No matches</h4>
-                  <p>No consumables match “{consumableSearch.trim()}”.</p>
-                </div>
+                <EmptyState
+                  icon="🔍"
+                  title="No matches"
+                  message={`No consumables match “${consumableSearch.trim()}”.`}
+                />
               ) : (
-                <div className="state">
-                  <div className="ic">📦</div>
-                  <h4>No consumables</h4>
-                  <p>Add rice, gas and fuel so the dashboard can warn you.</p>
-                </div>
+                <EmptyState
+                  icon="📦"
+                  title="No consumables"
+                  message="Add rice, gas and fuel so the dashboard can warn you."
+                />
               )
             }
           >
@@ -241,7 +243,7 @@ export default function OwnerInventoryPage() {
                   <td>
                     <div className="rowact">
                       <button
-                        className="btn btn-sm btn-o"
+                        className={`${BTN_O} ${BTN_SM}`}
                         onClick={() => {
                           setMoveFor(i);
                           setDirection('out');
@@ -264,7 +266,7 @@ export default function OwnerInventoryPage() {
         flush
         actions={
           <input
-            className="inv-search"
+            className="min-w-[200px] rounded-[10px] border border-hair bg-raise-2 px-[11px] py-[7px] text-[13px] font-medium text-ink placeholder:text-muted focus:border-ink focus:outline-none"
             type="search"
             value={durableSearch}
             onChange={(e) => setDurableSearch(e.target.value)}
@@ -289,17 +291,17 @@ export default function OwnerInventoryPage() {
             onRetry={() => mutate()}
             empty={
               durableSearch.trim() ? (
-                <div className="state">
-                  <div className="ic">🔍</div>
-                  <h4>No matches</h4>
-                  <p>No durables match “{durableSearch.trim()}”.</p>
-                </div>
+                <EmptyState
+                  icon="🔍"
+                  title="No matches"
+                  message={`No durables match “${durableSearch.trim()}”.`}
+                />
               ) : (
-                <div className="state">
-                  <div className="ic">🧯</div>
-                  <h4>No durables</h4>
-                  <p>Life jackets, plates, bedding — anything you count rather than consume.</p>
-                </div>
+                <EmptyState
+                  icon="🧯"
+                  title="No durables"
+                  message="Life jackets, plates, bedding — anything you count rather than consume."
+                />
               )
             }
           >
@@ -315,7 +317,7 @@ export default function OwnerInventoryPage() {
                   <td>
                     <div className="rowact">
                       <button
-                        className="btn btn-sm btn-o"
+                        className={`${BTN_O} ${BTN_SM}`}
                         onClick={() => {
                           setCountResult(null);
                           setMoveFor(i);
@@ -339,10 +341,10 @@ export default function OwnerInventoryPage() {
         onClose={() => setAddOpen(false)}
         footer={
           <>
-            <button className="btn btn-o" onClick={() => setAddOpen(false)}>
+            <button className={BTN_O} onClick={() => setAddOpen(false)}>
               Cancel
             </button>
-            <button className="btn btn-b" onClick={addItem} disabled={busy || !name}>
+            <button className={BTN_B} onClick={addItem} disabled={busy || !name}>
               {busy ? 'Adding…' : 'Add item'}
             </button>
           </>
@@ -395,16 +397,16 @@ export default function OwnerInventoryPage() {
         onClose={closeMovement}
         footer={
           countResult ? (
-            <button className="btn btn-b" onClick={closeMovement}>
+            <button className={BTN_B} onClick={closeMovement}>
               Done
             </button>
           ) : (
             <>
-              <button className="btn btn-o" onClick={closeMovement}>
+              <button className={BTN_O} onClick={closeMovement}>
                 Cancel
               </button>
               <button
-                className="btn btn-b"
+                className={BTN_B}
                 onClick={recordMovement}
                 disabled={busy || !qty}
               >

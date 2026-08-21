@@ -14,7 +14,9 @@ import {
   Note,
   TableWrap,
   AsyncTable,
+  EmptyState,
 } from '@/components/owner/ui';
+import { BTN_O, BTN_SM } from '@/components/owner/buttons';
 import { Pill } from '@/components/owner/Pill';
 import { formatDateTime, humanize } from '@/lib/owner/format';
 
@@ -78,7 +80,10 @@ const OWNER_AUDIT_ACTIONS: string[] = [
   'member_add',
   'member_exit',
   'member_update',
+  'member_reactivate',
+  'member_delete',
   'role_change',
+  'role_delete',
   'staff_delete',
   'payroll_run',
   'payroll_paid',
@@ -192,7 +197,7 @@ export default function OwnerAuditPage() {
         </Field>
         {(search || action || from || to) && (
           <button
-            className="btn btn-o btn-sm"
+            className={`${BTN_O} ${BTN_SM}`}
             onClick={() => {
               setSearch('');
               setAction('');
@@ -223,11 +228,11 @@ export default function OwnerAuditPage() {
             isEmpty={rows.length === 0}
             onRetry={() => mutate()}
             empty={
-              <div className="state">
-                <div className="ic">📜</div>
-                <h4>Nothing recorded</h4>
-                <p>Actions appear here as you and your team work.</p>
-              </div>
+              <EmptyState
+                icon="📜"
+                title="Nothing recorded"
+                message="Actions appear here as you and your team work."
+              />
             }
           >
             <tbody>
@@ -254,7 +259,7 @@ export default function OwnerAuditPage() {
               <tr>
                 <td colSpan={5} style={{ textAlign: 'center' }}>
                   <button
-                    className="btn btn-o btn-sm"
+                    className={`${BTN_O} ${BTN_SM}`}
                     disabled={isLoading}
                     onClick={() => {
                       setAccumulated(rows);

@@ -139,10 +139,10 @@ export default function OwnerBillingPage() {
             isEmpty={rows.length === 0}
             onRetry={() => invoices.mutate()}
             empty={
-              <div className="state">
-                <div className="ic">🏛</div>
-                <h4>No bills yet</h4>
-                <p>
+              <div className="px-6 py-11 text-center text-muted">
+                <div className="mb-2.5 text-[26px]">🏛</div>
+                <h4 className="mb-1.5 text-[15px] text-ink">No bills yet</h4>
+                <p className="mx-auto max-w-[46ch] text-[13px] leading-[1.55]">
                   The platform issues a bill per month once your trial ends. Nothing is
                   owed before then.
                 </p>
@@ -169,7 +169,7 @@ export default function OwnerBillingPage() {
 
       <Card title="How this bill is settled">
         <AsyncBlock isLoading={status.isLoading} error={status.error} onRetry={() => status.mutate()}>
-          <div className="stack" style={{ gap: 10 }}>
+          <div className="flex flex-col gap-5" style={{ gap: 10 }}>
             <Note kind="info">
               An unpaid bill does not lock you out immediately — there is a grace period
               from the issue date. Only after it elapses does the console go read-only,

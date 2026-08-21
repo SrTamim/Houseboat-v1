@@ -888,6 +888,14 @@ export class BookingService {
     if (booking.status === 'cancelled') {
       throw new BadRequestException('Booking is already cancelled');
     }
+    // A trip that already sailed can't be cancelled — the departure-completion
+    // job flips confirmed bookings to 'completed', and cancelling one would free
+    // cabins on a past departure and run refund math against a negative
+    // daysUntil. The customer UI never offers cancel on completed trips; this is
+    // the server-side backstop.
+    if (booking.status === 'completed') {
+      throw new BadRequestException('Completed trips cannot be cancelled');
+    }
 
     const houseboatId = booking.invoice.houseboatId;
     // Authorization: the booking's own customer, or a member with bookings:edit.
@@ -1160,6 +1168,12 @@ export class BookingService {
         // The buyer's own contact details — "billed to" on the invoice.
         customer: { select: { name: true, email: true, phone: true } },
         coupon: { select: { code: true } },
+        // The guest's own review, if left — drives the review card on the
+        // booking detail page (form when null on a completed trip, else the
+        // submitted rating + any owner reply, read-only).
+        review: {
+          select: { id: true, rating: true, text: true, ownerReply: true },
+        },
         // payments carry the method + date behind "via bKash · 21 Jul 2026".
         invoice: {
           include: {

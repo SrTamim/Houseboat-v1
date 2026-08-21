@@ -32,7 +32,7 @@ export class OwnerController {
 
   /** Home screen: KPIs, today's departures, week summary, sidebar badges. */
   @Get('dashboard')
-  @RequirePermission({ module: 'reports', action: 'view' })
+  @RequirePermission({ module: 'dashboard', action: 'view' })
   getDashboard(@Param('houseboatId') houseboatId: string) {
     return this.dashboard.dashboard(houseboatId);
   }
@@ -67,7 +67,7 @@ export class OwnerController {
 
   /** Earnings statement — money view, since it reports on settlement. */
   @Get('earnings')
-  @RequirePermission({ module: 'money', action: 'view' })
+  @RequirePermission({ module: 'earnings', action: 'view' })
   earnings(
     @Param('houseboatId') houseboatId: string,
     @Query() query: MonthQueryDto,
@@ -76,7 +76,7 @@ export class OwnerController {
   }
 
   @Get('guests')
-  @RequirePermission({ module: 'bookings', action: 'view' })
+  @RequirePermission({ module: 'guests', action: 'view' })
   listGuests(
     @Param('houseboatId') houseboatId: string,
     @Query() query: GuestsQueryDto,
@@ -86,7 +86,7 @@ export class OwnerController {
 
   /** Download the guest directory as CSV (§8). */
   @Get('guests/export')
-  @RequirePermission({ module: 'bookings', action: 'view' })
+  @RequirePermission({ module: 'guests', action: 'view' })
   async exportGuests(
     @Param('houseboatId') houseboatId: string,
     @Query() query: GuestsQueryDto,
@@ -99,8 +99,9 @@ export class OwnerController {
   }
 
   /** Audit trail. Gated on settings:view — it exposes role and money actions. */
+  // Audit trail — read by the audit page and the sync page (offline replay log).
   @Get('audit')
-  @RequirePermission({ module: 'settings', action: 'view' })
+  @RequirePermission({ module: 'audit', action: 'view', anyOf: ['sync'] })
   listAudit(
     @Param('houseboatId') houseboatId: string,
     @Query() query: AuditQueryDto,
@@ -109,7 +110,7 @@ export class OwnerController {
   }
 
   @Get('audit/actions')
-  @RequirePermission({ module: 'settings', action: 'view' })
+  @RequirePermission({ module: 'audit', action: 'view' })
   auditActions(@Param('houseboatId') houseboatId: string) {
     return this.audit.actions(houseboatId);
   }

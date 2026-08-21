@@ -90,7 +90,7 @@ export class GatewayController {
         user.id,
         user.isPlatform,
         invoice.houseboatId,
-        'money',
+        'bookings',
         'edit',
       );
     }
@@ -149,7 +149,7 @@ export class GatewayController {
         user.id,
         user.isPlatform,
         invoice.houseboatId,
-        'money',
+        'bookings',
         'edit',
       );
     }

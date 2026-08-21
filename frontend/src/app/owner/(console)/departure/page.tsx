@@ -16,6 +16,7 @@ import {
   AsyncTable,
 } from '@/components/owner/ui';
 import { Pill, DepartureStatusPill } from '@/components/owner/Pill';
+import { BTN_B, BTN_O, BTN_SM } from '@/components/owner/buttons';
 import { Drawer } from '@/components/owner/Drawer';
 import { apiErrorMessage, money, formatDate, weekday } from '@/lib/owner/format';
 
@@ -80,7 +81,7 @@ export default function OwnerDeparturePage() {
   const [payAmount, setPayAmount] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  const departures = useSWR<Departure[]>(`/houseboats/${boatId}/departures`, fetcher, {
+  const departures = useSWR<Departure[]>(`/houseboats/${boatId}/departures-list`, fetcher, {
     revalidateOnFocus: false,
   });
 
@@ -314,10 +315,12 @@ export default function OwnerDeparturePage() {
                 isEmpty={bookings.items.length === 0}
                 onRetry={() => bookings.mutate()}
                 empty={
-                  <div className="state">
-                    <div className="ic">🎟️</div>
-                    <h4>Nobody booked yet</h4>
-                    <p>Sell from the counter or wait for online bookings.</p>
+                  <div className="px-6 py-11 text-center text-muted">
+                    <div className="mb-2.5 text-[26px]">🎟️</div>
+                    <h4 className="mb-1.5 text-[15px] text-ink">Nobody booked yet</h4>
+                    <p className="mx-auto max-w-[46ch] text-[13px] leading-[1.55]">
+                      Sell from the counter or wait for online bookings.
+                    </p>
                   </div>
                 }
               >
@@ -347,7 +350,7 @@ export default function OwnerDeparturePage() {
                         </td>
                         <td>
                           <button
-                            className="btn btn-sm btn-o"
+                            className={`${BTN_O} ${BTN_SM}`}
                             disabled={due <= 0 || busyId === b.id}
                             onClick={() => setPayFor(b)}
                           >
@@ -357,14 +360,14 @@ export default function OwnerDeparturePage() {
                         <td>
                           <div className="rowact">
                             <button
-                              className={`btn btn-sm ${b.checkinStatus === 'checked_in' ? 'btn-b' : 'btn-o'}`}
+                              className={`${b.checkinStatus === 'checked_in' ? BTN_B : BTN_O} ${BTN_SM}`}
                               disabled={busyId === b.id}
                               onClick={() => setCheckin(b, 'checked_in')}
                             >
                               Checked in
                             </button>
                             <button
-                              className={`btn btn-sm ${b.checkinStatus === 'absent' ? 'btn-b' : 'btn-o'}`}
+                              className={`${b.checkinStatus === 'absent' ? BTN_B : BTN_O} ${BTN_SM}`}
                               disabled={busyId === b.id}
                               onClick={() => setCheckin(b, 'absent')}
                             >
@@ -388,14 +391,14 @@ export default function OwnerDeparturePage() {
               payFor ? (
                 <>
                   <button
-                    className="btn btn-o btn-sm"
+                    className={`${BTN_O} ${BTN_SM}`}
                     onClick={() => setPayFor(null)}
                     disabled={busyId === payFor.id}
                   >
                     Cancel
                   </button>
                   <button
-                    className="btn btn-b btn-sm"
+                    className={`${BTN_B} ${BTN_SM}`}
                     onClick={() => pay()}
                     disabled={busyId === payFor.id}
                   >
@@ -465,10 +468,12 @@ export default function OwnerDeparturePage() {
                 isEmpty={(crew.data?.length ?? 0) === 0}
                 onRetry={() => crew.mutate()}
                 empty={
-                  <div className="state">
-                    <div className="ic">⚓</div>
-                    <h4>No crew assigned</h4>
-                    <p>Crew auto-assign from your default crew when a departure is generated.</p>
+                  <div className="px-6 py-11 text-center text-muted">
+                    <div className="mb-2.5 text-[26px]">⚓</div>
+                    <h4 className="mb-1.5 text-[15px] text-ink">No crew assigned</h4>
+                    <p className="mx-auto max-w-[46ch] text-[13px] leading-[1.55]">
+                      Crew auto-assign from your default crew when a departure is generated.
+                    </p>
                   </div>
                 }
               >
@@ -484,7 +489,7 @@ export default function OwnerDeparturePage() {
                       </td>
                       <td>
                         <button
-                          className="btn btn-sm btn-o"
+                          className={`${BTN_O} ${BTN_SM}`}
                           disabled={busyId === c.id}
                           onClick={() => markCrewAbsent(c)}
                         >

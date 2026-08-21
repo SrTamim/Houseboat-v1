@@ -34,10 +34,15 @@ export function BoatSwitcher() {
     };
   }, [open]);
 
+  const MENU_ITEM =
+    'flex w-full items-center gap-2.5 rounded-sm border-none bg-none px-[11px] py-[9px] text-left text-[13.5px] font-semibold text-ink hover:bg-hover';
   return (
-    <div className={`boatsw${open ? ' open' : ''}`} ref={ref}>
+    <div
+      className="relative mx-3 mb-1.5 mt-1 rounded-xl border border-hair bg-raise-1 shadow-e1"
+      ref={ref}
+    >
       <button
-        className="boatsw-btn"
+        className="flex w-full items-center gap-[11px] rounded-xl border-none bg-none px-[11px] py-[9px] text-left text-bodytext"
         onClick={(e) => {
           e.stopPropagation();
           setOpen((v) => !v);
@@ -45,33 +50,45 @@ export function BoatSwitcher() {
         aria-haspopup="menu"
         aria-expanded={open}
       >
-        <span className="bav">⛵</span>
+        <span className="grid h-[34px] w-[34px] flex-none place-items-center rounded-[10px] bg-[linear-gradient(145deg,var(--amber),var(--amber-700))] text-[16px] text-[#3a2a00] shadow-top-hi">
+          ⛵
+        </span>
         <span>
-          <span className="bn">{boat.name}</span>
-          <span className="bm">
+          <span className="block text-[14px] font-semibold leading-[1.15] text-ink">
+            {boat.name}
+          </span>
+          <span className="mt-px block text-[10.5px] font-semibold uppercase tracking-[0.04em] text-muted">
             {boat.role} · {boat.status}
           </span>
         </span>
-        <span className="cv">▾</span>
+        <span className="ml-auto text-[12px] text-muted">▾</span>
       </button>
 
-      <div className="boatsw-menu" role="menu">
+      <div
+        role="menu"
+        className={`absolute left-0 right-0 top-[calc(100%+6px)] z-[60] overflow-hidden rounded-xl border border-hair bg-raise-2 p-1.5 shadow-e3 ${
+          open ? 'block' : 'hidden'
+        }`}
+      >
         {boats.map((b) => (
           <button
             key={b.houseboatId}
             role="menuitem"
+            className={MENU_ITEM}
             onClick={() => {
               setBoatId(b.houseboatId);
               setOpen(false);
             }}
           >
-            <span className={`dot${b.status === 'live' ? '' : ' mut'}`} />
+            <span
+              className={`h-2 w-2 flex-none rounded-full ${b.status === 'live' ? 'bg-ok' : 'bg-muted'}`}
+            />
             {b.name}
-            <span className="sub">{b.status}</span>
+            <span className="ml-auto text-[11px] font-semibold text-muted">{b.status}</span>
           </button>
         ))}
-        <div className="sep" />
-        <Link className="add" href="/owner/onboarding" role="menuitem">
+        <div className="mx-1 my-1.5 h-px bg-hair" />
+        <Link className={`${MENU_ITEM} text-blue`} href="/owner/onboarding" role="menuitem">
           ＋ Add a boat
         </Link>
       </div>

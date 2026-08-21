@@ -813,7 +813,7 @@ export interface paths {
         patch: operations["TripsController_updatePackage"];
         trace?: never;
     };
-    "/api/houseboats/{houseboatId}/departures": {
+    "/api/houseboats/{houseboatId}/departures-list": {
         parameters: {
             query?: never;
             header?: never;
@@ -821,6 +821,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["TripsController_listDepartures"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/houseboats/{houseboatId}/departures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
         put?: never;
         post: operations["TripsController_createDeparture"];
         delete?: never;
@@ -893,7 +909,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/houseboats/{houseboatId}/group-bands": {
+    "/api/houseboats/{houseboatId}/group-bands-list": {
         parameters: {
             query?: never;
             header?: never;
@@ -901,6 +917,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["TripsController_listBands"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/houseboats/{houseboatId}/group-bands": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
         put?: never;
         post: operations["TripsController_addBand"];
         delete?: never;
@@ -1344,7 +1376,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The boat's invoices (owner console). Read-only view of the money list. */
+        /**
+         * The boat's booking invoices (owner console). Read-only. Consumed by both the
+         *     bookings and refunds page detail drawers, so it is gated on the broad
+         *     `bookings` page rather than a narrower money page — a refunds-only role that
+         *     needs to see invoice detail should also be granted bookings:view.
+         */
         get: operations["MoneyController_listInvoices"];
         put?: never;
         post?: never;

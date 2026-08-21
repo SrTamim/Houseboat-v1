@@ -55,7 +55,7 @@ describe('PaymentsService — IDOR guard', () => {
       'attacker',
       false,
       'boat-Y',
-      'money',
+      'bookings',
       'edit',
     );
     expect(tx.invoicePayment.create).not.toHaveBeenCalled();

@@ -5,6 +5,7 @@ import useSWR from 'swr';
 import { api, fetcher } from '@/lib/api';
 import { useActiveBoat } from '@/lib/owner/boat-context';
 import { PageHead, Card, Note, TableWrap, AsyncTable } from '@/components/owner/ui';
+import { BTN_B, BTN_SM } from '@/components/owner/buttons';
 import { Pill } from '@/components/owner/Pill';
 import { apiErrorMessage, formatDate, maskPhone } from '@/lib/owner/format';
 
@@ -91,10 +92,10 @@ export default function OwnerWaitlistPage() {
             isEmpty={groups.length === 0}
             onRetry={() => mutate()}
             empty={
-              <div className="state">
-                <div className="ic">⏳</div>
-                <h4>Nobody waiting</h4>
-                <p>
+              <div className="px-6 py-11 text-center text-muted">
+                <div className="mb-2.5 text-[26px]">⏳</div>
+                <h4 className="mb-1.5 text-[15px] text-ink">Nobody waiting</h4>
+                <p className="mx-auto max-w-[46ch] text-[13px] leading-[1.55]">
                   Guests join the waitlist from the public boat page when a departure is
                   full.
                 </p>
@@ -133,7 +134,7 @@ export default function OwnerWaitlistPage() {
                   <td>
                     <div className="rowact">
                       <button
-                        className="btn btn-sm btn-b"
+                        className={`${BTN_B} ${BTN_SM}`}
                         disabled={g.cabinsFree < 1 || busyId === g.departureId}
                         title={
                           g.cabinsFree < 1

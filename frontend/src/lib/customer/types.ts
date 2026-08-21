@@ -68,6 +68,7 @@ export interface BoatDetail {
     id: string;
     rating: number;
     text: string | null;
+    ownerReply: string | null;
     customer: { name: string | null } | null;
   }[];
   decks: {
@@ -239,6 +240,13 @@ export interface BookingDetail {
   guests: { id: string; name: string; phone: string | null }[];
   customer?: { name: string | null; email: string | null; phone: string } | null;
   coupon?: { code: string } | null;
+  /** The guest's own review, present once left (one per booking). */
+  review?: {
+    id: string;
+    rating: number;
+    text: string | null;
+    ownerReply: string | null;
+  } | null;
   invoice: {
     id: string;
     status: string;

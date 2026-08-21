@@ -12,6 +12,7 @@ import {
   Kv,
   AsyncBlock,
 } from '@/components/owner/ui';
+import { BTN_B, BTN_O, BTN_SM } from '@/components/owner/buttons';
 import { Pill } from '@/components/owner/Pill';
 import { Drawer } from '@/components/owner/Drawer';
 import { apiErrorMessage } from '@/lib/owner/format';
@@ -206,7 +207,7 @@ export default function OwnerPackagesPage() {
         title="Trip packages"
         desc="A package is a route plus a duration — the thing a customer actually books. Departures are scheduled against a package."
         actions={
-          <button className="btn btn-b" onClick={openCreate} disabled={routes.length === 0}>
+          <button className={BTN_B} onClick={openCreate} disabled={routes.length === 0}>
             ＋ New package
           </button>
         }
@@ -226,7 +227,7 @@ export default function OwnerPackagesPage() {
         </Note>
       ) : null}
 
-      <div className="stack">
+      <div className="flex flex-col gap-5">
         <AsyncBlock
           isLoading={packages.isLoading}
           error={packages.error}
@@ -234,10 +235,10 @@ export default function OwnerPackagesPage() {
           onRetry={() => packages.mutate()}
           empty={
             <Card>
-              <div className="state">
-                <div className="ic">📦</div>
-                <h4>No packages yet</h4>
-                <p>
+              <div className="px-6 py-11 text-center text-muted">
+                <div className="mb-2.5 text-[26px]">📦</div>
+                <h4 className="mb-1.5 text-[15px] text-ink">No packages yet</h4>
+                <p className="mx-auto max-w-[46ch] text-[13px] leading-[1.55]">
                   Create one to describe what you sell — the route, how many days, and
                   what is included.
                 </p>
@@ -257,11 +258,11 @@ export default function OwnerPackagesPage() {
                     <Pill tone={live > 0 ? 'ok' : 'mut'}>
                       {live > 0 ? `${live} departures` : 'no departures'}
                     </Pill>
-                    <button className="btn btn-o btn-sm" onClick={() => openEdit(p)}>
+                    <button className={`${BTN_O} ${BTN_SM}`} onClick={() => openEdit(p)}>
                       Edit
                     </button>
                     <button
-                      className="btn btn-o btn-sm"
+                      className={`${BTN_O} ${BTN_SM}`}
                       onClick={() => remove(p)}
                       disabled={busy}
                     >
@@ -270,7 +271,7 @@ export default function OwnerPackagesPage() {
                   </div>
                 }
               >
-                <div className="grid-2">
+                <div className="grid grid-cols-[2fr_1fr] items-start gap-5 max-[1024px]:grid-cols-1">
                   <Kv
                     rows={[
                       ['Route', p.route.name],
@@ -280,7 +281,7 @@ export default function OwnerPackagesPage() {
                       ['Meals', p.meals ?? '—'],
                     ]}
                   />
-                  <div className="stack" style={{ gap: 12 }}>
+                  <div className="flex flex-col gap-3">
                     <div>
                       <div
                         style={{
@@ -323,10 +324,10 @@ export default function OwnerPackagesPage() {
         onClose={() => setOpen(false)}
         footer={
           <>
-            <button className="btn btn-o" onClick={() => setOpen(false)}>
+            <button className={BTN_O} onClick={() => setOpen(false)}>
               Cancel
             </button>
-            <button className="btn btn-b" onClick={submit} disabled={busy || !routeId}>
+            <button className={BTN_B} onClick={submit} disabled={busy || !routeId}>
               {busy
                 ? editing
                   ? 'Saving…'

@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   Param,
@@ -81,15 +82,15 @@ export class RbacController {
     return membership;
   }
 
-  // ── Roles (settings:edit) ──────────────────────────────────
+  // ── Roles (team:view/edit) ─────────────────────────────────
   @Get('houseboats/:houseboatId/roles')
-  @RequirePermission({ module: 'settings', action: 'view' })
+  @RequirePermission({ module: 'team', action: 'view' })
   listRoles(@Param('houseboatId') houseboatId: string) {
     return this.roles.list(houseboatId);
   }
 
   @Post('houseboats/:houseboatId/roles')
-  @RequirePermission({ module: 'settings', action: 'edit' })
+  @RequirePermission({ module: 'team', action: 'edit' })
   createRole(
     @Param('houseboatId') houseboatId: string,
     @Body() dto: CreateRoleDto,
@@ -98,7 +99,7 @@ export class RbacController {
   }
 
   @Patch('houseboats/:houseboatId/roles/:roleId')
-  @RequirePermission({ module: 'settings', action: 'edit' })
+  @RequirePermission({ module: 'team', action: 'edit' })
   updateRole(
     @Param('houseboatId') houseboatId: string,
     @Param('roleId') roleId: string,
@@ -107,15 +108,25 @@ export class RbacController {
     return this.roles.update(houseboatId, roleId, dto.name, dto.permissions);
   }
 
-  // ── Members (settings:edit) ────────────────────────────────
+  @Delete('houseboats/:houseboatId/roles/:roleId')
+  @RequirePermission({ module: 'team', action: 'edit' })
+  deleteRole(
+    @Param('houseboatId') houseboatId: string,
+    @Param('roleId') roleId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.roles.delete(houseboatId, roleId, user.id);
+  }
+
+  // ── Members (team:view/edit) ───────────────────────────────
   @Get('houseboats/:houseboatId/members')
-  @RequirePermission({ module: 'settings', action: 'view' })
+  @RequirePermission({ module: 'team', action: 'view' })
   listMembers(@Param('houseboatId') houseboatId: string) {
     return this.members.list(houseboatId);
   }
 
   @Post('houseboats/:houseboatId/members')
-  @RequirePermission({ module: 'settings', action: 'edit' })
+  @RequirePermission({ module: 'team', action: 'edit' })
   addMember(
     @Param('houseboatId') houseboatId: string,
     @CurrentUser() user: AuthUser,
@@ -125,7 +136,7 @@ export class RbacController {
   }
 
   @Patch('houseboats/:houseboatId/members/:membershipId')
-  @RequirePermission({ module: 'settings', action: 'edit' })
+  @RequirePermission({ module: 'team', action: 'edit' })
   updateMember(
     @Param('houseboatId') houseboatId: string,
     @Param('membershipId') membershipId: string,
@@ -136,7 +147,7 @@ export class RbacController {
   }
 
   @Patch('houseboats/:houseboatId/members/:membershipId/role')
-  @RequirePermission({ module: 'settings', action: 'edit' })
+  @RequirePermission({ module: 'team', action: 'edit' })
   changeRole(
     @Param('houseboatId') houseboatId: string,
     @Param('membershipId') membershipId: string,
@@ -147,12 +158,22 @@ export class RbacController {
   }
 
   @Post('houseboats/:houseboatId/members/:membershipId/exit')
-  @RequirePermission({ module: 'settings', action: 'edit' })
+  @RequirePermission({ module: 'team', action: 'edit' })
   exitMember(
     @Param('houseboatId') houseboatId: string,
     @Param('membershipId') membershipId: string,
     @CurrentUser() user: AuthUser,
   ) {
     return this.members.exitMember(membershipId, houseboatId, user.id);
+  }
+
+  @Delete('houseboats/:houseboatId/members/:membershipId')
+  @RequirePermission({ module: 'team', action: 'edit' })
+  deleteMember(
+    @Param('houseboatId') houseboatId: string,
+    @Param('membershipId') membershipId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.members.deleteMember(membershipId, houseboatId, user.id);
   }
 }

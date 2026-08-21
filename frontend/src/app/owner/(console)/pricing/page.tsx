@@ -16,6 +16,7 @@ import {
   AsyncTable,
   AsyncBlock,
 } from '@/components/owner/ui';
+import { BTN_B, BTN_O, BTN_SM } from '@/components/owner/buttons';
 import { Drawer } from '@/components/owner/Drawer';
 import { money, apiErrorMessage } from '@/lib/owner/format';
 
@@ -133,7 +134,7 @@ export default function OwnerPricingPage() {
   const boat = useSWR<BoatDetail>(`/houseboats/${boatId}/manage`, fetcher, {
     revalidateOnFocus: false,
   });
-  const bands = useSWR<GroupBand[]>(`/houseboats/${boatId}/group-bands`, fetcher, {
+  const bands = useSWR<GroupBand[]>(`/houseboats/${boatId}/group-bands-list`, fetcher, {
     revalidateOnFocus: false,
   });
 
@@ -375,7 +376,7 @@ export default function OwnerPricingPage() {
                   </Field>
                   <button
                     type="button"
-                    className="btn btn-sm btn-o"
+                    className={`${BTN_O} ${BTN_SM}`}
                     onClick={addSingle}
                     disabled={!newDate}
                   >
@@ -401,7 +402,7 @@ export default function OwnerPricingPage() {
                   </Field>
                   <button
                     type="button"
-                    className="btn btn-sm btn-o"
+                    className={`${BTN_O} ${BTN_SM}`}
                     onClick={addRange}
                     disabled={!rangeStart || !rangeEnd || rangeEnd < rangeStart}
                   >
@@ -426,7 +427,7 @@ export default function OwnerPricingPage() {
                     {r.start === r.end ? r.start : `${r.start} – ${r.end}`}
                     <button
                       type="button"
-                      className="btn btn-sm btn-o"
+                      className={`${BTN_O} ${BTN_SM}`}
                       style={{ padding: '0 6px' }}
                       onClick={() => removeRange(r.start, r.end)}
                       aria-label={`Remove ${r.start}${r.end !== r.start ? ` to ${r.end}` : ''}`}
@@ -447,7 +448,7 @@ export default function OwnerPricingPage() {
         flush
         style={{ marginTop: 16 }}
         actions={
-          <button className="btn btn-sm btn-b" onClick={save} disabled={busy || !routeId}>
+          <button className={`${BTN_B} ${BTN_SM}`} onClick={save} disabled={busy || !routeId}>
             {busy ? 'Saving…' : 'Save prices'}
           </button>
         }
@@ -469,10 +470,12 @@ export default function OwnerPricingPage() {
             isEmpty={categories.length === 0}
             onRetry={() => boat.mutate()}
             empty={
-              <div className="state">
-                <div className="ic">🚪</div>
-                <h4>No cabin categories</h4>
-                <p>Add categories from Decks &amp; cabins before setting prices.</p>
+              <div className="px-6 py-11 text-center text-muted">
+                <div className="mb-2.5 text-[26px]">🚪</div>
+                <h4 className="mb-1.5 text-[15px] text-ink">No cabin categories</h4>
+                <p className="mx-auto max-w-[46ch] text-[13px] leading-[1.55]">
+                  Add categories from Decks &amp; cabins before setting prices.
+                </p>
               </div>
             }
           >
@@ -525,7 +528,7 @@ export default function OwnerPricingPage() {
         flush
         style={{ marginTop: 20 }}
         actions={
-          <button className="btn btn-sm btn-b" onClick={() => setBandOpen(true)}>
+          <button className={`${BTN_B} ${BTN_SM}`} onClick={() => setBandOpen(true)}>
             ＋ Add band
           </button>
         }
@@ -543,10 +546,10 @@ export default function OwnerPricingPage() {
             isEmpty={(bands.data?.length ?? 0) === 0}
             onRetry={() => bands.mutate()}
             empty={
-              <div className="state">
-                <div className="ic">৳</div>
-                <h4>No group bands</h4>
-                <p>
+              <div className="px-6 py-11 text-center text-muted">
+                <div className="mb-2.5 text-[26px]">৳</div>
+                <h4 className="mb-1.5 text-[15px] text-ink">No group bands</h4>
+                <p className="mx-auto max-w-[46ch] text-[13px] leading-[1.55]">
                   A band is one price for the whole boat at a headcount range — what a
                   group quote is measured against.
                 </p>
@@ -573,11 +576,11 @@ export default function OwnerPricingPage() {
         onClose={() => setBandOpen(false)}
         footer={
           <>
-            <button className="btn btn-o" onClick={() => setBandOpen(false)}>
+            <button className={BTN_O} onClick={() => setBandOpen(false)}>
               Cancel
             </button>
             <button
-              className="btn btn-b"
+              className={BTN_B}
               onClick={addBand}
               disabled={bandBusy || !totalPrice}
             >

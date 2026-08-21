@@ -14,7 +14,9 @@ import {
   Note,
   TableWrap,
   AsyncTable,
+  EmptyState,
 } from '@/components/owner/ui';
+import { BTN_B, BTN_O, BTN_SM } from '@/components/owner/buttons';
 import { Drawer } from '@/components/owner/Drawer';
 import { money, formatDate, normalizeDigits, apiErrorMessage } from '@/lib/owner/format';
 
@@ -153,7 +155,7 @@ export default function OwnerCostsPage() {
         desc="One row, faster than a spreadsheet. No forced categories — write what it was for and move on."
         actions={
           <button
-            className="btn btn-o"
+            className={BTN_O}
             onClick={() => setShowReport(true)}
             disabled={rows.length === 0}
           >
@@ -208,7 +210,7 @@ export default function OwnerCostsPage() {
               placeholder="Optional note"
             />
           </div>
-          <button className="btn btn-b" type="submit" disabled={busy} style={{ height: 44 }}>
+          <button className={BTN_B} type="submit" disabled={busy} style={{ height: 44 }}>
             {busy ? 'Adding…' : '＋ Add'}
           </button>
         </form>
@@ -243,11 +245,11 @@ export default function OwnerCostsPage() {
             isEmpty={rows.length === 0}
             onRetry={() => mutate()}
             empty={
-              <div className="state">
-                <div className="ic">🧾</div>
-                <h4>No costs in {periodLabel}</h4>
-                <p>Add fuel, bazar and repairs as they happen — reports read from here.</p>
-              </div>
+              <EmptyState
+                icon="🧾"
+                title={`No costs in ${periodLabel}`}
+                message="Add fuel, bazar and repairs as they happen — reports read from here."
+              />
             }
           >
             <tbody>
@@ -259,7 +261,7 @@ export default function OwnerCostsPage() {
                   <td className="t2">{c.comment ?? '—'}</td>
                   <td className="num">{money(c.amount)}</td>
                   <td className="num">
-                    <button className="btn btn-o btn-sm" onClick={() => openEdit(c)}>
+                    <button className={`${BTN_O} ${BTN_SM}`} onClick={() => openEdit(c)}>
                       Edit
                     </button>
                   </td>
@@ -292,10 +294,10 @@ export default function OwnerCostsPage() {
         onClose={() => setShowReport(false)}
         footer={
           <>
-            <button className="btn btn-o" onClick={() => setShowReport(false)}>
+            <button className={BTN_O} onClick={() => setShowReport(false)}>
               Close
             </button>
-            <button className="btn btn-b" onClick={() => window.print()}>
+            <button className={BTN_B} onClick={() => window.print()}>
               Download PDF
             </button>
           </>
@@ -349,10 +351,10 @@ export default function OwnerCostsPage() {
         onClose={() => setEditing(null)}
         footer={
           <>
-            <button className="btn btn-o" onClick={() => setEditing(null)}>
+            <button className={BTN_O} onClick={() => setEditing(null)}>
               Cancel
             </button>
-            <button className="btn btn-b" onClick={saveEdit} disabled={busy}>
+            <button className={BTN_B} onClick={saveEdit} disabled={busy}>
               {busy ? 'Saving…' : 'Save'}
             </button>
           </>

@@ -1717,7 +1717,7 @@
         ]
       }
     },
-    "/api/houseboats/{houseboatId}/departures": {
+    "/api/houseboats/{houseboatId}/departures-list": {
       "get": {
         "operationId": "TripsController_listDepartures",
         "parameters": [
@@ -1748,7 +1748,9 @@
         "tags": [
           "Trips"
         ]
-      },
+      }
+    },
+    "/api/houseboats/{houseboatId}/departures": {
       "post": {
         "operationId": "TripsController_createDeparture",
         "parameters": [
@@ -2036,7 +2038,7 @@
         ]
       }
     },
-    "/api/houseboats/{houseboatId}/group-bands": {
+    "/api/houseboats/{houseboatId}/group-bands-list": {
       "get": {
         "operationId": "TripsController_listBands",
         "parameters": [
@@ -2057,7 +2059,9 @@
         "tags": [
           "Trips"
         ]
-      },
+      }
+    },
+    "/api/houseboats/{houseboatId}/group-bands": {
       "post": {
         "operationId": "TripsController_addBand",
         "parameters": [
@@ -2930,7 +2934,7 @@
             "description": ""
           }
         },
-        "summary": "The boat's invoices (owner console). Read-only view of the money list.",
+        "summary": "The boat's booking invoices (owner console). Read-only. Consumed by both the\nbookings and refunds page detail drawers, so it is gated on the broad\n`bookings` page rather than a narrower money page — a refunds-only role that\nneeds to see invoice detail should also be granted bookings:view.",
         "tags": [
           "Money"
         ]

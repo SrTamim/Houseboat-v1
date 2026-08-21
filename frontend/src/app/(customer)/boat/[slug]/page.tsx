@@ -187,6 +187,57 @@ export default async function BoatPage({
             isSignedIn={!!user}
             boatPhotos={photos}
           />
+
+          {/* guest reviews */}
+          <div className="mt-[30px]">
+            <h2 className="mb-3.5 font-display text-[19px] font-semibold text-ink">
+              Guest reviews
+              {boat.reviewCount > 0 ? (
+                <span className="ml-2 text-sm font-semibold text-muted">
+                  {boat.ratingAvg != null ? `★ ${boat.ratingAvg.toFixed(1)} · ` : ''}
+                  {boat.reviewCount} review{boat.reviewCount === 1 ? '' : 's'}
+                </span>
+              ) : null}
+            </h2>
+            {boat.reviews.length === 0 ? (
+              <p className="text-[14.5px] text-muted">
+                No reviews yet — be the first to sail and share yours.
+              </p>
+            ) : (
+              <div className="grid gap-3.5">
+                {boat.reviews.map((r) => (
+                  <div
+                    key={r.id}
+                    className="rounded-2xl border border-hair bg-raise-1 p-4 shadow-e1"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <b className="text-[14.5px] text-ink">
+                        {r.customer?.name ?? 'Guest'}
+                      </b>
+                      <span
+                        className="text-[15px] leading-none text-amber"
+                        aria-label={`${r.rating} out of 5`}
+                      >
+                        {'★'.repeat(r.rating)}
+                        <span className="text-hair">{'★'.repeat(5 - r.rating)}</span>
+                      </span>
+                    </div>
+                    {r.text ? (
+                      <p className="mt-2 text-[14px] text-bodytext">{r.text}</p>
+                    ) : null}
+                    {r.ownerReply ? (
+                      <div className="mt-3 rounded-lg border border-hair bg-chip px-3 py-2.5">
+                        <div className="text-[11px] font-bold uppercase tracking-[0.04em] text-muted">
+                          Reply from the host
+                        </div>
+                        <p className="mt-1 text-[13px] text-bodytext">{r.ownerReply}</p>
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </section>
 

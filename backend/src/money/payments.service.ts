@@ -116,12 +116,12 @@ export class PaymentsService {
         const invoice = await tx.invoice.findUnique({ where: { id: invoiceId } });
         if (!invoice) throw new NotFoundException('Invoice not found');
 
-        // IDOR guard: caller must have money:edit on THIS invoice's boat.
+        // IDOR guard: caller must have bookings:edit on THIS invoice's boat.
         await this.rbac.assert(
           actorId,
           isPlatform,
           invoice.houseboatId,
-          'money',
+          'bookings',
           'edit',
         );
 
@@ -274,12 +274,12 @@ export class PaymentsService {
       where: { id: invoiceId },
     });
     if (!invoice) throw new NotFoundException('Invoice not found');
-    // IDOR guard: caller must have money:edit on THIS invoice's boat.
+    // IDOR guard: caller must have bookings:edit on THIS invoice's boat.
     await this.rbac.assert(
       verifierId,
       isPlatform,
       invoice.houseboatId,
-      'money',
+      'bookings',
       'edit',
     );
     // A verify must not certify an invoice that isn't fully paid — otherwise a
@@ -324,12 +324,12 @@ export class PaymentsService {
       select: { houseboatId: true },
     });
     if (!invoice) throw new NotFoundException('Invoice not found');
-    // IDOR guard: caller must have money:view on THIS invoice's boat.
+    // IDOR guard: caller must have bookings:view on THIS invoice's boat.
     await this.rbac.assert(
       actorId,
       isPlatform,
       invoice.houseboatId,
-      'money',
+      'bookings',
       'view',
     );
     return this.prisma.invoicePayment.findMany({ where: { invoiceId } });

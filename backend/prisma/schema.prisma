@@ -15,6 +15,8 @@
 //  (prisma/migrations/*_constraints/). Namely:
 //    - cabin_hold  partial unique index (cabin_id, departure_id) WHERE state='held'
 //    - booking_cabin active-row uniqueness on the cabin per departure
+//    - houseboat_member  uq_member_active partial unique (account_id, houseboat_id)
+//        WHERE status='active' — a person is a member of a boat once while active
 //    - audit_log    append-only trigger (no UPDATE/DELETE) + monthly partitions
 //    - pricing_profile GIN index on dates[]
 //  See that migration for the authoritative DDL.

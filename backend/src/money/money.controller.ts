@@ -66,9 +66,12 @@ export class MoneyController {
     return this.payments.listPayments(invoiceId, user.id, user.isPlatform);
   }
 
-  /** The boat's invoices (owner console). Read-only view of the money list. */
+  /**
+   * The boat's booking invoices (owner console). Read-only. Consumed by the
+   * bookings and refunds page detail drawers, so either role may read it.
+   */
   @Get('houseboats/:houseboatId/invoices')
-  @RequirePermission({ module: 'money', action: 'view' })
+  @RequirePermission({ module: 'bookings', action: 'view', anyOf: ['refunds'] })
   listInvoices(
     @Param('houseboatId') houseboatId: string,
     @Query() query: OwnerInvoicesQueryDto,
@@ -80,7 +83,7 @@ export class MoneyController {
 
   /** Refunds raised against this boat's invoices, for the owner's queue. */
   @Get('houseboats/:houseboatId/refunds')
-  @RequirePermission({ module: 'money', action: 'view' })
+  @RequirePermission({ module: 'refunds', action: 'view' })
   listRefunds(@Param('houseboatId') houseboatId: string) {
     return this.refunds.listForBoat(houseboatId);
   }
@@ -131,7 +134,7 @@ export class MoneyController {
    * platform-only above — an owner sees what they were paid, they don't move it.
    */
   @Get('houseboats/:houseboatId/payout-batches')
-  @RequirePermission({ module: 'money', action: 'view' })
+  @RequirePermission({ module: 'payouts', action: 'view' })
   listPayoutBatches(@Param('houseboatId') houseboatId: string) {
     return this.payouts.listForBoat(houseboatId);
   }
@@ -162,13 +165,13 @@ export class MoneyController {
 
   // ── Coupons + policies (owner money settings) ──────────────
   @Get('houseboats/:houseboatId/coupons')
-  @RequirePermission({ module: 'money', action: 'view' })
+  @RequirePermission({ module: 'coupons', action: 'view' })
   listCoupons(@Param('houseboatId') houseboatId: string) {
     return this.coupons.listCoupons(houseboatId);
   }
 
   @Post('houseboats/:houseboatId/coupons')
-  @RequirePermission({ module: 'money', action: 'edit' })
+  @RequirePermission({ module: 'coupons', action: 'edit' })
   createCoupon(
     @CurrentUser() user: AuthUser,
     @Param('houseboatId') houseboatId: string,
@@ -178,7 +181,7 @@ export class MoneyController {
   }
 
   @Patch('houseboats/:houseboatId/coupons/:couponId/active')
-  @RequirePermission({ module: 'money', action: 'edit' })
+  @RequirePermission({ module: 'coupons', action: 'edit' })
   setCouponActive(
     @CurrentUser() user: AuthUser,
     @Param('houseboatId') houseboatId: string,
@@ -189,13 +192,13 @@ export class MoneyController {
   }
 
   @Get('houseboats/:houseboatId/cancellation-policies')
-  @RequirePermission({ module: 'money', action: 'view' })
+  @RequirePermission({ module: 'coupons', action: 'view' })
   listPolicies(@Param('houseboatId') houseboatId: string) {
     return this.coupons.listPolicies(houseboatId);
   }
 
   @Post('houseboats/:houseboatId/cancellation-policies')
-  @RequirePermission({ module: 'money', action: 'edit' })
+  @RequirePermission({ module: 'coupons', action: 'edit' })
   createPolicy(
     @Param('houseboatId') houseboatId: string,
     @Body() dto: CreatePolicyDto,
@@ -205,13 +208,13 @@ export class MoneyController {
 
   // ── Owner distributions (shareholder payouts ledger) ───────
   @Get('houseboats/:houseboatId/distributions')
-  @RequirePermission({ module: 'money', action: 'view' })
+  @RequirePermission({ module: 'earnings', action: 'view' })
   listDistributions(@Param('houseboatId') houseboatId: string) {
     return this.finance.listDistributions(houseboatId);
   }
 
   @Get('houseboats/:houseboatId/distributions/suggest')
-  @RequirePermission({ module: 'money', action: 'view' })
+  @RequirePermission({ module: 'earnings', action: 'view' })
   suggestSplit(
     @Param('houseboatId') houseboatId: string,
     @Query() query: SuggestSplitQueryDto,
@@ -220,7 +223,7 @@ export class MoneyController {
   }
 
   @Post('houseboats/:houseboatId/distributions')
-  @RequirePermission({ module: 'money', action: 'edit' })
+  @RequirePermission({ module: 'earnings', action: 'edit' })
   recordDistribution(
     @Param('houseboatId') houseboatId: string,
     @CurrentUser() user: AuthUser,
@@ -233,7 +236,12 @@ export class MoneyController {
   /** Owner-visible billing status: in grace / days left / locked / amount due.
    *  Accessible even when locked — the owner must be able to see the bill. */
   @Get('houseboats/:houseboatId/billing-status')
-  @RequirePermission({ module: 'money', action: 'view', allowWhenLocked: true })
+  @RequirePermission({
+    module: 'billing',
+    action: 'view',
+    anyOf: ['settings'],
+    allowWhenLocked: true,
+  })
   billingStatus(@Param('houseboatId') houseboatId: string) {
     return this.finance.billingStatus(houseboatId);
   }
@@ -241,7 +249,7 @@ export class MoneyController {
   /** Owner-visible list of their subscription invoices (to see what to pay).
    *  Accessible even when locked. */
   @Get('houseboats/:houseboatId/my-subscription-invoices')
-  @RequirePermission({ module: 'money', action: 'view', allowWhenLocked: true })
+  @RequirePermission({ module: 'billing', action: 'view', allowWhenLocked: true })
   ownerSubscriptionInvoices(@Param('houseboatId') houseboatId: string) {
     return this.finance.listSubscriptionInvoices(houseboatId);
   }

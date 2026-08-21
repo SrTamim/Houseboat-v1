@@ -12,6 +12,7 @@ import {
   TableWrap,
   AsyncTable,
 } from '@/components/owner/ui';
+import { BTN_B, BTN_O, BTN_SM } from '@/components/owner/buttons';
 import { Pill } from '@/components/owner/Pill';
 import { Drawer } from '@/components/owner/Drawer';
 import {
@@ -19,8 +20,8 @@ import {
   maskPhone,
   apiErrorMessage,
   toE164,
-  humanize,
 } from '@/lib/owner/format';
+import { OWNER_NAV } from '@/lib/owner/nav';
 
 interface Member {
   id: string;
@@ -41,31 +42,31 @@ interface Role {
 
 type Perms = Record<string, { view: boolean; edit: boolean }>;
 
-/** The permission modules a per-boat role can grant. */
-const MODULES = [
-  'bookings',
-  'assets',
-  'trips',
-  'pricing',
-  'money',
-  'staff',
-  'inventory',
-  'costs',
-  'reports',
-  'settings',
-] as const;
+/**
+ * The per-boat permission catalog is the 29 owner-console pages, grouped exactly
+ * as the sidebar groups them (OWNER_NAV) so the role drawer reads as the same
+ * map of the console. Each page's own label is reused, so keys like `pos` show
+ * as "Counter sale" rather than a humanized key.
+ */
+const PAGE_GROUPS = OWNER_NAV.map((g) => ({
+  group: g.group,
+  pages: g.items.map((i) => ({ key: i.key, label: i.label })),
+}));
 
-/** Empty permission map with every module off. */
+/** Flat list of the 29 page keys, for building/seeding permission maps. */
+const PAGES = PAGE_GROUPS.flatMap((g) => g.pages.map((p) => p.key));
+
+/** Empty permission map with every page off. */
 function emptyPerms(): Perms {
-  return Object.fromEntries(MODULES.map((m) => [m, { view: false, edit: false }]));
+  return Object.fromEntries(PAGES.map((p) => [p, { view: false, edit: false }]));
 }
 
 /** Seed a permission map from a role's stored (partial) permissions. */
 function permsFromRole(role: Role): Perms {
   const base = emptyPerms();
-  for (const m of MODULES) {
-    const p = role.permissions?.[m];
-    if (p) base[m] = { view: !!p.view, edit: !!p.edit };
+  for (const p of PAGES) {
+    const stored = role.permissions?.[p];
+    if (stored) base[p] = { view: !!stored.view, edit: !!stored.edit };
   }
   return base;
 }
@@ -85,37 +86,47 @@ function PermissionList({
 }) {
   return (
     <div className="perm-list">
-      {MODULES.map((m) => (
-        <div className="perm-row" key={m}>
-          <span className="perm-name">{humanize(m)}</span>
-          <div className="perm-toggles">
-            <label className="perm-toggle">
-              <input
-                type="checkbox"
-                checked={perms[m].view}
-                onChange={(e) =>
-                  onChange({ ...perms, [m]: { ...perms[m], view: e.target.checked } })
-                }
-              />
-              View
-            </label>
-            <label className="perm-toggle">
-              <input
-                type="checkbox"
-                checked={perms[m].edit}
-                onChange={(e) =>
-                  onChange({
-                    ...perms,
-                    [m]: {
-                      view: e.target.checked ? true : perms[m].view,
-                      edit: e.target.checked,
-                    },
-                  })
-                }
-              />
-              Edit
-            </label>
+      {PAGE_GROUPS.map((group) => (
+        <div key={group.group}>
+          <div className="mb-1 mt-3 px-0.5 text-[10px] font-bold uppercase tracking-[0.11em] text-muted first:mt-0">
+            {group.group}
           </div>
+          {group.pages.map(({ key, label }) => (
+            <div className="perm-row" key={key}>
+              <span className="perm-name">{label}</span>
+              <div className="perm-toggles">
+                <label className="perm-toggle">
+                  <input
+                    type="checkbox"
+                    checked={perms[key].view}
+                    onChange={(e) =>
+                      onChange({
+                        ...perms,
+                        [key]: { ...perms[key], view: e.target.checked },
+                      })
+                    }
+                  />
+                  View
+                </label>
+                <label className="perm-toggle">
+                  <input
+                    type="checkbox"
+                    checked={perms[key].edit}
+                    onChange={(e) =>
+                      onChange({
+                        ...perms,
+                        [key]: {
+                          view: e.target.checked ? true : perms[key].view,
+                          edit: e.target.checked,
+                        },
+                      })
+                    }
+                  />
+                  Edit
+                </label>
+              </div>
+            </div>
+          ))}
         </div>
       ))}
     </div>
@@ -152,6 +163,10 @@ export default function OwnerTeamPage() {
   const [mShare, setMShare] = useState('');
   const [mSince, setMSince] = useState('');
   const [mStatus, setMStatus] = useState<'active' | 'exited'>('active');
+
+  // Delete confirmation drawers.
+  const [delRole, setDelRole] = useState<Role | null>(null);
+  const [delMember, setDelMember] = useState<Member | null>(null);
 
   const members = useSWR<Member[]>(`/houseboats/${boatId}/members`, fetcher, {
     revalidateOnFocus: false,
@@ -275,6 +290,37 @@ export default function OwnerTeamPage() {
     }
   }
 
+  async function deleteMember() {
+    if (busy || !delMember) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.delete(`/houseboats/${boatId}/members/${delMember.id}`);
+      setDelMember(null);
+      await members.mutate();
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not delete the member.'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteRole() {
+    if (busy || !delRole) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.delete(`/houseboats/${boatId}/roles/${delRole.id}`);
+      setDelRole(null);
+      // Deleting a role removes the members on it — refresh both lists.
+      await Promise.all([roles.mutate(), members.mutate()]);
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not delete the role.'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <>
       <PageHead
@@ -283,7 +329,7 @@ export default function OwnerTeamPage() {
         actions={
           <>
             <button
-              className="btn btn-o"
+              className={BTN_O}
               onClick={() => {
                 setError(null);
                 setRoleName('');
@@ -294,7 +340,7 @@ export default function OwnerTeamPage() {
               ＋ Role
             </button>
             <button
-              className="btn btn-b"
+              className={BTN_B}
               onClick={() => {
                 setError(null);
                 setRoleId(roles.data?.[0]?.id ?? '');
@@ -332,10 +378,12 @@ export default function OwnerTeamPage() {
             isEmpty={(members.data?.length ?? 0) === 0}
             onRetry={() => members.mutate()}
             empty={
-              <div className="state">
-                <div className="ic">🔑</div>
-                <h4>No members</h4>
-                <p>Add a shareholder or manager to share the workload.</p>
+              <div className="px-6 py-11 text-center text-muted">
+                <div className="mb-2.5 text-[26px]">🔑</div>
+                <h4 className="mb-1.5 text-[15px] text-ink">No members</h4>
+                <p className="mx-auto max-w-[46ch] text-[13px] leading-[1.55]">
+                  Add a shareholder or manager to share the workload.
+                </p>
               </div>
             }
           >
@@ -359,7 +407,7 @@ export default function OwnerTeamPage() {
                   <td>
                     <div className="rowact">
                       <button
-                        className="btn btn-sm btn-o"
+                        className={`${BTN_O} ${BTN_SM}`}
                         onClick={() => openEditMember(m)}
                         disabled={busy}
                       >
@@ -367,13 +415,23 @@ export default function OwnerTeamPage() {
                       </button>
                       {m.status === 'active' ? (
                         <button
-                          className="btn btn-sm btn-o"
+                          className={`${BTN_O} ${BTN_SM}`}
                           onClick={() => exitMember(m.id)}
                           disabled={busy}
                         >
                           Record exit
                         </button>
                       ) : null}
+                      <button
+                        className={`${BTN_O} ${BTN_SM}`}
+                        onClick={() => {
+                          setError(null);
+                          setDelMember(m);
+                        }}
+                        disabled={busy}
+                      >
+                        Delete
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -383,7 +441,7 @@ export default function OwnerTeamPage() {
         </TableWrap>
       </Card>
 
-      <div className="grid-2">
+      <div className="grid grid-cols-[2fr_1fr] items-start gap-5 max-[1024px]:grid-cols-1">
         <Card title="Roles" sub="per-boat permission sets" flush>
           <TableWrap minWidth={0}>
             <thead>
@@ -399,10 +457,12 @@ export default function OwnerTeamPage() {
               isEmpty={(roles.data?.length ?? 0) === 0}
               onRetry={() => roles.mutate()}
               empty={
-                <div className="state">
-                  <div className="ic">🔑</div>
-                  <h4>No roles</h4>
-                  <p>Create one to describe what a manager may do.</p>
+                <div className="px-6 py-11 text-center text-muted">
+                  <div className="mb-2.5 text-[26px]">🔑</div>
+                  <h4 className="mb-1.5 text-[15px] text-ink">No roles</h4>
+                  <p className="mx-auto max-w-[46ch] text-[13px] leading-[1.55]">
+                    Create one to describe what a manager may do.
+                  </p>
                 </div>
               }
             >
@@ -411,16 +471,27 @@ export default function OwnerTeamPage() {
                   <tr key={r.id}>
                     <td className="t1">{r.name}</td>
                     <td className="t2">
-                      {Object.keys(r.permissions ?? {}).length} of {MODULES.length}
+                      {Object.keys(r.permissions ?? {}).length} of {PAGES.length}
                     </td>
                     <td>
                       <div className="rowact">
                         <button
-                          className="btn btn-sm btn-o"
+                          className={`${BTN_O} ${BTN_SM}`}
                           onClick={() => openEditRole(r)}
                         >
                           Edit
                         </button>
+                        {r.name !== 'Owner' ? (
+                          <button
+                            className={`${BTN_O} ${BTN_SM}`}
+                            onClick={() => {
+                              setError(null);
+                              setDelRole(r);
+                            }}
+                          >
+                            Delete
+                          </button>
+                        ) : null}
                       </div>
                     </td>
                   </tr>
@@ -445,10 +516,10 @@ export default function OwnerTeamPage() {
         onClose={() => setAddOpen(false)}
         footer={
           <>
-            <button className="btn btn-o" onClick={() => setAddOpen(false)}>
+            <button className={BTN_O} onClick={() => setAddOpen(false)}>
               Cancel
             </button>
-            <button className="btn btn-b" onClick={addMember} disabled={busy || !phone}>
+            <button className={BTN_B} onClick={addMember} disabled={busy || !phone}>
               {busy ? 'Adding…' : 'Add member'}
             </button>
           </>
@@ -500,10 +571,10 @@ export default function OwnerTeamPage() {
         onClose={() => setRoleOpen(false)}
         footer={
           <>
-            <button className="btn btn-o" onClick={() => setRoleOpen(false)}>
+            <button className={BTN_O} onClick={() => setRoleOpen(false)}>
               Cancel
             </button>
-            <button className="btn btn-b" onClick={createRole} disabled={busy || !roleName}>
+            <button className={BTN_B} onClick={createRole} disabled={busy || !roleName}>
               {busy ? 'Creating…' : 'Create role'}
             </button>
           </>
@@ -531,11 +602,11 @@ export default function OwnerTeamPage() {
         onClose={() => setEditRole(null)}
         footer={
           <>
-            <button className="btn btn-o" onClick={() => setEditRole(null)}>
+            <button className={BTN_O} onClick={() => setEditRole(null)}>
               Cancel
             </button>
             <button
-              className="btn btn-b"
+              className={BTN_B}
               onClick={saveRole}
               disabled={busy || !editRoleName}
             >
@@ -565,10 +636,10 @@ export default function OwnerTeamPage() {
         onClose={() => setEditMember(null)}
         footer={
           <>
-            <button className="btn btn-o" onClick={() => setEditMember(null)}>
+            <button className={BTN_O} onClick={() => setEditMember(null)}>
               Cancel
             </button>
-            <button className="btn btn-b" onClick={saveMember} disabled={busy}>
+            <button className={BTN_B} onClick={saveMember} disabled={busy}>
               {busy ? 'Saving…' : 'Save member'}
             </button>
           </>
@@ -620,6 +691,61 @@ export default function OwnerTeamPage() {
             boat — edit them from their profile, not here.
           </Note>
         </form>
+      </Drawer>
+
+      <Drawer
+        open={delMember !== null}
+        title="Delete member"
+        onClose={() => setDelMember(null)}
+        footer={
+          <>
+            <button className={BTN_O} onClick={() => setDelMember(null)}>
+              Cancel
+            </button>
+            <button className={BTN_B} onClick={deleteMember} disabled={busy}>
+              {busy ? 'Deleting…' : 'Delete member'}
+            </button>
+          </>
+        }
+      >
+        <div style={{ display: 'grid', gap: 12 }}>
+          {error ? <Note kind="danger">{error}</Note> : null}
+          <Note kind="warn">
+            Remove <strong>{delMember?.account.name ?? 'this member'}</strong> from
+            this boat entirely? They lose all access. This deletes the membership —
+            to keep their history instead, use <strong>Record exit</strong>.
+          </Note>
+        </div>
+      </Drawer>
+
+      <Drawer
+        open={delRole !== null}
+        title="Delete role"
+        onClose={() => setDelRole(null)}
+        footer={
+          <>
+            <button className={BTN_O} onClick={() => setDelRole(null)}>
+              Cancel
+            </button>
+            <button className={BTN_B} onClick={deleteRole} disabled={busy}>
+              {busy ? 'Deleting…' : 'Delete role'}
+            </button>
+          </>
+        }
+      >
+        <div style={{ display: 'grid', gap: 12 }}>
+          {error ? <Note kind="danger">{error}</Note> : null}
+          <Note kind="warn">
+            Delete the <strong>{delRole?.name}</strong> role?{' '}
+            {(() => {
+              const n =
+                members.data?.filter((m) => m.role.id === delRole?.id).length ?? 0;
+              return n > 0
+                ? `${n} member${n === 1 ? '' : 's'} on this role will be removed from the boat.`
+                : 'No members currently hold this role.';
+            })()}
+          </Note>
+        </div>
       </Drawer>
     </>
   );

@@ -13,6 +13,16 @@ import {
 } from '@/lib/owner/login-url';
 import type { OwnerBoat } from '@/lib/owner/session';
 import { toE164 } from '@/lib/owner/format';
+import { DARK_CARD_SURFACE, NAV_BTN_O, PRIMARY_BTN } from '@/lib/customer/boat-card';
+
+// ---- design tokens ---------------------------------------------------------
+// Colours/radii/shadows resolve through the CSS vars owner.css defines in both
+// :root and :root[data-theme='dark'], so these switch theme without a `dark:`
+// variant each — the same idiom the customer AuthModal uses.
+const CARD = `flex w-[min(420px,100%)] flex-col rounded-2xl border border-hair bg-raise-1 p-7 shadow-e3 ${DARK_CARD_SURFACE}`;
+const LABEL = 'mb-1.5 block text-[13px] font-bold text-ink';
+const INPUT =
+  'w-full rounded border border-hair bg-bg py-3 px-3.5 text-[15px] text-ink transition-[border-color,box-shadow] duration-150 placeholder:text-muted focus:border-blue focus:bg-raise-1 focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--blue)_18%,transparent)] focus:outline-none';
 
 /**
  * Messages for the ?error= codes emitted by ownerLoginUrl(). Unknown codes fall
@@ -32,7 +42,7 @@ const REASONS: Record<string, string> = {
 // in a child wrapped in Suspense, or the whole page fails to prerender.
 export default function OwnerLoginPage() {
   return (
-    <Suspense fallback={<div className="auth-wrap" />}>
+    <Suspense fallback={<div className="grid min-h-screen place-items-center px-5" />}>
       <OwnerLoginForm />
     </Suspense>
   );
@@ -125,46 +135,64 @@ function OwnerLoginForm() {
   }
 
   return (
-    <div className="auth-wrap">
-      <div style={{ position: 'fixed', top: 20, right: 20, zIndex: 2 }}>
+    <div className="relative grid min-h-screen place-items-center overflow-hidden px-5">
+      {/* Ambient aurora — decorative, replaces the old .auth-wrap::before/::after. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -left-40 -top-40 h-96 w-96 rounded-full bg-[radial-gradient(circle,color-mix(in_srgb,var(--blue)_16%,transparent),transparent_70%)] blur-3xl"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -bottom-48 -right-40 h-[28rem] w-[28rem] rounded-full bg-[radial-gradient(circle,color-mix(in_srgb,var(--blue)_10%,transparent),transparent_70%)] blur-3xl"
+      />
+
+      <div className="fixed right-5 top-5 z-10">
         <ThemeToggle />
       </div>
 
       {boats ? (
-        <div className="auth-card">
-          <div className="logo">
-            <span className="mark">⚓</span> Haor<span style={{ color: 'var(--blue)' }}>Boat</span>
-          </div>
-          <span className="badge">Owner console</span>
-          <h1>Choose a boat</h1>
-          <p className="lede">
+        <div className={`relative ${CARD}`}>
+          <Logo />
+          <Badge>Owner console</Badge>
+          <h1 className="mt-3 font-display text-[21px] font-semibold tracking-[-.02em] text-ink">
+            Choose a boat
+          </h1>
+          <p className="mb-5 mt-1 text-[13.5px] leading-[1.55] text-muted">
             You operate {boats.length} boats. Pick one to open — you can switch at any
             time from the sidebar.
           </p>
 
-          <div className="auth-form">
+          <div className="flex flex-col gap-2.5">
             {boats.map((b) => (
               <button
                 key={b.houseboatId}
                 type="button"
-                className="boat-pick"
                 onClick={() => enterConsole(b.houseboatId)}
+                className="flex items-center gap-3 rounded-xl border border-hair bg-bg px-3.5 py-3 text-left transition-[border-color,background] duration-dur ease-ease hover:border-[color-mix(in_srgb,var(--blue)_45%,var(--hair))] hover:bg-[color-mix(in_srgb,var(--blue)_6%,var(--raise-1))]"
               >
-                <span className="bav">⛵</span>
-                <span>
-                  <span className="bn">{b.name}</span>
-                  <span className="bm">{b.status}</span>
+                <span className="grid h-9 w-9 flex-none place-items-center rounded-lg bg-chip text-lg">
+                  ⛵
                 </span>
-                <span className={`pill ${b.status === 'live' ? 'ok' : 'mut'} role`}>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[14.5px] font-semibold text-ink">
+                    {b.name}
+                  </span>
+                  <span className="block text-[12.5px] capitalize text-muted">{b.status}</span>
+                </span>
+                <span
+                  className={`flex-none rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide ${
+                    b.status === 'live'
+                      ? 'bg-[color-mix(in_srgb,var(--ok)_14%,transparent)] text-ok'
+                      : 'bg-chip text-muted'
+                  }`}
+                >
                   {b.role}
                 </span>
               </button>
             ))}
           </div>
 
-          <div className="foot">
-            Permissions are checked per boat, on every request · CSRF-protected
-          </div>
+          <Foot>Permissions are checked per boat, on every request · CSRF-protected</Foot>
         </div>
       ) : (
         /*
@@ -173,23 +201,18 @@ function OwnerLoginForm() {
           native GET submit — which would put the password into the URL, history
           and the dev log. With method="post" the fallback sends a body instead.
         */
-        <form className="auth-card" method="post" onSubmit={onSubmit}>
-          <div className="logo">
-            <span className="mark">⚓</span> Haor<span style={{ color: 'var(--blue)' }}>Boat</span>
-          </div>
-          <span className="badge">Owner console</span>
-          <h1>Sign in</h1>
-          <p className="lede">
+        <form className={`relative ${CARD}`} method="post" onSubmit={onSubmit}>
+          <Logo />
+          <Badge>Owner console</Badge>
+          <h1 className="mt-3 font-display text-[21px] font-semibold tracking-[-.02em] text-ink">
+            Sign in
+          </h1>
+          <p className="mb-5 mt-1 text-[13.5px] leading-[1.55] text-muted">
             For boat owners, shareholders and managers. Platform staff sign in from the
             admin console.
           </p>
 
-          {error && (
-            <div className="note danger" style={{ marginBottom: 16 }} role="alert">
-              <span className="ic">⚠</span>
-              <span>{error}</span>
-            </div>
-          )}
+          {error && <DangerNote>{error}</DangerNote>}
 
           {/*
             A signed-in account with no boats would otherwise dead-end: the
@@ -199,8 +222,7 @@ function OwnerLoginForm() {
           {reason === 'not_owner' && (
             <button
               type="button"
-              className="btn btn-o btn-sm"
-              style={{ marginBottom: 16 }}
+              className={`mb-4 ${NAV_BTN_O} justify-center`}
               onClick={async () => {
                 try {
                   await api.post('/auth/logout');
@@ -216,69 +238,124 @@ function OwnerLoginForm() {
             </button>
           )}
 
-          <div className="auth-form">
-            <div className="field">
-              <label htmlFor="phone">Phone</label>
-              <div className="with-pre">
-                <span className="pre">+880</span>
-                <input
-                  id="phone"
-                  name="phone"
-                  type="tel"
-                  inputMode="numeric"
-                  autoComplete="username"
-                  placeholder="1700000000"
-                  required
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="field">
-              <label htmlFor="password">Password</label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <input
-                  id="password"
-                  name="password"
-                  type={show ? 'text' : 'password'}
-                  autoComplete="current-password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-                <button type="button" className="show" onClick={() => setShow((v) => !v)}>
-                  {show ? 'Hide' : 'Show'}
-                </button>
-              </div>
-            </div>
-
-            <div className="rowb">
-              <label style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                <input
-                  type="checkbox"
-                  checked={remember}
-                  onChange={(e) => setRemember(e.target.checked)}
-                />{' '}
-                Keep me signed in
-              </label>
-              <Link style={{ color: 'var(--blue)', fontWeight: 600 }} href="#">
-                Forgot password?
-              </Link>
-            </div>
-
-            <button className="btn btn-b" type="submit" disabled={busy} style={{ justifyContent: 'center' }}>
-              {busy ? 'Signing in…' : 'Sign in →'}
-            </button>
+          <div className="mb-4">
+            <label className={LABEL} htmlFor="phone">
+              Phone
+            </label>
+            <input
+              id="phone"
+              name="phone"
+              type="tel"
+              inputMode="numeric"
+              autoComplete="username"
+              placeholder="01700000000"
+              required
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              className={INPUT}
+            />
           </div>
 
-          <div className="foot">
-            New here? <Link href={OWNER_SIGNUP_PATH}>List your houseboat</Link>
+          <div className="mb-4">
+            <label className={LABEL} htmlFor="password">
+              Password
+            </label>
+            <div className="relative">
+              <input
+                id="password"
+                name="password"
+                type={show ? 'text' : 'password'}
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className={`${INPUT} pr-16`}
+              />
+              <button
+                type="button"
+                onClick={() => setShow((v) => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-[13px] font-bold text-muted transition-colors hover:text-ink"
+              >
+                {show ? 'Hide' : 'Show'}
+              </button>
+            </div>
+          </div>
+
+          <div className="mb-4 flex items-center justify-between">
+            <label className="flex cursor-pointer items-center gap-2 text-[13.5px] font-semibold text-bodytext">
+              <input
+                type="checkbox"
+                checked={remember}
+                onChange={(e) => setRemember(e.target.checked)}
+                className="h-[17px] w-[17px] accent-blue"
+              />
+              Keep me signed in
+            </label>
+            <Link href="#" className="text-[13.5px] font-bold text-blue hover:underline">
+              Forgot password?
+            </Link>
+          </div>
+
+          <button className={PRIMARY_BTN} type="submit" disabled={busy}>
+            {busy ? 'Signing in…' : 'Sign in →'}
+          </button>
+
+          <Foot>
+            New here?{' '}
+            <Link href={OWNER_SIGNUP_PATH} className="font-bold text-blue hover:underline">
+              List your houseboat
+            </Link>
             <br />
             Permissions are checked per boat, on every request · CSRF-protected
-          </div>
+          </Foot>
         </form>
       )}
+    </div>
+  );
+}
+
+// ---- small shared bits (login + signup share the same shell) ---------------
+
+function Logo() {
+  return (
+    <div className="flex items-center gap-[11px]">
+      <span
+        aria-hidden="true"
+        className="grid h-9 w-9 flex-none place-items-center rounded-xl bg-[linear-gradient(145deg,var(--blue),var(--blue-700))] text-base text-white shadow-[0_6px_14px_-6px_var(--blue),var(--top-hi)]"
+      >
+        ⚓
+      </span>
+      <span className="font-display text-[19px] font-bold tracking-[-.03em] text-ink">
+        Haor<span className="text-blue">Boat</span>
+      </span>
+    </div>
+  );
+}
+
+function Badge({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="mt-4 w-fit rounded-full bg-[color-mix(in_srgb,var(--blue)_12%,transparent)] px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-blue">
+      {children}
+    </span>
+  );
+}
+
+function DangerNote({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      role="alert"
+      className="mb-4 flex items-start gap-2 rounded border border-[color-mix(in_srgb,var(--danger)_35%,var(--hair))] bg-[color-mix(in_srgb,var(--danger)_8%,transparent)] px-3 py-2.5 text-[13px] font-semibold text-danger"
+    >
+      <span aria-hidden="true">⚠</span>
+      <span>{children}</span>
+    </div>
+  );
+}
+
+function Foot({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mt-5 border-t border-hair pt-4 text-center text-[12.5px] leading-[1.7] text-muted">
+      {children}
     </div>
   );
 }

@@ -17,6 +17,7 @@ import {
 import { BoatCabinMap, type MapDeck } from '@/components/owner/BoatCabinMap';
 import type { CabState } from '@/components/owner/CabGrid';
 import { Bill } from '@/components/owner/Bill';
+import { BTN_B, BTN_O, BTN_SM } from '@/components/owner/buttons';
 import { apiErrorMessage, formatDate, money, toE164, weekday } from '@/lib/owner/format';
 
 interface Departure {
@@ -155,7 +156,7 @@ export default function OwnerPosPage() {
   // with attachToExisting.
   const [attachConflict, setAttachConflict] = useState(false);
 
-  const departures = useSWR<Departure[]>(`/houseboats/${boatId}/departures`, fetcher, {
+  const departures = useSWR<Departure[]>(`/houseboats/${boatId}/departures-list`, fetcher, {
     revalidateOnFocus: false,
   });
   const boat = useSWR<BoatDetail>(`/houseboats/${boatId}/manage`, fetcher, {
@@ -557,7 +558,7 @@ export default function OwnerPosPage() {
             <div style={{ marginTop: 10 }}>
               <button
                 type="button"
-                className="btn btn-sm btn-b"
+                className={`${BTN_B} ${BTN_SM}`}
                 disabled={busy}
                 onClick={(ev) => submit(ev, true)}
               >
@@ -598,7 +599,7 @@ export default function OwnerPosPage() {
         {day ? (
           <button
             type="button"
-            className="btn btn-sm btn-o"
+            className={`${BTN_O} ${BTN_SM}`}
             onClick={() => {
               clearHeldForFilterChange();
               setDay('');
@@ -622,7 +623,7 @@ export default function OwnerPosPage() {
           </Note>
         }
       >
-        <div className="grid-2">
+        <div className="grid grid-cols-[2fr_1fr] items-start gap-5 max-[1024px]:grid-cols-1">
           <Card
             title="Cabin layout"
             sub={
@@ -678,7 +679,7 @@ export default function OwnerPosPage() {
                       <b>Cabin {p.name}</b>
                       <button
                         type="button"
-                        className="btn btn-sm btn-o"
+                        className={`${BTN_O} ${BTN_SM}`}
                         onClick={() => toggle({ id: p.cabinId, name: p.name })}
                       >
                         Remove
@@ -839,7 +840,7 @@ export default function OwnerPosPage() {
                     <button
                       type="button"
                       key={m.value}
-                      className={`btn btn-sm ${paymentMethod === m.value ? 'btn-b' : 'btn-o'}`}
+                      className={`${paymentMethod === m.value ? BTN_B : BTN_O} ${BTN_SM}`}
                       onClick={() => setPaymentMethod(m.value)}
                     >
                       {m.label}
@@ -859,7 +860,7 @@ export default function OwnerPosPage() {
               </Field>
 
               <button
-                className="btn btn-b"
+                className={BTN_B}
                 type="submit"
                 disabled={busy || picked.length === 0 || Boolean(unpricedCabin) || overpaid}
                 style={{ justifyContent: 'center' }}

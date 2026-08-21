@@ -13,6 +13,7 @@ import {
   AsyncTable,
   AsyncBlock,
 } from '@/components/owner/ui';
+import { BTN_B, BTN_O, BTN_DANGER, BTN_SM } from '@/components/owner/buttons';
 import { Pill } from '@/components/owner/Pill';
 import { Drawer } from '@/components/owner/Drawer';
 import { CabGrid, type CabTile } from '@/components/owner/CabGrid';
@@ -248,14 +249,14 @@ export default function OwnerCabinsPage() {
         desc="The physical boat. A cabin belongs to a deck for layout and to a category for pricing — the category is what a price is set against."
         actions={
           <>
-            <button className="btn btn-o" onClick={() => openDeck()}>
+            <button className={BTN_O} onClick={() => openDeck()}>
               ＋ Deck
             </button>
-            <button className="btn btn-o" onClick={() => openCategory()}>
+            <button className={BTN_O} onClick={() => openCategory()}>
               ＋ Category
             </button>
             <button
-              className="btn btn-b"
+              className={BTN_B}
               onClick={() => openCabin()}
               disabled={decks.length === 0 || categories.length === 0}
             >
@@ -289,10 +290,10 @@ export default function OwnerCabinsPage() {
             isEmpty={categories.length === 0}
             onRetry={() => boat.mutate()}
             empty={
-              <div className="state">
-                <div className="ic">🏷</div>
-                <h4>No categories</h4>
-                <p>
+              <div className="px-6 py-11 text-center text-muted">
+                <div className="mb-2.5 text-[26px]">🏷</div>
+                <h4 className="mb-1.5 text-[15px] text-ink">No categories</h4>
+                <p className="mx-auto max-w-[46ch] text-[13px] leading-[1.55]">
                   Add one before adding cabins — every cabin needs a category so it can be
                   priced.
                 </p>
@@ -311,11 +312,11 @@ export default function OwnerCabinsPage() {
                   <td className="t2">{c.facilities ?? '—'}</td>
                   <td>
                     <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                      <button className="btn btn-o btn-sm" onClick={() => openCategory(c)}>
+                      <button className={`${BTN_O} ${BTN_SM}`} onClick={() => openCategory(c)}>
                         Edit
                       </button>
                       <button
-                        className="btn btn-o btn-sm btn-danger"
+                        className={`${BTN_DANGER} shadow-e1 ${BTN_SM}`}
                         onClick={() => remove('category', c.id, `category “${c.name}”`)}
                       >
                         Delete
@@ -336,15 +337,17 @@ export default function OwnerCabinsPage() {
         onRetry={() => boat.mutate()}
         empty={
           <Card>
-            <div className="state">
-              <div className="ic">🚪</div>
-              <h4>No decks yet</h4>
-              <p>Add a deck, then the cabins that sit on it.</p>
+            <div className="px-6 py-11 text-center text-muted">
+              <div className="mb-2.5 text-[26px]">🚪</div>
+              <h4 className="mb-1.5 text-[15px] text-ink">No decks yet</h4>
+              <p className="mx-auto max-w-[46ch] text-[13px] leading-[1.55]">
+                Add a deck, then the cabins that sit on it.
+              </p>
             </div>
           </Card>
         }
       >
-        <div className="grid-2">
+        <div className="grid grid-cols-[2fr_1fr] items-start gap-5 max-[1024px]:grid-cols-1">
           {decks.map((deck) => {
             const tiles: CabTile[] = deck.cabins.map((c) => ({
               id: c.id,
@@ -360,11 +363,11 @@ export default function OwnerCabinsPage() {
                 sub={`${deck.cabins.length} cabins`}
                 actions={
                   <>
-                    <button className="btn btn-o btn-sm" onClick={() => openDeck(deck)}>
+                    <button className={`${BTN_O} ${BTN_SM}`} onClick={() => openDeck(deck)}>
                       Edit
                     </button>
                     <button
-                      className="btn btn-o btn-sm btn-danger"
+                      className={`${BTN_DANGER} shadow-e1 ${BTN_SM}`}
                       onClick={() => remove('deck', deck.id, `deck “${deck.name}”`)}
                     >
                       Delete
@@ -408,10 +411,10 @@ export default function OwnerCabinsPage() {
         onClose={() => setDrawer(null)}
         footer={
           <>
-            <button className="btn btn-o" onClick={() => setDrawer(null)}>
+            <button className={BTN_O} onClick={() => setDrawer(null)}>
               Cancel
             </button>
-            <button className="btn btn-b" onClick={submit} disabled={busy}>
+            <button className={BTN_B} onClick={submit} disabled={busy}>
               {busy ? 'Saving…' : 'Save'}
             </button>
           </>

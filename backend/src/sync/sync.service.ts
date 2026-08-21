@@ -6,7 +6,8 @@ import { AuditService } from '../audit/audit.service';
 import { MaintenanceService } from '../maintenance/maintenance.service';
 import { OwnerBookingsService } from '../booking/owner-bookings.service';
 import { OfflineAction, SyncIntentDto } from './dto/sync.dto';
-import { PermModule } from '../rbac/permission.types';
+import { PermPage, PermissionMap } from '../rbac/permission.types';
+import { expandLegacyPermissions } from '../rbac/rbac.service';
 import { newId } from '../common/uuid';
 
 export interface IntentResult {
@@ -30,17 +31,18 @@ export interface IntentResult {
 export class SyncService {
   private readonly logger = new Logger(SyncService.name);
 
-  // Maps an offline action to the permission module it needs.
-  private readonly actionModule: Record<OfflineAction, PermModule> = {
+  // Maps an offline action to the permission PAGE it needs. Mirrors the
+  // re-tagged @RequirePermission on the online routes each action replays:
+  // check-ins are a `departure` action, maintenance is its own page, cash
+  // payments and date changes are `bookings` (see BookingService).
+  private readonly actionModule: Record<OfflineAction, PermPage> = {
     cost_add: 'costs',
     stock_movement: 'inventory',
-    mark_cash_paid: 'money',
-    mark_not_arrived: 'bookings',
+    mark_cash_paid: 'bookings',
+    mark_not_arrived: 'departure',
     date_change: 'bookings',
-    // Maintenance writes are gated on `assets` (see MaintenanceController); the
-    // manifest check-in is a `bookings` action.
-    maintenance_request: 'assets',
-    checkin_set: 'bookings',
+    maintenance_request: 'maintenance',
+    checkin_set: 'departure',
   };
 
   constructor(
@@ -133,12 +135,13 @@ export class SyncService {
       include: { role: true },
     });
     if (!membership) return false;
-    const perms = (membership.role.permissions ?? {}) as Record<
-      string,
-      { edit?: boolean }
-    >;
-    const module = this.actionModule[action];
-    return Boolean(perms[module]?.edit);
+    // Expand legacy module keys to pages so an un-migrated role authorizes the
+    // page-keyed action, matching how online routes resolve permissions.
+    const perms = expandLegacyPermissions(
+      (membership.role.permissions as PermissionMap) ?? {},
+    );
+    const page = this.actionModule[action];
+    return Boolean(perms[page]?.edit);
   }
 
   private async applyIntent(

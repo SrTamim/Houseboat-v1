@@ -14,6 +14,7 @@ import {
   AsyncTable,
   Kv,
 } from '@/components/owner/ui';
+import { BTN, BTN_O, BTN_SM } from '@/components/owner/buttons';
 import { Pill } from '@/components/owner/Pill';
 import { Drawer } from '@/components/owner/Drawer';
 import { InvoiceBill } from '@/components/owner/Bill';
@@ -158,10 +159,10 @@ export default function OwnerRefundsPage() {
             isEmpty={rows.length === 0}
             onRetry={() => mutate()}
             empty={
-              <div className="state">
-                <div className="ic">↩</div>
-                <h4>No refunds</h4>
-                <p>
+              <div className="px-6 py-11 text-center text-muted">
+                <div className="mb-2.5 text-[26px]">↩</div>
+                <h4 className="mb-1.5 text-[15px] text-ink">No refunds</h4>
+                <p className="mx-auto max-w-[46ch] text-[13px] leading-[1.55]">
                   Nothing matches this filter. Refunds only appear here when you cancel a
                   departure.
                 </p>
@@ -196,7 +197,7 @@ export default function OwnerRefundsPage() {
                   <td>
                     <div className="rowact">
                       <button
-                        className="btn btn-sm btn-o"
+                        className={`${BTN_O} ${BTN_SM}`}
                         onClick={() => {
                           setSettleError(null);
                           setOpen(r);
@@ -228,13 +229,13 @@ export default function OwnerRefundsPage() {
         title={open ? `Refund ${invoiceRef(open.invoiceId)}` : 'Refund'}
         onClose={() => setOpen(null)}
         footer={
-          <button className="btn btn-o" onClick={() => setOpen(null)}>
+          <button className={BTN_O} onClick={() => setOpen(null)}>
             Close
           </button>
         }
       >
         {open ? (
-          <div className="stack" style={{ gap: 16 }}>
+          <div className="flex flex-col gap-5" style={{ gap: 16 }}>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <Pill tone={STATUS_TONES[open.status] ?? 'mut'}>{humanize(open.status)}</Pill>
               <Pill tone={open.isPos ? 'amb' : 'blue'}>{open.isPos ? 'POS' : 'Platform'}</Pill>
@@ -301,8 +302,8 @@ export default function OwnerRefundsPage() {
             </div>
 
             {settleError ? (
-              <div className="note warn">
-                <span className="ic">⚠</span>
+              <div className="flex items-start gap-2.5 rounded border border-[color-mix(in_srgb,var(--warn)_20%,transparent)] bg-[color-mix(in_srgb,var(--warn)_10%,transparent)] px-[15px] py-3 text-[13px] font-medium leading-[1.5] text-warn">
+                <span className="flex-none text-[15px] leading-[1.3]">⚠</span>
                 <span>{settleError}</span>
               </div>
             ) : null}
@@ -310,7 +311,7 @@ export default function OwnerRefundsPage() {
             {open.status === 'completed' ? (
               <Note kind="ok">This refund is settled.</Note>
             ) : open.isPos ? (
-              <button className="btn" onClick={settle} disabled={settling}>
+              <button className={BTN} onClick={settle} disabled={settling}>
                 {settling ? 'Marking…' : 'Mark as refunded'}
               </button>
             ) : (

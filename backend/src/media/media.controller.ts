@@ -46,7 +46,7 @@ export class MediaController {
   }
 
   @Post('images')
-  @RequirePermission({ module: 'assets', action: 'edit' })
+  @RequirePermission({ module: 'profile', action: 'edit' })
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
@@ -76,7 +76,7 @@ export class MediaController {
   }
 
   @Post('logo')
-  @RequirePermission({ module: 'assets', action: 'edit' })
+  @RequirePermission({ module: 'profile', action: 'edit' })
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
@@ -101,7 +101,7 @@ export class MediaController {
   }
 
   @Delete('logo')
-  @RequirePermission({ module: 'assets', action: 'edit' })
+  @RequirePermission({ module: 'profile', action: 'edit' })
   removeLogo(
     @Param('houseboatId') houseboatId: string,
     @CurrentUser() user: AuthUser,
@@ -110,7 +110,7 @@ export class MediaController {
   }
 
   @Post('videos')
-  @RequirePermission({ module: 'assets', action: 'edit' })
+  @RequirePermission({ module: 'profile', action: 'edit' })
   createVideo(
     @Param('houseboatId') houseboatId: string,
     @CurrentUser() user: AuthUser,
@@ -120,7 +120,7 @@ export class MediaController {
   }
 
   @Delete(':mediaId')
-  @RequirePermission({ module: 'assets', action: 'edit' })
+  @RequirePermission({ module: 'profile', action: 'edit' })
   remove(
     @Param('houseboatId') houseboatId: string,
     @Param('mediaId') mediaId: string,

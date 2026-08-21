@@ -24,19 +24,35 @@ export interface BillRow {
  */
 export function Bill({ rows }: { rows: BillRow[] }) {
   return (
-    <div className="bill">
+    <div className="text-[13.5px]">
       {rows.map((r, i) => (
         <div
           key={i}
-          className={`row${r.sub ? ' sub' : ''}${r.negative ? ' neg' : ''}${
-            r.total ? ' total' : ''
+          className={`flex justify-between border-b border-dashed border-hair py-2 last:border-b-0 ${
+            r.total
+              ? 'mt-1 border-b-0 border-t-2 border-t-hair pt-3'
+              : r.sub
+                ? 'text-muted'
+                : ''
           }`}
         >
-          <span className="lbl">
+          <span className={`font-medium ${r.total ? 'text-[15px] font-semibold text-ink' : 'text-bodytext'}`}>
             {r.label}
-            {r.hint ? <span className="s">{r.hint}</span> : null}
+            {r.hint ? (
+              <span className="block text-[11px] font-medium text-muted">{r.hint}</span>
+            ) : null}
           </span>
-          <span className="val">
+          <span
+            className={`whitespace-nowrap font-display font-semibold tabular-nums ${
+              r.total
+                ? 'text-[16px] text-blue'
+                : r.negative
+                  ? 'text-danger'
+                  : r.sub
+                    ? 'text-muted'
+                    : 'text-ink'
+            }`}
+          >
             {r.negative ? '−' : ''}
             {money(r.value)}
           </span>

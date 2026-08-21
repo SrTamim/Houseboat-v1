@@ -10,6 +10,7 @@ import { useActiveBoat } from '@/lib/owner/boat-context';
 import { initials } from '@/lib/owner/format';
 import { ThemeToggle } from '@/components/admin/ThemeToggle';
 import { Sidebar } from './Sidebar';
+import { ConsolePageGuard } from './ConsolePageGuard';
 
 /** Page title + subtitle for the topbar, derived from the current route. */
 function usePageTitle(): string {
@@ -66,28 +67,34 @@ export function OwnerChrome({
   const displayName = user.name ?? user.phone;
 
   return (
-    <div className="app">
+    <div className="grid min-h-screen grid-cols-[var(--sbw)_1fr] max-[1024px]:grid-cols-[1fr]">
       <Sidebar open={navOpen} user={displayName} />
-      <div className="main">
-        <header className="topbar">
+      <div className="flex min-w-0 flex-col">
+        <header className="sticky top-0 z-40 flex h-[var(--hh)] items-center gap-3.5 border-b border-hair px-6 [background:color-mix(in_srgb,var(--bg)_72%,transparent)] [backdrop-filter:saturate(180%)_blur(16px)] [-webkit-backdrop-filter:saturate(180%)_blur(16px)]">
           <button
-            className="burger"
+            className="hidden h-10 w-10 rounded border border-hair bg-raise-1 text-[17px] text-ink max-[1024px]:grid max-[1024px]:place-items-center"
             onClick={() => setNavOpen((v) => !v)}
             aria-label="Menu"
           >
             ☰
           </button>
           <div>
-            <div className="pt">{title}</div>
-            <div className="crumb">{boat.name}</div>
+            <div className="font-display text-[19px] font-semibold leading-[1.1] tracking-[-0.02em] text-ink">
+              {title}
+            </div>
+            <div className="mt-px text-[12px] font-medium text-muted">{boat.name}</div>
           </div>
-          <div className="sp" />
+          <div className="flex-1" />
           <ThemeToggle />
-          <div className="whoami">
-            <span className="av">{initials(displayName)}</span>
+          <div className="flex items-center gap-2.5 rounded-full border border-hair bg-raise-1 py-[5px] pl-[5px] pr-3 shadow-e1">
+            <span className="grid h-[30px] w-[30px] place-items-center rounded-full bg-[linear-gradient(145deg,var(--blue),var(--blue-700))] text-[12px] font-bold text-white">
+              {initials(displayName)}
+            </span>
             <div>
-              <div className="nm">{displayName}</div>
-              <div className="rl">
+              <div className="text-[13px] font-semibold leading-[1.15] text-ink max-[560px]:hidden">
+                {displayName}
+              </div>
+              <div className="text-[10px] font-bold uppercase tracking-[0.05em] text-blue max-[560px]:hidden">
                 {boat.role} · {boat.name}
               </div>
             </div>
@@ -102,7 +109,11 @@ export function OwnerChrome({
             ⏻
           </button>
         </header>
-        <main className="content">{children}</main>
+        {/* Keep the `content` class: it owns the page-load stagger animation
+            (owner.css `.content > *`) and the ≤560px padding rule. */}
+        <main className="content">
+          <ConsolePageGuard>{children}</ConsolePageGuard>
+        </main>
       </div>
     </div>
   );

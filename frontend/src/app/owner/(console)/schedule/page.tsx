@@ -13,6 +13,7 @@ import {
   AsyncTable,
 } from '@/components/owner/ui';
 import { DepartureStatusPill, Pill } from '@/components/owner/Pill';
+import { BTN_B, BTN_O, BTN_SM } from '@/components/owner/buttons';
 import { Drawer } from '@/components/owner/Drawer';
 import { apiErrorMessage, formatDate, weekday } from '@/lib/owner/format';
 
@@ -129,7 +130,7 @@ export default function OwnerSchedulePage() {
     fetcher,
     { revalidateOnFocus: false },
   );
-  const departures = useSWR<Departure[]>(`/houseboats/${boatId}/departures`, fetcher, {
+  const departures = useSWR<Departure[]>(`/houseboats/${boatId}/departures-list`, fetcher, {
     revalidateOnFocus: false,
   });
 
@@ -315,9 +316,11 @@ export default function OwnerSchedulePage() {
 
   const profileName = new Map((profiles.data ?? []).map((p) => [p.id, p.name]));
 
-  // Filter to the selected month/year. Current & future months show only
-  // upcoming (scheduled) trips; past months show every status for history.
-  // "Show cancelled" surfaces cancelled trips in current/future months too.
+  // Filter to the selected month/year. Every status shows (scheduled,
+  // in_progress, completed) so departures that the status cron has already
+  // advanced stay visible as history rather than vanishing from the table.
+  // Cancelled trips are opt-in via "Show cancelled" in the current/future month;
+  // past months always show the full history including cancelled.
   const curYM = now.getUTCFullYear() * 12 + now.getUTCMonth();
   const selYM = filterYear * 12 + filterMonth;
   const isPastMonth = selYM < curYM;
@@ -326,8 +329,8 @@ export default function OwnerSchedulePage() {
     if (dt.getUTCFullYear() !== filterYear || dt.getUTCMonth() !== filterMonth)
       return false;
     if (isPastMonth) return true;
-    if (d.status === 'scheduled') return true;
-    return showCancelled && d.status === 'cancelled';
+    if (d.status === 'cancelled') return showCancelled;
+    return true;
   });
   const noPackages = (packages.data?.length ?? 0) === 0 && !packages.isLoading;
 
@@ -413,7 +416,7 @@ export default function OwnerSchedulePage() {
                       <button
                         type="button"
                         key={d.n}
-                        className={`btn btn-sm ${on ? 'btn-b' : 'btn-o'}`}
+                        className={`${on ? BTN_B : BTN_O} ${BTN_SM}`}
                         onClick={() => toggleDay(idx, d.n)}
                       >
                           {d.label}
@@ -454,7 +457,7 @@ export default function OwnerSchedulePage() {
 
             <div>
               <button
-                className="btn btn-b"
+                className={BTN_B}
                 type="submit"
                 disabled={busy || !packageId}
               >
@@ -496,7 +499,7 @@ export default function OwnerSchedulePage() {
             </label>
             <button
               type="button"
-              className="btn btn-o btn-sm"
+              className={`${BTN_O} ${BTN_SM}`}
               onClick={() => stepMonth(-1)}
             >
               ‹ Prev
@@ -525,7 +528,7 @@ export default function OwnerSchedulePage() {
             </select>
             <button
               type="button"
-              className="btn btn-o btn-sm"
+              className={`${BTN_O} ${BTN_SM}`}
               onClick={() => stepMonth(1)}
             >
               Next ›
@@ -551,10 +554,12 @@ export default function OwnerSchedulePage() {
             isEmpty={rows.length === 0}
             onRetry={() => departures.mutate()}
             empty={
-              <div className="state">
-                <div className="ic">📅</div>
-                <h4>No departures in {MONTHS[filterMonth]} {filterYear}</h4>
-                <p>
+              <div className="px-6 py-11 text-center text-muted">
+                <div className="mb-2.5 text-[26px]">📅</div>
+                <h4 className="mb-1.5 text-[15px] text-ink">
+                  No departures in {MONTHS[filterMonth]} {filterYear}
+                </h4>
+                <p className="mx-auto max-w-[46ch] text-[13px] leading-[1.55]">
                   Save a weekly schedule to auto-fill departures, or pick another month.
                 </p>
               </div>
@@ -598,14 +603,14 @@ export default function OwnerSchedulePage() {
                       <div style={{ display: 'flex', gap: 6 }}>
                         <button
                           type="button"
-                          className="btn btn-o btn-sm"
+                          className={`${BTN_O} ${BTN_SM}`}
                           onClick={() => openEditDeparture(d)}
                         >
                           Edit
                         </button>
                         <button
                           type="button"
-                          className="btn btn-o btn-sm"
+                          className={`${BTN_O} ${BTN_SM}`}
                           onClick={() => openCancelDeparture(d)}
                           disabled={busy}
                         >
@@ -615,7 +620,7 @@ export default function OwnerSchedulePage() {
                     ) : d.status === 'cancelled' ? (
                       <button
                         type="button"
-                        className="btn btn-o btn-sm"
+                        className={`${BTN_O} ${BTN_SM}`}
                         onClick={() => reviveDeparture(d)}
                         disabled={busy}
                       >
@@ -638,10 +643,10 @@ export default function OwnerSchedulePage() {
         onClose={() => setEditDep(null)}
         footer={
           <>
-            <button className="btn btn-o" onClick={() => setEditDep(null)}>
+            <button className={BTN_O} onClick={() => setEditDep(null)}>
               Cancel
             </button>
-            <button className="btn btn-b" onClick={saveDeparture} disabled={rowBusy}>
+            <button className={BTN_B} onClick={saveDeparture} disabled={rowBusy}>
               {rowBusy ? 'Saving…' : 'Save changes'}
             </button>
           </>
@@ -686,11 +691,11 @@ export default function OwnerSchedulePage() {
         onClose={() => setCancelDep(null)}
         footer={
           <>
-            <button className="btn btn-o" onClick={() => setCancelDep(null)}>
+            <button className={BTN_O} onClick={() => setCancelDep(null)}>
               Keep it
             </button>
             <button
-              className="btn btn-b"
+              className={BTN_B}
               onClick={submitCancel}
               disabled={rowBusy || !cancelReason.trim()}
             >

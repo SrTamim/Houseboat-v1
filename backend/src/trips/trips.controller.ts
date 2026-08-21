@@ -39,13 +39,13 @@ export class TripsController {
 
   // ── Weekly schedule (§1) ───────────────────────────────────
   @Get('schedule')
-  @RequirePermission({ module: 'trips', action: 'view' })
+  @RequirePermission({ module: 'schedule', action: 'view' })
   getSchedule(@Param('houseboatId') houseboatId: string) {
     return this.schedule.getSchedule(houseboatId);
   }
 
   @Put('schedule')
-  @RequirePermission({ module: 'trips', action: 'edit' })
+  @RequirePermission({ module: 'schedule', action: 'edit' })
   saveSchedule(
     @Param('houseboatId') houseboatId: string,
     @CurrentUser() user: AuthUser,
@@ -55,8 +55,9 @@ export class TripsController {
   }
 
   // ── Packages ───────────────────────────────────────────────
+  // Package list — read by the packages page and the schedule page's slot editor.
   @Get('packages')
-  @RequirePermission({ module: 'trips', action: 'view' })
+  @RequirePermission({ module: 'packages', action: 'view', anyOf: ['schedule'] })
   listPackages(
     @Param('houseboatId') houseboatId: string,
     @Query('route') route?: string,
@@ -65,7 +66,7 @@ export class TripsController {
   }
 
   @Post('packages')
-  @RequirePermission({ module: 'trips', action: 'edit' })
+  @RequirePermission({ module: 'packages', action: 'edit' })
   createPackage(
     @Param('houseboatId') houseboatId: string,
     @Body() dto: CreatePackageDto,
@@ -74,7 +75,7 @@ export class TripsController {
   }
 
   @Patch('packages/:packageId')
-  @RequirePermission({ module: 'trips', action: 'edit' })
+  @RequirePermission({ module: 'packages', action: 'edit' })
   updatePackage(
     @Param('houseboatId') houseboatId: string,
     @Param('packageId') packageId: string,
@@ -85,7 +86,7 @@ export class TripsController {
   }
 
   @Delete('packages/:packageId')
-  @RequirePermission({ module: 'trips', action: 'edit' })
+  @RequirePermission({ module: 'packages', action: 'edit' })
   deletePackage(
     @Param('houseboatId') houseboatId: string,
     @Param('packageId') packageId: string,
@@ -95,14 +96,27 @@ export class TripsController {
   }
 
   // ── Departures ─────────────────────────────────────────────
-  @Get('departures')
-  @RequirePermission({ module: 'trips', action: 'view' })
+  // Listed under `departures-list`, not `departures`, to avoid colliding with
+  // the public `GET houseboats/:slug/departures` route: both controllers share
+  // the `houseboats` base, HouseboatsModule loads first, so a plain
+  // `GET departures` here is shadowed by the public handler, which treats the
+  // owner's boat UUID as a slug and 404s. Mutations keep the `departures/:id`
+  // paths (no public GET-only twin to collide with).
+  // Shared read: consumed by the departure, schedule and pos pages. Any of those
+  // roles may list departures; management (create/cancel/revive) below stays on
+  // schedule:edit.
+  @Get('departures-list')
+  @RequirePermission({
+    module: 'departure',
+    action: 'view',
+    anyOf: ['schedule', 'pos'],
+  })
   listDepartures(@Param('houseboatId') houseboatId: string) {
     return this.trips.listDepartures(houseboatId);
   }
 
   @Post('departures')
-  @RequirePermission({ module: 'trips', action: 'edit' })
+  @RequirePermission({ module: 'schedule', action: 'edit' })
   createDeparture(
     @Param('houseboatId') houseboatId: string,
     @Body() dto: CreateDepartureDto,
@@ -111,7 +125,7 @@ export class TripsController {
   }
 
   @Patch('departures/:departureId')
-  @RequirePermission({ module: 'trips', action: 'edit' })
+  @RequirePermission({ module: 'schedule', action: 'edit' })
   updateDeparture(
     @Param('houseboatId') houseboatId: string,
     @Param('departureId') departureId: string,
@@ -125,7 +139,7 @@ export class TripsController {
   // would FK-violate on crew/holds/bookings and the daily cron would regenerate it.
   // A reason is required — it's shown to affected customers for refund requests.
   @Delete('departures/:departureId')
-  @RequirePermission({ module: 'trips', action: 'edit' })
+  @RequirePermission({ module: 'schedule', action: 'edit' })
   cancelDeparture(
     @Param('houseboatId') houseboatId: string,
     @Param('departureId') departureId: string,
@@ -137,7 +151,7 @@ export class TripsController {
 
   // Undo a cancellation: flip a cancelled departure back to scheduled.
   @Post('departures/:departureId/revive')
-  @RequirePermission({ module: 'trips', action: 'edit' })
+  @RequirePermission({ module: 'schedule', action: 'edit' })
   reviveDeparture(
     @Param('houseboatId') houseboatId: string,
     @Param('departureId') departureId: string,
@@ -147,8 +161,10 @@ export class TripsController {
   }
 
   // ── Pricing profiles ───────────────────────────────────────
+  // Read by the schedule page's slot editor (and the pricing page). Primary
+  // owner is schedule since that's its only current consumer.
   @Get('pricing-profiles')
-  @RequirePermission({ module: 'pricing', action: 'view' })
+  @RequirePermission({ module: 'schedule', action: 'view', anyOf: ['pricing'] })
   listProfiles(
     @Param('houseboatId') houseboatId: string,
     @Query('route') route?: string,
@@ -187,7 +203,10 @@ export class TripsController {
   }
 
   // ── Group price bands ──────────────────────────────────────
-  @Get('group-bands')
+  // `group-bands-list` (not `group-bands`) for the same reason as departures:
+  // the public `GET houseboats/:slug/group-bands` route would otherwise shadow
+  // this owner list and 404 on the boat UUID. The POST below has no public twin.
+  @Get('group-bands-list')
   @RequirePermission({ module: 'pricing', action: 'view' })
   listBands(@Param('houseboatId') houseboatId: string) {
     return this.pricing.listGroupBands(houseboatId);

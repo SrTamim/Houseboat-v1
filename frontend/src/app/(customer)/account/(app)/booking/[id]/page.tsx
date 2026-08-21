@@ -31,8 +31,10 @@ export default function BookingDetailPage() {
     { revalidateOnFocus: false },
   );
 
-  const [busy, setBusy] = useState<'cancel' | 'pay' | null>(null);
+  const [busy, setBusy] = useState<'cancel' | 'pay' | 'review' | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [rating, setRating] = useState(0);
+  const [reviewText, setReviewText] = useState('');
 
   if (isLoading) return <p className="text-muted">Loading…</p>;
   if (error || !data)
@@ -77,6 +79,27 @@ export default function BookingDetailPage() {
       );
     } catch (e) {
       setMsg(apiErrorMessage(e, 'Could not cancel this booking.'));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const submitReview = async () => {
+    if (rating < 1) {
+      setMsg('Please pick a star rating first.');
+      return;
+    }
+    setBusy('review');
+    setMsg(null);
+    try {
+      await api.post(`/bookings/${id}/review`, {
+        rating,
+        text: reviewText.trim() || undefined,
+      });
+      await mutate();
+      setMsg('Thanks — your review has been posted.');
+    } catch (e) {
+      setMsg(apiErrorMessage(e, 'Could not post your review.'));
     } finally {
       setBusy(null);
     }
@@ -199,6 +222,58 @@ export default function BookingDetailPage() {
               </div>
             </div>
           </div>
+
+          {/* review — only for completed trips */}
+          {data.status === 'completed' ? (
+            <div className={CARD}>
+              <div className={CARD_HEAD}>
+                <h3 className="font-display text-[15px] font-semibold text-ink">
+                  {data.review ? 'Your review' : 'Rate your trip'}
+                </h3>
+              </div>
+              <div className="p-5">
+                {data.review ? (
+                  <div className="grid gap-3">
+                    <Stars value={data.review.rating} />
+                    {data.review.text ? (
+                      <p className="text-sm text-bodytext">{data.review.text}</p>
+                    ) : null}
+                    {data.review.ownerReply ? (
+                      <div className="rounded-lg border border-hair bg-chip px-3 py-2.5">
+                        <div className="text-[11px] font-bold uppercase tracking-[0.04em] text-muted">
+                          Reply from the host
+                        </div>
+                        <p className="mt-1 text-[13px] text-bodytext">
+                          {data.review.ownerReply}
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className="grid gap-3">
+                    <p className="text-[13px] text-muted">
+                      How was your trip? Your rating helps other guests.
+                    </p>
+                    <StarPicker value={rating} onChange={setRating} />
+                    <textarea
+                      value={reviewText}
+                      onChange={(e) => setReviewText(e.target.value)}
+                      rows={3}
+                      placeholder="Tell others what the trip was like (optional)…"
+                      className="w-full resize-y rounded-lg border border-hair bg-raise-1 px-3 py-2.5 text-sm text-ink placeholder:text-muted focus:border-blue focus:outline-none"
+                    />
+                    <button
+                      onClick={submitReview}
+                      disabled={busy !== null}
+                      className="inline-flex w-full items-center justify-center rounded bg-blue px-5 py-2.5 text-sm font-bold text-white shadow-e1 transition-colors hover:bg-blue-600 disabled:opacity-60 sm:w-auto"
+                    >
+                      {busy === 'review' ? 'Posting…' : 'Post review'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : null}
         </div>
 
         {/* sidebar column */}
@@ -278,6 +353,46 @@ export default function BookingDetailPage() {
         </div>
       ) : null}
     </>
+  );
+}
+
+/** Read-only star row for a submitted rating. */
+function Stars({ value }: { value: number }) {
+  return (
+    <div className="flex gap-0.5 text-xl leading-none" aria-label={`${value} out of 5`}>
+      {[1, 2, 3, 4, 5].map((n) => (
+        <span key={n} className={n <= value ? 'text-amber-500' : 'text-hair'}>
+          ★
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/** Interactive 1–5 star picker. */
+function StarPicker({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (n: number) => void;
+}) {
+  return (
+    <div className="flex gap-1 text-[28px] leading-none">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <button
+          key={n}
+          type="button"
+          onClick={() => onChange(n)}
+          aria-label={`${n} star${n === 1 ? '' : 's'}`}
+          className={`transition-colors ${
+            n <= value ? 'text-amber-500' : 'text-hair hover:text-amber-300'
+          }`}
+        >
+          ★
+        </button>
+      ))}
+    </div>
   );
 }
 

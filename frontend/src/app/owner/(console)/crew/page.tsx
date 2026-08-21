@@ -11,7 +11,9 @@ import {
   Note,
   TableWrap,
   AsyncTable,
+  EmptyState,
 } from '@/components/owner/ui';
+import { BTN_B, BTN_O, BTN_DANGER, BTN_SM } from '@/components/owner/buttons';
 import { Pill } from '@/components/owner/Pill';
 import { Drawer } from '@/components/owner/Drawer';
 import { money, maskPhone, apiErrorMessage, toE164 } from '@/lib/owner/format';
@@ -175,7 +177,7 @@ export default function OwnerCrewPage() {
         title="Crew"
         desc="Who works this boat and how they are paid. A crew member needs their own account first — they are a person on the platform, not a record you own."
         actions={
-          <button className="btn btn-b" onClick={openAdd}>
+          <button className={BTN_B} onClick={openAdd}>
             ＋ Add crew
           </button>
         }
@@ -206,11 +208,11 @@ export default function OwnerCrewPage() {
             isEmpty={rows.length === 0}
             onRetry={() => mutate()}
             empty={
-              <div className="state">
-                <div className="ic">⚓</div>
-                <h4>No crew yet</h4>
-                <p>Add the people who run this boat — sukani, cook, helpers.</p>
-              </div>
+              <EmptyState
+                icon="⚓"
+                title="No crew yet"
+                message="Add the people who run this boat — sukani, cook, helpers."
+              />
             }
           >
             <tbody>
@@ -248,13 +250,13 @@ export default function OwnerCrewPage() {
                     <td>
                       <div className="rowact">
                         <button
-                          className="btn btn-sm btn-o"
+                          className={`${BTN_O} ${BTN_SM}`}
                           onClick={() => openEdit(s)}
                         >
                           Edit
                         </button>
                         <button
-                          className="btn btn-sm btn-o"
+                          className={`${BTN_O} ${BTN_SM}`}
                           onClick={() => {
                             setLeaveFor(s);
                             setLeaveState('on_leave');
@@ -263,7 +265,7 @@ export default function OwnerCrewPage() {
                           Set leave
                         </button>
                         <button
-                          className="btn btn-sm btn-danger"
+                          className={`${BTN_DANGER} ${BTN_SM}`}
                           onClick={() => remove(s)}
                         >
                           Delete
@@ -290,11 +292,11 @@ export default function OwnerCrewPage() {
         onClose={() => setDrawer(null)}
         footer={
           <>
-            <button className="btn btn-o" onClick={() => setDrawer(null)}>
+            <button className={BTN_O} onClick={() => setDrawer(null)}>
               Cancel
             </button>
             <button
-              className="btn btn-b"
+              className={BTN_B}
               onClick={submit}
               disabled={busy || (!editing && !phone)}
             >
@@ -394,10 +396,10 @@ export default function OwnerCrewPage() {
         onClose={() => setLeaveFor(null)}
         footer={
           <>
-            <button className="btn btn-o" onClick={() => setLeaveFor(null)}>
+            <button className={BTN_O} onClick={() => setLeaveFor(null)}>
               Cancel
             </button>
-            <button className="btn btn-b" onClick={setLeave} disabled={busy}>
+            <button className={BTN_B} onClick={setLeave} disabled={busy}>
               {busy ? 'Saving…' : 'Save'}
             </button>
           </>

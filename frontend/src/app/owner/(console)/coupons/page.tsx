@@ -11,7 +11,9 @@ import {
   Note,
   TableWrap,
   AsyncTable,
+  EmptyState,
 } from '@/components/owner/ui';
+import { BTN_B, BTN_O } from '@/components/owner/buttons';
 import { Pill } from '@/components/owner/Pill';
 import { Drawer } from '@/components/owner/Drawer';
 import { Bill } from '@/components/owner/Bill';
@@ -112,7 +114,7 @@ export default function OwnerCouponsPage() {
         title="Coupons"
         desc="Your discount, your cost. A coupon comes off what the customer pays, but commission is still calculated on the original room total."
         actions={
-          <button className="btn btn-b" onClick={() => setOpen(true)}>
+          <button className={BTN_B} onClick={() => setOpen(true)}>
             ＋ New coupon
           </button>
         }
@@ -145,11 +147,11 @@ export default function OwnerCouponsPage() {
             isEmpty={rows.length === 0}
             onRetry={() => mutate()}
             empty={
-              <div className="state">
-                <div className="ic">🏷</div>
-                <h4>No coupons</h4>
-                <p>Create one to run an offer on your own boat.</p>
-              </div>
+              <EmptyState
+                icon="🏷"
+                title="No coupons"
+                message="Create one to run an offer on your own boat."
+              />
             }
           >
             <tbody>
@@ -177,7 +179,7 @@ export default function OwnerCouponsPage() {
                   </td>
                   <td>
                     <button
-                      className="btn btn-o"
+                      className={BTN_O}
                       onClick={() => toggleActive(c)}
                       disabled={busyId === c.id}
                     >
@@ -196,7 +198,7 @@ export default function OwnerCouponsPage() {
       </Card>
 
       <Card title="How a coupon lands on the bill" sub="worked example">
-        <div className="grid-2">
+        <div className="grid grid-cols-[2fr_1fr] items-start gap-5 max-[1024px]:grid-cols-1">
           <Bill
             rows={[
               { label: 'Room total', hint: 'Your price', value: '10000' },
@@ -204,7 +206,7 @@ export default function OwnerCouponsPage() {
               { label: 'Customer pays', value: '9000', total: true },
             ]}
           />
-          <div className="stack" style={{ gap: 10 }}>
+          <div className="flex flex-col gap-5" style={{ gap: 10 }}>
             <Bill
               rows={[
                 { label: 'Platform receives', value: '9000', sub: true },
@@ -231,10 +233,10 @@ export default function OwnerCouponsPage() {
         onClose={() => setOpen(false)}
         footer={
           <>
-            <button className="btn btn-o" onClick={() => setOpen(false)}>
+            <button className={BTN_O} onClick={() => setOpen(false)}>
               Cancel
             </button>
-            <button className="btn btn-b" onClick={create} disabled={busy || !code || !value}>
+            <button className={BTN_B} onClick={create} disabled={busy || !code || !value}>
               {busy ? 'Creating…' : 'Create coupon'}
             </button>
           </>
