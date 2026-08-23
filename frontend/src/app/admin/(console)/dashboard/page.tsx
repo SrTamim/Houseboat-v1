@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { PageHead } from '@/components/admin/ui';
+import { BTN_B, BTN_O } from '@/components/admin/styles';
 import { DashboardOverview } from '@/components/admin/DashboardOverview';
 import { getAdminSession } from '@/lib/admin/session';
 
@@ -32,8 +33,8 @@ export default async function Dashboard() {
         desc="What needs a human right now across all boats."
         actions={
           <>
-            <Link className="btn btn-o" href="/admin/analytics">📈 Analytics</Link>
-            <Link className="btn btn-b" href="/admin/finance/verify">Verification queue →</Link>
+            <Link className={BTN_O} href="/admin/analytics">📈 Analytics</Link>
+            <Link className={BTN_B} href="/admin/finance/verify">Verification queue →</Link>
           </>
         }
       />

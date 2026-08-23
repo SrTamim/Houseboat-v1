@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { api } from '@/lib/api';
 import {
   PageHead,
+  Note,
   Card,
   TableWrap,
   TableSkeleton,
@@ -15,6 +16,7 @@ import { Pill } from '@/components/admin/Pill';
 import { useAdminList } from '@/lib/admin/useAdminList';
 import { formatBDT } from '@/lib/admin/money';
 import { shortId } from '@/lib/admin/invoices';
+import { BTN_B, BTN_O, BTN_SM, FILTERBAR, ROWACT, TD_NUM, TD_T1, TD_T2, UNIT } from '@/components/admin/styles';
 
 interface RefundRow {
   id: string;
@@ -96,14 +98,11 @@ export default function Refunds() {
         title="Refunds"
         desc={<>Owner-cancel refunds, claimable within 6 days. Separation of duties is enforced by the backend and the database: request → verify → complete must be different people.</>}
       />
-      <div className="filterbar">
+      <div className={FILTERBAR}>
         <Select options={STATUS_OPTIONS} value={status} onChange={setStatus} />
       </div>
       {actionError ? (
-        <div className="note danger" role="alert" style={{ marginBottom: 12 }}>
-          <span className="ic">⚠</span>
-          <span>{actionError}</span>
-        </div>
+        <div className="mb-3" role="alert"><Note kind="danger" icon="⚠">{actionError}</Note></div>
       ) : null}
       <Card flush>
         {error ? (
@@ -121,7 +120,7 @@ export default function Refunds() {
                   <th>Invoice</th>
                   <th>Boat</th>
                   <th>Customer</th>
-                  <th className="num">Refund</th>
+                  <th className={TD_NUM}>Refund</th>
                   <th>Status</th>
                   <th>Deadline</th>
                   <th>Chain</th>
@@ -133,24 +132,24 @@ export default function Refunds() {
               ) : (
                 <tbody>
                   {items.map((r) => (
-                    <tr key={r.id}>
+                    <tr key={r.id} className="group">
                       <td>
-                        <div className="t1">{shortId(r.invoice.id, 'INV')}</div>
-                        {r.reason ? <div className="t2">{r.reason}</div> : null}
+                        <div className={TD_T1}>{shortId(r.invoice.id, 'INV')}</div>
+                        {r.reason ? <div className={TD_T2}>{r.reason}</div> : null}
                       </td>
                       <td>{r.invoice.houseboat.name}</td>
                       <td>
-                        <div className="t1">{r.invoice.customer.name ?? '—'}</div>
-                        <div className="t2">{r.invoice.customer.phone}</div>
+                        <div className={TD_T1}>{r.invoice.customer.name ?? '—'}</div>
+                        <div className={TD_T2}>{r.invoice.customer.phone}</div>
                       </td>
-                      <td className="num">
-                        <span className="u">৳</span> {formatBDT(r.amount)}
+                      <td className={TD_NUM}>
+                        <span className={UNIT}>৳</span> {formatBDT(r.amount)}
                       </td>
                       <td>
                         <Pill tone={REFUND_TONE[r.status]}>{r.status}</Pill>
                       </td>
-                      <td className="t2">{formatDate(r.claimDeadline)}</td>
-                      <td className="t2">
+                      <td className={TD_T2}>{formatDate(r.claimDeadline)}</td>
+                      <td className={TD_T2}>
                         {[
                           r.requestedByAccount?.name,
                           r.verifiedByAccount?.name,
@@ -159,10 +158,10 @@ export default function Refunds() {
                           .filter(Boolean)
                           .join(' → ') || '—'}
                       </td>
-                      <td className="rowact">
+                      <td className={ROWACT}>
                         {r.status !== 'completed' ? (
                           <button
-                            className="btn btn-sm btn-b"
+                            className={`${BTN_B} ${BTN_SM}`}
                             disabled={busyId === r.id}
                             onClick={() => advance(r)}
                           >
@@ -173,7 +172,7 @@ export default function Refunds() {
                                 : 'Complete'}
                           </button>
                         ) : (
-                          <span className="t2">{formatDate(r.completedAt)}</span>
+                          <span className={TD_T2}>{formatDate(r.completedAt)}</span>
                         )}
                       </td>
                     </tr>
@@ -183,7 +182,7 @@ export default function Refunds() {
             </TableWrap>
             {hasMore ? (
               <div style={{ padding: 12, textAlign: 'center' }}>
-                <button className="btn btn-o btn-sm" onClick={loadMore}>
+                <button className={`${BTN_O} ${BTN_SM}`} onClick={loadMore}>
                   Load more
                 </button>
               </div>

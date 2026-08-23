@@ -12,6 +12,7 @@ import {
   Note,
 } from '@/components/admin/ui';
 import { Pill } from '@/components/admin/Pill';
+import { TD_NUM, TD_T1, TD_T2 } from '@/components/admin/styles';
 
 interface DueDeparture {
   id: string;
@@ -56,9 +57,9 @@ export default function Cutoff() {
                 <th>Departure</th>
                 <th>Start</th>
                 <th>Status</th>
-                <th className="num">Bookings</th>
-                <th className="num">Holds</th>
-                <th className="num">Available</th>
+                <th className={TD_NUM}>Bookings</th>
+                <th className={TD_NUM}>Holds</th>
+                <th className={TD_NUM}>Available</th>
               </tr>
             </thead>
             {isLoading ? (
@@ -68,10 +69,10 @@ export default function Cutoff() {
                 {rows.map((d) => (
                   <tr key={d.id}>
                     <td>
-                      <div className="t1">{d.package.houseboat.name}</div>
-                      <div className="t2">{d.package.durationLabel ?? '—'}</div>
+                      <div className={TD_T1}>{d.package.houseboat.name}</div>
+                      <div className={TD_T2}>{d.package.durationLabel ?? '—'}</div>
                     </td>
-                    <td className="t2">
+                    <td className={TD_T2}>
                       {new Date(d.startDate).toLocaleDateString('en-GB', {
                         day: '2-digit',
                         month: 'short',
@@ -83,9 +84,9 @@ export default function Cutoff() {
                         {d.status}
                       </Pill>
                     </td>
-                    <td className="num">{d._count.bookings}</td>
-                    <td className="num">{d._count.holds}</td>
-                    <td className="num">{d.availableCount}</td>
+                    <td className={TD_NUM}>{d._count.bookings}</td>
+                    <td className={TD_NUM}>{d._count.holds}</td>
+                    <td className={TD_NUM}>{d.availableCount}</td>
                   </tr>
                 ))}
               </tbody>

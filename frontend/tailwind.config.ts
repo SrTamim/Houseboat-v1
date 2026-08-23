@@ -139,6 +139,16 @@ const config: Config = {
           from: { opacity: '0', transform: 'translateY(12px)' },
           to: { opacity: '1', transform: 'none' },
         },
+        // Admin console: generic fade + table-skeleton shimmer (was admin.css
+        // @keyframes fade / skel-pulse).
+        fade: {
+          from: { opacity: '0' },
+          to: { opacity: '1' },
+        },
+        'skel-pulse': {
+          '0%': { backgroundPosition: '100% 50%' },
+          '100%': { backgroundPosition: '0 50%' },
+        },
       },
       animation: {
         ddIn: 'ddIn .16s cubic-bezier(.2,.7,.3,1)',
@@ -149,6 +159,8 @@ const config: Config = {
         spinBorder: 'spinBorder 6s linear infinite',
         pop: 'pop .5s cubic-bezier(.2,.8,.2,1) both',
         rise: 'rise .5s cubic-bezier(.2,.7,.3,1) both',
+        fade: 'fade .2s cubic-bezier(.2,.7,.3,1)',
+        'skel-pulse': 'skel-pulse 1.4s ease infinite',
       },
     },
   },

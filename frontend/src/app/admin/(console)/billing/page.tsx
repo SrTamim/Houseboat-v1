@@ -13,6 +13,7 @@ import {
 import { Pill } from '@/components/admin/Pill';
 import { useAdminList } from '@/lib/admin/useAdminList';
 import { formatBDT } from '@/lib/admin/money';
+import { BTN_O, BTN_SM, FILTERBAR, TD_NUM, TD_T1, TD_T2, UNIT } from '@/components/admin/styles';
 
 interface SubscriptionRow {
   id: string;
@@ -48,7 +49,7 @@ export default function Billing() {
         title="Subscription invoices"
         desc="The monthly bill the platform sends each boat — separate from booking commission. Billing is per boat, never combined across a multi-boat owner."
       />
-      <div className="filterbar">
+      <div className={FILTERBAR}>
         <Select options={STATUS_OPTIONS} value={status} onChange={setStatus} />
       </div>
       <Card flush>
@@ -66,9 +67,9 @@ export default function Billing() {
                 <tr>
                   <th>Period</th>
                   <th>Boat</th>
-                  <th className="num">Monthly fee</th>
-                  <th className="num">Commission</th>
-                  <th className="num">Amount due</th>
+                  <th className={TD_NUM}>Monthly fee</th>
+                  <th className={TD_NUM}>Commission</th>
+                  <th className={TD_NUM}>Amount due</th>
                   <th>Issued</th>
                   <th>Status</th>
                 </tr>
@@ -79,22 +80,22 @@ export default function Billing() {
                 <tbody>
                   {items.map((s) => (
                     <tr key={s.id}>
-                      <td className="t1">{s.period}</td>
+                      <td className={TD_T1}>{s.period}</td>
                       <td>{s.houseboat.name}</td>
-                      <td className="num">
+                      <td className={TD_NUM}>
                         {s.monthlyFee !== null ? (
-                          <><span className="u">৳</span> {formatBDT(s.monthlyFee)}</>
+                          <><span className={UNIT}>৳</span> {formatBDT(s.monthlyFee)}</>
                         ) : '—'}
                       </td>
-                      <td className="num">
+                      <td className={TD_NUM}>
                         {s.commissionTotal !== null ? (
-                          <><span className="u">৳</span> {formatBDT(s.commissionTotal)}</>
+                          <><span className={UNIT}>৳</span> {formatBDT(s.commissionTotal)}</>
                         ) : '—'}
                       </td>
-                      <td className="num">
-                        <span className="u">৳</span> {formatBDT(s.amountDue)}
+                      <td className={TD_NUM}>
+                        <span className={UNIT}>৳</span> {formatBDT(s.amountDue)}
                       </td>
-                      <td className="t2">
+                      <td className={TD_T2}>
                         {new Date(s.issuedAt).toLocaleDateString('en-GB', {
                           day: '2-digit',
                           month: 'short',
@@ -111,7 +112,7 @@ export default function Billing() {
             </TableWrap>
             {hasMore ? (
               <div style={{ padding: 12, textAlign: 'center' }}>
-                <button className="btn btn-o btn-sm" onClick={loadMore}>
+                <button className={`${BTN_O} ${BTN_SM}`} onClick={loadMore}>
                   Load more
                 </button>
               </div>

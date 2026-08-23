@@ -17,6 +17,7 @@ import { Drawer } from '@/components/admin/Drawer';
 import { useAdminList } from '@/lib/admin/useAdminList';
 import { formatBDT } from '@/lib/admin/money';
 import { apiErrorMessage } from '@/lib/admin/api-error';
+import { BTN_B, BTN_O, BTN_SM, FIELD, FIELD_INPUT, FIELD_LABEL, FORM_GRID, SELECT, STACK, TD_NUM, TD_T1, TD_T2, UNIT } from '@/components/admin/styles';
 
 interface CouponRow {
   id: string;
@@ -118,7 +119,7 @@ export default function Coupons() {
         title="Coupons & referrals"
         desc="Coupon codes across all boats. The boat absorbs its own coupon — commission is charged on the original room total, so this view is fraud oversight, not platform cost."
         actions={
-          <button className="btn btn-b" onClick={() => { setFormError(null); setOpen(true); }}>
+          <button className={BTN_B} onClick={() => { setFormError(null); setOpen(true); }}>
             + New coupon
           </button>
         }
@@ -139,8 +140,8 @@ export default function Coupons() {
                   <th>Code</th>
                   <th>Boat</th>
                   <th>Kind</th>
-                  <th className="num">Value</th>
-                  <th className="num">Uses</th>
+                  <th className={TD_NUM}>Value</th>
+                  <th className={TD_NUM}>Uses</th>
                   <th>Valid</th>
                   <th>Status</th>
                 </tr>
@@ -153,18 +154,18 @@ export default function Coupons() {
                     const v = validity(c);
                     return (
                       <tr key={c.id}>
-                        <td className="t1">{c.code}</td>
+                        <td className={TD_T1}>{c.code}</td>
                         <td>{c.houseboat.name}</td>
                         <td><Tag>{c.kind}</Tag></td>
-                        <td className="num">
+                        <td className={TD_NUM}>
                           {c.kind === 'percent' ? (
                             `${c.value}%`
                           ) : (
-                            <><span className="u">৳</span> {formatBDT(c.value)}</>
+                            <><span className={UNIT}>৳</span> {formatBDT(c.value)}</>
                           )}
                         </td>
-                        <td className="num">{c._count.bookings}</td>
-                        <td className="t2">
+                        <td className={TD_NUM}>{c._count.bookings}</td>
+                        <td className={TD_T2}>
                           {formatDate(c.validFrom) ?? '—'} → {formatDate(c.validTo) ?? '—'}
                         </td>
                         <td><Pill tone={v.tone}>{v.label}</Pill></td>
@@ -176,7 +177,7 @@ export default function Coupons() {
             </TableWrap>
             {hasMore ? (
               <div style={{ padding: 12, textAlign: 'center' }}>
-                <button className="btn btn-o btn-sm" onClick={loadMore}>
+                <button className={`${BTN_O} ${BTN_SM}`} onClick={loadMore}>
                   Load more
                 </button>
               </div>
@@ -195,19 +196,19 @@ export default function Coupons() {
         title="New coupon"
         footer={
           <>
-            <button className="btn btn-o" onClick={() => setOpen(false)}>Cancel</button>
-            <button className="btn btn-b" disabled={busy} onClick={create}>
+            <button className={BTN_O} onClick={() => setOpen(false)}>Cancel</button>
+            <button className={BTN_B} disabled={busy} onClick={create}>
               {busy ? 'Creating…' : '+ Create coupon'}
             </button>
           </>
         }
       >
-        <div className="stack" style={{ gap: 14 }}>
-          <div className="form-grid">
-            <div className="field">
-              <label>Boat</label>
+        <div className={STACK} style={{ gap: 14 }}>
+          <div className={FORM_GRID}>
+            <div className={FIELD}>
+              <label className={FIELD_LABEL}>Boat</label>
               <select
-                className="select"
+                className={FIELD_INPUT}
                 value={form.boatId}
                 onChange={(e) => setForm({ ...form, boatId: e.target.value })}
               >
@@ -219,18 +220,19 @@ export default function Coupons() {
                 ))}
               </select>
             </div>
-            <div className="field">
-              <label>Code</label>
+            <div className={FIELD}>
+              <label className={FIELD_LABEL}>Code</label>
               <input
+                className={FIELD_INPUT}
                 placeholder="e.g. MONSOON25"
                 value={form.code}
                 onChange={(e) => setForm({ ...form, code: e.target.value })}
               />
             </div>
-            <div className="field">
-              <label>Kind</label>
+            <div className={FIELD}>
+              <label className={FIELD_LABEL}>Kind</label>
               <select
-                className="select"
+                className={FIELD_INPUT}
                 value={form.kind}
                 onChange={(e) =>
                   setForm({ ...form, kind: e.target.value as typeof form.kind })
@@ -241,9 +243,10 @@ export default function Coupons() {
                 <option value="referral">Referral</option>
               </select>
             </div>
-            <div className="field">
-              <label>{form.kind === 'percent' ? 'Value (%)' : 'Value (৳)'}</label>
+            <div className={FIELD}>
+              <label className={FIELD_LABEL}>{form.kind === 'percent' ? 'Value (%)' : 'Value (৳)'}</label>
               <input
+                className={FIELD_INPUT}
                 type="number"
                 min={0}
                 step="0.01"
@@ -252,17 +255,19 @@ export default function Coupons() {
                 onChange={(e) => setForm({ ...form, value: e.target.value })}
               />
             </div>
-            <div className="field">
-              <label>Valid from</label>
+            <div className={FIELD}>
+              <label className={FIELD_LABEL}>Valid from</label>
               <input
+                className={FIELD_INPUT}
                 type="date"
                 value={form.validFrom}
                 onChange={(e) => setForm({ ...form, validFrom: e.target.value })}
               />
             </div>
-            <div className="field">
-              <label>Valid to</label>
+            <div className={FIELD}>
+              <label className={FIELD_LABEL}>Valid to</label>
               <input
+                className={FIELD_INPUT}
                 type="date"
                 value={form.validTo}
                 onChange={(e) => setForm({ ...form, validTo: e.target.value })}
@@ -270,10 +275,7 @@ export default function Coupons() {
             </div>
           </div>
           {formError ? (
-            <div className="note danger" role="alert">
-              <span className="ic">⚠</span>
-              <span>{formError}</span>
-            </div>
+            <div role="alert"><Note kind="danger" icon="⚠">{formError}</Note></div>
           ) : null}
         </div>
       </Drawer>

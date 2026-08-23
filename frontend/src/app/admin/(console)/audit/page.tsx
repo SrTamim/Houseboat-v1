@@ -12,6 +12,7 @@ import {
   ErrorState,
 } from '@/components/admin/ui';
 import { Pill } from '@/components/admin/Pill';
+import { BTN_O, BTN_SM, TD_NUM, TD_T1, TD_T2 } from '@/components/admin/styles';
 
 interface AuditRow {
   id: string;
@@ -97,20 +98,20 @@ export default function Audit() {
                   {items.map((row) => (
                     <tr key={`${row.id}-${row.serverTime}`}>
                       <td>
-                        <div className="t1">{row.actor?.name ?? 'system'}</div>
+                        <div className={TD_T1}>{row.actor?.name ?? 'system'}</div>
                         {row.actor ? (
-                          <div className="t2">{row.actor.phone}</div>
+                          <div className={TD_T2}>{row.actor.phone}</div>
                         ) : null}
                       </td>
                       <td>
                         <Pill tone={ACTION_TONE(row.action)}>{row.action}</Pill>
                       </td>
-                      <td className="t2">
+                      <td className={TD_T2}>
                         {row.entityType ?? '—'}
                         {row.entityId ? ` · ${row.entityId.slice(0, 8)}` : ''}
                       </td>
-                      <td>{row.houseboat?.name ?? <span className="t2">platform</span>}</td>
-                      <td className="num">{formatTime(row.serverTime)}</td>
+                      <td>{row.houseboat?.name ?? <span className={TD_T2}>platform</span>}</td>
+                      <td className={TD_NUM}>{formatTime(row.serverTime)}</td>
                       <td>
                         <Pill tone={row.syncedOffline ? 'amb' : 'mut'}>
                           {row.syncedOffline ? 'offline' : 'online'}
@@ -124,7 +125,7 @@ export default function Audit() {
             {data?.nextBefore ? (
               <div style={{ padding: 12, textAlign: 'center' }}>
                 <button
-                  className="btn btn-o btn-sm"
+                  className={`${BTN_O} ${BTN_SM}`}
                   onClick={() => {
                     setAccumulated(items);
                     setBefore(data.nextBefore);

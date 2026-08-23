@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { api } from '@/lib/api';
 import {
   PageHead,
+  Note,
   Card,
   TableWrap,
   TableSkeleton,
@@ -14,6 +15,7 @@ import {
 import { Pill } from '@/components/admin/Pill';
 import { useAdminList } from '@/lib/admin/useAdminList';
 import { formatBDT } from '@/lib/admin/money';
+import { BTN_B, BTN_O, BTN_SM, FILTERBAR, ROWACT, TD_NUM, TD_T1, TD_T2, UNIT } from '@/components/admin/styles';
 
 interface CashoutRow {
   id: string;
@@ -100,14 +102,11 @@ export default function Cashouts() {
           </>
         }
       />
-      <div className="filterbar">
+      <div className={FILTERBAR}>
         <Select options={STATUS_OPTIONS} value={status} onChange={setStatus} />
       </div>
       {actionError ? (
-        <div className="note danger" role="alert" style={{ marginBottom: 12 }}>
-          <span className="ic">⚠</span>
-          <span>{actionError}</span>
-        </div>
+        <div className="mb-3" role="alert"><Note kind="danger" icon="⚠">{actionError}</Note></div>
       ) : null}
       <Card flush>
         {error ? (
@@ -123,7 +122,7 @@ export default function Cashouts() {
               <thead>
                 <tr>
                   <th>Customer</th>
-                  <th className="num">Amount</th>
+                  <th className={TD_NUM}>Amount</th>
                   <th>Method</th>
                   <th>Send to</th>
                   <th>Status</th>
@@ -136,35 +135,35 @@ export default function Cashouts() {
               ) : (
                 <tbody>
                   {items.map((r) => (
-                    <tr key={r.id}>
+                    <tr key={r.id} className="group">
                       <td>
-                        <div className="t1">{r.account?.name ?? '—'}</div>
-                        <div className="t2">{r.account?.phone ?? ''}</div>
+                        <div className={TD_T1}>{r.account?.name ?? '—'}</div>
+                        <div className={TD_T2}>{r.account?.phone ?? ''}</div>
                       </td>
-                      <td className="num">
-                        <span className="u">৳</span> {formatBDT(r.amount)}
+                      <td className={TD_NUM}>
+                        <span className={UNIT}>৳</span> {formatBDT(r.amount)}
                       </td>
                       <td>{METHOD_LABEL[r.method]}</td>
-                      <td className="t2">
+                      <td className={TD_T2}>
                         {r.bankName ? `${r.bankName} · ` : ''}
                         {r.accountRef}
                       </td>
                       <td>
                         <Pill tone={CASHOUT_TONE[r.status]}>{r.status}</Pill>
                       </td>
-                      <td className="t2">{formatDate(r.createdAt)}</td>
-                      <td className="rowact">
+                      <td className={TD_T2}>{formatDate(r.createdAt)}</td>
+                      <td className={ROWACT}>
                         {r.status === 'pending' ? (
                           <div style={{ display: 'flex', gap: 6 }}>
                             <button
-                              className="btn btn-sm btn-b"
+                              className={`${BTN_B} ${BTN_SM}`}
                               disabled={busyId === r.id}
                               onClick={() => resolve(r, 'approve')}
                             >
                               {busyId === r.id ? '…' : 'Approve'}
                             </button>
                             <button
-                              className="btn btn-sm btn-o"
+                              className={`${BTN_O} ${BTN_SM}`}
                               disabled={busyId === r.id}
                               onClick={() => resolve(r, 'reject')}
                             >
@@ -172,7 +171,7 @@ export default function Cashouts() {
                             </button>
                           </div>
                         ) : (
-                          <span className="t2">
+                          <span className={TD_T2}>
                             {r.resolvedByAccount?.name ?? ''} · {formatDate(r.resolvedAt)}
                           </span>
                         )}
@@ -184,7 +183,7 @@ export default function Cashouts() {
             </TableWrap>
             {hasMore ? (
               <div style={{ padding: 12, textAlign: 'center' }}>
-                <button className="btn btn-o btn-sm" onClick={loadMore}>
+                <button className={`${BTN_O} ${BTN_SM}`} onClick={loadMore}>
                   Load more
                 </button>
               </div>

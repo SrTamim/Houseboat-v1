@@ -11,6 +11,7 @@ import {
   Select,
 } from '@/components/admin/ui';
 import { Pill } from '@/components/admin/Pill';
+import { BTN_O, BTN_SM, FILTERBAR, TD_NUM, TD_T1, TD_T2, UNIT } from '@/components/admin/styles';
 import { useAdminList } from '@/lib/admin/useAdminList';
 import { formatBDT } from '@/lib/admin/money';
 import { shortId } from '@/lib/admin/invoices';
@@ -44,7 +45,7 @@ export default function Credits() {
         title="Customer-credit ledger"
         desc="Platform liability — money owed to customers as credit toward future bookings. Fed by overpayments and reschedule advances."
       />
-      <div className="filterbar">
+      <div className={FILTERBAR}>
         <Select options={STATUS_OPTIONS} value={status} onChange={setStatus} />
       </div>
       <Card flush>
@@ -61,7 +62,7 @@ export default function Credits() {
               <thead>
                 <tr>
                   <th>Customer</th>
-                  <th className="num">Amount</th>
+                  <th className={TD_NUM}>Amount</th>
                   <th>Source</th>
                   <th>Used in</th>
                   <th>Status</th>
@@ -74,18 +75,18 @@ export default function Credits() {
                   {items.map((c) => (
                     <tr key={c.id}>
                       <td>
-                        <div className="t1">{c.account.name ?? '—'}</div>
-                        <div className="t2">{c.account.phone}</div>
+                        <div className={TD_T1}>{c.account.name ?? '—'}</div>
+                        <div className={TD_T2}>{c.account.phone}</div>
                       </td>
-                      <td className="num">
-                        <span className="u">৳</span> {formatBDT(c.amount)}
+                      <td className={TD_NUM}>
+                        <span className={UNIT}>৳</span> {formatBDT(c.amount)}
                       </td>
-                      <td className="t2">
+                      <td className={TD_T2}>
                         {c.sourceInvoice
                           ? `${shortId(c.sourceInvoice.id, 'INV')} · ${c.sourceInvoice.houseboat.name}`
                           : '—'}
                       </td>
-                      <td className="t2">
+                      <td className={TD_T2}>
                         {c.usedInInvoice ? shortId(c.usedInInvoice.id, 'INV') : '—'}
                       </td>
                       <td>
@@ -100,7 +101,7 @@ export default function Credits() {
             </TableWrap>
             {hasMore ? (
               <div style={{ padding: 12, textAlign: 'center' }}>
-                <button className="btn btn-o btn-sm" onClick={loadMore}>
+                <button className={`${BTN_O} ${BTN_SM}`} onClick={loadMore}>
                   Load more
                 </button>
               </div>

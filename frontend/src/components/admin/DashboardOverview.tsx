@@ -9,6 +9,7 @@ import { fetcher } from '@/lib/api';
 import { Card, TableWrap, ErrorState } from './ui';
 import { StatRow } from './StatCard';
 import { Pill } from './Pill';
+import { BTN_O, BTN_SM, ROWACT, TD_NUM, TD_T2 } from './styles';
 
 interface Overview {
   pendingBoats: number;
@@ -94,22 +95,24 @@ export function DashboardOverview() {
 
       <Card title="Action queue" sub="what needs a human right now" flush>
         {data && queues.length === 0 ? (
-          <p className="t2" style={{ padding: 16 }}>
+          <p className={`p-4 ${TD_T2}`}>
             All clear — no queue needs attention right now.
           </p>
         ) : (
           <TableWrap>
             <thead>
-              <tr><th>What</th><th className="num">Count</th><th>Detail</th><th /></tr>
+              <tr><th>What</th><th className={TD_NUM}>Count</th><th>Detail</th><th /></tr>
             </thead>
             <tbody>
               {queues.map((q) => (
-                <tr key={q.href}>
+                <tr key={q.href} className="group">
                   <td><Pill tone={q.tone}>{q.label}</Pill></td>
-                  <td className="num">{q.count}</td>
-                  <td className="t2">{q.detail}</td>
-                  <td className="rowact">
-                    <Link className="btn btn-sm btn-o" href={q.href}>Open</Link>
+                  <td className={TD_NUM}>{q.count}</td>
+                  <td className={TD_T2}>{q.detail}</td>
+                  <td>
+                    <div className={ROWACT}>
+                      <Link className={`${BTN_O} ${BTN_SM}`} href={q.href}>Open</Link>
+                    </div>
                   </td>
                 </tr>
               ))}

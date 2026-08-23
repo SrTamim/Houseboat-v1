@@ -13,6 +13,7 @@ import { PlatformInvoiceTable } from '@/components/admin/PlatformInvoiceTable';
 import { useAdminList } from '@/lib/admin/useAdminList';
 import { formatBDT, isNegative } from '@/lib/admin/money';
 import type { ApiInvoice } from '@/lib/admin/invoices';
+import { BTN_O, BTN_SM, TD_NUM, TD_T1, TD_T2, UNIT } from '@/components/admin/styles';
 
 interface PayoutBatch {
   id: string;
@@ -56,7 +57,7 @@ export default function Payouts() {
                   <th>Batch</th>
                   <th>Boat</th>
                   <th>Status</th>
-                  <th className="num">Total</th>
+                  <th className={TD_NUM}>Total</th>
                   <th>Paid</th>
                 </tr>
               </thead>
@@ -66,7 +67,7 @@ export default function Payouts() {
                 <tbody>
                   {batches.items.map((b) => (
                     <tr key={b.id}>
-                      <td className="t1">{b.id.slice(0, 8)}</td>
+                      <td className={TD_T1}>{b.id.slice(0, 8)}</td>
                       <td>{b.houseboat.name}</td>
                       <td>
                         <Pill tone={b.status === 'paid' ? 'ok' : 'mut'}>
@@ -74,7 +75,7 @@ export default function Payouts() {
                         </Pill>
                       </td>
                       <td
-                        className="num"
+                        className={TD_NUM}
                         // A negative batch means the boat owes the platform —
                         // surface that rather than hiding the sign.
                         style={
@@ -83,9 +84,9 @@ export default function Payouts() {
                             : undefined
                         }
                       >
-                        <span className="u">৳</span> {formatBDT(b.totalAmount)}
+                        <span className={UNIT}>৳</span> {formatBDT(b.totalAmount)}
                       </td>
-                      <td className="t2">
+                      <td className={TD_T2}>
                         {b.paidAt
                           ? new Date(b.paidAt).toLocaleDateString('en-GB', {
                               day: '2-digit',
@@ -101,7 +102,7 @@ export default function Payouts() {
             </TableWrap>
             {batches.hasMore ? (
               <div style={{ padding: 12, textAlign: 'center' }}>
-                <button className="btn btn-o btn-sm" onClick={batches.loadMore}>
+                <button className={`${BTN_O} ${BTN_SM}`} onClick={batches.loadMore}>
                   Load more
                 </button>
               </div>

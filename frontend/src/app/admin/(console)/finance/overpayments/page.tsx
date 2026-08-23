@@ -17,6 +17,7 @@ import {
   wireStatusLabel,
   wireStatusTone,
 } from '@/lib/admin/invoices';
+import { BTN_O, BTN_SM, TD_NUM, TD_T1, TD_T2, UNIT } from '@/components/admin/styles';
 
 interface OverpaymentRow {
   id: string;
@@ -58,9 +59,9 @@ export default function Overpayments() {
                   <th>Boat</th>
                   <th>Customer</th>
                   <th>Status</th>
-                  <th className="num">Bill</th>
-                  <th className="num">Paid</th>
-                  <th className="num">Overpaid</th>
+                  <th className={TD_NUM}>Bill</th>
+                  <th className={TD_NUM}>Paid</th>
+                  <th className={TD_NUM}>Overpaid</th>
                 </tr>
               </thead>
               {isInitialLoading ? (
@@ -70,27 +71,27 @@ export default function Overpayments() {
                   {items.map((inv) => (
                     <tr key={inv.id}>
                       <td>
-                        <div className="t1">{shortId(inv.id, 'INV')}</div>
-                        <div className="t2">{shortId(inv.booking.id, 'BK')}</div>
+                        <div className={TD_T1}>{shortId(inv.id, 'INV')}</div>
+                        <div className={TD_T2}>{shortId(inv.booking.id, 'BK')}</div>
                       </td>
                       <td>{inv.houseboat.name}</td>
                       <td>
-                        <div className="t1">{inv.customer.name ?? '—'}</div>
-                        <div className="t2">{inv.customer.phone}</div>
+                        <div className={TD_T1}>{inv.customer.name ?? '—'}</div>
+                        <div className={TD_T2}>{inv.customer.phone}</div>
                       </td>
                       <td>
                         <Pill tone={wireStatusTone(inv.status)}>
                           {wireStatusLabel(inv.status)}
                         </Pill>
                       </td>
-                      <td className="num">
-                        <span className="u">৳</span> {formatBDT(inv.displayTotal)}
+                      <td className={TD_NUM}>
+                        <span className={UNIT}>৳</span> {formatBDT(inv.displayTotal)}
                       </td>
-                      <td className="num">
-                        <span className="u">৳</span> {formatBDT(inv.amountPaid)}
+                      <td className={TD_NUM}>
+                        <span className={UNIT}>৳</span> {formatBDT(inv.amountPaid)}
                       </td>
-                      <td className="num" style={{ color: 'var(--danger)' }}>
-                        <span className="u">৳</span> {formatBDT(inv.amountOverpaid)}
+                      <td className={TD_NUM} style={{ color: 'var(--danger)' }}>
+                        <span className={UNIT}>৳</span> {formatBDT(inv.amountOverpaid)}
                       </td>
                     </tr>
                   ))}
@@ -99,7 +100,7 @@ export default function Overpayments() {
             </TableWrap>
             {hasMore ? (
               <div style={{ padding: 12, textAlign: 'center' }}>
-                <button className="btn btn-o btn-sm" onClick={loadMore}>
+                <button className={`${BTN_O} ${BTN_SM}`} onClick={loadMore}>
                   Load more
                 </button>
               </div>

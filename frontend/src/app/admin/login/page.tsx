@@ -5,7 +5,14 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { api, clearCsrfToken } from '@/lib/api';
 import { ThemeToggle } from '@/components/admin/ThemeToggle';
+import { BTN_B, FIELD, FIELD_INPUT, FIELD_LABEL } from '@/components/admin/styles';
+import { Note } from '@/components/admin/ui';
 import { LOGIN_PATH, DASHBOARD_PATH } from '@/lib/admin/login-url';
+
+// Standalone login shell (was `.login-wrap` + its two blurred `::before`/`::after`
+// background blobs). Kept as a const so the Suspense fallback matches the form.
+const LOGIN_WRAP =
+  "relative grid min-h-screen place-items-center overflow-hidden bg-bg p-6 before:fixed before:-left-[120px] before:-top-[160px] before:z-0 before:h-[520px] before:w-[520px] before:rounded-full before:bg-[color-mix(in_srgb,var(--blue)_22%,transparent)] before:blur-[90px] before:content-[''] after:fixed after:-bottom-[180px] after:-right-[120px] after:z-0 after:h-[460px] after:w-[460px] after:rounded-full after:bg-[color-mix(in_srgb,var(--blue)_14%,transparent)] after:blur-[90px] after:content-['']";
 
 const DASHBOARD = DASHBOARD_PATH;
 
@@ -36,13 +43,14 @@ const REASONS: Record<string, string> = {
   session_expired: 'Your session expired. Please sign in again.',
 };
 
-// Standalone sign-in — no console chrome. Uses admin.css tokens.
+// Standalone sign-in — no console chrome. Styled with Tailwind utilities that
+// resolve through the design tokens in globals.css.
 //
 // useSearchParams() opts a route into client-side rendering, so the form lives
 // in a child wrapped in Suspense — otherwise the whole page fails to prerender.
 export default function AdminLogin() {
   return (
-    <Suspense fallback={<div className="login-wrap" />}>
+    <Suspense fallback={<div className={LOGIN_WRAP} />}>
       <LoginForm />
     </Suspense>
   );
@@ -114,7 +122,7 @@ function LoginForm() {
   }
 
   return (
-    <div className="login-wrap">
+    <div className={LOGIN_WRAP}>
       <div style={{ position: 'fixed', top: 20, right: 20, zIndex: 2 }}>
         <ThemeToggle />
       </div>
@@ -126,20 +134,30 @@ function LoginForm() {
         native fallback sends a body instead; Next answers 405 and nothing
         secret touches a URL.
       */}
-      <form className="login-card" method="post" onSubmit={onSubmit}>
-        <div className="login-logo">
-          <span className="mark">⚓</span> Haor<span className="b">Boat</span>
+      <form
+        className="relative z-[1] w-full max-w-[412px] rounded-2xl border border-hair bg-raise-1 px-8 py-9 shadow-[var(--e3),var(--top-hi)]"
+        method="post"
+        onSubmit={onSubmit}
+      >
+        <div className="flex items-center justify-center gap-[11px] font-display text-[23px] font-bold tracking-[-0.03em] text-ink">
+          <span className="grid h-[38px] w-[38px] place-items-center rounded-xl bg-[linear-gradient(145deg,var(--blue),var(--blue-700))] text-[18px] text-white shadow-[0_8px_18px_-6px_var(--blue),var(--top-hi)]">
+            ⚓
+          </span>{' '}
+          Haor<span className="text-blue">Boat</span>
         </div>
-        <span className="login-badge">Platform console</span>
-        <div className="login-lead">
-          <h1>Sign in</h1>
-          <p>Staff access only. Owners &amp; crew sign in from the boat dashboard.</p>
+        <span className="mx-auto mt-4 block w-[186px] rounded-full bg-[color-mix(in_srgb,var(--blue)_11%,transparent)] py-1.5 text-center text-[11px] font-bold uppercase tracking-[0.09em] text-blue">
+          Platform console
+        </span>
+        <div className="my-6 text-center">
+          <h1 className="text-[23px]">Sign in</h1>
+          <p className="mt-2 text-[13.5px] leading-[1.55] text-muted">
+            Staff access only. Owners &amp; crew sign in from the boat dashboard.
+          </p>
         </div>
 
         {error && (
-          <div className="note danger" style={{ marginBottom: 16 }} role="alert">
-            <span className="ic">⚠</span>
-            <span>{error}</span>
+          <div className="mb-4" role="alert">
+            <Note kind="danger" icon="⚠">{error}</Note>
           </div>
         )}
 
@@ -151,14 +169,7 @@ function LoginForm() {
         {reason === 'not_staff' && (
           <button
             type="button"
-            className="login-link"
-            style={{
-              marginBottom: 16,
-              background: 'none',
-              border: 'none',
-              padding: 0,
-              cursor: 'pointer',
-            }}
+            className="mb-4 cursor-pointer border-none bg-none p-0 font-semibold text-blue"
             onClick={async () => {
               try {
                 await api.post('/auth/logout');
@@ -174,10 +185,10 @@ function LoginForm() {
           </button>
         )}
 
-        <div className="field" style={{ marginBottom: 14 }}>
-          <label htmlFor="phone">Phone</label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span className="login-pre">+880</span>
+        <div className={`mb-3.5 ${FIELD}`}>
+          <label htmlFor="phone" className={FIELD_LABEL}>Phone</label>
+          <div className="flex items-center gap-2.5">
+            <span className="font-display text-[15px] font-semibold text-muted">+880</span>
             <input
               id="phone"
               name="phone"
@@ -188,12 +199,13 @@ function LoginForm() {
               required
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
+              className={`${FIELD_INPUT} placeholder:font-normal placeholder:text-muted`}
             />
           </div>
         </div>
-        <div className="field" style={{ marginBottom: 14 }}>
-          <label htmlFor="password">Password</label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div className={`mb-3.5 ${FIELD}`}>
+          <label htmlFor="password" className={FIELD_LABEL}>Password</label>
+          <div className="flex items-center gap-2.5">
             <input
               id="password"
               name="password"
@@ -202,10 +214,11 @@ function LoginForm() {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              className={FIELD_INPUT}
             />
             <button
               type="button"
-              className="login-show"
+              className="border-none bg-none text-[12px] font-bold text-blue"
               onClick={() => setShow((v) => !v)}
             >
               {show ? 'Hide' : 'Show'}
@@ -213,24 +226,25 @@ function LoginForm() {
           </div>
         </div>
 
-        <div className="login-row">
-          <label className="login-chk">
+        <div className="my-0.5 mb-[18px] flex items-center justify-between text-[13px]">
+          <label className="flex items-center gap-2 font-medium text-bodytext">
             <input
               type="checkbox"
+              className="accent-blue"
               checked={remember}
               onChange={(e) => setRemember(e.target.checked)}
             />{' '}
             Keep me signed in
           </label>
-          <Link className="login-link" href="#">
+          <Link className="font-semibold text-blue" href="#">
             Forgot password?
           </Link>
         </div>
 
-        <button className="btn btn-b login-submit" type="submit" disabled={busy}>
+        <button className={`${BTN_B} w-full justify-center p-[13px] text-[15px]`} type="submit" disabled={busy}>
           {busy ? 'Signing in…' : 'Sign in →'}
         </button>
-        <div className="login-foot">
+        <div className="mt-5 text-center text-[11.5px] leading-[1.5] text-muted">
           Sessions expire after 15 min idle · refreshed for 30 days · CSRF-protected
         </div>
       </form>

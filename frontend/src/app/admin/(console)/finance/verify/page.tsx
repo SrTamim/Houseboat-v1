@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { api } from '@/lib/api';
-import { PageHead } from '@/components/admin/ui';
+import { PageHead, Note } from '@/components/admin/ui';
 import { PlatformInvoiceTable } from '@/components/admin/PlatformInvoiceTable';
 import { useAdminList } from '@/lib/admin/useAdminList';
 import type { ApiInvoice } from '@/lib/admin/invoices';
@@ -43,9 +43,8 @@ export default function VerifyPayments() {
         desc="Invoices whose payment landed but has not been human-checked against the gateway portal. Verifying moves an invoice to Ready for Payout."
       />
       {actionError ? (
-        <div className="note danger" role="alert" style={{ marginBottom: 12 }}>
-          <span className="ic">⚠</span>
-          <span>{actionError}</span>
+        <div className="mb-3" role="alert">
+          <Note kind="danger" icon="⚠">{actionError}</Note>
         </div>
       ) : null}
       <PlatformInvoiceTable

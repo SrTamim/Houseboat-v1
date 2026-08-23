@@ -5,6 +5,9 @@
 // and its "edit implies view" semantics — ticking edit auto-ticks view so the
 // UI never shows a state the guard treats differently.
 
+import { TableWrap } from './ui';
+import { TD_T1, TD_T2 } from './styles';
+
 export const PLATFORM_MODULES = [
   { key: 'boats', label: 'Boats', hint: 'moderation · routes' },
   { key: 'finance', label: 'Finance', hint: 'invoices · payouts · refunds · billing · coupons' },
@@ -37,47 +40,47 @@ export function PlatformPermMatrix({
   }
 
   return (
-    <div className="tbl-wrap">
-      <table className="tbl" style={{ minWidth: 0 }}>
-        <thead>
-          <tr>
-            <th>Section</th>
-            <th style={{ width: 90 }}>View</th>
-            <th style={{ width: 90 }}>Edit</th>
-          </tr>
-        </thead>
-        <tbody>
-          {PLATFORM_MODULES.map((m) => {
-            const perms = value[m.key] ?? {};
-            return (
-              <tr key={m.key}>
-                <td>
-                  <div className="t1">{m.label}</div>
-                  <div className="t2">{m.hint}</div>
-                </td>
-                <td>
-                  <input
-                    type="checkbox"
-                    aria-label={`${m.label} view`}
-                    checked={perms.view === true}
-                    disabled={disabled}
-                    onChange={(e) => set(m.key, 'view', e.target.checked)}
-                  />
-                </td>
-                <td>
-                  <input
-                    type="checkbox"
-                    aria-label={`${m.label} edit`}
-                    checked={perms.edit === true}
-                    disabled={disabled}
-                    onChange={(e) => set(m.key, 'edit', e.target.checked)}
-                  />
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+    <TableWrap minWidth={0}>
+      <thead>
+        <tr>
+          <th>Section</th>
+          <th style={{ width: 90 }}>View</th>
+          <th style={{ width: 90 }}>Edit</th>
+        </tr>
+      </thead>
+      <tbody>
+        {PLATFORM_MODULES.map((m) => {
+          const perms = value[m.key] ?? {};
+          return (
+            <tr key={m.key}>
+              <td>
+                <div className={TD_T1}>{m.label}</div>
+                <div className={TD_T2}>{m.hint}</div>
+              </td>
+              <td>
+                <input
+                  type="checkbox"
+                  className="h-[15px] w-[15px] cursor-pointer accent-blue"
+                  aria-label={`${m.label} view`}
+                  checked={perms.view === true}
+                  disabled={disabled}
+                  onChange={(e) => set(m.key, 'view', e.target.checked)}
+                />
+              </td>
+              <td>
+                <input
+                  type="checkbox"
+                  className="h-[15px] w-[15px] cursor-pointer accent-blue"
+                  aria-label={`${m.label} edit`}
+                  checked={perms.edit === true}
+                  disabled={disabled}
+                  onChange={(e) => set(m.key, 'edit', e.target.checked)}
+                />
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </TableWrap>
   );
 }

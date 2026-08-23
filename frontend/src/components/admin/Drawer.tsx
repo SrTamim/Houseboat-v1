@@ -28,16 +28,38 @@ export function Drawer({
 
   return (
     <>
-      <div className={`drawer-sc${open ? ' open' : ''}`} onClick={onClose} />
-      <aside className={`drawer${wide ? ' wide' : ''}${open ? ' open' : ''}`}>
-        <div className="dh">
-          <h3>{title}</h3>
-          <button className="x" onClick={onClose} aria-label="Close">
+      {/* Scrim (was `.drawer-sc`). Hidden until open; hidden in print. */}
+      <div
+        onClick={onClose}
+        className={`fixed inset-0 z-[80] bg-[rgba(8,12,20,0.5)] backdrop-blur-[3px] print:hidden ${
+          open ? 'block animate-fade' : 'hidden'
+        }`}
+      />
+      {/* Panel (was `.drawer` / `.drawer.wide` / `.drawer.open`). In print it
+          becomes static full-width so the open drawer prints as the invoice. */}
+      <aside
+        className={`fixed right-0 top-0 z-[81] flex h-screen flex-col border-l border-hair bg-raise-1 shadow-e3 transition-transform duration-dur ease-ease ${
+          wide ? 'w-[min(780px,96vw)]' : 'w-[min(480px,95vw)]'
+        } ${open ? 'translate-x-0' : 'translate-x-full'} print:static print:h-auto print:w-full print:translate-x-0 print:border-none print:shadow-none`}
+      >
+        <div className="flex items-center justify-between border-b border-hair-2 px-[22px] py-[18px]">
+          <h3 className="text-[16px] font-semibold">{title}</h3>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="grid h-[34px] w-[34px] place-items-center rounded-sm border border-hair bg-raise-1 text-[15px] text-bodytext transition-[border-color,color] duration-dur ease-ease hover:border-danger hover:text-danger"
+          >
             ✕
           </button>
         </div>
-        <div className="db">{children}</div>
-        {footer ? <div className="df">{footer}</div> : null}
+        <div className="flex-1 overflow-y-auto p-[22px] print:overflow-visible print:p-0">
+          {children}
+        </div>
+        {footer ? (
+          <div className="flex flex-wrap justify-end gap-2.5 border-t border-hair-2 px-[22px] py-4 print:hidden">
+            {footer}
+          </div>
+        ) : null}
       </aside>
     </>
   );

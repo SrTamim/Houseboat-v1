@@ -5,6 +5,7 @@ import useSWR from 'swr';
 import { api, fetcher } from '@/lib/api';
 import {
   PageHead,
+  Note,
   Card,
   TableWrap,
   TableSkeleton,
@@ -15,6 +16,7 @@ import {
 import { Pill } from '@/components/admin/Pill';
 import { useAdminList } from '@/lib/admin/useAdminList';
 import { apiErrorMessage } from '@/lib/admin/api-error';
+import { BTN_DANGER, BTN_O, BTN_SM, FILTERBAR, ROWACT, SELECT, TD_T1, TD_T2 } from '@/components/admin/styles';
 
 interface AccountRow {
   id: string;
@@ -105,7 +107,7 @@ export default function Accounts() {
         title="Account support"
         desc="One login per person. Grant platform-staff access here and restrict it with a platform role — staff with no role are unrestricted superadmins."
       />
-      <div className="filterbar">
+      <div className={FILTERBAR}>
         <Search
           placeholder="Search phone, name or email…"
           maxWidth={420}
@@ -114,10 +116,7 @@ export default function Accounts() {
         />
       </div>
       {actionError ? (
-        <div className="note danger" role="alert" style={{ marginBottom: 12 }}>
-          <span className="ic">⚠</span>
-          <span>{actionError}</span>
-        </div>
+        <div className="mb-3" role="alert"><Note kind="danger" icon="⚠">{actionError}</Note></div>
       ) : null}
       <Card flush>
         {error ? (
@@ -152,24 +151,24 @@ export default function Accounts() {
                   {items.map((a) => {
                     const isSelf = me.data?.id === a.id;
                     return (
-                      <tr key={a.id}>
+                      <tr key={a.id} className="group">
                         <td>
-                          <div className="t1">{a.name ?? '—'}</div>
-                          <div className="t2">{a.email ?? '—'}</div>
+                          <div className={TD_T1}>{a.name ?? '—'}</div>
+                          <div className={TD_T2}>{a.email ?? '—'}</div>
                         </td>
-                        <td className="t2">{a.phone}</td>
+                        <td className={TD_T2}>{a.phone}</td>
                         <td>
                           <Pill tone={a.phoneVerified ? 'ok' : 'warn'}>
                             {a.phoneVerified ? 'verified' : 'pending'}
                           </Pill>
                         </td>
-                        <td className="t2">{roleSummary(a)}</td>
+                        <td className={TD_T2}>{roleSummary(a)}</td>
                         <td>
                           {a.isPlatform ? (
                             <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                               <Pill tone="blue">staff</Pill>
                               <select
-                                className="select"
+                                className={SELECT}
                                 style={{ height: 30, fontSize: 12 }}
                                 value={a.platformRole?.id ?? ''}
                                 disabled={isSelf || busyId === a.id}
@@ -187,19 +186,19 @@ export default function Accounts() {
                               </select>
                             </div>
                           ) : (
-                            <span className="t2">—</span>
+                            <span className={TD_T2}>—</span>
                           )}
                         </td>
-                        <td className="t2">
+                        <td className={TD_T2}>
                           {new Date(a.createdAt).toLocaleDateString('en-GB', {
                             month: 'short',
                             year: 'numeric',
                           })}
                         </td>
-                        <td className="rowact">
+                        <td className={ROWACT}>
                           {a.isPlatform ? (
                             <button
-                              className="btn btn-sm btn-danger"
+                              className={`${BTN_DANGER} ${BTN_SM}`}
                               disabled={isSelf || busyId === a.id}
                               title={isSelf ? 'Another admin must change your access' : undefined}
                               onClick={() => setStaff(a, false)}
@@ -208,7 +207,7 @@ export default function Accounts() {
                             </button>
                           ) : (
                             <button
-                              className="btn btn-sm btn-o"
+                              className={`${BTN_O} ${BTN_SM}`}
                               disabled={busyId === a.id}
                               onClick={() => setStaff(a, true)}
                             >
@@ -224,7 +223,7 @@ export default function Accounts() {
             </TableWrap>
             {hasMore ? (
               <div style={{ padding: 12, textAlign: 'center' }}>
-                <button className="btn btn-o btn-sm" onClick={loadMore}>
+                <button className={`${BTN_O} ${BTN_SM}`} onClick={loadMore}>
                   Load more
                 </button>
               </div>
