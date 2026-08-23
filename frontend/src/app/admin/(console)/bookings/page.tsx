@@ -14,6 +14,7 @@ import { Pill } from '@/components/admin/Pill';
 import { useAdminList } from '@/lib/admin/useAdminList';
 import { formatBDT } from '@/lib/admin/money';
 import { wireStatusLabel, wireStatusTone, shortId } from '@/lib/admin/invoices';
+import { BTN_O, BTN_SM, FILTERBAR, TD_NUM, TD_T1, TD_T2, UNIT } from '@/components/admin/styles';
 
 interface BookingRow {
   id: string;
@@ -79,7 +80,7 @@ export default function Bookings() {
         title="Bookings"
         desc="Every booking across all boats, newest first. Money actions live in the finance queues — this is the operational view."
       />
-      <div className="filterbar">
+      <div className={FILTERBAR}>
         <Select options={STATUS_OPTIONS} value={status} onChange={setStatus} />
       </div>
       <Card flush>
@@ -98,10 +99,10 @@ export default function Bookings() {
                   <th>Booking</th>
                   <th>Boat · departure</th>
                   <th>Customer</th>
-                  <th className="num">Cabins</th>
+                  <th className={TD_NUM}>Cabins</th>
                   <th>Status</th>
                   <th>Invoice</th>
-                  <th className="num">Total</th>
+                  <th className={TD_NUM}>Total</th>
                   <th>Booked</th>
                 </tr>
               </thead>
@@ -112,12 +113,12 @@ export default function Bookings() {
                   {items.map((b) => (
                     <tr key={b.id}>
                       <td>
-                        <div className="t1">{shortId(b.id, 'BK')}</div>
-                        <div className="t2">{b.type}</div>
+                        <div className={TD_T1}>{shortId(b.id, 'BK')}</div>
+                        <div className={TD_T2}>{b.type}</div>
                       </td>
                       <td>
-                        <div className="t1">{b.departure.package.houseboat.name}</div>
-                        <div className="t2">
+                        <div className={TD_T1}>{b.departure.package.houseboat.name}</div>
+                        <div className={TD_T2}>
                           {formatDate(b.departure.startDate)}
                           {b.departure.package.durationLabel
                             ? ` · ${b.departure.package.durationLabel}`
@@ -125,10 +126,10 @@ export default function Bookings() {
                         </div>
                       </td>
                       <td>
-                        <div className="t1">{b.customer.name ?? '—'}</div>
-                        <div className="t2">{b.customer.phone}</div>
+                        <div className={TD_T1}>{b.customer.name ?? '—'}</div>
+                        <div className={TD_T2}>{b.customer.phone}</div>
                       </td>
-                      <td className="num">{b.cabinCount || b.headcount || '—'}</td>
+                      <td className={TD_NUM}>{b.cabinCount || b.headcount || '—'}</td>
                       <td>
                         <Pill tone={BOOKING_TONE[b.status] ?? 'mut'}>{b.status}</Pill>
                       </td>
@@ -138,20 +139,20 @@ export default function Bookings() {
                             {wireStatusLabel(b.invoice.status)}
                           </Pill>
                         ) : (
-                          <span className="t2">—</span>
+                          <span className={TD_T2}>—</span>
                         )}
                       </td>
-                      <td className="num">
+                      <td className={TD_NUM}>
                         {b.invoice ? (
                           <>
-                            <span className="u">৳</span>{' '}
+                            <span className={UNIT}>৳</span>{' '}
                             {formatBDT(b.invoice.displayTotal)}
                           </>
                         ) : (
                           '—'
                         )}
                       </td>
-                      <td className="t2">{formatDate(b.createdAt)}</td>
+                      <td className={TD_T2}>{formatDate(b.createdAt)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -159,7 +160,7 @@ export default function Bookings() {
             </TableWrap>
             {hasMore ? (
               <div style={{ padding: 12, textAlign: 'center' }}>
-                <button className="btn btn-o btn-sm" onClick={loadMore}>
+                <button className={`${BTN_O} ${BTN_SM}`} onClick={loadMore}>
                   Load more
                 </button>
               </div>

@@ -10,6 +10,7 @@ import {
 } from '@/components/admin/ui';
 import { Pill } from '@/components/admin/Pill';
 import { useAdminList } from '@/lib/admin/useAdminList';
+import { BTN_O, BTN_SM, MONEY, TD_NUM, TD_T1, TD_T2 } from '@/components/admin/styles';
 
 interface WaitlistEntry {
   id: string;
@@ -69,8 +70,8 @@ export default function Waitlist() {
                 <tr>
                   <th>Departure</th>
                   <th>Customer</th>
-                  <th className="num">Party</th>
-                  <th className="num">Available now</th>
+                  <th className={TD_NUM}>Party</th>
+                  <th className={TD_NUM}>Available now</th>
                   <th>Departure status</th>
                   <th>Joined</th>
                 </tr>
@@ -82,22 +83,22 @@ export default function Waitlist() {
                   {items.map((entry) => (
                     <tr key={entry.id}>
                       <td>
-                        <div className="t1">
+                        <div className={TD_T1}>
                           {entry.departure.package.houseboat.name} ·{' '}
                           {formatDate(entry.departure.startDate)}
                         </div>
-                        <div className="t2">
+                        <div className={TD_T2}>
                           {entry.departure.package.durationLabel ?? '—'}
                         </div>
                       </td>
                       <td>
-                        <div className="t1">{entry.customer.name ?? '—'}</div>
-                        <div className="t2">{entry.customer.phone}</div>
+                        <div className={TD_T1}>{entry.customer.name ?? '—'}</div>
+                        <div className={TD_T2}>{entry.customer.phone}</div>
                       </td>
-                      <td className="num">{entry.partySize}</td>
-                      <td className="num">
+                      <td className={TD_NUM}>{entry.partySize}</td>
+                      <td className={TD_NUM}>
                         {entry.departure.availableCount > 0 ? (
-                          <b className="money">{entry.departure.availableCount}</b>
+                          <b className={MONEY}>{entry.departure.availableCount}</b>
                         ) : (
                           0
                         )}
@@ -107,7 +108,7 @@ export default function Waitlist() {
                           {entry.departure.status}
                         </Pill>
                       </td>
-                      <td className="t2">{formatDate(entry.createdAt)}</td>
+                      <td className={TD_T2}>{formatDate(entry.createdAt)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -115,7 +116,7 @@ export default function Waitlist() {
             </TableWrap>
             {hasMore ? (
               <div style={{ padding: 12, textAlign: 'center' }}>
-                <button className="btn btn-o btn-sm" onClick={loadMore}>
+                <button className={`${BTN_O} ${BTN_SM}`} onClick={loadMore}>
                   Load more
                 </button>
               </div>

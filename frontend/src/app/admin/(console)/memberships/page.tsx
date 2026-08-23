@@ -12,6 +12,7 @@ import {
 } from '@/components/admin/ui';
 import { Pill } from '@/components/admin/Pill';
 import { useAdminList } from '@/lib/admin/useAdminList';
+import { BTN_O, BTN_SM, FILTERBAR, TD_NUM, TD_T1, TD_T2 } from '@/components/admin/styles';
 
 interface MembershipRow {
   id: string;
@@ -60,7 +61,7 @@ export default function Memberships() {
         title="Membership oversight"
         desc="Per-boat co-owners for dispute support. An exited shareholder keeps read access to their own period only. Distributions are recorded, never auto-split."
       />
-      <div className="filterbar">
+      <div className={FILTERBAR}>
         <Select options={STATUS_OPTIONS} value={status} onChange={setStatus} />
       </div>
       <Card flush>
@@ -79,7 +80,7 @@ export default function Memberships() {
                   <th>Member</th>
                   <th>Boat</th>
                   <th>Role</th>
-                  <th className="num">Share</th>
+                  <th className={TD_NUM}>Share</th>
                   <th>Period</th>
                   <th>Status</th>
                 </tr>
@@ -91,8 +92,8 @@ export default function Memberships() {
                   {items.map((m) => (
                     <tr key={m.id}>
                       <td>
-                        <div className="t1">{m.account.name ?? '—'}</div>
-                        <div className="t2">{m.account.phone}</div>
+                        <div className={TD_T1}>{m.account.name ?? '—'}</div>
+                        <div className={TD_T2}>{m.account.phone}</div>
                       </td>
                       <td>{m.houseboat.name}</td>
                       <td>
@@ -100,10 +101,10 @@ export default function Memberships() {
                           {m.role.name}
                         </Pill>
                       </td>
-                      <td className="num">
+                      <td className={TD_NUM}>
                         {m.shareholderPct !== null ? `${m.shareholderPct}%` : '—'}
                       </td>
-                      <td className="t2">{period(m)}</td>
+                      <td className={TD_T2}>{period(m)}</td>
                       <td>
                         <Pill tone={m.status === 'active' ? 'ok' : 'warn'}>
                           {m.status === 'active' ? 'active' : 'exited · read-only'}
@@ -116,7 +117,7 @@ export default function Memberships() {
             </TableWrap>
             {hasMore ? (
               <div style={{ padding: 12, textAlign: 'center' }}>
-                <button className="btn btn-o btn-sm" onClick={loadMore}>
+                <button className={`${BTN_O} ${BTN_SM}`} onClick={loadMore}>
                   Load more
                 </button>
               </div>

@@ -9,6 +9,7 @@ import {
   ErrorState,
 } from '@/components/admin/ui';
 import { useAdminList } from '@/lib/admin/useAdminList';
+import { BTN_O, BTN_SM, TD_T1, TD_T2 } from '@/components/admin/styles';
 
 interface ReviewRow {
   id: string;
@@ -65,15 +66,15 @@ export default function Reviews() {
                 <tbody>
                   {items.map((r) => (
                     <tr key={r.id}>
-                      <td className="t1">{r.houseboat.name}</td>
+                      <td className={TD_T1}>{r.houseboat.name}</td>
                       <td><Stars rating={r.rating} /></td>
                       <td>
-                        {r.text ?? <span className="t2">no text</span>}
-                        <div className="t2">
+                        {r.text ?? <span className={TD_T2}>no text</span>}
+                        <div className={TD_T2}>
                           {r.customer.name ?? 'Customer'} · verified booking
                         </div>
                       </td>
-                      <td className="t2">{r.ownerReply ?? '—'}</td>
+                      <td className={TD_T2}>{r.ownerReply ?? '—'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -81,7 +82,7 @@ export default function Reviews() {
             </TableWrap>
             {hasMore ? (
               <div style={{ padding: 12, textAlign: 'center' }}>
-                <button className="btn btn-o btn-sm" onClick={loadMore}>
+                <button className={`${BTN_O} ${BTN_SM}`} onClick={loadMore}>
                   Load more
                 </button>
               </div>

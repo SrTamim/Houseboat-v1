@@ -12,6 +12,7 @@ import { Pill } from '@/components/admin/Pill';
 import { useAdminList } from '@/lib/admin/useAdminList';
 import { formatBDT } from '@/lib/admin/money';
 import { shortId } from '@/lib/admin/invoices';
+import { BTN_O, BTN_SM, TD_NUM, TD_T1, TD_T2, UNIT } from '@/components/admin/styles';
 
 interface RescheduleRow {
   id: string;
@@ -75,8 +76,8 @@ export default function Reschedules() {
                   <th>Booking</th>
                   <th>Boat</th>
                   <th>From → to</th>
-                  <th className="num">Old price</th>
-                  <th className="num">New price</th>
+                  <th className={TD_NUM}>Old price</th>
+                  <th className={TD_NUM}>New price</th>
                   <th>Change</th>
                   <th>By</th>
                 </tr>
@@ -90,28 +91,28 @@ export default function Reschedules() {
                     return (
                       <tr key={r.id}>
                         <td>
-                          <div className="t1">{shortId(r.booking.id, 'BK')}</div>
-                          <div className="t2">
+                          <div className={TD_T1}>{shortId(r.booking.id, 'BK')}</div>
+                          <div className={TD_T2}>
                             {r.booking.customer.name ?? '—'}
                           </div>
                         </td>
                         <td>{r.prevDeparture.package.houseboat.name}</td>
-                        <td className="t2">
+                        <td className={TD_T2}>
                           {formatDate(r.prevDeparture.startDate)} →{' '}
                           {formatDate(r.toDeparture.startDate)}
                         </td>
-                        <td className="num">
+                        <td className={TD_NUM}>
                           {r.oldPrice !== null ? (
-                            <><span className="u">৳</span> {formatBDT(r.oldPrice)}</>
+                            <><span className={UNIT}>৳</span> {formatBDT(r.oldPrice)}</>
                           ) : '—'}
                         </td>
-                        <td className="num">
+                        <td className={TD_NUM}>
                           {r.newPrice !== null ? (
-                            <><span className="u">৳</span> {formatBDT(r.newPrice)}</>
+                            <><span className={UNIT}>৳</span> {formatBDT(r.newPrice)}</>
                           ) : '—'}
                         </td>
                         <td><Pill tone={change.tone}>{change.label}</Pill></td>
-                        <td className="t2">{r.changedByAccount.name ?? '—'}</td>
+                        <td className={TD_T2}>{r.changedByAccount.name ?? '—'}</td>
                       </tr>
                     );
                   })}
@@ -120,7 +121,7 @@ export default function Reschedules() {
             </TableWrap>
             {hasMore ? (
               <div style={{ padding: 12, textAlign: 'center' }}>
-                <button className="btn btn-o btn-sm" onClick={loadMore}>
+                <button className={`${BTN_O} ${BTN_SM}`} onClick={loadMore}>
                   Load more
                 </button>
               </div>

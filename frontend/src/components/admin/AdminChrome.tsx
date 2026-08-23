@@ -7,6 +7,7 @@ import type { AdminUser } from '@/lib/admin/session';
 import { LOGIN_PATH } from '@/lib/admin/login-url';
 import { Sidebar } from './Sidebar';
 import { ThemeToggle } from './ThemeToggle';
+import { ICON_BTN } from './styles';
 
 /** "Rafiq Ahmed" → "RA". Falls back to the phone when there's no name. */
 function initials(user: AdminUser): string {
@@ -52,27 +53,42 @@ export function AdminChrome({
   }
 
   return (
-    <div className="app">
+    <div className="grid min-h-screen grid-cols-[var(--sbw)_1fr] max-[1024px]:grid-cols-[1fr]">
       <Sidebar open={navOpen} />
-      <div className="main">
-        <header className="topbar">
-          <button className="burger" onClick={() => setNavOpen((v) => !v)} aria-label="Menu">
+      <div className="flex min-w-0 flex-col">
+        {/* Glass topbar (was `.topbar`). Hidden in print so an open drawer prints alone. */}
+        <header className="sticky top-0 z-40 flex h-[var(--hh)] items-center gap-[14px] border-b border-hair bg-[color-mix(in_srgb,var(--bg)_72%,transparent)] px-6 backdrop-blur-[16px] [backdrop-filter:saturate(180%)_blur(16px)] print:hidden">
+          {/* Burger only on mobile (was `.burger` display:none / grid ≤1024px). */}
+          <button
+            className="hidden h-10 w-10 place-items-center rounded border border-hair bg-raise-1 text-[17px] text-ink max-[1024px]:grid"
+            onClick={() => setNavOpen((v) => !v)}
+            aria-label="Menu"
+          >
             ☰
           </button>
-          <div className="sp" />
-          <Link className="icon-btn" href="/admin/notifications" aria-label="Notifications">
-            🔔<span className="dot" />
+          <div className="flex-1" />
+          <Link className={ICON_BTN} href="/admin/notifications" aria-label="Notifications">
+            🔔
+            {/* Unread dot (was `.icon-btn .dot`). */}
+            <span className="absolute right-[9px] top-2 h-2 w-2 rounded-full border-2 border-bg bg-danger" />
           </Link>
           <ThemeToggle />
-          <div className="whoami">
-            <span className="av">{initials(user)}</span>
-            <div>
-              <div className="nm">{user.name ?? user.phone}</div>
-              <div className="rl">Platform</div>
+          {/* Signed-in chip (was `.whoami`). */}
+          <div className="flex items-center gap-2.5 rounded-full border border-hair bg-raise-1 py-[5px] pl-[5px] pr-3 shadow-e1">
+            <span className="grid h-[30px] w-[30px] place-items-center rounded-full bg-[linear-gradient(145deg,var(--blue),var(--blue-700))] text-[12px] font-bold text-white">
+              {initials(user)}
+            </span>
+            <div className="max-[560px]:hidden">
+              <div className="text-[13px] font-semibold leading-[1.15] text-ink">
+                {user.name ?? user.phone}
+              </div>
+              <div className="text-[10px] font-bold uppercase tracking-[0.05em] text-blue">
+                Platform
+              </div>
             </div>
           </div>
           <button
-            className="icon-btn"
+            className={ICON_BTN}
             onClick={signOut}
             disabled={signingOut}
             aria-label="Sign out"
@@ -81,7 +97,10 @@ export function AdminChrome({
             ⏻
           </button>
         </header>
-        <main className="content">{children}</main>
+        {/* Content well + staggered load-in (was `.content` + `.content > *` rise). */}
+        <main className="w-full max-w-[1360px] px-6 py-7 max-[560px]:px-4 max-[560px]:py-[18px] [&>*]:motion-safe:animate-rise [&>*:nth-child(2)]:[animation-delay:0.04s] [&>*:nth-child(3)]:[animation-delay:0.08s] [&>*:nth-child(4)]:[animation-delay:0.12s] [&>*:nth-child(5)]:[animation-delay:0.16s]">
+          {children}
+        </main>
       </div>
     </div>
   );

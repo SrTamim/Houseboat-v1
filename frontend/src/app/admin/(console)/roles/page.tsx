@@ -20,6 +20,7 @@ import {
 } from '@/components/admin/PlatformPermMatrix';
 import { useAdminList } from '@/lib/admin/useAdminList';
 import { apiErrorMessage } from '@/lib/admin/api-error';
+import { BTN_B, BTN_DANGER, BTN_O, BTN_SM, FIELD, FIELD_INPUT, FIELD_LABEL, ROWACT, STACK, TD_NUM, TD_T1, TD_T2 } from '@/components/admin/styles';
 
 interface PlatformRoleRow {
   id: string;
@@ -107,7 +108,7 @@ export default function Roles() {
         desc={<>Platform roles restrict what console staff can do; a staff account with <b>no role is an unrestricted superadmin</b>. Boat roles below are read-only — each owner sets their own boat&apos;s permissions.</>}
         actions={
           <button
-            className="btn btn-b"
+            className={BTN_B}
             onClick={() => {
               setFormError(null);
               setForm({ id: null, name: '', permissions: {} });
@@ -118,10 +119,7 @@ export default function Roles() {
         }
       />
       {actionError ? (
-        <div className="note danger" role="alert" style={{ marginBottom: 12 }}>
-          <span className="ic">⚠</span>
-          <span>{actionError}</span>
-        </div>
+        <div className="mb-3" role="alert"><Note kind="danger" icon="⚠">{actionError}</Note></div>
       ) : null}
 
       <Card title="Platform roles" sub="assign them on the Accounts page" flush>
@@ -138,7 +136,7 @@ export default function Roles() {
               <tr>
                 <th>Role</th>
                 <th>Permissions</th>
-                <th className="num">Assigned</th>
+                <th className={TD_NUM}>Assigned</th>
                 <th />
               </tr>
             </thead>
@@ -152,13 +150,13 @@ export default function Roles() {
                     .map(([mod, p]) => `${mod}:${p?.edit ? 'edit' : 'view'}`)
                     .join(' · ');
                   return (
-                    <tr key={role.id}>
-                      <td className="t1">{role.name}</td>
-                      <td className="t2">{summary || 'no access'}</td>
-                      <td className="num">{role._count.accounts}</td>
-                      <td className="rowact">
+                    <tr key={role.id} className="group">
+                      <td className={TD_T1}>{role.name}</td>
+                      <td className={TD_T2}>{summary || 'no access'}</td>
+                      <td className={TD_NUM}>{role._count.accounts}</td>
+                      <td className={ROWACT}>
                         <button
-                          className="btn btn-sm btn-o"
+                          className={`${BTN_O} ${BTN_SM}`}
                           onClick={() => {
                             setFormError(null);
                             setForm({
@@ -171,7 +169,7 @@ export default function Roles() {
                           Edit
                         </button>
                         <button
-                          className="btn btn-sm btn-danger"
+                          className={`${BTN_DANGER} ${BTN_SM}`}
                           disabled={role._count.accounts > 0 || deletingId === role.id}
                           title={
                             role._count.accounts > 0
@@ -208,8 +206,8 @@ export default function Roles() {
                   <th>Role</th>
                   <th>Boat</th>
                   <th>Kind</th>
-                  <th className="num">Members</th>
-                  <th className="num">Staff</th>
+                  <th className={TD_NUM}>Members</th>
+                  <th className={TD_NUM}>Staff</th>
                 </tr>
               </thead>
               {boatRoles.isInitialLoading ? (
@@ -217,16 +215,16 @@ export default function Roles() {
               ) : (
                 <tbody>
                   {boatRoles.items.map((r) => (
-                    <tr key={r.id}>
-                      <td className="t1">{r.name}</td>
+                    <tr key={r.id} className="group">
+                      <td className={TD_T1}>{r.name}</td>
                       <td>{r.houseboat.name}</td>
                       <td>
                         <Pill tone={r.isTemplate ? 'blue' : 'mut'}>
                           {r.isTemplate ? 'template' : 'boat role'}
                         </Pill>
                       </td>
-                      <td className="num">{r._count.members}</td>
-                      <td className="num">{r._count.staff}</td>
+                      <td className={TD_NUM}>{r._count.members}</td>
+                      <td className={TD_NUM}>{r._count.staff}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -234,7 +232,7 @@ export default function Roles() {
             </TableWrap>
             {boatRoles.hasMore ? (
               <div style={{ padding: 12, textAlign: 'center' }}>
-                <button className="btn btn-o btn-sm" onClick={boatRoles.loadMore}>
+                <button className={`${BTN_O} ${BTN_SM}`} onClick={boatRoles.loadMore}>
                   Load more
                 </button>
               </div>
@@ -255,18 +253,19 @@ export default function Roles() {
         title={form?.id ? `Edit role · ${form.name || '—'}` : 'New platform role'}
         footer={
           <>
-            <button className="btn btn-o" onClick={() => setForm(null)}>Cancel</button>
-            <button className="btn btn-b" disabled={busy} onClick={save}>
+            <button className={BTN_O} onClick={() => setForm(null)}>Cancel</button>
+            <button className={BTN_B} disabled={busy} onClick={save}>
               {busy ? 'Saving…' : 'Save role & permissions'}
             </button>
           </>
         }
       >
         {form ? (
-          <div className="stack" style={{ gap: 14 }}>
-            <div className="field" style={{ maxWidth: 320 }}>
-              <label>Role name</label>
+          <div className={STACK} style={{ gap: 14 }}>
+            <div className={FIELD} style={{ maxWidth: 320 }}>
+              <label className={FIELD_LABEL}>Role name</label>
               <input
+                className={FIELD_INPUT}
                 placeholder="e.g. Finance Officer"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -277,10 +276,7 @@ export default function Roles() {
               onChange={(permissions) => setForm({ ...form, permissions })}
             />
             {formError ? (
-              <div className="note danger" role="alert">
-                <span className="ic">⚠</span>
-                <span>{formError}</span>
-              </div>
+              <div role="alert"><Note kind="danger" icon="⚠">{formError}</Note></div>
             ) : null}
           </div>
         ) : null}

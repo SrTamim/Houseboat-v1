@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 
 // Root layout is intentionally minimal so each route group owns its own chrome:
 //  - (site)  → customer marketing/booking header (Tailwind)
-//  - admin   → platform console shell (global admin.css)
+//  - admin   → platform console shell (Tailwind; tokens in globals.css)
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>

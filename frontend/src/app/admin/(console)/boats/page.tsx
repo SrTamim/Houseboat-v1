@@ -5,6 +5,7 @@ import useSWR from 'swr';
 import { api, fetcher } from '@/lib/api';
 import {
   PageHead,
+  Note,
   Card,
   TableWrap,
   Search,
@@ -14,6 +15,7 @@ import {
 } from '@/components/admin/ui';
 import { Pill } from '@/components/admin/Pill';
 import { BoatDetailDrawer } from '@/components/admin/BoatDetailDrawer';
+import { BTN_DANGER, BTN_O, BTN_OK, BTN_SM, FILTERBAR, MONEY, ROWACT, SEG, SEG_B, SEG_B_ON, TD_T1, TD_T2 } from '@/components/admin/styles';
 
 interface ModerationBoat {
   id: string;
@@ -116,16 +118,16 @@ export default function Boats() {
         title="Boat moderation"
         desc={<>Approve a boat only when its profile is 100% complete <b>and</b> a bank account is on file. Suspend or reinstate — every change lands in the audit log.</>}
       />
-      <div className="filterbar">
-        <div className="seg">
+      <div className={FILTERBAR}>
+        <div className={SEG}>
           {SEGMENTS.map((s) => (
             <button
               key={s.key}
-              className={`seg-b${segment === s.key ? ' on' : ''}`}
+              className={segment === s.key ? `${SEG_B} ${SEG_B_ON}` : SEG_B}
               onClick={() => setSegment(s.key)}
             >
               {s.label}
-              <span className="ct">{counts[s.key] ?? 0}</span>
+              <span className="ml-1 tabular-nums opacity-65">{counts[s.key] ?? 0}</span>
             </button>
           ))}
         </div>
@@ -136,10 +138,7 @@ export default function Boats() {
         />
       </div>
       {actionError ? (
-        <div className="note danger" role="alert" style={{ marginBottom: 12 }}>
-          <span className="ic">⚠</span>
-          <span>{actionError}</span>
-        </div>
+        <div className="mb-3" role="alert"><Note kind="danger" icon="⚠">{actionError}</Note></div>
       ) : null}
       <Card flush>
         {error ? (
@@ -170,37 +169,37 @@ export default function Boats() {
                     boat.profileCompletePct === 100 &&
                     boat.hasBankAccount;
                   return (
-                    <tr key={boat.id}>
+                    <tr key={boat.id} className="group">
                       <td>
-                        <div className="t1">{boat.name}</div>
-                        <div className="t2">/{boat.slug}</div>
+                        <div className={TD_T1}>{boat.name}</div>
+                        <div className={TD_T2}>/{boat.slug}</div>
                       </td>
                       <td>{boat.routeNames.length ? boat.routeNames.join(', ') : '—'}</td>
                       <td>
                         <Pill tone={STATUS_TONE[boat.status] ?? 'mut'}>{boat.status}</Pill>
                       </td>
-                      <td><b className="money">{boat.profileCompletePct}%</b></td>
+                      <td><b className={MONEY}>{boat.profileCompletePct}%</b></td>
                       <td>
                         <Pill tone={boat.hasBankAccount ? 'ok' : 'danger'}>
                           {boat.hasBankAccount ? 'on file' : 'missing'}
                         </Pill>
                       </td>
-                      <td className="t2">
+                      <td className={TD_T2}>
                         {new Date(boat.createdAt).toLocaleDateString('en-GB', {
                           day: '2-digit',
                           month: 'short',
                         })}
                       </td>
-                      <td className="rowact">
+                      <td className={ROWACT}>
                         <button
-                          className="btn btn-sm btn-o"
+                          className={`${BTN_O} ${BTN_SM}`}
                           onClick={() => setOpenBoatId(boat.id)}
                         >
                           View
                         </button>
                         {boat.status === 'pending' ? (
                           <button
-                            className="btn btn-sm btn-ok"
+                            className={`${BTN_OK} ${BTN_SM}`}
                             disabled={!canApprove || busyId === boat.id}
                             title={
                               canApprove
@@ -214,7 +213,7 @@ export default function Boats() {
                         ) : null}
                         {boat.status === 'live' ? (
                           <button
-                            className="btn btn-sm btn-danger"
+                            className={`${BTN_DANGER} ${BTN_SM}`}
                             disabled={busyId === boat.id}
                             onClick={() => setStatus(boat.id, 'suspended')}
                           >
@@ -223,7 +222,7 @@ export default function Boats() {
                         ) : null}
                         {boat.status === 'suspended' ? (
                           <button
-                            className="btn btn-sm btn-ok"
+                            className={`${BTN_OK} ${BTN_SM}`}
                             disabled={busyId === boat.id}
                             onClick={() => setStatus(boat.id, 'live')}
                           >

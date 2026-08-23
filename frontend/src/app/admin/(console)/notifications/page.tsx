@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { api } from '@/lib/api';
 import {
   PageHead,
+  Note,
   Card,
   TableWrap,
   TableSkeleton,
@@ -13,6 +14,7 @@ import {
 import { Pill, Tag } from '@/components/admin/Pill';
 import { useAdminList } from '@/lib/admin/useAdminList';
 import { apiErrorMessage } from '@/lib/admin/api-error';
+import { BTN_B, BTN_O, BTN_SM, FILTERBAR, ROWACT, SEG, SEG_B, SEG_B_ON, TD_T1, TD_T2 } from '@/components/admin/styles';
 
 interface NotificationRow {
   id: string;
@@ -65,17 +67,14 @@ export default function Notifications() {
         desc="Platform delivery monitor. Undelivered SMS/email — especially e-tickets and waitlist blasts — surface here; resend replays the stored message and records a fresh attempt."
       />
       {actionError ? (
-        <div className="note danger" role="alert" style={{ marginBottom: 12 }}>
-          <span className="ic">⚠</span>
-          <span>{actionError}</span>
-        </div>
+        <div className="mb-3" role="alert"><Note kind="danger" icon="⚠">{actionError}</Note></div>
       ) : null}
-      <div className="filterbar">
-        <div className="seg">
+      <div className={FILTERBAR}>
+        <div className={SEG}>
           {SEGMENTS.map((s) => (
             <button
               key={s.key}
-              className={`seg-b${segment === s.key ? ' on' : ''}`}
+              className={segment === s.key ? `${SEG_B} ${SEG_B_ON}` : SEG_B}
               onClick={() => setSegment(s.key)}
             >
               {s.label}
@@ -109,11 +108,11 @@ export default function Notifications() {
               ) : (
                 <tbody>
                   {items.map((n) => (
-                    <tr key={n.id}>
-                      <td className="t1">{n.event}</td>
+                    <tr key={n.id} className="group">
+                      <td className={TD_T1}>{n.event}</td>
                       <td>
-                        <div className="t1">{n.account.name ?? '—'}</div>
-                        <div className="t2">{n.account.phone}</div>
+                        <div className={TD_T1}>{n.account.name ?? '—'}</div>
+                        <div className={TD_T2}>{n.account.phone}</div>
                       </td>
                       <td><Tag>{n.channel.toUpperCase()}</Tag></td>
                       <td>
@@ -121,7 +120,7 @@ export default function Notifications() {
                           {n.delivered ? 'delivered' : 'undelivered'}
                         </Pill>
                       </td>
-                      <td className="t2">
+                      <td className={TD_T2}>
                         {new Date(n.at).toLocaleString('en-GB', {
                           day: '2-digit',
                           month: 'short',
@@ -129,17 +128,17 @@ export default function Notifications() {
                           minute: '2-digit',
                         })}
                       </td>
-                      <td className="rowact">
+                      <td className={ROWACT}>
                         {!n.delivered && n.hasPayload ? (
                           <button
-                            className="btn btn-sm btn-b"
+                            className={`${BTN_B} ${BTN_SM}`}
                             disabled={busyId === n.id}
                             onClick={() => resend(n)}
                           >
                             {busyId === n.id ? '…' : 'Resend'}
                           </button>
                         ) : !n.delivered ? (
-                          <span className="t2" title="Row predates stored payloads">
+                          <span className={TD_T2} title="Row predates stored payloads">
                             no payload
                           </span>
                         ) : null}
@@ -151,7 +150,7 @@ export default function Notifications() {
             </TableWrap>
             {hasMore ? (
               <div style={{ padding: 12, textAlign: 'center' }}>
-                <button className="btn btn-o btn-sm" onClick={loadMore}>
+                <button className={`${BTN_O} ${BTN_SM}`} onClick={loadMore}>
                   Load more
                 </button>
               </div>

@@ -11,6 +11,7 @@ import {
   ErrorState,
 } from './ui';
 import { Pill, Tag } from './Pill';
+import { BTN_B, BTN_O, BTN_SM, ROWACT, TD_NUM, TD_T1, TD_T2, UNIT } from './styles';
 import { formatBDT } from '@/lib/admin/money';
 import {
   type ApiInvoice,
@@ -72,7 +73,7 @@ export function PlatformInvoiceTable({
                 <th>Trip start</th>
                 <th>Status</th>
                 <th>Payment</th>
-                <th className="num">Total</th>
+                <th className={TD_NUM}>Total</th>
                 <th>Gateway / txn</th>
                 {actionLabel ? <th /> : null}
               </tr>
@@ -84,17 +85,17 @@ export function PlatformInvoiceTable({
                 {items.map((inv) => {
                   const lastPayment = inv.payments[inv.payments.length - 1];
                   return (
-                    <tr key={inv.id}>
+                    <tr key={inv.id} className="group">
                       <td>
-                        <div className="t1">{shortId(inv.id, 'INV')}</div>
-                        <div className="t2">{shortId(inv.booking.id, 'BK')}</div>
+                        <div className={TD_T1}>{shortId(inv.id, 'INV')}</div>
+                        <div className={TD_T2}>{shortId(inv.booking.id, 'BK')}</div>
                       </td>
                       <td>{inv.houseboat.name}</td>
                       <td>
-                        <div className="t1">{inv.customer.name ?? '—'}</div>
-                        <div className="t2">{inv.customer.phone}</div>
+                        <div className={TD_T1}>{inv.customer.name ?? '—'}</div>
+                        <div className={TD_T2}>{inv.customer.phone}</div>
                       </td>
-                      <td className="t2">
+                      <td className={TD_T2}>
                         {formatDate(inv.booking.departure.startDate)}
                       </td>
                       <td>
@@ -105,21 +106,23 @@ export function PlatformInvoiceTable({
                       <td>
                         {lastPayment ? <Tag>{lastPayment.method}</Tag> : <Tag>unpaid</Tag>}
                       </td>
-                      <td className="num">
-                        <span className="u">৳</span> {formatBDT(inv.displayTotal)}
+                      <td className={TD_NUM}>
+                        <span className={UNIT}>৳</span> {formatBDT(inv.displayTotal)}
                       </td>
-                      <td className="t2">
+                      <td className={TD_T2}>
                         {lastPayment ? maskToken(lastPayment.gatewayToken) : '—'}
                       </td>
                       {actionLabel && onAction ? (
-                        <td className="rowact">
-                          <button
-                            className="btn btn-sm btn-b"
-                            disabled={actionBusyId === inv.id}
-                            onClick={() => onAction(inv)}
-                          >
-                            {actionBusyId === inv.id ? '…' : actionLabel}
-                          </button>
+                        <td>
+                          <div className={ROWACT}>
+                            <button
+                              className={`${BTN_B} ${BTN_SM}`}
+                              disabled={actionBusyId === inv.id}
+                              onClick={() => onAction(inv)}
+                            >
+                              {actionBusyId === inv.id ? '…' : actionLabel}
+                            </button>
+                          </div>
                         </td>
                       ) : null}
                     </tr>
@@ -129,8 +132,8 @@ export function PlatformInvoiceTable({
             )}
           </TableWrap>
           {hasMore && onLoadMore ? (
-            <div style={{ padding: 12, textAlign: 'center' }}>
-              <button className="btn btn-o btn-sm" onClick={onLoadMore}>
+            <div className="p-3 text-center">
+              <button className={`${BTN_O} ${BTN_SM}`} onClick={onLoadMore}>
                 Load more
               </button>
             </div>

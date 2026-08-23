@@ -11,6 +11,7 @@ import {
 } from '@/components/admin/ui';
 import { StatRow } from '@/components/admin/StatCard';
 import { formatBDT } from '@/lib/admin/money';
+import { TD_NUM, TD_T1, UNIT } from '@/components/admin/styles';
 
 interface Analytics {
   totals: {
@@ -40,7 +41,7 @@ export default function Analytics() {
 
   const money = (v: string | number | undefined) =>
     data ? (
-      <><span className="u">৳</span>{formatBDT(v ?? 0)}</>
+      <><span className={UNIT}>৳</span>{formatBDT(v ?? 0)}</>
     ) : (
       '…'
     );
@@ -84,21 +85,21 @@ export default function Analytics() {
                 <thead>
                   <tr>
                     <th>Boat</th>
-                    <th className="num">Invoices</th>
-                    <th className="num">GMV</th>
-                    <th className="num">Commission</th>
+                    <th className={TD_NUM}>Invoices</th>
+                    <th className={TD_NUM}>GMV</th>
+                    <th className={TD_NUM}>Commission</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(data?.revenueByBoat ?? []).map((b) => (
                     <tr key={b.houseboatId}>
-                      <td className="t1">{b.name}</td>
-                      <td className="num">{b.invoiceCount}</td>
-                      <td className="num">
-                        <span className="u">৳</span> {formatBDT(b.gmv)}
+                      <td className={TD_T1}>{b.name}</td>
+                      <td className={TD_NUM}>{b.invoiceCount}</td>
+                      <td className={TD_NUM}>
+                        <span className={UNIT}>৳</span> {formatBDT(b.gmv)}
                       </td>
-                      <td className="num">
-                        <span className="u">৳</span> {formatBDT(b.commission)}
+                      <td className={TD_NUM}>
+                        <span className={UNIT}>৳</span> {formatBDT(b.commission)}
                       </td>
                     </tr>
                   ))}

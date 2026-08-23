@@ -4,6 +4,7 @@ import useSWR from 'swr';
 import { fetcher } from '@/lib/api';
 import { PageHead, Card, ErrorState, Note } from '@/components/admin/ui';
 import { Pill } from '@/components/admin/Pill';
+import { GRID_2, KV, STACK, TD_T2 } from '@/components/admin/styles';
 
 interface SettingsStatus {
   gateway: { provider: string | null; sandbox: boolean; storeConfigured: boolean };
@@ -41,23 +42,23 @@ export default function Settings() {
       {error ? (
         <ErrorState error={error} onRetry={() => mutate()} />
       ) : !data ? (
-        <Card><p className="t2">Loading configuration status…</p></Card>
+        <Card><p className={TD_T2}>Loading configuration status…</p></Card>
       ) : (
-        <div className="stack">
+        <div className={STACK}>
           <Card
             title="Payment gateway"
             head={<Pill tone={data.gateway.sandbox ? 'amb' : 'ok'}>{data.gateway.sandbox ? 'sandbox' : 'live'}</Pill>}
           >
-            <dl className="kv">
+            <dl className={KV}>
               <dt>Provider</dt><dd>{data.gateway.provider ?? '—'}</dd>
               <dt>Store credentials</dt>
               <dd><StatusPill on={data.gateway.storeConfigured} onLabel="set" offLabel="missing" /></dd>
             </dl>
           </Card>
 
-          <div className="grid-2">
+          <div className={GRID_2}>
             <Card title="Notifications">
-              <dl className="kv">
+              <dl className={KV}>
                 <dt>SMS provider</dt><dd><StatusPill on={data.sms.configured} /></dd>
                 <dt>SMS sender ID</dt><dd>{data.sms.senderId ?? '—'}</dd>
                 <dt>SMTP</dt><dd><StatusPill on={data.email.configured} /></dd>
@@ -65,7 +66,7 @@ export default function Settings() {
               </dl>
             </Card>
             <Card title="Storage & push">
-              <dl className="kv">
+              <dl className={KV}>
                 <dt>Object storage (R2/S3)</dt><dd><StatusPill on={data.storage.configured} /></dd>
                 <dt>Bucket</dt><dd>{data.storage.bucket ?? '—'}</dd>
                 <dt>Web push (VAPID)</dt><dd><StatusPill on={data.push.configured} /></dd>
@@ -74,7 +75,7 @@ export default function Settings() {
           </div>
 
           <Card title="Environment">
-            <dl className="kv">
+            <dl className={KV}>
               <dt>Mode</dt><dd><Pill tone={data.env === 'production' ? 'ok' : 'amb'}>{data.env}</Pill></dd>
               <dt>Web origin</dt><dd>{data.webOrigin ?? '—'}</dd>
               <dt>API public URL</dt><dd>{data.apiPublicUrl ?? '—'}</dd>

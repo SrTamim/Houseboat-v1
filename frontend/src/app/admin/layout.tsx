@@ -8,7 +8,6 @@ import '@fontsource/inter/700.css';
 import '@fontsource/inter/800.css';
 import '@fontsource/inter/900.css';
 import '@fontsource-variable/space-grotesk';
-import './admin.css';
 
 export const metadata: Metadata = {
   title: 'HaorBoat Admin',
@@ -28,7 +27,10 @@ export default function AdminRootLayout({
   return (
     <>
       <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
-      {children}
+      {/* Scopes the admin element defaults + token-backed canvas (see the
+          `.admin-scope` rules in globals.css) to the console subtree, so they
+          never touch the customer surfaces. */}
+      <div className="admin-scope min-h-screen">{children}</div>
     </>
   );
 }

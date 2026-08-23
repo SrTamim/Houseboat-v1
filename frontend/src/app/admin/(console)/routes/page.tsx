@@ -10,8 +10,21 @@ import {
   TableSkeleton,
   EmptyState,
   ErrorState,
+  Note,
 } from '@/components/admin/ui';
 import { Pill } from '@/components/admin/Pill';
+import {
+  BTN_B,
+  BTN_O,
+  BTN_SM,
+  FIELD,
+  FIELD_INPUT,
+  FIELD_LABEL,
+  FORM_GRID,
+  ROWACT,
+  TD_T1,
+  TD_T2,
+} from '@/components/admin/styles';
 
 interface Route {
   id: string;
@@ -75,21 +88,23 @@ export default function Routes() {
         desc="Platform-curated. Owners pick from these — they cannot create routes. Retire a route to hide it from new boats without deleting history."
       />
       <Card>
-        <form className="form-grid" style={{ marginBottom: 6 }} onSubmit={createRoute}>
-          <div className="field">
-            <label htmlFor="route-name">Route name</label>
+        <form className={FORM_GRID} style={{ marginBottom: 6 }} onSubmit={createRoute}>
+          <div className={FIELD}>
+            <label htmlFor="route-name" className={FIELD_LABEL}>Route name</label>
             <input
               id="route-name"
+              className={FIELD_INPUT}
               placeholder="e.g. Tanguar Haor"
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
             />
           </div>
-          <div className="field">
-            <label htmlFor="route-region">Region</label>
+          <div className={FIELD}>
+            <label htmlFor="route-region" className={FIELD_LABEL}>Region</label>
             <input
               id="route-region"
+              className={FIELD_INPUT}
               placeholder="e.g. Sunamganj"
               value={region}
               onChange={(e) => setRegion(e.target.value)}
@@ -97,8 +112,7 @@ export default function Routes() {
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-end' }}>
             <button
-              className="btn btn-b btn-block"
-              style={{ width: '100%', justifyContent: 'center' }}
+              className={`${BTN_B} w-full justify-center`}
               type="submit"
               disabled={busy || !name.trim()}
             >
@@ -107,10 +121,7 @@ export default function Routes() {
           </div>
         </form>
         {formError ? (
-          <div className="note danger" role="alert">
-            <span className="ic">⚠</span>
-            <span>{formError}</span>
-          </div>
+          <div role="alert"><Note kind="danger" icon="⚠">{formError}</Note></div>
         ) : null}
       </Card>
       <Card flush style={{ marginTop: 20 }}>
@@ -137,10 +148,10 @@ export default function Routes() {
             ) : (
               <tbody>
                 {routes.map((r) => (
-                  <tr key={r.id}>
-                    <td className="t1">{r.name}</td>
+                  <tr key={r.id} className="group">
+                    <td className={TD_T1}>{r.name}</td>
                     <td>{r.region ?? '—'}</td>
-                    <td className="t2">
+                    <td className={TD_T2}>
                       {r._count.houseboatRoutes}{' '}
                       {r._count.houseboatRoutes === 1 ? 'boat' : 'boats'}
                     </td>
@@ -149,13 +160,15 @@ export default function Routes() {
                         {r.active ? 'active' : 'retired'}
                       </Pill>
                     </td>
-                    <td className="rowact">
-                      <button
-                        className="btn btn-sm btn-o"
-                        onClick={() => toggleActive(r)}
-                      >
-                        {r.active ? 'Retire' : 'Reactivate'}
-                      </button>
+                    <td>
+                      <div className={ROWACT}>
+                        <button
+                          className={`${BTN_O} ${BTN_SM}`}
+                          onClick={() => toggleActive(r)}
+                        >
+                          {r.active ? 'Retire' : 'Reactivate'}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

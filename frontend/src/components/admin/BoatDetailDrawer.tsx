@@ -3,8 +3,23 @@
 import useSWR from 'swr';
 import { fetcher } from '@/lib/api';
 import { Drawer } from './Drawer';
-import { Pill } from './Pill';
-import { ErrorState } from './ui';
+import { Pill, Tag } from './Pill';
+import { ErrorState, Note } from './ui';
+import {
+  BTN_O,
+  BTN_OK,
+  DSEC,
+  DSEC_H4,
+  KV,
+  KV_DD,
+  KV_DT,
+  MINI,
+  MINI_TD,
+  MINI_TD_T1,
+  MINI_TH,
+  PROSE,
+  TD_T2,
+} from './styles';
 
 interface BoatDetail {
   id: string;
@@ -95,10 +110,10 @@ export function BoatDetailDrawer({
 
   const footer = (
     <>
-      <button className="btn btn-o" onClick={onClose}>Close</button>
+      <button className={BTN_O} onClick={onClose}>Close</button>
       {boat && boat.status === 'pending' && onApprove ? (
         <button
-          className="btn btn-ok"
+          className={BTN_OK}
           disabled={!checklistMet || approving}
           title={checklistMet ? undefined : 'Profile must be 100% with a bank account on file'}
           onClick={() => onApprove(boat.id)}
@@ -124,12 +139,12 @@ export function BoatDetailDrawer({
       {error ? (
         <ErrorState error={error} />
       ) : isLoading || !boat ? (
-        <p className="t2" style={{ padding: 16 }}>Loading boat record…</p>
+        <p className={`p-4 ${TD_T2}`}>Loading boat record…</p>
       ) : (
         <>
-          <div className="dsec">
-            <h4>Status</h4>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+          <div className={DSEC}>
+            <h4 className={DSEC_H4}>Status</h4>
+            <div className="mb-3 flex flex-wrap gap-2">
               <Pill tone={STATUS_TONE[boat.status] ?? 'mut'}>{boat.status}</Pill>
               <Pill tone={boat.profileCompletePct === 100 ? 'ok' : 'warn'}>
                 profile {boat.profileCompletePct}%
@@ -139,80 +154,81 @@ export function BoatDetailDrawer({
               </Pill>
             </div>
             {checklistMet ? (
-              <div className="note ok">
-                <span className="ic">✓</span>
-                <span>Go-live checklist met — profile complete and a bank account is on file.</span>
-              </div>
+              <Note kind="ok" icon="✓">
+                Go-live checklist met — profile complete and a bank account is on file.
+              </Note>
             ) : (
-              <div className="note warn">
-                <span className="ic">⚠</span>
-                <span>
-                  Go-live checklist not met —
-                  {boat.profileCompletePct < 100 ? ` profile ${boat.profileCompletePct}%` : ''}
-                  {boat.bankAccount ? '' : ' · bank account missing'}
-                </span>
-              </div>
+              <Note kind="warn" icon="⚠">
+                Go-live checklist not met —
+                {boat.profileCompletePct < 100 ? ` profile ${boat.profileCompletePct}%` : ''}
+                {boat.bankAccount ? '' : ' · bank account missing'}
+              </Note>
             )}
           </div>
 
-          <div className="dsec">
-            <h4>Profile</h4>
-            <dl className="kv">
-              <dt>Name</dt><dd>{boat.name}</dd>
-              <dt>Public URL</dt><dd>/houseboat/{boat.slug}</dd>
-              <dt>Status</dt><dd>{boat.status}</dd>
-              <dt>Profile complete</dt><dd>{boat.profileCompletePct}%</dd>
-              <dt>Created</dt><dd>{formatDate(boat.createdAt)}</dd>
+          <div className={DSEC}>
+            <h4 className={DSEC_H4}>Profile</h4>
+            <dl className={KV}>
+              <dt className={KV_DT}>Name</dt><dd className={KV_DD}>{boat.name}</dd>
+              <dt className={KV_DT}>Public URL</dt><dd className={KV_DD}>/houseboat/{boat.slug}</dd>
+              <dt className={KV_DT}>Status</dt><dd className={KV_DD}>{boat.status}</dd>
+              <dt className={KV_DT}>Profile complete</dt><dd className={KV_DD}>{boat.profileCompletePct}%</dd>
+              <dt className={KV_DT}>Created</dt><dd className={KV_DD}>{formatDate(boat.createdAt)}</dd>
             </dl>
             {boat.description ? (
-              <p className="prose" style={{ marginTop: 10 }}><b>Description:</b> {boat.description}</p>
+              <p className={`mt-2.5 ${PROSE}`}><b>Description:</b> {boat.description}</p>
             ) : null}
             {boat.safetyFeatures ? (
-              <p className="prose" style={{ marginTop: 8 }}><b>Safety:</b> {boat.safetyFeatures}</p>
+              <p className={`mt-2 ${PROSE}`}><b>Safety:</b> {boat.safetyFeatures}</p>
             ) : null}
             {boat.foodMenu ? (
-              <p className="prose" style={{ marginTop: 8 }}><b>Food menu:</b> {boat.foodMenu}</p>
+              <p className={`mt-2 ${PROSE}`}><b>Food menu:</b> {boat.foodMenu}</p>
             ) : null}
           </div>
 
-          <div className="dsec">
-            <h4>Bank</h4>
+          <div className={DSEC}>
+            <h4 className={DSEC_H4}>Bank</h4>
             {boat.bankAccount ? (
-              <dl className="kv">
+              <dl className={KV}>
                 {bankLines(boat.bankAccount).map(([label, value]) => (
                   <FragmentRow key={label} label={label} value={value} />
                 ))}
               </dl>
             ) : (
-              <div className="note danger">
-                <span className="ic">⚠</span>
-                <span>No bank account on file — payouts cannot run and the boat cannot go live.</span>
-              </div>
+              <Note kind="danger" icon="⚠">
+                No bank account on file — payouts cannot run and the boat cannot go live.
+              </Note>
             )}
           </div>
 
-          <div className="dsec">
-            <h4>Routes</h4>
+          <div className={DSEC}>
+            <h4 className={DSEC_H4}>Routes</h4>
             {boat.routes.length ? (
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <div className="flex flex-wrap gap-2">
                 {boat.routes.map((r) => (
-                  <span key={r.id} className="tag">
+                  <Tag key={r.id}>
                     {r.route.name}
                     {r.route.region ? ` · ${r.route.region}` : ''}
-                  </span>
+                  </Tag>
                 ))}
               </div>
             ) : (
-              <p className="t2">No routes linked yet.</p>
+              <p className={TD_T2}>No routes linked yet.</p>
             )}
           </div>
 
-          <div className="dsec">
-            <h4>Decks &amp; cabins</h4>
+          <div className={DSEC}>
+            <h4 className={DSEC_H4}>Decks &amp; cabins</h4>
             {boat.decks.some((d) => d.cabins.length) ? (
-              <table className="mini">
+              <table className={MINI}>
                 <thead>
-                  <tr><th>Cabin</th><th>Deck</th><th>Category</th><th>AC</th><th>Capacity</th></tr>
+                  <tr>
+                    <th className={MINI_TH}>Cabin</th>
+                    <th className={MINI_TH}>Deck</th>
+                    <th className={MINI_TH}>Category</th>
+                    <th className={MINI_TH}>AC</th>
+                    <th className={MINI_TH}>Capacity</th>
+                  </tr>
                 </thead>
                 <tbody>
                   {boat.decks.flatMap((deck) =>
@@ -220,11 +236,11 @@ export function BoatDetailDrawer({
                       const cat = categoryById.get(cabin.cabinCategoryId);
                       return (
                         <tr key={cabin.id}>
-                          <td className="t1">{cabin.name}</td>
-                          <td>{deck.name}</td>
-                          <td>{cat?.name ?? '—'}</td>
-                          <td>{cat ? (cat.isAc ? 'Yes' : 'No') : '—'}</td>
-                          <td>
+                          <td className={`${MINI_TD} ${MINI_TD_T1}`}>{cabin.name}</td>
+                          <td className={MINI_TD}>{deck.name}</td>
+                          <td className={MINI_TD}>{cat?.name ?? '—'}</td>
+                          <td className={MINI_TD}>{cat ? (cat.isAc ? 'Yes' : 'No') : '—'}</td>
+                          <td className={MINI_TD}>
                             {cat
                               ? `${cat.baseCapacity}${cat.extendedCapacity ? ` (ext ${cat.extendedCapacity})` : ''}`
                               : '—'}
@@ -236,10 +252,10 @@ export function BoatDetailDrawer({
                 </tbody>
               </table>
             ) : (
-              <p className="t2">No cabins added yet.</p>
+              <p className={TD_T2}>No cabins added yet.</p>
             )}
             {boat.cabinCategories.length ? (
-              <p className="prose" style={{ marginTop: 8 }}>
+              <p className={`mt-2 ${PROSE}`}>
                 <b>Categories:</b>{' '}
                 {boat.cabinCategories
                   .map((c) => `${c.name}${c.facilities ? ` — ${c.facilities}` : ''}`)
@@ -248,15 +264,15 @@ export function BoatDetailDrawer({
             ) : null}
           </div>
 
-          <div className="dsec">
-            <h4>Operating dates</h4>
+          <div className={DSEC}>
+            <h4 className={DSEC_H4}>Operating dates</h4>
             {boat.operatingDates.length ? (
-              <p className="prose">
+              <p className={PROSE}>
                 {boat.operatingDates.map((d) => formatDate(d)).join(' · ')}. Only these
                 dates generate bookable departures.
               </p>
             ) : (
-              <p className="t2">No operating dates set — no departures can be generated.</p>
+              <p className={TD_T2}>No operating dates set — no departures can be generated.</p>
             )}
           </div>
         </>
@@ -268,8 +284,8 @@ export function BoatDetailDrawer({
 function FragmentRow({ label, value }: { label: string; value: string }) {
   return (
     <>
-      <dt>{label}</dt>
-      <dd>{value}</dd>
+      <dt className={KV_DT}>{label}</dt>
+      <dd className={KV_DD}>{value}</dd>
     </>
   );
 }

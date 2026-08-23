@@ -3,6 +3,7 @@
 // Small presentational helpers shared across admin pages.
 
 import { useEffect, useState } from 'react';
+import { BTN, SEARCH_INPUT, SELECT as SELECT_CLS } from './styles';
 
 export function PageHead({
   title,
@@ -14,12 +15,14 @@ export function PageHead({
   actions?: React.ReactNode;
 }) {
   return (
-    <div className="page-head">
+    <div className="mb-6 flex flex-wrap items-start justify-between gap-[18px]">
       <div>
-        <h1>{title}</h1>
-        {desc ? <p>{desc}</p> : null}
+        <h1 className="text-[27px] tracking-[-0.03em] max-[560px]:text-[22px]">{title}</h1>
+        {desc ? (
+          <p className="mt-2 max-w-[74ch] text-[13.5px] leading-[1.55] text-muted">{desc}</p>
+        ) : null}
       </div>
-      {actions ? <div className="acts">{actions}</div> : null}
+      {actions ? <div className="flex flex-wrap gap-2.5">{actions}</div> : null}
     </div>
   );
 }
@@ -40,15 +43,18 @@ export function Card({
   style?: React.CSSProperties;
 }) {
   return (
-    <div className="card2" style={style}>
+    <div
+      className="rounded-2xl border border-hair bg-raise-1 shadow-[var(--e2),var(--top-hi)]"
+      style={style}
+    >
       {title || head ? (
-        <div className="ch">
-          {title ? <h3>{title}</h3> : null}
-          {sub ? <span className="sub">{sub}</span> : null}
+        <div className="flex items-center justify-between gap-3 border-b border-hair-2 px-5 py-4">
+          {title ? <h3 className="text-[15px] font-semibold">{title}</h3> : null}
+          {sub ? <span className="text-[12px] font-medium text-muted">{sub}</span> : null}
           {head}
         </div>
       ) : null}
-      <div className={`cb${flush ? ' flush' : ''}`}>{children}</div>
+      <div className={flush ? 'p-0' : 'p-5'}>{children}</div>
     </div>
   );
 }
@@ -61,13 +67,30 @@ export function TableWrap({
   children: React.ReactNode;
 }) {
   return (
-    <div className="tbl-wrap">
-      <table className="tbl" style={minWidth ? { minWidth } : undefined}>
+    <div className="overflow-x-auto">
+      <table
+        className={TBL}
+        style={{ minWidth: minWidth ?? 640 }}
+      >
         {children}
       </table>
     </div>
   );
 }
+
+/* Full data-table styling (was `table.tbl` + its thead/tbody/hover combinators
+   in admin.css). Kept here so every `<TableWrap>` renders identically; child
+   cells opt into `.t1`/`.t2`/`.num` via the TD_* consts below. */
+const TBL =
+  'w-full border-separate border-spacing-0 text-[13.5px] ' +
+  // thead th
+  '[&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-[1] [&_thead_th]:whitespace-nowrap [&_thead_th]:border-b [&_thead_th]:border-hair [&_thead_th]:bg-raise-1 [&_thead_th]:px-[18px] [&_thead_th]:py-3 [&_thead_th]:text-left [&_thead_th]:text-[10.5px] [&_thead_th]:font-bold [&_thead_th]:uppercase [&_thead_th]:tracking-[0.06em] [&_thead_th]:text-muted ' +
+  // tbody td
+  '[&_tbody_td]:h-14 [&_tbody_td]:border-b [&_tbody_td]:border-hair-2 [&_tbody_td]:px-[18px] [&_tbody_td]:py-[14px] [&_tbody_td]:align-middle [&_tbody_td]:text-bodytext ' +
+  '[&_tbody_tr:last-child_td]:border-b-0 ' +
+  // row hover
+  '[&_tbody_tr]:transition-colors [&_tbody_tr]:duration-dur [&_tbody_tr:hover]:bg-hover ' +
+  '[&_tbody_tr:hover_td:first-child]:shadow-[inset_3px_0_0_color-mix(in_srgb,var(--blue)_55%,transparent)]';
 
 export function Note({
   kind = 'info',
@@ -81,12 +104,24 @@ export function Note({
   style?: React.CSSProperties;
 }) {
   return (
-    <div className={`note ${kind}`} style={style}>
-      <span className="ic">{icon}</span>
+    <div
+      className={`flex items-start gap-2.5 rounded border px-[15px] py-3 text-[13px] font-medium leading-[1.5] ${NOTE_TONE[kind]}`}
+      style={style}
+    >
+      <span className="flex-none text-[15px] leading-[1.3]">{icon}</span>
       <span>{children}</span>
     </div>
   );
 }
+
+/* Note tone fills (was `.note.info/.warn/.danger/.ok` + the dark info override). */
+const NOTE_TONE: Record<'info' | 'warn' | 'danger' | 'ok', string> = {
+  info: 'border-[color-mix(in_srgb,var(--blue)_18%,transparent)] bg-[color-mix(in_srgb,var(--blue)_8%,transparent)] text-blue-700 dark:text-blue',
+  warn: 'border-[color-mix(in_srgb,var(--warn)_20%,transparent)] bg-[color-mix(in_srgb,var(--warn)_10%,transparent)] text-warn',
+  danger:
+    'border-[color-mix(in_srgb,var(--danger)_20%,transparent)] bg-[color-mix(in_srgb,var(--danger)_9%,transparent)] text-danger',
+  ok: 'border-[color-mix(in_srgb,var(--ok)_20%,transparent)] bg-[color-mix(in_srgb,var(--ok)_10%,transparent)] text-ok',
+};
 
 /**
  * Search box.
@@ -129,9 +164,15 @@ export function Search({
   }, [controlled, draft, value, onChange, debounceMs]);
 
   return (
-    <div className="search" style={maxWidth ? { maxWidth } : undefined}>
-      <span className="mag">🔍</span>
+    <div
+      className="relative min-w-[200px] max-w-[340px] flex-1"
+      style={maxWidth ? { maxWidth } : undefined}
+    >
+      <span className="absolute left-[13px] top-1/2 -translate-y-1/2 text-[14px] text-muted">
+        🔍
+      </span>
       <input
+        className={SEARCH_INPUT}
         placeholder={placeholder}
         {...(controlled
           ? { value: draft, onChange: (e) => setDraft(e.target.value) }
@@ -163,7 +204,7 @@ export function Select({
 
   return (
     <select
-      className="select"
+      className={SELECT_CLS}
       style={style}
       {...(controlled
         ? { value, onChange: (e) => onChange?.(e.target.value) }
@@ -191,7 +232,7 @@ export function TableSkeleton({ rows = 6, cols = 5 }: { rows?: number; cols?: nu
         <tr key={r}>
           {Array.from({ length: cols }, (_, c) => (
             <td key={c}>
-              <span className="skel" />
+              <span className={SKEL} />
             </td>
           ))}
         </tr>
@@ -199,6 +240,16 @@ export function TableSkeleton({ rows = 6, cols = 5 }: { rows?: number; cols?: nu
     </tbody>
   );
 }
+
+/* Table-skeleton shimmer bar (was `.skel`). */
+const SKEL =
+  "block h-[11px] rounded-[4px] bg-[linear-gradient(90deg,var(--hair-2)_25%,var(--hair)_37%,var(--hair-2)_63%)] bg-[length:400%_100%] animate-skel-pulse motion-reduce:animate-none";
+
+/* Empty/error state container + its icon/title/desc (was `.empty-state` + children). */
+const EMPTY = 'flex flex-col items-center justify-center gap-2 px-6 py-11 text-center';
+const EMPTY_IC = 'text-[26px] leading-none text-muted opacity-75';
+const EMPTY_T1 = 'text-[14px] font-[650] text-ink';
+const EMPTY_T2 = 'm-0 max-w-[52ch] text-[12.5px] leading-[1.55] text-muted';
 
 export function EmptyState({
   icon = '∅',
@@ -212,10 +263,10 @@ export function EmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="empty-state">
-      <span className="ic">{icon}</span>
-      <div className="t1">{title}</div>
-      {desc ? <p className="t2">{desc}</p> : null}
+    <div className={EMPTY}>
+      <span className={EMPTY_IC}>{icon}</span>
+      <div className={EMPTY_T1}>{title}</div>
+      {desc ? <p className={EMPTY_T2}>{desc}</p> : null}
       {action}
     </div>
   );
@@ -241,12 +292,12 @@ export function ErrorState({
   const text = Array.isArray(message) ? message.join(', ') : String(message);
 
   return (
-    <div className="empty-state">
-      <span className="ic">⚠</span>
-      <div className="t1">Something went wrong</div>
-      <p className="t2">{text}</p>
+    <div className={EMPTY}>
+      <span className={EMPTY_IC}>⚠</span>
+      <div className={EMPTY_T1}>Something went wrong</div>
+      <p className={EMPTY_T2}>{text}</p>
       {onRetry ? (
-        <button className="btn" onClick={onRetry}>
+        <button className={`${BTN} mt-1.5`} onClick={onRetry}>
           Try again
         </button>
       ) : null}

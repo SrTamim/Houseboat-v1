@@ -16,6 +16,7 @@ import { Pill } from '@/components/admin/Pill';
 import { Drawer } from '@/components/admin/Drawer';
 import { formatBDT, isNegative } from '@/lib/admin/money';
 import { apiErrorMessage } from '@/lib/admin/api-error';
+import { BTN_B, BTN_O, BTN_SM, FIELD, FIELD_INPUT, FIELD_LABEL, FORM_GRID, ROWACT, STACK, TD_NUM, TD_T1, TD_T2, UNIT } from '@/components/admin/styles';
 
 interface BillingConfigRow {
   id: string;
@@ -99,9 +100,10 @@ export default function BillingConfig() {
     placeholder: string,
   ) =>
     form ? (
-      <div className="field">
-        <label>{label}</label>
+      <div className={FIELD}>
+        <label className={FIELD_LABEL}>{label}</label>
         <input
+          className={FIELD_INPUT}
           type="number"
           min={0}
           step="0.01"
@@ -131,9 +133,9 @@ export default function BillingConfig() {
             <thead>
               <tr>
                 <th>Boat</th>
-                <th className="num">Commission</th>
-                <th className="num">Monthly fee</th>
-                <th className="num">Platform balance</th>
+                <th className={TD_NUM}>Commission</th>
+                <th className={TD_NUM}>Monthly fee</th>
+                <th className={TD_NUM}>Platform balance</th>
                 <th>Trial ends</th>
                 <th />
               </tr>
@@ -143,28 +145,28 @@ export default function BillingConfig() {
             ) : (
               <tbody>
                 {rows.map((c) => (
-                  <tr key={c.id}>
+                  <tr key={c.id} className="group">
                     <td>
-                      <div className="t1">{c.houseboat.name}</div>
-                      <div className="t2">{c.houseboat.status}</div>
+                      <div className={TD_T1}>{c.houseboat.name}</div>
+                      <div className={TD_T2}>{c.houseboat.status}</div>
                     </td>
-                    <td className="num">
+                    <td className={TD_NUM}>
                       {c.commissionPct !== null ? `${c.commissionPct}%` : '—'}
                     </td>
-                    <td className="num">
+                    <td className={TD_NUM}>
                       {c.monthlyFee !== null ? (
-                        <><span className="u">৳</span> {formatBDT(c.monthlyFee)}</>
+                        <><span className={UNIT}>৳</span> {formatBDT(c.monthlyFee)}</>
                       ) : '—'}
                     </td>
                     <td
-                      className="num"
+                      className={TD_NUM}
                       style={
                         isNegative(c.platformBalance)
                           ? { color: 'var(--danger)' }
                           : undefined
                       }
                     >
-                      <span className="u">৳</span> {formatBDT(c.platformBalance)}
+                      <span className={UNIT}>৳</span> {formatBDT(c.platformBalance)}
                     </td>
                     <td>
                       {c.trialEnds ? (
@@ -176,12 +178,12 @@ export default function BillingConfig() {
                           })}
                         </Pill>
                       ) : (
-                        <span className="t2">—</span>
+                        <span className={TD_T2}>—</span>
                       )}
                     </td>
-                    <td className="rowact">
+                    <td className={ROWACT}>
                       <button
-                        className="btn btn-sm btn-o"
+                        className={`${BTN_O} ${BTN_SM}`}
                         onClick={() => openEditor(c.houseboat, c)}
                       >
                         Edit
@@ -218,14 +220,14 @@ export default function BillingConfig() {
             ) : (
               <tbody>
                 {unconfigured.map((b) => (
-                  <tr key={b.id}>
-                    <td className="t1">{b.name}</td>
+                  <tr key={b.id} className="group">
+                    <td className={TD_T1}>{b.name}</td>
                     <td>
                       <Pill tone={b.status === 'live' ? 'ok' : 'mut'}>{b.status}</Pill>
                     </td>
-                    <td className="rowact">
+                    <td className={ROWACT}>
                       <button
-                        className="btn btn-sm btn-b"
+                        className={`${BTN_B} ${BTN_SM}`}
                         onClick={() => openEditor(b)}
                       >
                         Create config
@@ -250,21 +252,22 @@ export default function BillingConfig() {
         title={form ? `${form.boatName} · billing terms` : ''}
         footer={
           <>
-            <button className="btn btn-o" onClick={() => setForm(null)}>Cancel</button>
-            <button className="btn btn-b" disabled={busy} onClick={save}>
+            <button className={BTN_O} onClick={() => setForm(null)}>Cancel</button>
+            <button className={BTN_B} disabled={busy} onClick={save}>
               {busy ? 'Saving…' : 'Save config'}
             </button>
           </>
         }
       >
         {form ? (
-          <div className="stack" style={{ gap: 14 }}>
-            <div className="form-grid">
+          <div className={STACK} style={{ gap: 14 }}>
+            <div className={FORM_GRID}>
               {field('Commission %', 'commissionPct', 'e.g. 5.0')}
               {field('Monthly fee (৳)', 'monthlyFee', 'e.g. 5000')}
-              <div className="field">
-                <label>Trial ends</label>
+              <div className={FIELD}>
+                <label className={FIELD_LABEL}>Trial ends</label>
                 <input
+                  className={FIELD_INPUT}
                   type="date"
                   value={form.trialEnds}
                   onChange={(e) => setForm({ ...form, trialEnds: e.target.value })}
@@ -276,10 +279,7 @@ export default function BillingConfig() {
               &quot;no monthly fee&quot; are valid states.
             </Note>
             {formError ? (
-              <div className="note danger" role="alert">
-                <span className="ic">⚠</span>
-                <span>{formError}</span>
-              </div>
+              <div role="alert"><Note kind="danger" icon="⚠">{formError}</Note></div>
             ) : null}
           </div>
         ) : null}
