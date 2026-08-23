@@ -15,6 +15,7 @@ import {
   AsyncBlock,
 } from '@/components/owner/ui';
 import { Pill, DepartureStatusPill } from '@/components/owner/Pill';
+import { BTN_B, BTN_O, BTN_SM } from '@/components/owner/buttons';
 import {
   money,
   formatDate,
@@ -189,10 +190,10 @@ export default function OwnerDashboardPage() {
         desc={`What ${boat.name} needs from you right now — before the next departure leaves the ghat.`}
         actions={
           <>
-            <Link className="btn btn-o" href="/owner/costs">
+            <Link className={BTN_O} href="/owner/costs">
               ＋ Log a cost
             </Link>
-            <Link className="btn btn-b" href="/owner/pos">
+            <Link className={BTN_B} href="/owner/pos">
               🧾 Counter sale →
             </Link>
           </>
@@ -254,8 +255,8 @@ export default function OwnerDashboardPage() {
         />
       </Kpis>
 
-      <div className="grid-2">
-        <div className="stack">
+      <div className="grid grid-cols-[2fr_1fr] items-start gap-5 max-[1024px]:grid-cols-1">
+        <div className="flex flex-col gap-5">
           <Card title="Needs you now" sub="most urgent first" flush>
             <AsyncBlock
               isLoading={isLoading}
@@ -263,10 +264,12 @@ export default function OwnerDashboardPage() {
               isEmpty={!isLoading && todos.length === 0}
               onRetry={() => mutate()}
               empty={
-                <div className="state">
-                  <div className="ic">✓</div>
-                  <h4>Nothing needs you</h4>
-                  <p>No bills due, nothing low on stock.</p>
+                <div className="px-6 py-11 text-center text-muted">
+                  <div className="mb-2.5 text-[26px]">✓</div>
+                  <h4 className="mb-1.5 text-[15px] text-ink">Nothing needs you</h4>
+                  <p className="mx-auto max-w-[46ch] text-[13px] leading-[1.55]">
+                    No bills due, nothing low on stock.
+                  </p>
                 </div>
               }
             >
@@ -306,10 +309,12 @@ export default function OwnerDashboardPage() {
               isEmpty={!isLoading && (data?.departuresToday.length ?? 0) === 0}
               onRetry={() => mutate()}
               empty={
-                <div className="state">
-                  <div className="ic">🗓</div>
-                  <h4>Nothing leaves today</h4>
-                  <p>Set operating dates and add departures from the schedule editor.</p>
+                <div className="px-6 py-11 text-center text-muted">
+                  <div className="mb-2.5 text-[26px]">🗓</div>
+                  <h4 className="mb-1.5 text-[15px] text-ink">Nothing leaves today</h4>
+                  <p className="mx-auto max-w-[46ch] text-[13px] leading-[1.55]">
+                    Set operating dates and add departures from the schedule editor.
+                  </p>
                 </div>
               }
             >
@@ -357,7 +362,7 @@ export default function OwnerDashboardPage() {
           </Card>
         </div>
 
-        <div className="stack">
+        <div className="flex flex-col gap-5">
           <Card title="This week">
             <AsyncBlock isLoading={isLoading} error={error} onRetry={() => mutate()}>
               <Kv
@@ -409,7 +414,7 @@ export default function OwnerDashboardPage() {
           </Card>
 
           <Card title="Go-live health">
-            <div className="stack" style={{ gap: 10 }}>
+            <div className="flex flex-col gap-2.5">
               {data ? (
                 <>
                   <Note kind={data.boat.profileCompletePct >= 100 ? 'ok' : 'warn'}>
@@ -446,10 +451,12 @@ export default function OwnerDashboardPage() {
 
 function EmptyActivity() {
   return (
-    <div className="state">
-      <div className="ic">📜</div>
-      <h4>No activity yet</h4>
-      <p>Every change to bookings, money and settings is recorded here.</p>
+    <div className="px-6 py-11 text-center text-muted">
+      <div className="mb-2.5 text-[26px]">📜</div>
+      <h4 className="mb-1.5 text-[15px] text-ink">No activity yet</h4>
+      <p className="mx-auto max-w-[46ch] text-[13px] leading-[1.55]">
+        Every change to bookings, money and settings is recorded here.
+      </p>
     </div>
   );
 }

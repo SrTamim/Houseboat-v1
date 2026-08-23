@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { api } from '@/lib/api';
 import { PageHead, Card, Field, Note } from '@/components/owner/ui';
+import { BTN_B } from '@/components/owner/buttons';
 import { apiErrorMessage } from '@/lib/owner/format';
 
 /**
@@ -77,7 +78,7 @@ export default function OwnerOnboardingPage() {
           </Note>
 
           <div>
-            <button className="btn btn-b" type="submit" disabled={busy}>
+            <button className={BTN_B} type="submit" disabled={busy}>
               {busy ? 'Creating…' : 'Create boat →'}
             </button>
           </div>

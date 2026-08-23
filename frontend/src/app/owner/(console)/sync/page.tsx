@@ -9,6 +9,7 @@ import {
   Note,
   TableWrap,
   AsyncTable,
+  EmptyState,
 } from '@/components/owner/ui';
 import { Pill } from '@/components/owner/Pill';
 import { formatDateTime, humanize } from '@/lib/owner/format';
@@ -80,10 +81,10 @@ export default function OwnerSyncPage() {
             isEmpty={applied.length === 0}
             onRetry={() => mutate()}
             empty={
-              <div className="state">
-                <div className="ic">🔄</div>
-                <h4>Nothing replayed</h4>
-                <p>
+              <div className="px-6 py-11 text-center text-muted">
+                <div className="mb-2.5 text-[26px]">🔄</div>
+                <h4 className="mb-1.5 text-[15px] text-ink">Nothing replayed</h4>
+                <p className="mx-auto max-w-[46ch] text-[13px] leading-[1.55]">
                   Everything on this boat was recorded live. Offline actions would appear
                   here once they sync.
                 </p>
@@ -135,11 +136,11 @@ export default function OwnerSyncPage() {
             isEmpty={needsReview.length === 0}
             onRetry={() => mutate()}
             empty={
-              <div className="state">
-                <div className="ic">✅</div>
-                <h4>No conflicts</h4>
-                <p>Every replayed action was authorised and applied cleanly.</p>
-              </div>
+              <EmptyState
+                icon="✅"
+                title="No conflicts"
+                message="Every replayed action was authorised and applied cleanly."
+              />
             }
           >
             <tbody>
@@ -160,7 +161,7 @@ export default function OwnerSyncPage() {
       </Card>
 
       <Card title="How replay decides" style={{ marginTop: 20 }}>
-        <div className="stack" style={{ gap: 10 }}>
+        <div className="flex flex-col gap-5" style={{ gap: 10 }}>
           <Note kind="info">
             A replayed action is re-authorised against the permissions you had at the
             time it was taken, not the ones you have now. Losing access mid-trip does not

@@ -6,6 +6,14 @@ export const PERMISSION_KEY = 'requiredPermission';
 export interface RequiredPermission {
   module: PermModule;
   action: PermAction;
+  /**
+   * Shared-read escape hatch: a route consumed by several pages passes when the
+   * caller holds `action` on ANY of these pages (in addition to `module`). Use
+   * for lookups multiple pages depend on (e.g. the departure roster read by the
+   * departure, schedule and pos pages) so a role scoped to any one consumer can
+   * still reach it. `module` stays the canonical/primary owner.
+   */
+  anyOf?: PermModule[];
   /** Where to read the houseboat id from on the request. Default: params.houseboatId */
   boatIdFrom?: 'params' | 'body' | 'query';
   boatIdKey?: string;

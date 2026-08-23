@@ -59,6 +59,12 @@ function needsSession(pathname: string): boolean {
       !pathname.startsWith(OWNER_SIGNUP_PATH)
     );
   }
+  // The whole customer app — including /account/* — is deliberately NOT gated
+  // here. Customer sign-in is a modal with no page to redirect to, so the
+  // account shell renders its own signed-out state (see
+  // app/(customer)/account/(app)/layout.tsx) and offers the modal in place.
+  // That layout's /auth/me check remains the authoritative gate, and the API
+  // routes enforce it for real regardless of anything decided here.
   return false;
 }
 
@@ -68,11 +74,12 @@ function needsSession(pathname: string): boolean {
  * The two builders are not interchangeable: each clamps ?next= to its own path
  * prefix, so using the admin one for an /owner destination would silently drop
  * it and land the owner on the dashboard instead of where they were going.
+ *
+ * Customers are absent by design — they have no login page to be sent to.
  */
 function loginUrlFor(pathname: string, next: string): string {
-  return pathname.startsWith('/owner')
-    ? ownerLoginUrl({ next })
-    : loginUrl({ next });
+  if (pathname.startsWith('/owner')) return ownerLoginUrl({ next });
+  return loginUrl({ next });
 }
 
 /**
@@ -147,8 +154,8 @@ async function tryRefresh(req: NextRequest): Promise<RefreshResult | null> {
 const EMBED_FRAME_HOSTS =
   'https://www.youtube-nocookie.com https://player.vimeo.com https://drive.google.com';
 
-/** Provider image hosts used for link-out thumbnails. */
-const EMBED_IMG_HOSTS = 'https://img.youtube.com';
+/** Provider image hosts: YouTube thumbnails + Unsplash stock photos (boat/hero imagery). */
+const EMBED_IMG_HOSTS = 'https://img.youtube.com https://images.unsplash.com';
 
 function buildCsp(nonce: string, isDev: boolean): string {
   const directives = [

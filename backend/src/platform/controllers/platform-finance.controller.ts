@@ -1,9 +1,10 @@
-import { Body, Controller, Get, Param, Put, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common';
 import { CurrentUser, PlatformOnly } from '../../auth/decorators';
 import { AuthUser } from '../../auth/auth.types';
 import { PlatformPermission } from '../rbac/platform-permission.decorator';
 import { PlatformFinanceService } from '../services/platform-finance.service';
 import {
+  ListCashoutsQueryDto,
   ListCouponsQueryDto,
   ListCreditsQueryDto,
   ListInvoicesQueryDto,
@@ -51,6 +52,23 @@ export class PlatformFinanceController {
   @Get('credits')
   listCredits(@Query() query: ListCreditsQueryDto) {
     return this.finance.listCredits(query);
+  }
+
+  @Get('cashouts')
+  listCashouts(@Query() query: ListCashoutsQueryDto) {
+    return this.finance.listCashouts(query);
+  }
+
+  @PlatformPermission('finance', 'edit')
+  @Post('cashouts/:id/approve')
+  approveCashout(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.finance.approveCashout(id, user.id);
+  }
+
+  @PlatformPermission('finance', 'edit')
+  @Post('cashouts/:id/reject')
+  rejectCashout(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.finance.rejectCashout(id, user.id);
   }
 
   @Get('subscription-invoices')

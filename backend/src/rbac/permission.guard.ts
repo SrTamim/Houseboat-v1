@@ -48,14 +48,26 @@ export class PermissionGuard implements CanActivate {
       throw new BadRequestException(`Missing ${key}`);
     }
 
-    const ctx = await this.rbac.assert(
-      user.id,
-      user.isPlatform,
-      houseboatId,
-      perm.module,
-      perm.action,
-      { bypassBillingLock: perm.allowWhenLocked },
-    );
+    // A route several pages share lists them in `anyOf` — the caller passes with
+    // the permission on any one. Otherwise the single `module` is required.
+    const ctx =
+      perm.anyOf && perm.anyOf.length > 0
+        ? await this.rbac.assertAny(
+            user.id,
+            user.isPlatform,
+            houseboatId,
+            [perm.module, ...perm.anyOf],
+            perm.action,
+            { bypassBillingLock: perm.allowWhenLocked },
+          )
+        : await this.rbac.assert(
+            user.id,
+            user.isPlatform,
+            houseboatId,
+            perm.module,
+            perm.action,
+            { bypassBillingLock: perm.allowWhenLocked },
+          );
     req.boatContext = ctx;
     return true;
   }

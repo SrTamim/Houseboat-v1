@@ -15,6 +15,18 @@ export interface OwnerBoat {
   slug: string;
   status: string;
   role: string;
+  /** Has an active weekly schedule — used to pick a sensible default boat. */
+  hasSchedule: boolean;
+  /**
+   * The member's effective per-page permissions on this boat, keyed by page
+   * (dashboard, bookings, …). Drives the sidebar filter and page guard. Optional
+   * because an older backend deploy may not send it yet — consumers treat a
+   * missing map as "allow" (see boat-context canView) to avoid locking out a
+   * legitimate owner during a rollout.
+   */
+  permissions?: Record<string, { view?: boolean; edit?: boolean }>;
+  /** end_date set → read-only for their period. */
+  isExited?: boolean;
 }
 
 /**

@@ -6,6 +6,7 @@ import useSWR from 'swr';
 import { api, fetcher } from '@/lib/api';
 import { useActiveBoat } from '@/lib/owner/boat-context';
 import { PageHead, Card, Note, Kv, AsyncBlock } from '@/components/owner/ui';
+import { BTN_O } from '@/components/owner/buttons';
 import { Pill } from '@/components/owner/Pill';
 import { money, formatDate, apiErrorMessage, humanize } from '@/lib/owner/format';
 
@@ -138,15 +139,15 @@ export default function OwnerSettingsPage() {
         </Note>
       ) : null}
 
-      <div className="grid-2">
-        <div className="stack">
+      <div className="grid grid-cols-[2fr_1fr] items-start gap-5 max-[1024px]:grid-cols-1">
+        <div className="flex flex-col gap-5">
           <Card title="Notification preferences" sub="yours, on this boat">
             <AsyncBlock
               isLoading={settings.isLoading}
               error={settings.error}
               onRetry={() => settings.mutate()}
             >
-              <div className="stack" style={{ gap: 4 }}>
+              <div className="flex flex-col gap-5" style={{ gap: 4 }}>
                 {EVENTS.map((ev) => (
                   <div
                     key={ev.key}
@@ -190,13 +191,13 @@ export default function OwnerSettingsPage() {
               Times are stored in UTC and shown in your local zone. The audit trail keeps
               both, so a dispute can always be resolved against server time.
             </Note>
-            <Link className="btn btn-o" href="/owner/profile" style={{ marginTop: 12 }}>
+            <Link className={BTN_O} href="/owner/profile" style={{ marginTop: 12 }}>
               Edit boat profile
             </Link>
           </Card>
         </div>
 
-        <div className="stack">
+        <div className="flex flex-col gap-5">
           <Card title="Billing config" sub="set by the platform">
             <AsyncBlock
               isLoading={billing.isLoading}
@@ -253,7 +254,7 @@ export default function OwnerSettingsPage() {
               suspension is not something you can trigger yourself, because live bookings
               have to be honoured or refunded first.
             </Note>
-            <Link className="btn btn-o" href="/owner/team" style={{ marginTop: 12 }}>
+            <Link className={BTN_O} href="/owner/team" style={{ marginTop: 12 }}>
               Manage access
             </Link>
           </Card>

@@ -26,14 +26,20 @@ import {
 export class HrController {
   constructor(private readonly hr: HrService) {}
 
+  // Staff roster read — the crew page owns it, but the payroll and attendance
+  // pages also list staff to pick from, so any of those roles may read it.
   @Get('houseboats/:houseboatId/staff')
-  @RequirePermission({ module: 'staff', action: 'view' })
+  @RequirePermission({
+    module: 'crew',
+    action: 'view',
+    anyOf: ['payroll', 'attendance'],
+  })
   listStaff(@Param('houseboatId') houseboatId: string) {
     return this.hr.listStaff(houseboatId);
   }
 
   @Post('houseboats/:houseboatId/staff')
-  @RequirePermission({ module: 'staff', action: 'edit' })
+  @RequirePermission({ module: 'crew', action: 'edit' })
   addStaff(
     @Param('houseboatId') houseboatId: string,
     @Body() dto: CreateStaffDto,
@@ -42,7 +48,7 @@ export class HrController {
   }
 
   @Patch('houseboats/:houseboatId/staff/:staffId')
-  @RequirePermission({ module: 'staff', action: 'edit' })
+  @RequirePermission({ module: 'crew', action: 'edit' })
   updateStaff(
     @Param('houseboatId') houseboatId: string,
     @Param('staffId') staffId: string,
@@ -52,7 +58,7 @@ export class HrController {
   }
 
   @Delete('houseboats/:houseboatId/staff/:staffId')
-  @RequirePermission({ module: 'staff', action: 'edit' })
+  @RequirePermission({ module: 'crew', action: 'edit' })
   removeStaff(
     @Param('houseboatId') houseboatId: string,
     @Param('staffId') staffId: string,
@@ -62,13 +68,13 @@ export class HrController {
   }
 
   @Post('houseboats/:houseboatId/staff/:staffId/leave')
-  @RequirePermission({ module: 'staff', action: 'edit' })
+  @RequirePermission({ module: 'crew', action: 'edit' })
   setLeave(@Param('staffId') staffId: string, @Body() dto: LeaveDto) {
     return this.hr.setLeave(staffId, dto);
   }
 
   @Post('houseboats/:houseboatId/staff/:staffId/payroll')
-  @RequirePermission({ module: 'staff', action: 'edit' })
+  @RequirePermission({ module: 'payroll', action: 'edit' })
   runPayroll(
     @Param('houseboatId') houseboatId: string,
     @Param('staffId') staffId: string,
@@ -79,7 +85,7 @@ export class HrController {
   }
 
   @Post('houseboats/:houseboatId/payroll/:payrollId/paid')
-  @RequirePermission({ module: 'staff', action: 'edit' })
+  @RequirePermission({ module: 'payroll', action: 'edit' })
   markPaid(
     @Param('houseboatId') houseboatId: string,
     @Param('payrollId') payrollId: string,
@@ -89,7 +95,7 @@ export class HrController {
   }
 
   @Patch('houseboats/:houseboatId/payroll/:payrollId')
-  @RequirePermission({ module: 'staff', action: 'edit' })
+  @RequirePermission({ module: 'payroll', action: 'edit' })
   adjustPayroll(
     @Param('houseboatId') houseboatId: string,
     @Param('payrollId') payrollId: string,
@@ -100,7 +106,7 @@ export class HrController {
   }
 
   @Get('houseboats/:houseboatId/staff/:staffId/payroll')
-  @RequirePermission({ module: 'staff', action: 'view' })
+  @RequirePermission({ module: 'payroll', action: 'view' })
   listPayroll(
     @Param('houseboatId') houseboatId: string,
     @Param('staffId') staffId: string,
@@ -110,7 +116,7 @@ export class HrController {
 
   // ── Attendance report (monthly) ────────────────────────────
   @Get('houseboats/:houseboatId/attendance')
-  @RequirePermission({ module: 'staff', action: 'view' })
+  @RequirePermission({ module: 'attendance', action: 'view' })
   attendance(
     @Param('houseboatId') houseboatId: string,
     @Query() query: AttendanceQueryDto,
@@ -120,13 +126,13 @@ export class HrController {
 
   // ── Crew presence (per departure) ──────────────────────────
   @Get('houseboats/:houseboatId/departures/:departureId/crew')
-  @RequirePermission({ module: 'staff', action: 'view' })
+  @RequirePermission({ module: 'departure', action: 'view' })
   listCrew(@Param('departureId') departureId: string) {
     return this.hr.listCrew(departureId);
   }
 
   @Post('houseboats/:houseboatId/departures/:departureId/crew')
-  @RequirePermission({ module: 'staff', action: 'edit' })
+  @RequirePermission({ module: 'departure', action: 'edit' })
   setCrew(
     @Param('departureId') departureId: string,
     @Body() dto: CrewPresenceDto,

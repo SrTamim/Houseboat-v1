@@ -44,14 +44,32 @@ export class AssetsController {
     return this.boats.create(user.id, dto);
   }
 
+  // Universal boat-detail read: consumed by ~9 owner pages as the shared source
+  // of boat/deck/cabin metadata. It exposes no money or PII, so any member who
+  // can see any of its consumer pages may read it — `anyOf` lists them all so no
+  // single page's role locks the others out of basic boat structure.
   @Get('houseboats/:houseboatId/manage')
-  @RequirePermission({ module: 'assets', action: 'view' })
+  @RequirePermission({
+    module: 'profile',
+    action: 'view',
+    anyOf: [
+      'cabins',
+      'pos',
+      'bookings',
+      'pricing',
+      'packages',
+      'departure',
+      'payouts',
+      'settings',
+      'dashboard',
+    ],
+  })
   getBoat(@Param('houseboatId') houseboatId: string) {
     return this.boats.get(houseboatId);
   }
 
   @Patch('houseboats/:houseboatId')
-  @RequirePermission({ module: 'assets', action: 'edit' })
+  @RequirePermission({ module: 'profile', action: 'edit' })
   updateBoat(
     @Param('houseboatId') houseboatId: string,
     @CurrentUser() user: AuthUser,
@@ -61,7 +79,7 @@ export class AssetsController {
   }
 
   @Post('houseboats/:houseboatId/decks')
-  @RequirePermission({ module: 'assets', action: 'edit' })
+  @RequirePermission({ module: 'cabins', action: 'edit' })
   addDeck(
     @Param('houseboatId') houseboatId: string,
     @Body() dto: CreateDeckDto,
@@ -70,7 +88,7 @@ export class AssetsController {
   }
 
   @Post('houseboats/:houseboatId/categories')
-  @RequirePermission({ module: 'assets', action: 'edit' })
+  @RequirePermission({ module: 'cabins', action: 'edit' })
   addCategory(
     @Param('houseboatId') houseboatId: string,
     @Body() dto: CreateCategoryDto,
@@ -79,7 +97,7 @@ export class AssetsController {
   }
 
   @Post('houseboats/:houseboatId/cabins')
-  @RequirePermission({ module: 'assets', action: 'edit' })
+  @RequirePermission({ module: 'cabins', action: 'edit' })
   addCabin(
     @Param('houseboatId') houseboatId: string,
     @Body() dto: CreateCabinDto,
@@ -89,7 +107,7 @@ export class AssetsController {
 
   // ── Owner: edit + delete decks / categories / cabins ───────
   @Patch('houseboats/:houseboatId/decks/:deckId')
-  @RequirePermission({ module: 'assets', action: 'edit' })
+  @RequirePermission({ module: 'cabins', action: 'edit' })
   updateDeck(
     @Param('houseboatId') houseboatId: string,
     @Param('deckId') deckId: string,
@@ -100,7 +118,7 @@ export class AssetsController {
   }
 
   @Delete('houseboats/:houseboatId/decks/:deckId')
-  @RequirePermission({ module: 'assets', action: 'edit' })
+  @RequirePermission({ module: 'cabins', action: 'edit' })
   deleteDeck(
     @Param('houseboatId') houseboatId: string,
     @Param('deckId') deckId: string,
@@ -110,7 +128,7 @@ export class AssetsController {
   }
 
   @Patch('houseboats/:houseboatId/categories/:categoryId')
-  @RequirePermission({ module: 'assets', action: 'edit' })
+  @RequirePermission({ module: 'cabins', action: 'edit' })
   updateCategory(
     @Param('houseboatId') houseboatId: string,
     @Param('categoryId') categoryId: string,
@@ -121,7 +139,7 @@ export class AssetsController {
   }
 
   @Delete('houseboats/:houseboatId/categories/:categoryId')
-  @RequirePermission({ module: 'assets', action: 'edit' })
+  @RequirePermission({ module: 'cabins', action: 'edit' })
   deleteCategory(
     @Param('houseboatId') houseboatId: string,
     @Param('categoryId') categoryId: string,
@@ -131,7 +149,7 @@ export class AssetsController {
   }
 
   @Patch('houseboats/:houseboatId/cabins/:cabinId')
-  @RequirePermission({ module: 'assets', action: 'edit' })
+  @RequirePermission({ module: 'cabins', action: 'edit' })
   updateCabin(
     @Param('houseboatId') houseboatId: string,
     @Param('cabinId') cabinId: string,
@@ -142,7 +160,7 @@ export class AssetsController {
   }
 
   @Delete('houseboats/:houseboatId/cabins/:cabinId')
-  @RequirePermission({ module: 'assets', action: 'edit' })
+  @RequirePermission({ module: 'cabins', action: 'edit' })
   deleteCabin(
     @Param('houseboatId') houseboatId: string,
     @Param('cabinId') cabinId: string,
@@ -152,7 +170,7 @@ export class AssetsController {
   }
 
   @Post('houseboats/:houseboatId/routes')
-  @RequirePermission({ module: 'assets', action: 'edit' })
+  @RequirePermission({ module: 'profile', action: 'edit' })
   linkRoute(
     @Param('houseboatId') houseboatId: string,
     @Body() dto: LinkRouteDto,

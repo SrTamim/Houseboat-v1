@@ -2,14 +2,18 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../storage/storage.service';
 import { PricingService } from '../pricing/pricing.service';
 import { AuditService } from '../audit/audit.service';
 import { RbacService } from '../rbac/rbac.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AvailabilityGateway } from '../realtime/availability.gateway';
+import { encryptJson } from '../common/crypto';
 import { newId } from '../common/uuid';
 import { money, ZERO, add, sub } from '../common/money';
 import { buildBill, CouponInput } from '../common/billing';
@@ -65,16 +69,46 @@ export class BookingService {
     private readonly rbac: RbacService,
     private readonly notifications: NotificationsService,
     private readonly realtime: AvailabilityGateway,
+    private readonly config: ConfigService,
+    // Last, and @Optional(): the booking unit tests construct this service with
+    // seven positional args. Adding a required eighth would leave it undefined
+    // there anyway (the `as never` casts hide it from tsc), so the one place
+    // that uses it — get(), for the invoice logo — optional-chains the call.
+    @Optional() private readonly storage?: StorageService,
   ) {}
 
-  /** Notify every waitlisted customer that a place freed (plan §2, all at once). */
+  /**
+   * Encrypt a NID/passport for at-rest storage, or return null when absent.
+   * Ciphertext is never returned to clients or logged (redacted in pino).
+   */
+  private encryptNid(nid?: string): string | null {
+    const v = nid?.trim();
+    if (!v) return null;
+    return encryptJson(v, this.config.get<string>('encryptionKey') ?? '');
+  }
+
+  /**
+   * Tell the waitlist that a place freed (plan §2 — all at once, no queue, the
+   * link routes through a normal hold so first-to-hold wins).
+   *
+   * Scoped to the cabins that actually freed: someone waiting on cabin B should
+   * not be texted because cabin A opened. Rows with a NULL cabin mean "any cabin
+   * on this trip", so they are always included.
+   */
   private async notifyWaitlist(
     departureId: string,
     boatName: string,
+    freedCabinIds: string[],
   ): Promise<void> {
     const waiting = await this.prisma.bookingWaitlist.findMany({
-      where: { departureId },
-      include: { customer: { select: { id: true, phone: true, email: true } } },
+      where: {
+        departureId,
+        OR: [{ cabinId: null }, { cabinId: { in: freedCabinIds } }],
+      },
+      include: {
+        customer: { select: { id: true, phone: true, email: true } },
+        cabin: { select: { name: true } },
+      },
     });
     await Promise.all(
       waiting.map((w) =>
@@ -86,7 +120,11 @@ export class BookingService {
             email: w.customer.email ?? undefined,
           },
           subject: `A place opened on ${boatName}`,
-          message: `A cabin just freed on ${boatName}. First to book wins — grab it now.`,
+          // Name the cabin when they asked for a specific one — an alert they
+          // can act on beats a generic "something freed".
+          message: w.cabin
+            ? `${w.cabin.name} just freed on ${boatName}. First to book wins — grab it now.`
+            : `A cabin just freed on ${boatName}. First to book wins — grab it now.`,
         }),
       ),
     );
@@ -232,28 +270,55 @@ export class BookingService {
       if (!cabin) throw new NotFoundException(`Cabin ${sel.cabinId} not found`);
 
       const children = sel.children ?? 0;
+      /**
+       * Total heads in the room. This is the MANIFEST figure: it is persisted on
+       * booking_cabin.occupancy and read as a head count by the owner dashboard,
+       * the financial reports, booking.headcount and the open-seat `spare`
+       * calculation. It must always be adults + children.
+       */
       const occupancy = sel.adults + children;
+      /**
+       * Which of the owner's price rows to use. Adults only — the owner sets a
+       * rate per ADULT party size ("2 people", "3 people"…), and children are
+       * then discounted off that rate by the boat's child_policy. Counting
+       * children here would jump to a different (or non-existent) row: a 2-berth
+       * cabin with 2 adults + 3 children looked like occupancy 5, which had no
+       * rate row and was rejected outright, so the price silently stopped
+       * updating as soon as a child was added.
+       */
+      const payingHeads = sel.adults;
       const baseCap = cabin.category.baseCapacity;
       const cap = cabin.category.extendedCapacity ?? baseCap;
+
+      if (payingHeads === 0 && children > 0) {
+        throw new BadRequestException(
+          `Cabin ${cabin.name}: add at least one adult — children cannot book a cabin alone`,
+        );
+      }
 
       // A manual override (owner-typed price) wins over the pricing profile — it
       // exists precisely for cabins whose occupancy tier has no configured rate.
       const override = overrides?.get(sel.cabinId);
 
-      // Over the cabin's rated capacity. Online booking treats this as a hard
-      // limit; the counter may oversell (real walk-ups get squeezed in), so when
-      // allowOverCapacity is set we don't throw — the cabin just needs a manual
-      // price (there's no rate row beyond capacity). An override satisfies that.
-      const overCapacity = occupancy > cap;
+      // Over the cabin's rated capacity. Judged on ADULTS: children share their
+      // parents' berths, so a family may exceed the bed count (capped separately
+      // per booking). Online booking treats this as a hard limit; the counter may
+      // oversell (real walk-ups get squeezed in), so when allowOverCapacity is
+      // set we don't throw — the cabin just needs a manual price (there's no rate
+      // row beyond capacity). An override satisfies that.
+      const overCapacity = payingHeads > cap;
       if (overCapacity && !opts?.allowOverCapacity) {
         throw new BadRequestException(
-          `Cabin ${cabin.name}: ${occupancy} exceeds capacity ${cap}`,
+          `Cabin ${cabin.name}: ${payingHeads} adults exceeds capacity ${cap}`,
         );
       }
 
       // Open seat (plan §3): the party doesn't fill the room and chooses to share
       // the spare place(s). It's priced at the full-capacity BUYOUT, and the room
       // is offered to others until it fills. (Not applicable over capacity.)
+      //
+      // Uses total heads, not payingHeads: sharing is about physical berths, so a
+      // room filled by adults + children has no place left to sell.
       const isOpenSeat =
         !overCapacity && Boolean(sel.openSeat) && occupancy < baseCap;
       if (sel.openSeat && !overCapacity && occupancy >= baseCap) {
@@ -273,7 +338,7 @@ export class BookingService {
         // fails loudly exactly like any other unpriced cabin.
         if (throwOnUnpriced) {
           throw new BadRequestException(
-            `Cabin ${cabin.name}: set a price for ${occupancy} people (over the rated capacity ${cap}).`,
+            `Cabin ${cabin.name}: set a price for ${payingHeads} adults (over the rated capacity ${cap}).`,
           );
         }
         roomPrice = ZERO;
@@ -287,14 +352,14 @@ export class BookingService {
           departure.package.routeId,
         );
       } else {
-        // Buyout price for an open seat = full base capacity at the owner-set rate.
-        // Otherwise the room total is the per-person rate for this occupancy tier
-        // applied per party member — children charged per the boat's child_policy.
+        // The room total is the per-person rate for this ADULT party size, applied
+        // per adult, plus each child at its child_policy age-band fraction of the
+        // same rate. Children never change which rate row is used.
         try {
           const perPerson = await this.pricing.pricePerPersonFor(
             houseboatId,
             cabin.cabinCategoryId,
-            occupancy,
+            payingHeads,
             departure.startDate,
             departure.package.routeId,
           );
@@ -360,6 +425,10 @@ export class BookingService {
       opts,
     );
 
+    // One instant for the whole booking, so a multi-cabin conversion judges
+    // every hold against the same clock instead of drifting row to row.
+    const now = new Date();
+
     return this.prisma.$transaction(async (tx) => {
       // Convert each hold. If a hold isn't held/owned, abort (rolls back).
       for (const row of cabinRows) {
@@ -368,8 +437,19 @@ export class BookingService {
             id: row.holdId,
             cabinId: row.cabinId,
             departureId: dto.departureId,
-            heldBy: bookedBy,
+            // Normally the hold is already the caller's: either it was taken
+            // signed-in, or login claimed it off the guest token. The
+            // guest-token branch is a fallback for when the claim could not run
+            // (cookie blocked/cleared between holding and paying) — the hold id
+            // is unguessable and is being converted into this caller's own
+            // booking in the same transaction, so accepting it is safe.
+            OR: [{ heldBy: bookedBy }, { heldBy: null, heldByToken: { not: null } }],
             state: 'held',
+            // The sweeper only runs once a minute, so a lapsed hold sits in
+            // state='held' for up to ~60s. Without this an abandoned cart could
+            // still convert a cabin it no longer owns — beating a live guest who
+            // was meanwhile refused by uq_cabin_hold_active.
+            expiresAt: { gt: now },
           },
           data: { state: 'converted' },
         });
@@ -414,6 +494,8 @@ export class BookingService {
           bookingId: booking.id,
           name: dto.leadGuestName,
           phone: dto.leadGuestPhone,
+          email: dto.leadGuestEmail?.trim() || null,
+          nidEncrypted: this.encryptNid(dto.leadGuestNid),
         },
       });
 
@@ -487,6 +569,8 @@ export class BookingService {
       headcount: number;
       leadGuestName: string;
       leadGuestPhone?: string;
+      leadGuestEmail?: string;
+      leadGuestNid?: string;
       specialInstructions?: string;
       referenceName?: string;
       useCredit?: boolean;
@@ -549,6 +633,8 @@ export class BookingService {
           bookingId: booking.id,
           name: dto.leadGuestName,
           phone: dto.leadGuestPhone,
+          email: dto.leadGuestEmail?.trim() || null,
+          nidEncrypted: this.encryptNid(dto.leadGuestNid),
         },
       });
 
@@ -802,6 +888,14 @@ export class BookingService {
     if (booking.status === 'cancelled') {
       throw new BadRequestException('Booking is already cancelled');
     }
+    // A trip that already sailed can't be cancelled — the departure-completion
+    // job flips confirmed bookings to 'completed', and cancelling one would free
+    // cabins on a past departure and run refund math against a negative
+    // daysUntil. The customer UI never offers cancel on completed trips; this is
+    // the server-side backstop.
+    if (booking.status === 'completed') {
+      throw new BadRequestException('Completed trips cannot be cancelled');
+    }
 
     const houseboatId = booking.invoice.houseboatId;
     // Authorization: the booking's own customer, or a member with bookings:edit.
@@ -873,6 +967,7 @@ export class BookingService {
     await this.notifyWaitlist(
       booking.departureId,
       booking.departure.package.houseboat.name,
+      booking.cabins.map((c) => c.cabinId),
     ).catch(() => undefined);
 
     return {
@@ -1052,16 +1147,85 @@ export class BookingService {
     });
   }
 
-  async get(bookingId: string) {
-    return this.prisma.booking.findUnique({
+  async get(bookingId: string, actorId: string, isPlatform: boolean) {
+    const booking = await this.prisma.booking.findUnique({
       where: { id: bookingId },
       include: {
-        cabins: { include: { cabin: true } },
-        guests: true,
-        invoice: true,
-        departure: { include: { package: { include: { route: true } } } },
+        // Deck + category feed the confirmation invoice's line-item rows.
+        cabins: {
+          include: {
+            cabin: {
+              include: {
+                deck: { select: { name: true } },
+                category: { select: { name: true, isAc: true } },
+              },
+            },
+          },
+        },
+        // Never surface nidEncrypted — ciphertext is useless to clients and
+        // shouldn't ride in API responses.
+        guests: { select: { id: true, name: true, phone: true } },
+        // The buyer's own contact details — "billed to" on the invoice.
+        customer: { select: { name: true, email: true, phone: true } },
+        coupon: { select: { code: true } },
+        // The guest's own review, if left — drives the review card on the
+        // booking detail page (form when null on a completed trip, else the
+        // submitted rating + any owner reply, read-only).
+        review: {
+          select: { id: true, rating: true, text: true, ownerReply: true },
+        },
+        // payments carry the method + date behind "via bKash · 21 Jul 2026".
+        invoice: {
+          include: {
+            payments: {
+              select: { amount: true, method: true, paidAt: true },
+              orderBy: { paidAt: 'asc' },
+            },
+          },
+        },
+        departure: {
+          include: {
+            package: {
+              include: {
+                route: true,
+                houseboat: {
+                  select: {
+                    id: true,
+                    name: true,
+                    slug: true,
+                    logoStorageKey: true,
+                  },
+                },
+              },
+            },
+          },
+        },
       },
     });
+    if (!booking) throw new NotFoundException('Booking not found');
+    // Authorization: the booking's own customer, or a member with bookings:view.
+    // Without this any authenticated account could read any booking's guest PII
+    // and invoice by id (IDOR). Mirrors cancel()'s ownership check.
+    if (booking.customerId !== actorId) {
+      const houseboatId = booking.invoice?.houseboatId;
+      if (!houseboatId) throw new NotFoundException('Booking not found');
+      await this.rbac.assert(actorId, isPlatform, houseboatId, 'bookings', 'view');
+    }
+    // Boat logo: swap the storage key for a public URL (root-relative under the
+    // local driver, so it stays same-origin and passes CSP img-src 'self').
+    // Mutated in place rather than reshaped — get() returns the Prisma object by
+    // identity and callers rely on that. Both the path and the service are
+    // guarded: unit tests construct this service positionally without a storage
+    // dep and with fixtures that carry no departure.
+    const hb = booking.departure?.package?.houseboat as
+      | { logoStorageKey?: string | null; logoUrl?: string | null }
+      | undefined;
+    if (hb) {
+      const key = hb.logoStorageKey;
+      hb.logoUrl = key ? (this.storage?.publicUrl(key) ?? null) : null;
+      delete hb.logoStorageKey;
+    }
+    return booking;
   }
 
   listForCustomer(customerId: string) {
@@ -1070,5 +1234,45 @@ export class BookingService {
       include: { invoice: true, departure: true },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  /**
+   * Public, hold-free price preview for a hypothetical cabin selection. This is
+   * the single source of truth for every price the customer UI shows — the
+   * client never computes totals itself (no NIGHTS multiplier, no service fee,
+   * child pricing follows the boat's policy). No holds are taken and nothing is
+   * written; the customer commits later via checkout.
+   *
+   * `throwOnUnpriced:false` so a cabin with no configured rate comes back marked
+   * `priced:false` instead of failing the whole quote; no owner overrides or
+   * discounts (those are POS-only). Coupon is validated + applied server-side.
+   */
+  async quote(dto: {
+    departureId: string;
+    cabins: PriceableCabin[];
+    couponCode?: string;
+  }) {
+    const { cabinRows, coupon, bill } = await this.priceSelection(dto, {
+      throwOnUnpriced: false,
+    });
+    // A coupon "applied" when it resolved AND actually reduced the total. The
+    // client shows discountAmount; couponApplied just drives the ✓/✗ chip so it
+    // never has to guess validity from client state.
+    const discounted = bill.discountAmount.greaterThan(ZERO);
+    return {
+      perCabin: cabinRows.map((r) => ({
+        cabinId: r.cabinId,
+        adults: r.adults,
+        children: r.children,
+        occupancy: r.occupancy,
+        isOpenSeat: r.isOpenSeat,
+        roomPrice: r.roomPrice.toFixed(2),
+        priced: r.priced,
+      })),
+      couponApplied: !!coupon && discounted,
+      roomTotal: bill.roomTotal.toFixed(2),
+      discountAmount: bill.discountAmount.toFixed(2),
+      displayTotal: bill.displayTotal.toFixed(2),
+    };
   }
 }

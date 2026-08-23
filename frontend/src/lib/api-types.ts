@@ -297,6 +297,84 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/houseboats/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * GET /houseboats/search — public filtered search. Static path, declared
+         *     before the `:slug` catch-all so "search" isn't read as a slug.
+         */
+        get: operations["HouseboatsController_search"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/houseboats/{slug}/departures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * GET /houseboats/:slug/departures?from&to — public bookable departures.
+         *     Declared before `:slug` so the more specific path wins.
+         */
+        get: operations["HouseboatsController_departures"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/houseboats/{slug}/group-bands": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GET /houseboats/:slug/group-bands — public full-boat buyout bands. */
+        get: operations["HouseboatsController_groupBands"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/houseboats/{slug}/departures/{departureId}/cabins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * GET /houseboats/:slug/departures/:departureId/cabins — public per-cabin
+         *     availability snapshot for the boat detail page. Declared before `:slug` so
+         *     the more specific path wins.
+         */
+        get: operations["HouseboatsController_departureCabins"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/houseboats/{slug}": {
         parameters: {
             query?: never;
@@ -312,6 +390,91 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/me/credits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GET /me/credits — wallet balance + credit history. */
+        get: operations["MeController_credits"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/invoices/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** GET /me/invoices/:id — one of the caller's own invoices (payment poll). */
+        get: operations["MeController_invoice"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/cashout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** POST /me/cashout — request withdrawal of the caller's full open balance. */
+        post: operations["MeController_cashout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/notifications/{id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** POST /me/notifications/:id/read — mark one inbox item read. */
+        post: operations["MeController_markRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** PATCH /me — update the caller's own profile. */
+        patch: operations["MeController_updateProfile"];
         trace?: never;
     };
     "/api/houseboats/{houseboatId}/manage": {
@@ -650,7 +813,7 @@ export interface paths {
         patch: operations["TripsController_updatePackage"];
         trace?: never;
     };
-    "/api/houseboats/{houseboatId}/departures": {
+    "/api/houseboats/{houseboatId}/departures-list": {
         parameters: {
             query?: never;
             header?: never;
@@ -658,6 +821,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["TripsController_listDepartures"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/houseboats/{houseboatId}/departures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
         put?: never;
         post: operations["TripsController_createDeparture"];
         delete?: never;
@@ -730,7 +909,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/houseboats/{houseboatId}/group-bands": {
+    "/api/houseboats/{houseboatId}/group-bands-list": {
         parameters: {
             query?: never;
             header?: never;
@@ -739,7 +918,44 @@ export interface paths {
         };
         get: operations["TripsController_listBands"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/houseboats/{houseboatId}/group-bands": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
         post: operations["TripsController_addBand"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/booking/quote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Public, hold-free price preview. The boat page calls this on the current
+         *     cabin selection to show a server-authoritative total (client never computes
+         *     prices). Anonymous users can price before the login-at-checkout wall.
+         */
+        post: operations["BookingController_quote"];
         delete?: never;
         options?: never;
         head?: never;
@@ -773,6 +989,48 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["BookingController_release"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/booking/departures/{departureId}/extend-holds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Grant the one checkout extension (+10 min on the time REMAINING) for this
+         *     caller's cart. Called when the checkout page opens so a guest filling in
+         *     the form does not lose their cabins mid-typing.
+         *
+         *     Public for the same reason the hold routes are: the guest holds cabins
+         *     before the login-at-checkout wall. Ownership is not checked separately —
+         *     the service scopes by account or hb_gid, so a caller can only ever extend
+         *     their own holds. Idempotent: a reload gets the unchanged expiry back.
+         */
+        post: operations["BookingController_extendHolds"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/booking/departures/{departureId}/heartbeat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["BookingController_heartbeat"];
         delete?: never;
         options?: never;
         head?: never;
@@ -829,6 +1087,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/booking/waitlist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["BookingController_myWaitlist"];
+        put?: never;
+        post: operations["BookingController_joinWaitlist"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/booking/{bookingId}": {
         parameters: {
             query?: never;
@@ -861,7 +1135,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/booking/waitlist": {
+    "/api/booking/waitlist/{id}/leave": {
         parameters: {
             query?: never;
             header?: never;
@@ -870,7 +1144,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["BookingController_joinWaitlist"];
+        post: operations["BookingController_leaveWaitlist"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1102,7 +1376,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The boat's invoices (owner console). Read-only view of the money list. */
+        /**
+         * The boat's booking invoices (owner console). Read-only. Consumed by both the
+         *     bookings and refunds page detail drawers, so it is gated on the broad
+         *     `bookings` page rather than a narrower money page — a refunds-only role that
+         *     needs to see invoice detail should also be granted bookings:view.
+         */
         get: operations["MoneyController_listInvoices"];
         put?: never;
         post?: never;
@@ -1484,6 +1763,36 @@ export interface paths {
         put?: never;
         /** Start a hosted payment for an invoice. Returns the URL to redirect to. */
         post: operations["GatewayController_initiate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/gateway/sslcommerz/dev/settle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Settle an invoice WITHOUT taking money, so a booking can be confirmed
+         *     before the payment gateway is configured.
+         *
+         *     Gated on `gateway.bypass` (PAYMENTS_BYPASS=true). Off by default, so an
+         *     unset production environment refuses every call even if this route ships.
+         *     Delete the route — or just clear the flag — once SSLCommerz is live; the
+         *     whole `initiate` → hosted page → IPN path is untouched and still works.
+         *
+         *     Ownership, status and amount checks are the same ones `initiate` applies,
+         *     and the payment itself goes through the identical `recordGatewayPayment`
+         *     used by the IPN — so a 50% advance records as a partial and correctly
+         *     leaves the invoice `customer_due`, exactly as a real deposit would.
+         */
+        post: operations["GatewayController_devSettle"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1928,6 +2237,54 @@ export interface paths {
         get: operations["PlatformFinanceController_listCredits"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/finance/cashouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PlatformFinanceController_listCashouts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/finance/cashouts/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["PlatformFinanceController_approveCashout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/finance/cashouts/{id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["PlatformFinanceController_rejectCashout"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2505,7 +2862,12 @@ export interface components {
         RegisterDto: {
             phone: string;
             password: string;
-            name?: string;
+            /**
+             * @description Required: every booking, voucher and boarding list is read by a human at
+             *     the ghat, so an account with no name is not usable operationally.
+             *     Trimmed before length-checking so "   " cannot pass as a name.
+             */
+            name: string;
             /** Format: email */
             email?: string;
         };
@@ -2547,6 +2909,22 @@ export interface components {
         };
         ChangeRoleDto: {
             roleId: string;
+        };
+        CreateCashoutDto: {
+            /** @enum {string} */
+            method: "bkash" | "nagad" | "bank";
+            /** @description bKash/Nagad number, or bank account number. */
+            accountRef: string;
+            /** @description Required in practice for method=bank; validated in the service. */
+            bankName?: string;
+        };
+        UpdateProfileDto: {
+            name?: string;
+            phone?: string;
+            /** Format: email */
+            email?: string;
+            /** @description National ID / passport. Plaintext; empty string clears it. */
+            nid?: string;
         };
         FoodMenuDto: {
             breakfast?: string;
@@ -2721,6 +3099,18 @@ export interface components {
             maxPeople: number;
             totalPrice: number;
         };
+        QuoteCabinDto: {
+            cabinId: string;
+            adults: number;
+            children?: number;
+            childAges?: number[];
+            openSeat?: boolean;
+        };
+        QuoteDto: {
+            departureId: string;
+            cabins: components["schemas"]["QuoteCabinDto"][];
+            couponCode?: string;
+        };
         HoldCabinDto: {
             cabinId: string;
             departureId: string;
@@ -2747,6 +3137,13 @@ export interface components {
             cabins: components["schemas"]["CabinSelectionDto"][];
             leadGuestName: string;
             leadGuestPhone?: string;
+            /**
+             * Format: email
+             * @description Voucher/e-ticket address. Per-booking: the payer is often not the traveller.
+             */
+            leadGuestEmail?: string;
+            /** @description Lead guest NID / passport. Stored encrypted at rest; never echoed back. */
+            leadGuestNid?: string;
             specialInstructions?: string;
             couponCode?: string;
             referenceName?: string;
@@ -2761,6 +3158,13 @@ export interface components {
             headcount: number;
             leadGuestName: string;
             leadGuestPhone?: string;
+            /**
+             * Format: email
+             * @description Voucher/e-ticket address. Per-booking: the payer is often not the traveller.
+             */
+            leadGuestEmail?: string;
+            /** @description Lead guest NID / passport. Stored encrypted at rest; never echoed back. */
+            leadGuestNid?: string;
             specialInstructions?: string;
             referenceName?: string;
             useCredit?: boolean;
@@ -2768,6 +3172,11 @@ export interface components {
         WaitlistDto: {
             departureId: string;
             partySize: number;
+            /**
+             * @description Wait for one specific cabin. Omitted = any cabin on the trip, which is what
+             *     every row created before per-cabin waitlisting means.
+             */
+            cabinId?: string;
         };
         JoinOpenSeatDto: {
             openSeatCabinId: string;
@@ -2829,6 +3238,13 @@ export interface components {
             couponCode?: string;
             referenceName?: string;
             specialInstructions?: string;
+            /**
+             * @description Operator confirmation to attach this sale to a pre-existing account when the
+             *     typed phone already belongs to a customer under a different name. Without it
+             *     the checkout refuses (409), so a mistyped number can't silently land the
+             *     booking on a stranger.
+             */
+            attachToExisting?: boolean;
             /**
              * @description Owner's personal collection channel for cash taken at the counter (§6).
              * @enum {string}
@@ -3349,6 +3765,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                houseboatId: string;
                 membershipId: string;
             };
             cookie?: never;
@@ -3372,6 +3789,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                houseboatId: string;
                 membershipId: string;
             };
             cookie?: never;
@@ -3395,6 +3813,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                houseboatId: string;
                 membershipId: string;
             };
             cookie?: never;
@@ -3447,6 +3866,96 @@ export interface operations {
             };
         };
     };
+    HouseboatsController_search: {
+        parameters: {
+            query?: {
+                /** @description Route id or region text match. */
+                route?: string;
+                /** @description Only boats with a scheduled, available departure on/after this date. */
+                date?: string;
+                /** @description 'ac' → has an AC category; 'nonac' → has a non-AC category; 'both'/absent → no filter. */
+                ac?: "ac" | "nonac" | "both";
+                minPrice?: number;
+                maxPrice?: number;
+                /** @description At least one cabin category that seats this many. */
+                guests?: number;
+                sort?: "price_asc" | "price_desc" | "rating" | "newest";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    HouseboatsController_departures: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    HouseboatsController_groupBands: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    HouseboatsController_departureCabins: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                departureId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     HouseboatsController_getBySlug: {
         parameters: {
             query?: never;
@@ -3457,6 +3966,103 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MeController_credits: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MeController_invoice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MeController_cashout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCashoutDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MeController_markRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MeController_updateProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateProfileDto"];
+            };
+        };
         responses: {
             200: {
                 headers: {
@@ -4332,6 +4938,27 @@ export interface operations {
             };
         };
     };
+    BookingController_quote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuoteDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     BookingController_hold: {
         parameters: {
             query?: never;
@@ -4359,6 +4986,44 @@ export interface operations {
             header?: never;
             path: {
                 holdId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    BookingController_extendHolds: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                departureId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    BookingController_heartbeat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                departureId: string;
             };
             cookie?: never;
         };
@@ -4433,6 +5098,44 @@ export interface operations {
             };
         };
     };
+    BookingController_myWaitlist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    BookingController_joinWaitlist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WaitlistDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     BookingController_get: {
         parameters: {
             query?: never;
@@ -4473,18 +5176,16 @@ export interface operations {
             };
         };
     };
-    BookingController_joinWaitlist: {
+    BookingController_leaveWaitlist: {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                id: string;
+            };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WaitlistDto"];
-            };
-        };
+        requestBody?: never;
         responses: {
             201: {
                 headers: {
@@ -5412,6 +6113,27 @@ export interface operations {
             };
         };
     };
+    GatewayController_devSettle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InitiatePaymentDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     GatewayController_ipn: {
         parameters: {
             query?: never;
@@ -5564,6 +6286,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                houseboatId: string;
                 staffId: string;
             };
             cookie?: never;
@@ -5583,6 +6306,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                houseboatId: string;
                 staffId: string;
             };
             cookie?: never;
@@ -5606,6 +6330,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                houseboatId: string;
                 payrollId: string;
             };
             cookie?: never;
@@ -5625,6 +6350,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                houseboatId: string;
                 payrollId: string;
             };
             cookie?: never;
@@ -5825,6 +6551,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                houseboatId: string;
                 itemId: string;
             };
             cookie?: never;
@@ -5906,7 +6633,9 @@ export interface operations {
     };
     OpsController_deleteReviewReply: {
         parameters: {
-            query?: never;
+            query: {
+                houseboatId: string;
+            };
             header?: never;
             path: {
                 reviewId: string;
@@ -6196,7 +6925,7 @@ export interface operations {
     PlatformFinanceController_listCredits: {
         parameters: {
             query?: {
-                status?: "open" | "used";
+                status?: "open" | "used" | "pending_cashout";
                 limit?: number;
                 /** @description id of the last row from the previous page. */
                 cursor?: string;
@@ -6208,6 +6937,66 @@ export interface operations {
         requestBody?: never;
         responses: {
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformFinanceController_listCashouts: {
+        parameters: {
+            query?: {
+                status?: "pending" | "approved" | "rejected";
+                limit?: number;
+                /** @description id of the last row from the previous page. */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformFinanceController_approveCashout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformFinanceController_rejectCashout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };

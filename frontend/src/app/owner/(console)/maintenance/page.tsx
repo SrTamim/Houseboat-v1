@@ -17,6 +17,7 @@ import {
   TableWrap,
   AsyncTable,
 } from '@/components/owner/ui';
+import { BTN_B, BTN_O, BTN_OK, BTN_SM } from '@/components/owner/buttons';
 import { Pill, PillTone } from '@/components/owner/Pill';
 import { Drawer } from '@/components/owner/Drawer';
 import { formatDateTime, humanize, apiErrorMessage } from '@/lib/owner/format';
@@ -186,7 +187,7 @@ export default function OwnerMaintenancePage() {
         desc="Requests raised against the boat — what needs doing, how urgent, and where each one stands. Add a comment as work progresses so the history stays with the request."
         actions={
           <button
-            className="btn btn-b"
+            className={BTN_B}
             onClick={() => {
               setError(null);
               setCreating(true);
@@ -257,14 +258,14 @@ export default function OwnerMaintenancePage() {
             isEmpty={filtered.length === 0}
             onRetry={() => mutate()}
             empty={
-              <div className="state">
-                <div className="ic">🛠</div>
-                <h4>
+              <div className="px-6 py-11 text-center text-muted">
+                <div className="mb-2.5 text-[26px]">🛠</div>
+                <h4 className="mb-1.5 text-[15px] text-ink">
                   {(data?.requests.length ?? 0) === 0
                     ? 'No requests yet'
                     : 'Nothing matches'}
                 </h4>
-                <p>
+                <p className="mx-auto max-w-[46ch] text-[13px] leading-[1.55]">
                   {(data?.requests.length ?? 0) === 0
                     ? 'Raise a request when something on the boat needs attention.'
                     : 'Try a different search or status filter.'}
@@ -293,7 +294,7 @@ export default function OwnerMaintenancePage() {
                   <td>
                     <div className="rowact">
                       <button
-                        className="btn btn-sm btn-o"
+                        className={`${BTN_O} ${BTN_SM}`}
                         onClick={() => {
                           setError(null);
                           setComment('');
@@ -318,10 +319,10 @@ export default function OwnerMaintenancePage() {
         onClose={() => setCreating(false)}
         footer={
           <>
-            <button className="btn btn-o" onClick={() => setCreating(false)}>
+            <button className={BTN_O} onClick={() => setCreating(false)}>
               Cancel
             </button>
-            <button className="btn btn-b" onClick={createRequest} disabled={busy}>
+            <button className={BTN_B} onClick={createRequest} disabled={busy}>
               {busy ? 'Saving…' : 'Create request'}
             </button>
           </>
@@ -361,7 +362,7 @@ export default function OwnerMaintenancePage() {
         title={openRequest?.topic ?? 'Request'}
         onClose={() => setOpenId(null)}
         footer={
-          <button className="btn btn-o" onClick={() => setOpenId(null)}>
+          <button className={BTN_O} onClick={() => setOpenId(null)}>
             Close
           </button>
         }
@@ -384,7 +385,7 @@ export default function OwnerMaintenancePage() {
             <div className="rowact" style={{ flexWrap: 'wrap' }}>
               {openRequest.status === 'pending' ? (
                 <button
-                  className="btn btn-sm btn-b"
+                  className={`${BTN_B} ${BTN_SM}`}
                   onClick={() => changeStatus(openRequest.id, 'in_progress')}
                   disabled={busy}
                 >
@@ -395,14 +396,14 @@ export default function OwnerMaintenancePage() {
               openRequest.status !== 'canceled' ? (
                 <>
                   <button
-                    className="btn btn-sm btn-ok"
+                    className={`${BTN_OK} ${BTN_SM}`}
                     onClick={() => changeStatus(openRequest.id, 'complete')}
                     disabled={busy}
                   >
                     Mark complete
                   </button>
                   <button
-                    className="btn btn-sm btn-o"
+                    className={`${BTN_O} ${BTN_SM}`}
                     onClick={() => changeStatus(openRequest.id, 'canceled')}
                     disabled={busy}
                   >
@@ -411,7 +412,7 @@ export default function OwnerMaintenancePage() {
                 </>
               ) : (
                 <button
-                  className="btn btn-sm btn-o"
+                  className={`${BTN_O} ${BTN_SM}`}
                   onClick={() => changeStatus(openRequest.id, 'pending')}
                   disabled={busy}
                 >
@@ -460,7 +461,7 @@ export default function OwnerMaintenancePage() {
               />
             </Field>
             <button
-              className="btn btn-o btn-sm"
+              className={`${BTN_O} ${BTN_SM}`}
               onClick={() => addComment(openRequest.id)}
               disabled={busy || !comment.trim()}
               style={{ justifySelf: 'start' }}

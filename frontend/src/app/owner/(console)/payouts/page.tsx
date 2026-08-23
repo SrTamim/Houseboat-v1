@@ -123,10 +123,10 @@ export default function OwnerPayoutsPage() {
             isEmpty={batches.length === 0}
             onRetry={() => mutate()}
             empty={
-              <div className="state">
-                <div className="ic">💸</div>
-                <h4>No payouts yet</h4>
-                <p>
+              <div className="px-6 py-11 text-center text-muted">
+                <div className="mb-2.5 text-[26px]">💸</div>
+                <h4 className="mb-1.5 text-[15px] text-ink">No payouts yet</h4>
+                <p className="mx-auto max-w-[46ch] text-[13px] leading-[1.55]">
                   Batches appear once finance settles verified invoices for this boat.
                   Only gateway money is settled — cash stays with you.
                 </p>

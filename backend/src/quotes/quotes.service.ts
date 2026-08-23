@@ -72,7 +72,7 @@ export class QuotesService {
       include: { customer: { select: { id: true, phone: true, email: true } } },
     });
     if (!quote) throw new NotFoundException('Quote not found');
-    await this.rbac.assert(actorId, isPlatform, quote.houseboatId, 'pricing', 'edit');
+    await this.rbac.assert(actorId, isPlatform, quote.houseboatId, 'quotes', 'edit');
     if (quote.status !== 'requested') {
       throw new BadRequestException(`Cannot price a ${quote.status} quote`);
     }
@@ -139,7 +139,7 @@ export class QuotesService {
 
   /** Owner-side list of quote requests for a boat. */
   async listForBoat(houseboatId: string, actorId: string, isPlatform: boolean) {
-    await this.rbac.assert(actorId, isPlatform, houseboatId, 'pricing', 'view');
+    await this.rbac.assert(actorId, isPlatform, houseboatId, 'quotes', 'view');
     return this.prisma.quoteRequest.findMany({
       where: { houseboatId },
       orderBy: { status: 'asc' },

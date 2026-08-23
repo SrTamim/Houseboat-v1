@@ -17,6 +17,7 @@ import {
   Kv,
 } from '@/components/owner/ui';
 import { BookingStatusPill, Pill } from '@/components/owner/Pill';
+import { BTN_B, BTN_O, BTN_SM } from '@/components/owner/buttons';
 import { Drawer } from '@/components/owner/Drawer';
 import { InvoiceBill } from '@/components/owner/Bill';
 import { money, formatDate, maskPhone, humanize, initials } from '@/lib/owner/format';
@@ -188,7 +189,7 @@ export default function OwnerBookingsPage() {
         {date || month || year ? (
           <button
             type="button"
-            className="btn btn-sm btn-o"
+            className={`${BTN_O} ${BTN_SM}`}
             onClick={() => {
               setDate('');
               setMonth('');
@@ -219,10 +220,10 @@ export default function OwnerBookingsPage() {
             isEmpty={items.length === 0}
             onRetry={() => mutate()}
             empty={
-              <div className="state">
-                <div className="ic">🎟️</div>
-                <h4>No bookings</h4>
-                <p>
+              <div className="px-6 py-11 text-center text-muted">
+                <div className="mb-2.5 text-[26px]">🎟️</div>
+                <h4 className="mb-1.5 text-[15px] text-ink">No bookings</h4>
+                <p className="mx-auto max-w-[46ch] text-[13px] leading-[1.55]">
                   Nothing matches this filter. Bookings arrive from the website, the
                   counter, or an accepted quote.
                 </p>
@@ -267,7 +268,7 @@ export default function OwnerBookingsPage() {
                     </td>
                     <td>
                       <div className="rowact">
-                        <button className="btn btn-sm btn-o" onClick={() => setOpen(b)}>
+                        <button className={`${BTN_O} ${BTN_SM}`} onClick={() => setOpen(b)}>
                           Invoice
                         </button>
                       </div>
@@ -287,18 +288,18 @@ export default function OwnerBookingsPage() {
         onClose={() => setOpen(null)}
         footer={
           <>
-            <button className="btn btn-o" onClick={() => setOpen(null)}>
+            <button className={BTN_O} onClick={() => setOpen(null)}>
               Close
             </button>
-            <button className="btn btn-b" onClick={() => window.print()}>
+            <button className={BTN_B} onClick={() => window.print()}>
               Print invoice
             </button>
           </>
         }
       >
         {open ? (
-          <div className="stack" style={{ gap: 16 }}>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-wrap gap-2">
               <BookingStatusPill status={open.status} />
               <Pill tone={open.type === 'group' ? 'amb' : 'blue'}>{open.type}</Pill>
               {open.invoice?.payoutBatchId ? <Pill tone="lock">in payout</Pill> : null}
@@ -360,8 +361,8 @@ export default function OwnerBookingsPage() {
                 />
               </div>
             ) : (
-              <div className="note warn">
-                <span className="ic">⚠</span>
+              <div className="flex items-start gap-2.5 rounded border border-[color-mix(in_srgb,var(--warn)_20%,transparent)] bg-[color-mix(in_srgb,var(--warn)_10%,transparent)] px-[15px] py-3 text-[13px] font-medium leading-[1.5] text-warn">
+                <span className="flex-none text-[15px] leading-[1.3]">⚠</span>
                 <span>This booking has no invoice.</span>
               </div>
             )}

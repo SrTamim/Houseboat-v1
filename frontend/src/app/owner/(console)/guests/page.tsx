@@ -14,7 +14,9 @@ import {
   Note,
   TableWrap,
   AsyncTable,
+  EmptyState,
 } from '@/components/owner/ui';
+import { BTN_O, BTN_SM } from '@/components/owner/buttons';
 import { Pill } from '@/components/owner/Pill';
 import { money, formatDate, maskPhone } from '@/lib/owner/format';
 
@@ -85,7 +87,7 @@ export default function OwnerGuestsPage() {
         desc="Everyone who has booked this boat, built from their bookings — there is no separate contact list to keep up to date."
         actions={
           <button
-            className="btn btn-o"
+            className={BTN_O}
             onClick={downloadCsv}
             disabled={downloading || rows.length === 0}
           >
@@ -139,11 +141,11 @@ export default function OwnerGuestsPage() {
             isEmpty={rows.length === 0}
             onRetry={() => mutate()}
             empty={
-              <div className="state">
-                <div className="ic">👥</div>
-                <h4>No guests yet</h4>
-                <p>Anyone who books this boat appears here automatically.</p>
-              </div>
+              <EmptyState
+                icon="👥"
+                title="No guests yet"
+                message="Anyone who books this boat appears here automatically."
+              />
             }
           >
             <tbody>
@@ -189,14 +191,14 @@ export default function OwnerGuestsPage() {
             </span>
             <div style={{ display: 'flex', gap: 8 }}>
               <button
-                className="btn btn-o btn-sm"
+                className={`${BTN_O} ${BTN_SM}`}
                 disabled={offset === 0}
                 onClick={() => setOffset(Math.max(0, offset - PAGE))}
               >
                 Previous
               </button>
               <button
-                className="btn btn-o btn-sm"
+                className={`${BTN_O} ${BTN_SM}`}
                 disabled={offset + PAGE >= data.total}
                 onClick={() => setOffset(offset + PAGE)}
               >

@@ -41,6 +41,7 @@ export const NAV: NavGroup[] = [
       { key: 'payouts', icon: '💸', label: 'Payouts', href: '/admin/finance/payouts' },
       { key: 'overpayments', icon: '⚖', label: 'Overpayments', href: '/admin/finance/overpayments' },
       { key: 'credits', icon: '🎫', label: 'Credits', href: '/admin/finance/credits' },
+      { key: 'cashouts', icon: '🏧', label: 'Cash-outs', href: '/admin/finance/cashouts' },
       { key: 'commission', icon: '%', label: 'Commission', href: '/admin/finance/commission' },
       { key: 'billing', icon: '🧾', label: 'Subscriptions', href: '/admin/billing' },
       { key: 'billing-config', icon: '⚙', label: 'Billing config', href: '/admin/billing-config' },

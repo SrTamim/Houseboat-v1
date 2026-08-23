@@ -15,6 +15,8 @@
 //  (prisma/migrations/*_constraints/). Namely:
 //    - cabin_hold  partial unique index (cabin_id, departure_id) WHERE state='held'
 //    - booking_cabin active-row uniqueness on the cabin per departure
+//    - houseboat_member  uq_member_active partial unique (account_id, houseboat_id)
+//        WHERE status='active' — a person is a member of a boat once while active
 //    - audit_log    append-only trigger (no UPDATE/DELETE) + monthly partitions
 //    - pricing_profile GIN index on dates[]
 //  See that migration for the authoritative DDL.
@@ -45,6 +47,9 @@ model Account {
   phone         String   @unique
   passwordHash  String?  @map("password_hash")
   phoneVerified Boolean  @default(false) @map("phone_verified")
+  /// Customer's national ID / passport. Plaintext, not a secret — the customer,
+  /// boat owner and admin all need to read it (e.g. ghat verification).
+  nid           String?
   /// true = platform admin/finance staff. NO type enum: what a person IS derives from relations.
   isPlatform    Boolean  @default(false) @map("is_platform")
   /// NULL on a platform account = unrestricted superadmin. Only meaningful when is_platform.
@@ -70,6 +75,8 @@ model Account {
   payoutsApproved      HouseboatPayoutBatch[]   @relation("PayoutApprovedBy")
   distributionsRecorded OwnerDistribution[]
   credits              CustomerCredit[]
+  cashoutRequests      CashoutRequest[]         @relation("CashoutRequester")
+  cashoutsResolved     CashoutRequest[]         @relation("CashoutResolvedBy")
   payrollPaid          StaffPayroll[]
   costsPaid            Cost[]
   stockLogged          StockMovement[]
@@ -259,6 +266,7 @@ model HouseboatCabin {
   deck     HouseboatDeck          @relation(fields: [deckId], references: [id])
   category HouseboatCabinCategory @relation(fields: [cabinCategoryId], references: [id])
   bookingCabins BookingCabin[]
+  waitlists     BookingWaitlist[]
   holds    CabinHold[]
   media    HouseboatMedia[]
 
@@ -544,6 +552,13 @@ model BookingGuest {
   /// lead guest only — captured at checkout for contact
   name      String
   phone     String?
+  /// Lead-guest contact email for the voucher. Plaintext (a contact address,
+  /// not an identity document) and per-booking, since the booker is often not
+  /// the traveller.
+  email     String?
+  /// National ID / passport, encrypted at rest (AES-256-GCM, common/crypto.ts).
+  /// Ciphertext only — never returned in list responses, redacted in logs.
+  nidEncrypted String? @map("nid_encrypted")
 
   booking Booking @relation(fields: [bookingId], references: [id])
 
@@ -578,33 +593,60 @@ model CabinHold {
   id          String   @id @db.Uuid
   cabinId     String   @map("cabin_id") @db.Uuid
   departureId String   @map("departure_id") @db.Uuid
-  heldBy      String   @map("held_by") @db.Uuid
+  /// Account owner. NULL when a signed-out visitor took the hold — then
+  /// heldByToken identifies the browser instead. Exactly one of the two is set
+  /// (CHECK cabin_hold_one_owner).
+  heldBy      String?  @map("held_by") @db.Uuid
+  /// Guest owner: opaque per-browser id from the hb_gid cookie. Claimed onto an
+  /// account at login so checkout can convert the hold.
+  heldByToken String?  @map("held_by_token")
   /// 10-min TTL; server clock authoritative, not the device
   expiresAt   DateTime @map("expires_at") @db.Timestamptz
+  /// When the one-and-only checkout extension (+10 min) was granted. NULL =
+  /// never extended. Server-side so reloading checkout cannot stack more time.
+  extendedAt  DateTime? @map("extended_at") @db.Timestamptz
+  /// Last heartbeat from the page holding this cabin. The sweeper reclaims a
+  /// hold that stops reporting, so closing a tab frees cabins in ~2 min instead
+  /// of waiting out the TTL. NULL = never reported (owner POS) and is NEVER
+  /// reclaimed on the heartbeat rule — expiry alone governs those.
+  lastSeenAt  DateTime? @map("last_seen_at") @db.Timestamptz
   /// held / converted / released
   state       String   @default("held")
 
   cabin     HouseboatCabin @relation(fields: [cabinId], references: [id])
   departure TripDeparture  @relation(fields: [departureId], references: [id])
-  heldByAccount Account    @relation(fields: [heldBy], references: [id])
+  heldByAccount Account?   @relation(fields: [heldBy], references: [id])
 
   @@index([departureId])
   @@index([expiresAt])
+  @@index([heldByToken])
+  @@index([lastSeenAt])
   @@map("cabin_hold")
 }
 
-/// All notified at once when a cabin frees; the link routes through a HOLD attempt so first-to-hold wins.
+/// Notified when a cabin frees; the link routes through a HOLD attempt so first-to-hold wins.
 model BookingWaitlist {
   id          String   @id @db.Uuid
   departureId String   @map("departure_id") @db.Uuid
   customerId  String   @map("customer_id") @db.Uuid
+  /// The specific cabin this customer is waiting for. NULL = any cabin on the
+  /// trip, which is what every row created before per-cabin waitlisting means —
+  /// those keep working untouched, and the owner/platform screens never read it.
+  cabinId     String?  @map("cabin_id") @db.Uuid
   partySize   Int      @map("party_size")
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  departure TripDeparture @relation(fields: [departureId], references: [id])
-  customer  Account       @relation(fields: [customerId], references: [id])
+  departure TripDeparture  @relation(fields: [departureId], references: [id])
+  customer  Account        @relation(fields: [customerId], references: [id])
+  cabin     HouseboatCabin? @relation(fields: [cabinId], references: [id])
 
   @@index([departureId])
+  /// The notify lookup: "who is waiting on THIS cabin?"
+  @@index([departureId, cabinId])
+  /// One row per customer per cabin. Postgres treats NULLs as distinct, so
+  /// legacy trip-level rows are not constrained against each other — join()
+  /// still de-dupes those in code.
+  @@unique([departureId, customerId, cabinId])
   @@map("booking_waitlist")
 }
 
@@ -849,7 +891,10 @@ model CustomerCredit {
   amount          Decimal @db.Decimal(12, 2)
   /// null until spent
   usedInInvoiceId String? @map("used_in_invoice_id") @db.Uuid
-  /// open / used
+  /// open / used / pending_cashout. `pending_cashout` credits are locked against an
+  /// open CashoutRequest: excluded from the wallet balance AND from applyCredits(),
+  /// so they can't be spent on a booking until finance approves (→ used) or rejects
+  /// (→ back to open).
   status          String  @default("open")
 
   account       Account  @relation(fields: [accountId], references: [id])
@@ -858,6 +903,35 @@ model CustomerCredit {
 
   @@index([accountId])
   @@map("customer_credit")
+}
+
+/// A customer's request to withdraw their open wallet balance to bKash/Nagad/bank.
+/// Created for the full open balance; the account's `open` credits are moved to
+/// `pending_cashout` at request time so the money is locked from booking use.
+/// Finance approves (credits → used) or rejects (credits → open) from the console.
+model CashoutRequest {
+  id                  String    @id @db.Uuid
+  accountId           String    @map("account_id") @db.Uuid
+  amount              Decimal   @db.Decimal(12, 2)
+  /// bkash / nagad / bank
+  method              String
+  /// bKash/Nagad number, or bank account number
+  accountRef          String    @map("account_ref")
+  /// only for method = bank
+  bankName            String?   @map("bank_name")
+  /// pending / approved / rejected
+  status              String    @default("pending")
+  note                String?
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  resolvedAt          DateTime? @map("resolved_at") @db.Timestamptz
+  resolvedByAccountId String?   @map("resolved_by_account_id") @db.Uuid
+
+  account          Account  @relation("CashoutRequester", fields: [accountId], references: [id])
+  resolvedByAccount Account? @relation("CashoutResolvedBy", fields: [resolvedByAccountId], references: [id])
+
+  @@index([accountId])
+  @@index([status])
+  @@map("cashout_request")
 }
 
 // ---------- HR: STAFF, CREW, PAYROLL ----------
@@ -1079,6 +1153,8 @@ model Notification {
   /// sms / email
   channel   String
   delivered Boolean  @default(false)
+  /// when the customer marked this read in their account inbox; NULL = unread
+  readAt    DateTime? @map("read_at") @db.Timestamptz
   /// minimal replay payload for console resend: {phone?, email?, subject?, html?, message?, bookingId?}.
   /// NULL = row predates this column and cannot be resent.
   payload   Json?

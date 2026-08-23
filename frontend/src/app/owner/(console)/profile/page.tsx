@@ -12,6 +12,7 @@ import {
   Note,
   AsyncBlock,
 } from '@/components/owner/ui';
+import { BTN_B, BTN_O, BTN_SM } from '@/components/owner/buttons';
 import { Pill } from '@/components/owner/Pill';
 import { MediaGallery, BoatLogo } from '@/components/owner/MediaGallery';
 import { apiErrorMessage, humanize } from '@/lib/owner/format';
@@ -259,8 +260,8 @@ export default function OwnerProfilePage() {
 
       <AsyncBlock isLoading={boat.isLoading} error={boat.error} onRetry={() => boat.mutate()}>
         <form onSubmit={save}>
-          <div className="grid-2">
-            <div className="stack">
+          <div className="grid grid-cols-[2fr_1fr] items-start gap-5 max-[1024px]:grid-cols-1">
+            <div className="flex flex-col gap-5">
               <Card title="Basics">
                 <div style={{ display: 'grid', gap: 12 }}>
                   <Field label="Boat name">
@@ -361,7 +362,7 @@ export default function OwnerProfilePage() {
               </Card>
             </div>
 
-            <div className="stack">
+            <div className="flex flex-col gap-5">
               <Card title="Completion">
                 <div
                   style={{
@@ -390,7 +391,7 @@ export default function OwnerProfilePage() {
                     }}
                   />
                 </div>
-                <div className="stack" style={{ gap: 6 }}>
+                <div className="flex flex-col gap-1.5">
                   {checklist.map((item) => {
                     const row = (
                       <div
@@ -449,7 +450,7 @@ export default function OwnerProfilePage() {
               </Card>
 
               <Card title="Child policy" sub="age bands — first match wins">
-                <div className="stack" style={{ gap: 10 }}>
+                <div className="flex flex-col gap-2.5">
                   {childPolicy.length === 0 ? (
                     <Note kind="info">
                       No bands set, so children are charged the full per-person rate.
@@ -493,7 +494,7 @@ export default function OwnerProfilePage() {
                         </Field>
                         <button
                           type="button"
-                          className="btn btn-o btn-sm"
+                          className={`${BTN_O} ${BTN_SM}`}
                           onClick={() => removeBand(i)}
                           aria-label="Remove band"
                         >
@@ -503,7 +504,7 @@ export default function OwnerProfilePage() {
                     ))
                   )}
                   <div>
-                    <button type="button" className="btn btn-o btn-sm" onClick={addBand}>
+                    <button type="button" className={`${BTN_O} ${BTN_SM}`} onClick={addBand}>
                       ＋ Add band
                     </button>
                   </div>
@@ -517,7 +518,7 @@ export default function OwnerProfilePage() {
           </div>
 
           <div style={{ marginTop: 18 }}>
-            <button className="btn btn-b" type="submit" disabled={busy}>
+            <button className={BTN_B} type="submit" disabled={busy}>
               {busy ? 'Saving…' : 'Save profile'}
             </button>
           </div>

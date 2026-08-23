@@ -5,6 +5,7 @@ import useSWR from 'swr';
 import { api, fetcher } from '@/lib/api';
 import { useActiveBoat } from '@/lib/owner/boat-context';
 import { PageHead, Card, Note, TableWrap, AsyncTable } from '@/components/owner/ui';
+import { BTN_B, BTN_SM } from '@/components/owner/buttons';
 import { Pill } from '@/components/owner/Pill';
 import { apiErrorMessage, formatDate, maskPhone } from '@/lib/owner/format';
 
@@ -14,7 +15,14 @@ interface WaitlistGroup {
   label: string | null;
   cabinsFree: number;
   partySizes: number[];
-  entries: { id: string; name: string | null; phone: string; partySize: number }[];
+  entries: {
+    id: string;
+    name: string | null;
+    phone: string;
+    partySize: number;
+    /** Null = waiting on any cabin of this trip. */
+    cabinName?: string | null;
+  }[];
 }
 
 export default function OwnerWaitlistPage() {
@@ -84,10 +92,10 @@ export default function OwnerWaitlistPage() {
             isEmpty={groups.length === 0}
             onRetry={() => mutate()}
             empty={
-              <div className="state">
-                <div className="ic">⏳</div>
-                <h4>Nobody waiting</h4>
-                <p>
+              <div className="px-6 py-11 text-center text-muted">
+                <div className="mb-2.5 text-[26px]">⏳</div>
+                <h4 className="mb-1.5 text-[15px] text-ink">Nobody waiting</h4>
+                <p className="mx-auto max-w-[46ch] text-[13px] leading-[1.55]">
                   Guests join the waitlist from the public boat page when a departure is
                   full.
                 </p>
@@ -104,9 +112,15 @@ export default function OwnerWaitlistPage() {
                   <td>
                     <div className="t1">{g.entries.length}</div>
                     <div className="t2">
+                      {/* Name the cabin when there is one: the same customer can
+                          appear on several rows of one trip, and without it those
+                          read as duplicate entries. */}
                       {g.entries
                         .slice(0, 2)
-                        .map((e) => e.name ?? maskPhone(e.phone))
+                        .map((e) => {
+                          const who = e.name ?? maskPhone(e.phone);
+                          return e.cabinName ? `${who} (${e.cabinName})` : who;
+                        })
                         .join(', ')}
                       {g.entries.length > 2 ? ` +${g.entries.length - 2}` : ''}
                     </div>
@@ -120,7 +134,7 @@ export default function OwnerWaitlistPage() {
                   <td>
                     <div className="rowact">
                       <button
-                        className="btn btn-sm btn-b"
+                        className={`${BTN_B} ${BTN_SM}`}
                         disabled={g.cabinsFree < 1 || busyId === g.departureId}
                         title={
                           g.cabinsFree < 1

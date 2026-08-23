@@ -163,7 +163,7 @@ export default function OwnerReportsPage() {
         />
       </Kpis>
 
-      <div className="rp-grid">
+      <div className="mt-1 grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-4 max-[860px]:grid-cols-1">
         <Card title="Revenue · cost · profit" sub="last 12 months">
           <AsyncBlock
             isLoading={isLoading}

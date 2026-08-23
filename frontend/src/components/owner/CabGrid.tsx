@@ -23,6 +23,25 @@ const DEFAULT_LABEL: Record<CabState, string> = {
   selected: 'picked',
 };
 
+// Per-state border / background (was `.cab.<state>`).
+const STATE_BOX: Record<CabState, string> = {
+  free: 'cursor-pointer border-[color-mix(in_srgb,var(--ok)_45%,var(--hair))] hover:border-ok hover:bg-[color-mix(in_srgb,var(--ok)_7%,var(--raise-1))]',
+  held: 'border-[color-mix(in_srgb,var(--warn)_45%,var(--hair))] bg-[color-mix(in_srgb,var(--warn)_9%,var(--raise-1))]',
+  booked: 'border-hair bg-field opacity-80',
+  selected: 'border-blue bg-[color-mix(in_srgb,var(--blue)_10%,var(--raise-1))] shadow-ring',
+  spare: 'border-[color-mix(in_srgb,var(--blue)_45%,var(--hair))] bg-[color-mix(in_srgb,var(--blue)_8%,var(--raise-1))]',
+};
+// Corner status-word colour (was `.cab.<state> .st`).
+const STATE_ST: Record<CabState, string> = {
+  free: 'text-ok',
+  held: 'text-warn',
+  booked: 'text-muted',
+  selected: 'text-blue',
+  spare: 'text-blue',
+};
+const CAB_ACT =
+  'inline-flex h-6 w-6 items-center justify-center rounded-md border border-hair bg-raise-1 text-[12px] leading-none text-muted shadow-e1 transition-[border-color,color] duration-dur ease-ease';
+
 /**
  * Cabin tiles for the counter-sale and departure screens.
  *
@@ -45,7 +64,7 @@ export function CabGrid({
 }) {
   const manage = Boolean(onEdit || onDelete);
   return (
-    <div className="cabgrid">
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-3">
       {cabins.map((c) => {
         const selectable =
           Boolean(onSelect) && (c.state === 'free' || c.state === 'selected');
@@ -54,21 +73,29 @@ export function CabGrid({
           <Tag
             key={c.id}
             type={selectable ? 'button' : undefined}
-            className={`cab ${c.state}`}
+            className={`group relative rounded-xl border border-hair bg-raise-1 p-3 text-left shadow-e1 transition-[border-color,transform,box-shadow] duration-dur ease-ease hover:-translate-y-0.5 hover:shadow-e2 ${STATE_BOX[c.state]}`}
             onClick={selectable ? () => onSelect?.(c) : undefined}
           >
-            <span className="st">{c.statusLabel ?? DEFAULT_LABEL[c.state]}</span>
-            <div className="cn">{c.name}</div>
-            {c.caption ? <div className="cc">{c.caption}</div> : null}
+            <span
+              className={`absolute right-2.5 top-2.5 text-[9.5px] font-bold uppercase tracking-[0.04em] ${STATE_ST[c.state]}`}
+            >
+              {c.statusLabel ?? DEFAULT_LABEL[c.state]}
+            </span>
+            <div className="font-display text-[15px] font-semibold text-ink">{c.name}</div>
+            {c.caption ? (
+              <div className="mt-0.5 text-[11px] font-semibold text-muted">{c.caption}</div>
+            ) : null}
             {c.price !== null && c.price !== undefined ? (
-              <div className="cp">{money(c.price)}</div>
+              <div className="mt-2 font-display text-[13px] font-semibold tabular-nums text-ink">
+                {money(c.price)}
+              </div>
             ) : null}
             {manage ? (
-              <div className="cab-actions">
+              <div className="absolute bottom-2 right-2 flex gap-1.5 opacity-0 transition-opacity duration-dur ease-ease group-hover:opacity-100 group-focus-within:opacity-100">
                 {onEdit ? (
                   <button
                     type="button"
-                    className="cab-act"
+                    className={`${CAB_ACT} hover:border-blue hover:text-blue`}
                     title="Edit cabin"
                     onClick={(e) => {
                       e.stopPropagation();
@@ -81,7 +108,7 @@ export function CabGrid({
                 {onDelete ? (
                   <button
                     type="button"
-                    className="cab-act cab-act-del"
+                    className={`${CAB_ACT} hover:border-danger hover:text-danger`}
                     title="Delete cabin"
                     onClick={(e) => {
                       e.stopPropagation();

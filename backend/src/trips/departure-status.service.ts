@@ -66,6 +66,15 @@ export class DepartureStatusService {
           where: { id: dep.id, status: 'in_progress' },
           data: { status: 'completed' },
         });
+        // Cascade to the trip's active bookings so they become reviewable and
+        // land in the customer's "Completed" tab. Only 'confirmed' bookings are
+        // active (reschedule keeps status 'confirmed', it only moves the
+        // departure); 'cancelled' is deliberately left untouched. Filtered by
+        // status → idempotent on the next 5-minute pass.
+        await this.prisma.booking.updateMany({
+          where: { departureId: dep.id, status: 'confirmed' },
+          data: { status: 'completed' },
+        });
         completed++;
       }
     }

@@ -2,6 +2,7 @@ import axios, { type InternalAxiosRequestConfig } from 'axios';
 import type { paths, components } from './api-types';
 import { LOGIN_PATH, loginUrl } from './admin/login-url';
 import { OWNER_LOGIN_PATH, ownerLoginUrl } from './owner/login-url';
+import { customerAuthUrl } from './customer/login-url';
 
 /**
  * Shared axios instance. Talks to /api (proxied to the NestJS backend in
@@ -12,6 +13,12 @@ export const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL ?? '/api',
   withCredentials: true,
 });
+
+/**
+ * Customer-surface path prefixes. A 401 here re-opens the auth modal in place
+ * instead of navigating to a console login the visitor has no account for.
+ */
+const CUSTOMER_PREFIXES = ['/account', '/checkout', '/booking', '/boat', '/search'];
 
 /** SWR fetcher. */
 export const fetcher = <T>(url: string): Promise<T> =>
@@ -45,6 +52,37 @@ async function getCsrfToken(): Promise<string | null> {
  */
 export function clearCsrfToken(): void {
   csrfToken = null;
+}
+
+/**
+ * Drop the cached token AND await a fresh one bound to the current session.
+ *
+ * Call this right after a login/register response lands. Those endpoints mint a
+ * new hb_sid, and the CSRF hash is bound to it (see getSessionIdentifier in
+ * backend security/csrf.ts), so every token minted earlier is now invalid.
+ *
+ * clearCsrfToken() alone is not enough: it only empties the cache, leaving the
+ * request interceptor to refill it lazily on the next mutating call. That is a
+ * race — the first mutation after signing in can go out carrying a token minted
+ * against the OLD session and come back 403. Awaiting the fetch here makes the
+ * cache correct before the caller continues.
+ */
+export async function refreshCsrfToken(): Promise<void> {
+  csrfToken = null;
+  await getCsrfToken();
+}
+
+/**
+ * The cached CSRF token, for the rare request that cannot go through the axios
+ * interceptor — specifically a `fetch(..., {keepalive:true})` fired while the
+ * page is being torn down, where there is no time to await a token fetch.
+ *
+ * Returns null if nothing has been cached yet; the caller should treat the
+ * request as best-effort. (`navigator.sendBeacon` cannot set headers at all,
+ * which is why it is unusable for CSRF-protected routes.)
+ */
+export function getCachedCsrfToken(): string | null {
+  return csrfToken;
 }
 
 const MUTATING = new Set(['post', 'put', 'patch', 'delete']);
@@ -97,9 +135,15 @@ api.interceptors.response.use(
     if (status === 403) csrfToken = null;
 
     // Never try to refresh a failed auth call itself — that recurses.
+    //
+    // /auth/register belongs here too: a failed sign-up has no session to
+    // recover, and letting it fall through means the refresh fails and the
+    // catch below HARD-NAVIGATES the browser — tearing down the auth modal and
+    // everything the user typed, instead of showing them the error.
     const isAuthCall =
       url.includes('/auth/refresh') ||
       url.includes('/auth/login') ||
+      url.includes('/auth/register') ||
       url.includes('/auth/logout');
 
     if (status === 401 && config && !config._retried && !isAuthCall) {
@@ -112,21 +156,35 @@ api.interceptors.response.use(
         if (typeof window !== 'undefined') {
           csrfToken = null;
           const path = window.location.pathname;
-          // Route the bounce to the console the user was actually in. The owner
-          // and admin login URLs clamp ?next= to their own path prefix, so using
-          // the admin builder for an owner would drop the destination AND land
-          // them on the wrong login form.
-          const inOwner = path.startsWith('/owner');
-          const loginPath = inOwner ? OWNER_LOGIN_PATH : LOGIN_PATH;
-          const build = inOwner ? ownerLoginUrl : loginUrl;
-          if (!path.startsWith(loginPath)) {
-            // Preserve where they were so sign-in returns them there.
+          // Route the bounce to the surface the user was actually in. The three
+          // builders are not interchangeable: each clamps ?next= to its own path
+          // prefix, so using the admin one for an owner would drop the
+          // destination AND land them on the wrong login form.
+          //
+          // Customers have no login page — they get the auth modal re-opened on
+          // the page they are already standing on, so nothing they typed is
+          // lost. (Before this branch existed, an expired customer was sent to
+          // the ADMIN login, which is not even their account type.)
+          if (CUSTOMER_PREFIXES.some((p) => path === p || path.startsWith(p + '/'))) {
             window.location.assign(
-              build({
-                next: path + window.location.search,
+              customerAuthUrl({
+                path: path + window.location.search,
                 reason: 'session_expired',
               }),
             );
+          } else {
+            const inOwner = path.startsWith('/owner');
+            const loginPath = inOwner ? OWNER_LOGIN_PATH : LOGIN_PATH;
+            const build = inOwner ? ownerLoginUrl : loginUrl;
+            if (!path.startsWith(loginPath)) {
+              // Preserve where they were so sign-in returns them there.
+              window.location.assign(
+                build({
+                  next: path + window.location.search,
+                  reason: 'session_expired',
+                }),
+              );
+            }
           }
         }
       }

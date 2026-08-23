@@ -15,7 +15,9 @@ import {
   FilterBar,
   TableWrap,
   AsyncBlock,
+  EmptyState,
 } from '@/components/owner/ui';
+import { BTN_B } from '@/components/owner/buttons';
 import { Bill } from '@/components/owner/Bill';
 import { money, moneyShort, formatDate, apiErrorMessage } from '@/lib/owner/format';
 
@@ -159,7 +161,7 @@ export default function OwnerEarningsPage() {
         />
       </Kpis>
 
-      <div className="grid-2">
+      <div className="grid grid-cols-[2fr_1fr] items-start gap-5 max-[1024px]:grid-cols-1">
         <Card title={`${monthLabel(period)} statement`}>
           <AsyncBlock isLoading={isLoading} error={error} onRetry={() => mutate()}>
             {s ? (
@@ -186,7 +188,7 @@ export default function OwnerEarningsPage() {
           </AsyncBlock>
         </Card>
 
-        <div className="stack">
+        <div className="flex flex-col gap-5">
           <Card title="Distributions" sub="recorded withdrawals · no auto-split" flush>
             <AsyncBlock
               isLoading={isLoading}
@@ -194,11 +196,11 @@ export default function OwnerEarningsPage() {
               isEmpty={(data?.distributions.length ?? 0) === 0}
               onRetry={() => mutate()}
               empty={
-                <div className="state">
-                  <div className="ic">💰</div>
-                  <h4>Nothing withdrawn</h4>
-                  <p>Log what each partner actually took out.</p>
-                </div>
+                <EmptyState
+                  icon="💰"
+                  title="Nothing withdrawn"
+                  message="Log what each partner actually took out."
+                />
               }
             >
               <TableWrap minWidth={0}>
@@ -289,7 +291,7 @@ export default function OwnerEarningsPage() {
               </Field>
 
               <div>
-                <button className="btn btn-b" type="submit" disabled={busy || !membershipId}>
+                <button className={BTN_B} type="submit" disabled={busy || !membershipId}>
                   {busy ? 'Recording…' : 'Record withdrawal'}
                 </button>
               </div>

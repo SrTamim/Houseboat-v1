@@ -15,6 +15,7 @@ import {
   AsyncTable,
   Kv,
 } from '@/components/owner/ui';
+import { BTN_B, BTN_O, BTN_SM } from '@/components/owner/buttons';
 import { Pill } from '@/components/owner/Pill';
 import { Drawer } from '@/components/owner/Drawer';
 import {
@@ -127,10 +128,12 @@ export default function OwnerQuotesPage() {
             isEmpty={rows.length === 0}
             onRetry={() => mutate()}
             empty={
-              <div className="state">
-                <div className="ic">💬</div>
-                <h4>No quote requests</h4>
-                <p>Groups can request a full-boat price from your public boat page.</p>
+              <div className="px-6 py-11 text-center text-muted">
+                <div className="mb-2.5 text-[26px]">💬</div>
+                <h4 className="mb-1.5 text-[15px] text-ink">No quote requests</h4>
+                <p className="mx-auto max-w-[46ch] text-[13px] leading-[1.55]">
+                  Groups can request a full-boat price from your public boat page.
+                </p>
               </div>
             }
           >
@@ -160,7 +163,7 @@ export default function OwnerQuotesPage() {
                   <td>
                     <div className="rowact">
                       <button
-                        className="btn btn-sm btn-o"
+                        className={`${BTN_O} ${BTN_SM}`}
                         onClick={() => {
                           setOpen(q);
                           setPrice(q.quotedPrice ?? '');
@@ -184,17 +187,17 @@ export default function OwnerQuotesPage() {
         onClose={() => setOpen(null)}
         footer={
           <>
-            <button className="btn btn-o" onClick={() => setOpen(null)}>
+            <button className={BTN_O} onClick={() => setOpen(null)}>
               Cancel
             </button>
-            <button className="btn btn-b" onClick={sendQuote} disabled={busy || !price}>
+            <button className={BTN_B} onClick={sendQuote} disabled={busy || !price}>
               {busy ? 'Sending…' : 'Send quote'}
             </button>
           </>
         }
       >
         {open ? (
-          <div className="stack" style={{ gap: 16 }}>
+          <div className="flex flex-col gap-5" style={{ gap: 16 }}>
             {open.expiresAt ? (
               <div>
                 <Pill tone="warn">{timeLeft(open.expiresAt)}</Pill>

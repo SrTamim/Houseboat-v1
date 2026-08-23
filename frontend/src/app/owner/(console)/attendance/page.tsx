@@ -130,10 +130,12 @@ export default function OwnerAttendancePage() {
             isEmpty={rows.length === 0}
             onRetry={() => report.mutate()}
             empty={
-              <div className="state">
-                <div className="ic">{search ? '🔍' : '⚓'}</div>
-                <h4>{search ? 'No crew match your search' : 'No crew on this boat'}</h4>
-                <p>
+              <div className="px-6 py-11 text-center text-muted">
+                <div className="mb-2.5 text-[26px]">{search ? '🔍' : '⚓'}</div>
+                <h4 className="mb-1.5 text-[15px] text-ink">
+                  {search ? 'No crew match your search' : 'No crew on this boat'}
+                </h4>
+                <p className="mx-auto max-w-[46ch] text-[13px] leading-[1.55]">
                   {search
                     ? 'Try a different name, role or phone.'
                     : 'Add crew, then their monthly record shows up here.'}

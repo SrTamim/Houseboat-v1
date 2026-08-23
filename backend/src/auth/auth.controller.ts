@@ -22,6 +22,8 @@ import {
 } from './jwt-auth.guard';
 import { CSRF_UTILS, CsrfUtils } from '../security/csrf.module';
 import { Inject } from '@nestjs/common';
+import { HoldsService } from '../booking/holds.service';
+import { GUEST_COOKIE, readGuestToken } from '../booking/guest-token';
 
 @Controller('auth')
 export class AuthController {
@@ -29,6 +31,7 @@ export class AuthController {
     private readonly auth: AuthService,
     private readonly config: ConfigService,
     @Inject(CSRF_UTILS) private readonly csrf: CsrfUtils,
+    private readonly holds: HoldsService,
   ) {}
 
   private cookieBase(): CookieOptions {
@@ -79,11 +82,27 @@ export class AuthController {
   @Post('register')
   async register(
     @Body() dto: RegisterDto,
+    @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
     const { account, tokens } = await this.auth.register(dto);
     this.setAuthCookies(res, tokens.access, tokens.refresh);
     this.setSessionCookie(res);
+
+    // Same hand-over as login — see the comment there. Registering mid-checkout
+    // is now the common path (sign-up is a modal on the checkout page), so a
+    // first-time customer holding cabins would otherwise lose them at the one
+    // moment it matters most. Never block registration on this.
+    const guestToken = readGuestToken(req);
+    if (guestToken) {
+      try {
+        await this.holds.claimForAccount(guestToken, account.id);
+        res.clearCookie(GUEST_COOKIE, { path: '/' });
+      } catch {
+        // Claim failed — checkout's token fallback still covers it.
+      }
+    }
+
     return { account };
   }
 
@@ -99,6 +118,22 @@ export class AuthController {
     const { account, tokens } = await this.auth.login(dto, req);
     this.setAuthCookies(res, tokens.access, tokens.refresh, tokens.remember);
     this.setSessionCookie(res, tokens.remember);
+
+    // Hand over any cabins this browser was holding before signing in.
+    // Load-bearing: BookingService.checkout() converts holds by account id, so a
+    // hold still owned by the guest token would match nothing and the
+    // customer's own checkout would fail with "a held cabin expired or was
+    // taken". Never block login on this.
+    const guestToken = readGuestToken(req);
+    if (guestToken) {
+      try {
+        await this.holds.claimForAccount(guestToken, account.id);
+        res.clearCookie(GUEST_COOKIE, { path: '/' });
+      } catch {
+        // Claim failed — checkout's token fallback still covers it.
+      }
+    }
+
     return { account };
   }
 

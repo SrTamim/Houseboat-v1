@@ -178,6 +178,10 @@ export class OwnerBookingsService {
       where: { departure: { package: { houseboatId } } },
       include: {
         customer: { select: { id: true, name: true, phone: true } },
+        // A customer may wait on several cabins of one trip, which shows here as
+        // several rows — name the cabin so those read as distinct requests rather
+        // than duplicate entries.
+        cabin: { select: { name: true } },
         departure: {
           select: {
             id: true,
@@ -198,7 +202,14 @@ export class OwnerBookingsService {
         label: string | null;
         cabinsFree: number;
         partySizes: number[];
-        entries: { id: string; name: string | null; phone: string; partySize: number }[];
+        entries: {
+          id: string;
+          name: string | null;
+          phone: string;
+          partySize: number;
+          /** Null = waiting on any cabin of this trip. */
+          cabinName: string | null;
+        }[];
       }
     >();
 
@@ -217,6 +228,7 @@ export class OwnerBookingsService {
         name: r.customer.name,
         phone: r.customer.phone,
         partySize: r.partySize,
+        cabinName: r.cabin?.name ?? null,
       });
       byDeparture.set(r.departureId, entry);
     }

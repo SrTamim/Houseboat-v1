@@ -23,8 +23,13 @@ import {
 export class OwnerBookingsController {
   constructor(private readonly bookings: OwnerBookingsService) {}
 
+  // Booking list — read by the bookings, departure (manifest) and pos pages.
   @Get('bookings')
-  @RequirePermission({ module: 'bookings', action: 'view' })
+  @RequirePermission({
+    module: 'bookings',
+    action: 'view',
+    anyOf: ['departure', 'pos'],
+  })
   list(
     @Param('houseboatId') houseboatId: string,
     @Query() query: OwnerBookingsQueryDto,
@@ -40,7 +45,7 @@ export class OwnerBookingsController {
 
   /** Mark departure attendance for one booking from the manifest (§4). */
   @Patch('bookings/:bookingId/checkin')
-  @RequirePermission({ module: 'bookings', action: 'edit' })
+  @RequirePermission({ module: 'departure', action: 'edit' })
   setCheckin(
     @Param('houseboatId') houseboatId: string,
     @Param('bookingId') bookingId: string,
@@ -51,13 +56,13 @@ export class OwnerBookingsController {
   }
 
   @Get('waitlist')
-  @RequirePermission({ module: 'bookings', action: 'view' })
+  @RequirePermission({ module: 'waitlist', action: 'view' })
   waitlist(@Param('houseboatId') houseboatId: string) {
     return this.bookings.waitlist(houseboatId);
   }
 
   @Post('waitlist/:departureId/notify')
-  @RequirePermission({ module: 'bookings', action: 'edit' })
+  @RequirePermission({ module: 'waitlist', action: 'edit' })
   notifyWaitlist(
     @Param('houseboatId') houseboatId: string,
     @Param('departureId') departureId: string,
@@ -68,7 +73,7 @@ export class OwnerBookingsController {
 
   /** Live holds on a departure (anyone's), so the counter grid can lock them. */
   @Get('departures/:departureId/holds')
-  @RequirePermission({ module: 'bookings', action: 'edit' })
+  @RequirePermission({ module: 'pos', action: 'edit' })
   departureHolds(
     @Param('houseboatId') houseboatId: string,
     @Param('departureId') departureId: string,
@@ -78,7 +83,7 @@ export class OwnerBookingsController {
 
   /** Read-only price preview for a counter-sale selection. Creates nothing. */
   @Post('pos/quote')
-  @RequirePermission({ module: 'bookings', action: 'edit' })
+  @RequirePermission({ module: 'pos', action: 'edit' })
   posQuote(
     @Param('houseboatId') houseboatId: string,
     @Body() dto: PosQuoteDto,
@@ -92,7 +97,7 @@ export class OwnerBookingsController {
    */
   @Throttle({ default: { ttl: 60_000, limit: 20 } })
   @Post('pos/bookings')
-  @RequirePermission({ module: 'bookings', action: 'edit' })
+  @RequirePermission({ module: 'pos', action: 'edit' })
   posCheckout(
     @Param('houseboatId') houseboatId: string,
     @CurrentUser() user: AuthUser,

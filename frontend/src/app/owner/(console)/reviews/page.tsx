@@ -5,6 +5,7 @@ import useSWR from 'swr';
 import { api, fetcher } from '@/lib/api';
 import { useActiveBoat } from '@/lib/owner/boat-context';
 import { PageHead, Card, Note, AsyncBlock, Field } from '@/components/owner/ui';
+import { BTN_B, BTN_O, BTN_SM } from '@/components/owner/buttons';
 import { Pill } from '@/components/owner/Pill';
 import { apiErrorMessage, formatDate, initials } from '@/lib/owner/format';
 
@@ -104,7 +105,7 @@ export default function OwnerReviewsPage() {
         </Note>
       ) : null}
 
-      <div className="stack" style={{ maxWidth: 800 }}>
+      <div className="flex flex-col gap-5" style={{ maxWidth: 800 }}>
         <AsyncBlock
           isLoading={isLoading}
           error={loadError}
@@ -112,10 +113,10 @@ export default function OwnerReviewsPage() {
           onRetry={() => mutate()}
           empty={
             <Card>
-              <div className="state">
-                <div className="ic">★</div>
-                <h4>No reviews yet</h4>
-                <p>
+              <div className="px-6 py-11 text-center text-muted">
+                <div className="mb-2.5 text-[26px]">★</div>
+                <h4 className="mb-1.5 text-[15px] text-ink">No reviews yet</h4>
+                <p className="mx-auto max-w-[46ch] text-[13px] leading-[1.55]">
                   A guest can review once their trip is completed. Nothing else opens the
                   form.
                 </p>
@@ -178,14 +179,14 @@ export default function OwnerReviewsPage() {
                       </Field>
                       <div style={{ display: 'flex', gap: 8 }}>
                         <button
-                          className="btn btn-b btn-sm"
+                          className={`${BTN_B} ${BTN_SM}`}
                           onClick={() => postReply(r.id, Boolean(r.ownerReply))}
                           disabled={busy || !reply.trim()}
                         >
                           {busy ? 'Saving…' : r.ownerReply ? 'Save reply' : 'Post reply'}
                         </button>
                         <button
-                          className="btn btn-o btn-sm"
+                          className={`${BTN_O} ${BTN_SM}`}
                           onClick={() => {
                             setReplyFor(null);
                             setReply('');
@@ -221,7 +222,7 @@ export default function OwnerReviewsPage() {
                       </div>
                       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                         <button
-                          className="btn btn-o btn-sm"
+                          className={`${BTN_O} ${BTN_SM}`}
                           disabled={busy}
                           onClick={() => {
                             setReplyFor(r.id);
@@ -231,7 +232,7 @@ export default function OwnerReviewsPage() {
                           Edit
                         </button>
                         <button
-                          className="btn btn-o btn-sm"
+                          className={`${BTN_O} ${BTN_SM}`}
                           disabled={busy}
                           onClick={() => deleteReply(r.id)}
                         >
@@ -241,7 +242,7 @@ export default function OwnerReviewsPage() {
                     </div>
                   ) : (
                     <button
-                      className="btn btn-o btn-sm"
+                      className={`${BTN_O} ${BTN_SM}`}
                       style={{ marginTop: 12 }}
                       onClick={() => {
                         setReplyFor(r.id);

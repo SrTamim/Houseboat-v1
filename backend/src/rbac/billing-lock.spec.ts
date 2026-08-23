@@ -54,7 +54,10 @@ describe('RbacService.assert — lock blocks everything but billing', () => {
       roleId: 'r',
       status: 'active',
       endDate: null,
-      role: { permissions: { money: { view: true, edit: true } } },
+      // Page-shaped role (post per-page migration). `billing` is granted so the
+      // permission check passes and the test exercises the billing LOCK, not a
+      // missing-permission rejection.
+      role: { permissions: { billing: { view: true, edit: true } } },
     };
     const prisma = {
       houseboatMember: { findFirst: jest.fn().mockResolvedValue(membership) },
@@ -69,21 +72,21 @@ describe('RbacService.assert — lock blocks everything but billing', () => {
   it('blocks a normal view when locked', async () => {
     const svc = lockedService();
     await expect(
-      svc.assert('u', false, 'boat', 'money', 'view'),
+      svc.assert('u', false, 'boat', 'billing', 'view'),
     ).rejects.toThrow(/locked/);
   });
 
   it('blocks a normal edit when locked', async () => {
     const svc = lockedService();
     await expect(
-      svc.assert('u', false, 'boat', 'money', 'edit'),
+      svc.assert('u', false, 'boat', 'billing', 'edit'),
     ).rejects.toThrow(/locked/);
   });
 
   it('allows the billing surface (bypassBillingLock) when locked', async () => {
     const svc = lockedService();
     await expect(
-      svc.assert('u', false, 'boat', 'money', 'view', {
+      svc.assert('u', false, 'boat', 'billing', 'view', {
         bypassBillingLock: true,
       }),
     ).resolves.toBeTruthy();

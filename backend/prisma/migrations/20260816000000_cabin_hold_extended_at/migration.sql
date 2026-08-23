@@ -1,0 +1,19 @@
+-- Once-only checkout extension for cabin holds.
+--
+-- A hold lives 10 minutes. That is enough to pick cabins, but not enough to
+-- also fill in the checkout form, so opening checkout grants ONE extension of
+-- +10 minutes added to whatever time is left (4:23 becomes 14:23 — additive,
+-- not a reset to a fresh 10:00, which would shorten a hold that still had 8
+-- minutes on it).
+--
+-- "Once" has to be enforced here rather than in the client: a browser-side
+-- "already extended" flag is bypassed by clearing storage or replaying the
+-- request, which would let a visitor hold cabins indefinitely by reloading
+-- checkout. extended_at is the server's record that the grant was spent.
+--
+-- NULL = never extended. Set once, never cleared: the row is released or
+-- converted long before it could matter again.
+--
+-- NOTE: uq_cabin_hold_active (cabin_id, departure_id) WHERE state='held' and
+-- the cabin_hold_one_owner CHECK are deliberately NOT touched.
+ALTER TABLE "cabin_hold" ADD COLUMN IF NOT EXISTS "extended_at" TIMESTAMPTZ;

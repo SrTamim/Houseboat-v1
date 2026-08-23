@@ -120,4 +120,78 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       if (expiresAt <= now) this.memoryRevoked.delete(jti);
     }
   }
+
+  // ── Login lockout (progressive brute-force / credential-stuffing defense) ──
+  // A per-identity failure counter with a sliding TTL window. Once the count
+  // crosses a threshold the caller refuses logins until the window elapses.
+  // This is on TOP of the per-IP @Throttle on /auth/login, and defends a single
+  // targeted account across many IPs (throttle is per-IP/per-account request
+  // rate; this is per-account failure count).
+  //
+  // Dev without Redis: a per-process map, same rationale as the deny-list.
+  private readonly memoryFails = new Map<string, { n: number; exp: number }>();
+
+  private failKey(id: string): string {
+    return `loginfail:${id}`;
+  }
+
+  /**
+   * Current consecutive-failure count for an identity (e.g. a phone). Never
+   * throws — a lockout store outage must not hard-fail login; it just means we
+   * can't enforce lockout that moment (the @Throttle still bounds the rate).
+   */
+  async loginFailCount(id: string): Promise<number> {
+    if (!this.client) return this.memoryFailCount(id);
+    try {
+      const v = await this.client.get(this.failKey(id));
+      return v ? parseInt(v, 10) : 0;
+    } catch {
+      return this.memoryFailCount(id);
+    }
+  }
+
+  /** Increment the failure counter and (re)set its window. Returns the new count. */
+  async recordLoginFailure(id: string, windowSeconds: number): Promise<number> {
+    const ttl = Math.max(windowSeconds, 1);
+    if (!this.client) return this.memoryRecordFailure(id, ttl);
+    try {
+      const key = this.failKey(id);
+      const n = await this.client.incr(key);
+      await this.client.expire(key, ttl);
+      return n;
+    } catch {
+      return this.memoryRecordFailure(id, ttl);
+    }
+  }
+
+  /** Clear the counter after a successful login. */
+  async clearLoginFailures(id: string): Promise<void> {
+    if (!this.client) {
+      this.memoryFails.delete(id);
+      return;
+    }
+    try {
+      await this.client.del(this.failKey(id));
+    } catch {
+      this.memoryFails.delete(id);
+    }
+  }
+
+  private memoryFailCount(id: string): number {
+    const e = this.memoryFails.get(id);
+    if (!e) return 0;
+    if (e.exp <= Date.now()) {
+      this.memoryFails.delete(id);
+      return 0;
+    }
+    return e.n;
+  }
+
+  private memoryRecordFailure(id: string, ttlSeconds: number): number {
+    const now = Date.now();
+    const e = this.memoryFails.get(id);
+    const n = e && e.exp > now ? e.n + 1 : 1;
+    this.memoryFails.set(id, { n, exp: now + ttlSeconds * 1000 });
+    return n;
+  }
 }

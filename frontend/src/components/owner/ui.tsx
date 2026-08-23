@@ -20,12 +20,14 @@ export function PageHead({
   actions?: React.ReactNode;
 }) {
   return (
-    <div className="page-head">
+    <div className="mb-6 flex flex-wrap items-start justify-between gap-[18px]">
       <div>
-        <h1>{title}</h1>
-        {desc ? <p>{desc}</p> : null}
+        <h1 className="text-[27px] tracking-[-0.03em] max-[560px]:text-[22px]">{title}</h1>
+        {desc ? (
+          <p className="mt-2 max-w-[74ch] text-[13.5px] leading-[1.55] text-muted">{desc}</p>
+        ) : null}
       </div>
-      {actions ? <div className="acts">{actions}</div> : null}
+      {actions ? <div className="flex flex-wrap gap-2.5">{actions}</div> : null}
     </div>
   );
 }
@@ -51,20 +53,52 @@ export function Kpi({
   delta?: { text: string; dir?: 'up' | 'down' };
   alert?: boolean;
 }) {
+  // Decorative corner glow (was .kpi::after) — tinted blue, red when alert.
+  const glow = alert
+    ? 'after:[background:radial-gradient(circle,color-mix(in_srgb,var(--danger)_13%,transparent),transparent_70%)]'
+    : 'after:[background:radial-gradient(circle,color-mix(in_srgb,var(--blue)_12%,transparent),transparent_70%)]';
+  // Icon chip gradient (was .kpi .chip) — blue, red when alert.
+  const chip = alert
+    ? 'text-danger [background:linear-gradient(145deg,color-mix(in_srgb,var(--danger)_20%,var(--raise-1)),color-mix(in_srgb,var(--danger)_9%,var(--raise-1)))] [box-shadow:inset_0_0_0_1px_color-mix(in_srgb,var(--danger)_22%,transparent),var(--top-hi)]'
+    : 'text-blue [background:linear-gradient(145deg,color-mix(in_srgb,var(--blue)_22%,var(--raise-1)),color-mix(in_srgb,var(--blue)_10%,var(--raise-1)))] [box-shadow:inset_0_0_0_1px_color-mix(in_srgb,var(--blue)_24%,transparent),var(--top-hi)]';
   return (
-    <div className={`kpi${alert ? ' alert' : ''}`}>
-      <div className="top">
-        <span className="chip">{icon}</span>
-        <span className="l">{label}</span>
+    <div
+      className={`relative flex min-h-[132px] flex-col overflow-hidden rounded-2xl border border-hair bg-raise-1 p-[18px] shadow-[var(--e2),var(--top-hi)] after:pointer-events-none after:absolute after:-right-10 after:-top-10 after:h-[130px] after:w-[130px] after:rounded-full after:content-[''] ${glow}${
+        alert ? ' border-t-2 border-t-danger' : ''
+      }`}
+    >
+      <div className="relative z-[1] flex items-center gap-[11px]">
+        <span
+          className={`grid h-[38px] w-[38px] flex-none place-items-center rounded-[11px] text-[17px] ${chip}`}
+        >
+          {icon}
+        </span>
+        <span className="text-[11.5px] font-semibold tracking-[0.01em] text-muted">{label}</span>
       </div>
-      <div className="n">
-        {unit ? <span className="u">{unit}</span> : null}
+      <div
+        className={`mt-auto pt-[14px] font-display text-[31px] font-semibold leading-none tracking-[-0.035em] tabular-nums ${
+          alert ? 'text-danger' : 'text-ink'
+        }`}
+      >
+        {unit ? <span className="mr-px text-[17px] font-semibold text-muted">{unit}</span> : null}
         {value}
       </div>
       {delta || detail ? (
-        <div className="d">
+        <div className="mt-[9px] flex items-center gap-1.5 text-[12px] font-medium leading-[1.35] text-muted">
           {delta ? (
-            <span className={`delta${delta.dir ? ` ${delta.dir}` : ''}`}>{delta.text}</span>
+            <span
+              className={
+                delta.dir
+                  ? `flex-none whitespace-nowrap rounded-full px-2 py-0.5 text-[11.5px] font-bold tabular-nums ${
+                      delta.dir === 'up'
+                        ? 'bg-[color-mix(in_srgb,var(--ok)_14%,transparent)] text-ok'
+                        : 'bg-[color-mix(in_srgb,var(--danger)_14%,transparent)] text-danger'
+                    }`
+                  : 'text-[12px] font-medium tabular-nums text-muted'
+              }
+            >
+              {delta.text}
+            </span>
           ) : null}
           {detail}
         </div>
@@ -74,7 +108,9 @@ export function Kpi({
 }
 
 export function Kpis({ children }: { children: React.ReactNode }) {
-  return <div className="kpis">{children}</div>;
+  return (
+    <div className="mb-6 grid grid-cols-[repeat(auto-fill,minmax(212px,1fr))] gap-4">{children}</div>
+  );
 }
 
 export function Card({
@@ -94,17 +130,20 @@ export function Card({
   style?: React.CSSProperties;
 }) {
   return (
-    <div className="card2" style={style}>
+    <div
+      className="rounded-2xl border border-hair bg-raise-1 shadow-[var(--e2),var(--top-hi)]"
+      style={style}
+    >
       {title ? (
-        <div className="ch">
+        <div className="flex items-center justify-between gap-3 border-b border-hair-2 px-5 py-4">
           <div>
-            <h3>{title}</h3>
-            {sub ? <div className="sub">{sub}</div> : null}
+            <h3 className="text-[15px] font-semibold">{title}</h3>
+            {sub ? <div className="text-[12px] font-medium text-muted">{sub}</div> : null}
           </div>
           {actions}
         </div>
       ) : null}
-      <div className={`cb${flush ? ' flush' : ''}`}>{children}</div>
+      <div className={flush ? 'p-0' : 'p-5'}>{children}</div>
     </div>
   );
 }
@@ -137,9 +176,19 @@ export function Note({
   style?: React.CSSProperties;
 }) {
   const fallback = { info: 'ℹ', ok: '✓', warn: '⚠', danger: '⚠' }[kind];
+  const tone = {
+    info: 'border-[color-mix(in_srgb,var(--blue)_18%,transparent)] bg-[color-mix(in_srgb,var(--blue)_8%,transparent)] text-blue-700 dark:text-blue',
+    ok: 'border-[color-mix(in_srgb,var(--ok)_20%,transparent)] bg-[color-mix(in_srgb,var(--ok)_10%,transparent)] text-ok',
+    warn: 'border-[color-mix(in_srgb,var(--warn)_20%,transparent)] bg-[color-mix(in_srgb,var(--warn)_10%,transparent)] text-warn',
+    danger:
+      'border-[color-mix(in_srgb,var(--danger)_20%,transparent)] bg-[color-mix(in_srgb,var(--danger)_9%,transparent)] text-danger',
+  }[kind];
   return (
-    <div className={`note ${kind}`} style={style}>
-      <span className="ic">{icon ?? fallback}</span>
+    <div
+      className={`flex items-start gap-2.5 rounded border px-[15px] py-3 text-[13px] font-medium leading-[1.5] ${tone}`}
+      style={style}
+    >
+      <span className="flex-none text-[15px] leading-[1.3]">{icon ?? fallback}</span>
       <span>{children}</span>
     </div>
   );
@@ -148,11 +197,11 @@ export function Note({
 /** Key/value list used in drawers and summary panels. */
 export function Kv({ rows }: { rows: [React.ReactNode, React.ReactNode][] }) {
   return (
-    <dl className="kv">
+    <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2.5 text-[13.5px]">
       {rows.map(([k, v], i) => (
         <div key={i} style={{ display: 'contents' }}>
-          <dt>{k}</dt>
-          <dd>{v}</dd>
+          <dt className="font-medium text-muted">{k}</dt>
+          <dd className="m-0 text-right font-semibold text-ink">{v}</dd>
         </div>
       ))}
     </dl>
@@ -176,16 +225,22 @@ export function Seg({
   onChange: (v: string) => void;
 }) {
   return (
-    <div className="seg">
+    <div className="inline-flex rounded border border-hair bg-field p-[3px]">
       {options.map((o) => (
         <button
           key={o.value}
           type="button"
-          className={`seg-b${o.value === value ? ' on' : ''}`}
+          className={`rounded-[7px] px-[13px] py-[7px] text-[12.5px] font-semibold transition-all duration-dur ease-ease ${
+            o.value === value
+              ? 'bg-raise-1 text-blue shadow-e1'
+              : 'bg-transparent text-bodytext hover:text-blue'
+          }`}
           onClick={() => onChange(o.value)}
         >
           {o.label}
-          {o.count !== undefined ? <span className="ct">{o.count}</span> : null}
+          {o.count !== undefined ? (
+            <span className="ml-1 tabular-nums opacity-[0.65]">{o.count}</span>
+          ) : null}
         </button>
       ))}
     </div>
@@ -193,7 +248,9 @@ export function Seg({
 }
 
 export function FilterBar({ children }: { children: React.ReactNode }) {
-  return <div className="filterbar">{children}</div>;
+  // .filterbar also styles bare <input>/<select> children (see owner.css); those
+  // element rules stay until each page's filter markup is migrated.
+  return <div className="filterbar flex flex-wrap items-center gap-3">{children}</div>;
 }
 
 /**
@@ -226,13 +283,16 @@ export function Search({
   }, [local, debounceMs]);
 
   return (
-    <div className="search">
-      <span className="mag">🔍</span>
+    <div className="relative min-w-[200px] max-w-[340px] flex-1">
+      <span className="absolute left-[13px] top-1/2 -translate-y-1/2 text-[14px] text-muted">
+        🔍
+      </span>
       <input
         type="search"
         placeholder={placeholder}
         value={local}
         onChange={(e) => setLocal(e.target.value)}
+        className="h-10 w-full rounded border border-hair bg-field pl-[38px] pr-[14px] text-[14px] text-ink transition-[border-color,box-shadow] duration-dur ease-ease placeholder:text-muted focus:border-blue focus:shadow-ring focus:outline-none"
       />
     </div>
   );
@@ -251,7 +311,7 @@ export function Select({
 }) {
   return (
     <select
-      className="select"
+      className="h-10 cursor-pointer rounded border border-hair bg-field px-3 text-[13.5px] font-medium text-ink focus:border-blue focus:shadow-ring focus:outline-none"
       value={value}
       aria-label={ariaLabel}
       onChange={(e) => onChange(e.target.value)}
@@ -314,11 +374,11 @@ export function EmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="state">
-      <div className="ic">{icon}</div>
-      <h4>{title}</h4>
-      {message ? <p>{message}</p> : null}
-      {action}
+    <div className="px-6 py-11 text-center text-muted">
+      <div className="mb-2.5 text-[26px]">{icon}</div>
+      <h4 className="mb-1.5 text-[15px] text-ink">{title}</h4>
+      {message ? <p className="mx-auto max-w-[46ch] text-[13px] leading-[1.55]">{message}</p> : null}
+      {action ? <div className="mt-[14px]">{action}</div> : null}
     </div>
   );
 }
@@ -339,12 +399,12 @@ export function ErrorState({
   })();
 
   return (
-    <div className="state">
-      <div className="ic">⚠</div>
-      <h4>Could not load</h4>
-      <p>{message}</p>
+    <div className="px-6 py-11 text-center text-muted">
+      <div className="mb-2.5 text-[26px]">⚠</div>
+      <h4 className="mb-1.5 text-[15px] text-ink">Could not load</h4>
+      <p className="mx-auto max-w-[46ch] text-[13px] leading-[1.55]">{message}</p>
       {onRetry ? (
-        <button className="btn btn-o btn-sm" onClick={onRetry}>
+        <button className="btn btn-o btn-sm mt-[14px]" onClick={onRetry}>
           Try again
         </button>
       ) : null}
