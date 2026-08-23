@@ -19,6 +19,13 @@ import type { CabState } from '@/components/owner/CabGrid';
 import { Bill } from '@/components/owner/Bill';
 import { BTN_B, BTN_O, BTN_SM } from '@/components/owner/buttons';
 import { apiErrorMessage, formatDate, money, toE164, weekday } from '@/lib/owner/format';
+import {
+  chargeForAge,
+  chargeLabel,
+  maxChildAge,
+  summarizeChildPolicy,
+} from '@/lib/customer/child-policy';
+import type { ChildPolicyBand } from '@/lib/customer/types';
 
 interface Departure {
   id: string;
@@ -40,6 +47,8 @@ interface BoatDetail {
     baseCapacity: number;
     extendedCapacity: number | null;
   }[];
+  /** Age bands that discount children off the adult fare (same shape the customer flow reads). */
+  childPolicy: ChildPolicyBand[] | null;
 }
 
 interface Booking {
@@ -52,6 +61,12 @@ interface Selection {
   name: string;
   adults: number;
   children: number;
+  /**
+   * One age per child, in order. The server prices each child from its age
+   * against the boat's child_policy; kept trimmed to `children` (see setCount).
+   * An entry may be undefined while the operator is still typing.
+   */
+  childAges: number[];
   /** Server hold id, obtained the moment the cabin was selected. */
   holdId: string;
   /** Owner-typed price for a cabin with no configured rate (undefined = use profile). */
@@ -238,6 +253,15 @@ export default function OwnerPosPage() {
 
   const hasCabins = decks.some((d) => d.cabins.length > 0);
 
+  // The boat's child bands, read once. Same source the customer flow prices from,
+  // so a child costs the same at the counter as it does online.
+  const childPolicy = boat.data?.childPolicy ?? null;
+  const childPolicyText = useMemo(
+    () => summarizeChildPolicy(childPolicy),
+    [childPolicy],
+  );
+  const childAgeMax = useMemo(() => maxChildAge(childPolicy), [childPolicy]);
+
   // Tick the shared countdown down to zero from the server expiry. On expiry the
   // hold is gone server-side (the sweeper releases it within a minute and emits
   // 'released'); clear the cart so the operator re-picks.
@@ -276,11 +300,28 @@ export default function OwnerPosPage() {
       c: p.cabinId,
       a: p.adults,
       k: p.children,
+      // Ages affect price, so a change must re-quote. Trimmed to the child count
+      // to match what's sent, and so a trailing stale age can't re-fire it.
+      g: p.childAges.slice(0, p.children),
       o: p.priceOverride,
     })),
   });
   useEffect(() => {
     if (!activeId || picked.length === 0) {
+      setQuote(null);
+      return;
+    }
+    // Every child needs an age before the server can price the party. Firing
+    // with a partial childAges array would show a total that silently changes
+    // once the operator finishes typing — hold the quote until ages are in.
+    const missingAges = picked.some((p) => {
+      for (let i = 0; i < p.children; i++) {
+        const age = p.childAges[i];
+        if (age === undefined || age === null || Number.isNaN(age)) return true;
+      }
+      return false;
+    });
+    if (missingAges) {
       setQuote(null);
       return;
     }
@@ -293,6 +334,7 @@ export default function OwnerPosPage() {
         cabinId: p.cabinId,
         adults: p.adults,
         children: p.children || undefined,
+        childAges: p.children > 0 ? p.childAges.slice(0, p.children) : undefined,
         priceOverride: p.priceOverride,
       })),
     };
@@ -363,7 +405,14 @@ export default function OwnerPosPage() {
       });
       setPicked((prev) => [
         ...prev,
-        { cabinId: cabin.id, name: cabin.name, adults: 2, children: 0, holdId: res.data.id },
+        {
+          cabinId: cabin.id,
+          name: cabin.name,
+          adults: 2,
+          children: 0,
+          childAges: [],
+          holdId: res.data.id,
+        },
       ]);
       // Holds share one cart expiry — the newest wins for the whole cart.
       setHoldExpiresAt(res.data.expiresAt);
@@ -381,15 +430,36 @@ export default function OwnerPosPage() {
   }
 
   function setCount(cabinId: string, key: 'adults' | 'children', value: number) {
+    const next = Math.max(0, value);
     // Headcount change re-evaluates the rate: drop the latched manual flag and
     // any stale override so the new tier is priced fresh (the quote re-latches
     // manual pricing if the new headcount is also unpriced).
     setPicked((prev) =>
-      prev.map((p) =>
-        p.cabinId === cabinId
-          ? { ...p, [key]: Math.max(0, value), manualPrice: false, priceOverride: undefined }
-          : p,
-      ),
+      prev.map((p) => {
+        if (p.cabinId !== cabinId) return p;
+        const patched: Selection = {
+          ...p,
+          [key]: next,
+          manualPrice: false,
+          priceOverride: undefined,
+        };
+        // Lowering the child count drops the trailing age inputs so a stale age
+        // can't keep pricing a child who's no longer in the party.
+        if (key === 'children') patched.childAges = p.childAges.slice(0, next);
+        return patched;
+      }),
+    );
+  }
+
+  /** Set one child's age (undefined while the field is empty). */
+  function setChildAge(cabinId: string, index: number, value: number | undefined) {
+    setPicked((prev) =>
+      prev.map((p) => {
+        if (p.cabinId !== cabinId) return p;
+        const ages = [...p.childAges];
+        ages[index] = value as number;
+        return { ...p, childAges: ages };
+      }),
     );
   }
 
@@ -415,6 +485,18 @@ export default function OwnerPosPage() {
   const unpricedCabin = picked.find(
     (p) => p.manualPrice && (p.priceOverride === undefined || p.priceOverride <= 0),
   );
+
+  // A cabin with children whose ages aren't all filled in. The server prices
+  // each child from its age, so quoting now would show a total that changes as
+  // soon as the operator finishes typing — hold the quote (and the sale) until
+  // every age is entered.
+  const needsChildAges = picked.some((p) => {
+    for (let i = 0; i < p.children; i++) {
+      const age = p.childAges[i];
+      if (age === undefined || age === null || Number.isNaN(age)) return true;
+    }
+    return false;
+  });
 
   const total = quote ? Number(quote.displayTotal) : 0;
   // Paid starts empty (0) — the owner types what the customer actually handed
@@ -447,6 +529,10 @@ export default function OwnerPosPage() {
       setError(`Set a price for cabin ${unpricedCabin.name} before confirming.`);
       return;
     }
+    if (needsChildAges) {
+      setError('Enter every child’s age before confirming — each is priced from it.');
+      return;
+    }
     if (overpaid) {
       setError(`Paid can't exceed the total (${money(total.toFixed(2))}).`);
       return;
@@ -472,6 +558,7 @@ export default function OwnerPosPage() {
             holdId: p.holdId,
             adults: p.adults,
             children: p.children || undefined,
+            childAges: p.children > 0 ? p.childAges.slice(0, p.children) : undefined,
             priceOverride: p.priceOverride,
           })),
           couponCode: couponCode || undefined,
@@ -707,6 +794,65 @@ export default function OwnerPosPage() {
                         />
                       </Field>
                     </div>
+                    {p.children > 0 ? (
+                      // One age per child, priced against the boat's child_policy —
+                      // the same rule the customer flow uses, so a child costs the
+                      // same at the counter as online.
+                      <div style={{ display: 'grid', gap: 8 }}>
+                        <div style={{ fontSize: 11.5, color: 'var(--muted)', fontWeight: 600 }}>
+                          Child fares: {childPolicyText}
+                        </div>
+                        {Array.from({ length: p.children }).map((_, i) => {
+                          const raw = p.childAges[i];
+                          const typed =
+                            raw !== undefined && raw !== null && !Number.isNaN(raw);
+                          const charge = typed
+                            ? chargeForAge(childPolicy, raw)
+                            : null;
+                          return (
+                            <div
+                              key={i}
+                              style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+                            >
+                              <input
+                                type="number"
+                                min={0}
+                                max={childAgeMax}
+                                placeholder={`Child ${i + 1} age`}
+                                value={raw ?? ''}
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  // Empty clears the entry rather than becoming 0,
+                                  // which is a real age here.
+                                  setChildAge(
+                                    p.cabinId,
+                                    i,
+                                    v === '' ? undefined : Number(v),
+                                  );
+                                }}
+                                aria-label={`Cabin ${p.name} child ${i + 1} age`}
+                                style={{ width: 96 }}
+                              />
+                              {charge ? (
+                                charge.matched ? (
+                                  <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--ok)' }}>
+                                    {chargeLabel(charge.pct)}
+                                  </span>
+                                ) : (
+                                  <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--amber-700, var(--amber))' }}>
+                                    No child rate for age {raw} — charged full fare.
+                                  </span>
+                                )
+                              ) : (
+                                <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--muted)' }}>
+                                  Enter age to price
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : null}
                     {p.manualPrice ? (
                       // No rate configured for this headcount → let the owner type
                       // one. Kept mounted (keyed on cabinId only) so it stays
@@ -794,6 +940,13 @@ export default function OwnerPosPage() {
                     </div>
                   </Field>
 
+                  {needsChildAges ? (
+                    <Note kind="info">
+                      Enter each child’s age to see the price — every child is
+                      priced from its age.
+                    </Note>
+                  ) : null}
+
                   <Bill
                     rows={[
                       ...(quote && Number(quote.discountAmount) > 0
@@ -862,7 +1015,13 @@ export default function OwnerPosPage() {
               <button
                 className={BTN_B}
                 type="submit"
-                disabled={busy || picked.length === 0 || Boolean(unpricedCabin) || overpaid}
+                disabled={
+                  busy ||
+                  picked.length === 0 ||
+                  Boolean(unpricedCabin) ||
+                  needsChildAges ||
+                  overpaid
+                }
                 style={{ justifyContent: 'center' }}
               >
                 {busy ? 'Completing…' : 'Confirm sale →'}
