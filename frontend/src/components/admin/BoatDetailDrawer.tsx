@@ -21,13 +21,23 @@ import {
   TD_T2,
 } from './styles';
 
+/** Per-meal menu stored as JSON on the boat; every field is optional. */
+interface FoodMenu {
+  breakfast?: string | null;
+  brunch?: string | null;
+  lunch?: string | null;
+  snacks?: string | null;
+  dinner?: string | null;
+}
+
 interface BoatDetail {
   id: string;
   name: string;
   slug: string;
   description: string | null;
   safetyFeatures: string | null;
-  foodMenu: string | null;
+  /** Structured per-meal menu (all fields optional). Legacy rows may be a plain string. */
+  foodMenu: FoodMenu | string | null;
   bankAccount: Record<string, unknown> | null;
   profileCompletePct: number;
   status: string;
@@ -74,15 +84,42 @@ function formatDate(iso: string) {
   });
 }
 
-/** Render whatever fields the bank JSON has, masking anything number-like. */
+/** Meal order for display; only meals with a value are shown. */
+const MEAL_ORDER: (keyof FoodMenu)[] = [
+  'breakfast',
+  'brunch',
+  'lunch',
+  'snacks',
+  'dinner',
+];
+
+/**
+ * Turn the structured food menu into [label, text] lines. Tolerates a legacy
+ * plain-string value (older rows) by showing it as a single "Menu" line, and
+ * returns [] when there's nothing to show.
+ */
+function foodMenuLines(menu: FoodMenu | string | null): [string, string][] {
+  if (!menu) return [];
+  if (typeof menu === 'string') {
+    return menu.trim() ? [['Menu', menu.trim()]] : [];
+  }
+  return MEAL_ORDER.flatMap((meal) => {
+    const value = menu[meal];
+    if (!value || !String(value).trim()) return [];
+    const label = meal.charAt(0).toUpperCase() + meal.slice(1);
+    return [[label, String(value).trim()] as [string, string]];
+  });
+}
+
+/**
+ * Render whatever fields the bank JSON has. Shown in full: this drawer is the
+ * platform admin's payout-verification view, so the account number must be
+ * legible (masking it would defeat the check before approving a boat).
+ */
 function bankLines(bank: Record<string, unknown>): [string, string][] {
   return Object.entries(bank).map(([key, value]) => {
     const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase());
-    const raw = String(value ?? '');
-    const masked = /(number|account|iban)/i.test(key) && raw.length > 4
-      ? `••${raw.slice(-4)}`
-      : raw;
-    return [label, masked];
+    return [label, String(value ?? '')];
   });
 }
 
@@ -181,8 +218,17 @@ export function BoatDetailDrawer({
             {boat.safetyFeatures ? (
               <p className={`mt-2 ${PROSE}`}><b>Safety:</b> {boat.safetyFeatures}</p>
             ) : null}
-            {boat.foodMenu ? (
-              <p className={`mt-2 ${PROSE}`}><b>Food menu:</b> {boat.foodMenu}</p>
+            {foodMenuLines(boat.foodMenu).length ? (
+              <div className={`mt-2 ${PROSE}`}>
+                <b>Food menu:</b>
+                <ul className="mt-1 list-disc pl-5">
+                  {foodMenuLines(boat.foodMenu).map(([label, text]) => (
+                    <li key={label}>
+                      <b>{label}:</b> {text}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ) : null}
           </div>
 

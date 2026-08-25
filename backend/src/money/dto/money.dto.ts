@@ -20,6 +20,7 @@ export const INVOICE_STATUSES = [
   'customer_due',
   'paid',
   'payment_verified',
+  'payout_approved',
   'in_payout',
   'bill_cleared',
 ] as const;

@@ -8,17 +8,20 @@ import {
   TableSkeleton,
   EmptyState,
   ErrorState,
+  Search,
   Select,
 } from '@/components/admin/ui';
 import { Pill } from '@/components/admin/Pill';
+import { BookingDetailDrawer } from '@/components/admin/BookingDetailDrawer';
 import { useAdminList } from '@/lib/admin/useAdminList';
 import { formatBDT } from '@/lib/admin/money';
-import { wireStatusLabel, wireStatusTone, shortId } from '@/lib/admin/invoices';
-import { BTN_O, BTN_SM, FILTERBAR, TD_NUM, TD_T1, TD_T2, UNIT } from '@/components/admin/styles';
+import { wireStatusLabel, wireStatusTone, shortId, channelLabel, channelTone } from '@/lib/admin/invoices';
+import { BTN_O, BTN_SM, FILTERBAR, ROWACT, TD_NUM, TD_T1, TD_T2, UNIT } from '@/components/admin/styles';
 
 interface BookingRow {
   id: string;
   type: string;
+  channel: string;
   status: string;
   headcount: number | null;
   createdAt: string;
@@ -68,9 +71,12 @@ function formatDate(iso: string) {
 
 export default function Bookings() {
   const [status, setStatus] = useState('');
+  const [query, setQuery] = useState('');
+  const [openId, setOpenId] = useState<string | null>(null);
   const { items, error, isInitialLoading, hasMore, loadMore, mutate } =
     useAdminList<BookingRow>('/platform/ops/bookings', {
       status: status || undefined,
+      q: query || undefined,
       limit: 25,
     });
 
@@ -81,6 +87,11 @@ export default function Bookings() {
         desc="Every booking across all boats, newest first. Money actions live in the finance queues — this is the operational view."
       />
       <div className={FILTERBAR}>
+        <Search
+          placeholder="Search customer name or phone…"
+          value={query}
+          onChange={setQuery}
+        />
         <Select options={STATUS_OPTIONS} value={status} onChange={setStatus} />
       </div>
       <Card flush>
@@ -88,12 +99,16 @@ export default function Bookings() {
           <ErrorState error={error} onRetry={() => mutate()} />
         ) : !isInitialLoading && items.length === 0 ? (
           <EmptyState
-            title="No bookings yet"
-            desc="Bookings appear here as customers check out on the public site."
+            title={query || status ? 'No bookings match' : 'No bookings yet'}
+            desc={
+              query || status
+                ? 'Try a different search or status filter.'
+                : 'Bookings appear here as customers check out on the public site.'
+            }
           />
         ) : (
           <>
-            <TableWrap minWidth={1000}>
+            <TableWrap minWidth={1080}>
               <thead>
                 <tr>
                   <th>Booking</th>
@@ -101,17 +116,19 @@ export default function Bookings() {
                   <th>Customer</th>
                   <th className={TD_NUM}>Cabins</th>
                   <th>Status</th>
+                  <th>Source</th>
                   <th>Invoice</th>
                   <th className={TD_NUM}>Total</th>
                   <th>Booked</th>
+                  <th />
                 </tr>
               </thead>
               {isInitialLoading ? (
-                <TableSkeleton rows={6} cols={8} />
+                <TableSkeleton rows={6} cols={10} />
               ) : (
                 <tbody>
                   {items.map((b) => (
-                    <tr key={b.id}>
+                    <tr key={b.id} className="group">
                       <td>
                         <div className={TD_T1}>{shortId(b.id, 'BK')}</div>
                         <div className={TD_T2}>{b.type}</div>
@@ -134,6 +151,9 @@ export default function Bookings() {
                         <Pill tone={BOOKING_TONE[b.status] ?? 'mut'}>{b.status}</Pill>
                       </td>
                       <td>
+                        <Pill tone={channelTone(b.channel)}>{channelLabel(b.channel)}</Pill>
+                      </td>
+                      <td>
                         {b.invoice ? (
                           <Pill tone={wireStatusTone(b.invoice.status)}>
                             {wireStatusLabel(b.invoice.status)}
@@ -153,6 +173,14 @@ export default function Bookings() {
                         )}
                       </td>
                       <td className={TD_T2}>{formatDate(b.createdAt)}</td>
+                      <td className={ROWACT}>
+                        <button
+                          className={`${BTN_O} ${BTN_SM}`}
+                          onClick={() => setOpenId(b.id)}
+                        >
+                          Open
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -168,6 +196,7 @@ export default function Bookings() {
           </>
         )}
       </Card>
+      <BookingDetailDrawer bookingId={openId} onClose={() => setOpenId(null)} />
     </>
   );
 }

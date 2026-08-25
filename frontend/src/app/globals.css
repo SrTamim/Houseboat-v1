@@ -219,4 +219,25 @@ body {
     top: 0;
     width: 100%;
   }
+
+  /* Same "hide everything, reveal one branch" pattern for the admin console —
+     used by the Pay to Vendors payout receipt (`.admin-print-root`). Scoped to
+     `.admin-scope` so it never affects owner/customer printing. */
+  .admin-scope :where(*) {
+    visibility: hidden !important;
+  }
+  .admin-scope .admin-print-root,
+  .admin-scope .admin-print-root * {
+    visibility: visible !important;
+  }
+  .admin-scope .admin-print-root {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
 }

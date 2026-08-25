@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import useSWR from 'swr';
 import { api, fetcher } from '@/lib/api';
 import {
@@ -13,10 +13,13 @@ import {
   Note,
 } from '@/components/admin/ui';
 import { Pill } from '@/components/admin/Pill';
+import { Drawer } from '@/components/admin/Drawer';
+import { apiErrorMessage } from '@/lib/admin/api-error';
 import {
   BTN_B,
   BTN_O,
   BTN_SM,
+  DSEC,
   FIELD,
   FIELD_INPUT,
   FIELD_LABEL,
@@ -34,6 +37,88 @@ interface Route {
   _count: { houseboatRoutes: number };
 }
 
+function RouteEditDrawer({
+  route,
+  onClose,
+  onSaved,
+}: {
+  route: Route | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState('');
+  const [region, setRegion] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Seed the inputs each time a different route is opened.
+  useEffect(() => {
+    setName(route?.name ?? '');
+    setRegion(route?.region ?? '');
+    setError(null);
+  }, [route]);
+
+  async function save() {
+    if (!route || busy || !name.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.patch(`/platform/ops/routes/${route.id}`, {
+        name: name.trim(),
+        // Empty clears the region (null); the DTO allows null.
+        region: region.trim() || null,
+      });
+      onSaved();
+      onClose();
+    } catch (e) {
+      setError(apiErrorMessage(e, 'Could not save this route.'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Drawer
+      open={route !== null}
+      onClose={onClose}
+      title={route ? `Edit ${route.name}` : 'Edit route'}
+      footer={
+        <>
+          <button className={BTN_O} onClick={onClose}>Cancel</button>
+          <button className={BTN_B} disabled={busy || !name.trim()} onClick={save}>
+            {busy ? 'Saving…' : 'Save changes'}
+          </button>
+        </>
+      }
+    >
+      <div className={DSEC}>
+        <div className={FIELD}>
+          <label htmlFor="edit-route-name" className={FIELD_LABEL}>Route name</label>
+          <input
+            id="edit-route-name"
+            className={FIELD_INPUT}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+        </div>
+        <div className={`${FIELD} mt-3`}>
+          <label htmlFor="edit-route-region" className={FIELD_LABEL}>Region</label>
+          <input
+            id="edit-route-region"
+            className={FIELD_INPUT}
+            placeholder="Leave blank to clear"
+            value={region}
+            onChange={(e) => setRegion(e.target.value)}
+          />
+        </div>
+        {error ? (
+          <div className="mt-3" role="alert"><Note kind="danger" icon="⚠">{error}</Note></div>
+        ) : null}
+      </div>
+    </Drawer>
+  );
+}
+
 export default function Routes() {
   const { data, error, isLoading, mutate } = useSWR<Route[]>(
     '/platform/ops/routes',
@@ -45,6 +130,7 @@ export default function Routes() {
   const [region, setRegion] = useState('');
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Route | null>(null);
 
   async function createRoute(e: React.FormEvent) {
     e.preventDefault();
@@ -164,6 +250,12 @@ export default function Routes() {
                       <div className={ROWACT}>
                         <button
                           className={`${BTN_O} ${BTN_SM}`}
+                          onClick={() => setEditing(r)}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          className={`${BTN_O} ${BTN_SM}`}
                           onClick={() => toggleActive(r)}
                         >
                           {r.active ? 'Retire' : 'Reactivate'}
@@ -177,6 +269,11 @@ export default function Routes() {
           </TableWrap>
         )}
       </Card>
+      <RouteEditDrawer
+        route={editing}
+        onClose={() => setEditing(null)}
+        onSaved={() => mutate()}
+      />
     </>
   );
 }

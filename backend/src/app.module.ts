@@ -35,6 +35,7 @@ import { HrModule } from './hr/hr.module';
 import { OpsModule } from './ops/ops.module';
 import { SyncModule } from './sync/sync.module';
 import { PlatformModule } from './platform/platform.module';
+import { SettingsModule } from './platform/settings/settings.module';
 import { OwnerModule } from './owner/owner.module';
 import { MaintenanceModule } from './maintenance/maintenance.module';
 
@@ -118,6 +119,7 @@ import { MaintenanceModule } from './maintenance/maintenance.module';
     HrModule,
     OpsModule,
     SyncModule,
+    SettingsModule,
     PlatformModule,
     OwnerModule,
     MaintenanceModule,

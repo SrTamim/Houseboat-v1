@@ -13,6 +13,7 @@ import { AuditService } from '../audit/audit.service';
 import { RbacService } from '../rbac/rbac.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AvailabilityGateway } from '../realtime/availability.gateway';
+import { SettingsService } from '../platform/settings/settings.service';
 import { encryptJson } from '../common/crypto';
 import { newId } from '../common/uuid';
 import { money, ZERO, add, sub } from '../common/money';
@@ -50,6 +51,12 @@ export interface PriceOpts {
    * a cabin is returned unpriced (needs a manual price) rather than rejected.
    */
   allowOverCapacity?: boolean;
+  /**
+   * Booking origin. 'pos' (owner counter sale) forces commission to 0 — the
+   * platform only earns on 'web' customer self-service bookings. Defaults to
+   * 'web' everywhere it is unset. Persisted on Booking.channel at creation.
+   */
+  channel?: 'web' | 'pos';
 }
 
 /**
@@ -75,6 +82,9 @@ export class BookingService {
     // there anyway (the `as never` casts hide it from tsc), so the one place
     // that uses it — get(), for the invoice logo — optional-chains the call.
     @Optional() private readonly storage?: StorageService,
+    // Also @Optional() for the same reason: the unit tests don't provide it, so
+    // priceSelection() falls back to the compiled-in child ceiling when absent.
+    @Optional() private readonly settings?: SettingsService,
   ) {}
 
   /**
@@ -270,6 +280,21 @@ export class BookingService {
       if (!cabin) throw new NotFoundException(`Cabin ${sel.cabinId} not found`);
 
       const children = sel.children ?? 0;
+      // Admin-editable per-cabin children cap. The DTO already enforces the hard
+      // ceiling (MAX_CHILDREN_PER_CABIN) at request validation; this enforces the
+      // lower, admin-tightened value in the shared pricing path. Self-service
+      // only — the counter path (allowOverCapacity) stays uncapped, exactly like
+      // the DTO. Falls back to no extra cap when settings is absent (unit tests).
+      if (!opts?.allowOverCapacity && this.settings) {
+        const maxChildren = await this.settings.getNumber(
+          'booking.maxChildrenPerCabin',
+        );
+        if (children > maxChildren) {
+          throw new BadRequestException(
+            `Cabin ${cabin.name}: up to ${maxChildren} children per cabin`,
+          );
+        }
+      }
       /**
        * Total heads in the room. This is the MANIFEST figure: it is persisted on
        * booking_cabin.occupancy and read as a head count by the owner dashboard,
@@ -399,9 +424,13 @@ export class BookingService {
       dto.couponCode,
       departure.startDate,
     );
+    // POS counter sales earn the platform no commission; force it to 0 by
+    // dropping the boat's rate. 'web' (default) keeps the configured rate.
+    const effectiveCommissionPct =
+      opts?.channel === 'pos' ? null : commissionPct;
     const bill = buildBill({
       roomTotal,
-      commissionPct,
+      commissionPct: effectiveCommissionPct,
       coupon: coupon?.input,
       ownerDiscount: opts?.ownerDiscount != null ? money(opts.ownerDiscount) : null,
     });
@@ -467,6 +496,7 @@ export class BookingService {
           customerId,
           bookedBy,
           type: 'cabin',
+          channel: opts?.channel ?? 'web',
           headcount: cabinRows.reduce((n, r) => n + r.occupancy, 0),
           specialInstructions: dto.specialInstructions,
           couponId: coupon?.id,
@@ -575,6 +605,7 @@ export class BookingService {
       referenceName?: string;
       useCredit?: boolean;
     },
+    channel: 'web' | 'pos' = 'web',
   ) {
     const departure = await this.prisma.tripDeparture.findUnique({
       where: { id: dto.departureId },
@@ -595,9 +626,11 @@ export class BookingService {
     const billing = await this.prisma.houseboatBillingConfig.findFirst({
       where: { houseboatId },
     });
-    const commissionPct = billing?.commissionPct
-      ? money(billing.commissionPct)
-      : null;
+    // POS counter sales earn no commission (see checkout).
+    const commissionPct =
+      channel === 'pos' || !billing?.commissionPct
+        ? null
+        : money(billing.commissionPct);
 
     // The band price IS the room total; no coupon on group buyout (spec §1).
     const bill = buildBill({
@@ -620,6 +653,7 @@ export class BookingService {
           customerId,
           bookedBy,
           type: 'group',
+          channel,
           headcount: dto.headcount,
           specialInstructions: dto.specialInstructions,
           referenceName: dto.referenceName,
@@ -764,13 +798,15 @@ export class BookingService {
       throw new BadRequestException('Cannot reschedule to a different boat');
     }
 
-    // Reprice each cabin at the NEW date.
+    // Reprice each cabin at the NEW date. A POS booking stays commission-free
+    // across reschedule; a web booking keeps the boat's rate.
     const billing = await this.prisma.houseboatBillingConfig.findFirst({
       where: { houseboatId },
     });
-    const commissionPct = billing?.commissionPct
-      ? money(billing.commissionPct)
-      : null;
+    const commissionPct =
+      booking.channel === 'pos' || !billing?.commissionPct
+        ? null
+        : money(billing.commissionPct);
 
     let roomTotal = ZERO;
     for (const bc of booking.cabins) {
@@ -1031,16 +1067,22 @@ export class BookingService {
     const billing = await this.prisma.houseboatBillingConfig.findFirst({
       where: { houseboatId },
     });
-    const commissionPct = billing?.commissionPct
+    const boatCommissionPct = billing?.commissionPct
       ? money(billing.commissionPct)
       : null;
+    // First booker keeps their own channel's commission treatment (a POS
+    // original stays commission-free). The joiner arrives via the platform, so
+    // their new booking is 'web' and earns commission normally.
+    const firstCommissionPct =
+      seat.booking.channel === 'pos' ? null : boatCommissionPct;
+    const joinerCommissionPct = boatCommissionPct;
 
     // First booker's new room_total = old − joiner's contribution (never below 0).
     const oldRoomTotal = money(firstInvoice.roomTotal);
     const newRoomTotal = sub(oldRoomTotal, joinerPrice);
     const firstBill = buildBill({
       roomTotal: newRoomTotal.isNegative() ? ZERO : newRoomTotal,
-      commissionPct,
+      commissionPct: firstCommissionPct,
     });
 
     const paid = money(firstInvoice.amountPaid);
@@ -1083,7 +1125,7 @@ export class BookingService {
       // 3. Create the joiner's own booking + cabin + invoice for the spare place.
       const joinerBill = buildBill({
         roomTotal: joinerPrice,
-        commissionPct,
+        commissionPct: joinerCommissionPct,
       });
       const joinerBooking = await tx.booking.create({
         data: {
@@ -1092,6 +1134,7 @@ export class BookingService {
           customerId: joinerId,
           bookedBy: joinerId,
           type: 'open_seat',
+          channel: 'web',
           headcount: occupancy,
           status: 'confirmed',
         },

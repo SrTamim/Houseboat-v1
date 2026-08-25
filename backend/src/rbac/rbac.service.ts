@@ -1,5 +1,6 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { SettingsService } from '../platform/settings/settings.service';
 import {
   BoatContext,
   LEGACY_MODULE_PAGES,
@@ -91,7 +92,12 @@ export const BILLING_GRACE_DAYS = 14;
  */
 @Injectable()
 export class RbacService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    // @Optional() so the rbac unit tests construct with only prisma; the billing
+    // grace falls back to its constant when the settings service is absent.
+    @Optional() private readonly settings?: SettingsService,
+  ) {}
 
   /** Load the caller's active membership + role for this boat, or null. */
   async resolveContext(
@@ -197,9 +203,10 @@ export class RbacService {
    * account stays fully usable.
    */
   async isBillingLocked(houseboatId: string): Promise<boolean> {
-    const cutoff = new Date(
-      Date.now() - BILLING_GRACE_DAYS * 24 * 60 * 60 * 1000,
-    );
+    const graceDays =
+      (await this.settings?.getNumber('billing.graceDays')) ??
+      BILLING_GRACE_DAYS;
+    const cutoff = new Date(Date.now() - graceDays * 24 * 60 * 60 * 1000);
     const overdue = await this.prisma.houseboatSubscriptionInvoice.findFirst({
       where: {
         houseboatId,

@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../../audit/audit.service';
 import { cursorArgs, toPage, type Page } from '../../common/paginate';
 import type {
   ListAccountsQueryDto,
@@ -22,6 +23,7 @@ export class PlatformOpsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly audit: AuditService,
   ) {}
 
   /**
@@ -99,11 +101,16 @@ export class PlatformOpsService {
       this.prisma.invoice.count({
         where: { status: 'paid', payments: { some: { method: 'gateway' } } },
       }),
-      // Ready to settle: owner-recorded 'paid' plus platform-verified gateway.
+      // Must mirror the Payouts page list (payoutQueue in
+      // platform-finance.service.ts): verified/approved, unbatched, trip
+      // completed, fully paid — otherwise the sidebar badge counts rows the
+      // page never shows and never clears.
       this.prisma.invoice.count({
         where: {
-          status: { in: ['paid', 'payment_verified'] },
+          status: { in: ['payment_verified', 'payout_approved'] },
           payoutBatchId: null,
+          amountPaid: { gte: this.prisma.invoice.fields.displayTotal },
+          booking: { is: { status: 'completed' } },
         },
       }),
       this.prisma.invoiceRefund.count({
@@ -172,6 +179,7 @@ export class PlatformOpsService {
 
   /** Bookings across all boats, newest first. Boat filter goes via the departure's package. */
   async listBookings(query: ListBookingsQueryDto): Promise<Page<{ id: string }>> {
+    const q = query.q?.trim();
     const rows = await this.prisma.booking.findMany({
       ...cursorArgs(query),
       where: {
@@ -179,10 +187,19 @@ export class PlatformOpsService {
         departure: query.houseboatId
           ? { package: { houseboatId: query.houseboatId } }
           : undefined,
+        ...(q
+          ? {
+              OR: [
+                { customer: { name: { contains: q, mode: 'insensitive' } } },
+                { customer: { phone: { contains: q } } },
+              ],
+            }
+          : {}),
       },
       select: {
         id: true,
         type: true,
+        channel: true,
         status: true,
         headcount: true,
         createdAt: true,
@@ -212,21 +229,147 @@ export class PlatformOpsService {
     );
   }
 
+  /**
+   * Full detail for one booking — powers the admin "Open" drawer. Read-only:
+   * the customer, trip/boat, per-cabin manifest, the invoice bill breakdown with
+   * its payments, and any reschedule history. 404 if the id is unknown.
+   */
+  async getBooking(bookingId: string) {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+      select: {
+        id: true,
+        type: true,
+        channel: true,
+        status: true,
+        headcount: true,
+        createdAt: true,
+        customer: { select: { id: true, name: true, phone: true, email: true } },
+        departure: {
+          select: {
+            id: true,
+            startDate: true,
+            endDate: true,
+            status: true,
+            package: {
+              select: {
+                durationLabel: true,
+                houseboat: { select: { id: true, name: true } },
+              },
+            },
+          },
+        },
+        cabins: {
+          select: {
+            id: true,
+            adults: true,
+            children: true,
+            occupancy: true,
+            roomPrice: true,
+            isOpenSeat: true,
+            cabin: { select: { id: true, name: true } },
+          },
+        },
+        guests: {
+          select: { id: true, name: true, phone: true, email: true },
+        },
+        invoice: {
+          select: {
+            id: true,
+            status: true,
+            roomTotal: true,
+            discountAmount: true,
+            displayTotal: true,
+            amountPaid: true,
+            amountOverpaid: true,
+            payments: {
+              select: {
+                id: true,
+                amount: true,
+                method: true,
+                paidAt: true,
+              },
+              orderBy: { paidAt: 'asc' },
+            },
+          },
+        },
+        rescheduleHistory: {
+          select: {
+            id: true,
+            oldPrice: true,
+            newPrice: true,
+            reason: true,
+            changedAt: true,
+            prevDeparture: { select: { startDate: true } },
+            toDeparture: { select: { startDate: true } },
+            changedByAccount: { select: { id: true, name: true } },
+          },
+          orderBy: { changedAt: 'asc' },
+        },
+      },
+    });
+    if (!booking) throw new NotFoundException('Booking not found');
+    return booking;
+  }
+
   async listReviews(query: ListReviewsQueryDto): Promise<Page<{ id: string }>> {
+    const q = query.q?.trim();
     const rows = await this.prisma.review.findMany({
       ...cursorArgs(query),
-      where: query.houseboatId ? { houseboatId: query.houseboatId } : undefined,
+      where: {
+        houseboatId: query.houseboatId ?? undefined,
+        hidden:
+          query.hidden === undefined ? undefined : query.hidden === 'true',
+        ...(q
+          ? {
+              OR: [
+                { text: { contains: q, mode: 'insensitive' } },
+                { customer: { name: { contains: q, mode: 'insensitive' } } },
+                { houseboat: { name: { contains: q, mode: 'insensitive' } } },
+              ],
+            }
+          : {}),
+      },
       select: {
         id: true,
         rating: true,
         text: true,
         ownerReply: true,
+        hidden: true,
         houseboat: { select: { id: true, name: true } },
         customer: { select: { id: true, name: true } },
         booking: { select: { id: true, createdAt: true } },
       },
     });
     return toPage(rows, query);
+  }
+
+  /**
+   * Hide or unhide a review (platform moderation). A hidden review is withheld
+   * from public listings and rating aggregates; every toggle is audited.
+   */
+  async setReviewHidden(reviewId: string, hidden: boolean, actorId: string) {
+    const existing = await this.prisma.review.findUnique({
+      where: { id: reviewId },
+      select: { id: true, hidden: true, houseboatId: true },
+    });
+    if (!existing) throw new NotFoundException('Review not found');
+    if (existing.hidden === hidden) return { ok: true };
+
+    await this.prisma.review.update({
+      where: { id: reviewId },
+      data: { hidden },
+    });
+    await this.audit.log({
+      houseboatId: existing.houseboatId,
+      actorAccountId: actorId,
+      action: hidden ? 'review_hidden' : 'review_unhidden',
+      entityType: 'review',
+      entityId: reviewId,
+      before: { hidden: existing.hidden },
+      after: { hidden },
+    });
+    return { ok: true };
   }
 
   /**
@@ -402,13 +545,38 @@ export class PlatformOpsService {
    */
   async listAudit(query: ListAuditQueryDto) {
     const limit = Math.min(Math.max(query.limit ?? 50, 1), 200);
+    const q = query.q?.trim();
+    // Range on server_time: `before` is the exclusive upper bound (older-page
+    // cursor), `after` the inclusive lower bound (a date-range filter).
+    const serverTime =
+      query.before || query.after
+        ? {
+            ...(query.before ? { lt: new Date(query.before) } : {}),
+            ...(query.after ? { gte: new Date(query.after) } : {}),
+          }
+        : undefined;
     const rows = await this.prisma.auditLog.findMany({
       take: limit + 1,
       orderBy: { serverTime: 'desc' },
       where: {
         houseboatId: query.houseboatId ?? undefined,
         action: query.action ?? undefined,
-        serverTime: query.before ? { lt: new Date(query.before) } : undefined,
+        serverTime,
+        // "Admin panel activity" proxy: AuditLog has no actor-role column, so
+        // restrict to actors flagged as platform staff. Default-on for the admin
+        // audit page; 'false'/absent returns all actors.
+        ...(query.platformOnly === 'true'
+          ? { actor: { is: { isPlatform: true } } }
+          : {}),
+        ...(q
+          ? {
+              OR: [
+                { action: { contains: q, mode: 'insensitive' } },
+                { actor: { is: { name: { contains: q, mode: 'insensitive' } } } },
+                { actor: { is: { phone: { contains: q } } } },
+              ],
+            }
+          : {}),
       },
       select: {
         id: true,

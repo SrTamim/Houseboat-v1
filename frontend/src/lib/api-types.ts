@@ -210,7 +210,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete?: never;
+        delete: operations["RbacController_deleteRole"];
         options?: never;
         head?: never;
         patch: operations["RbacController_updateRole"];
@@ -242,7 +242,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete?: never;
+        delete: operations["RbacController_deleteMember"];
         options?: never;
         head?: never;
         patch: operations["RbacController_updateMember"];
@@ -1377,10 +1377,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * The boat's booking invoices (owner console). Read-only. Consumed by both the
-         *     bookings and refunds page detail drawers, so it is gated on the broad
-         *     `bookings` page rather than a narrower money page — a refunds-only role that
-         *     needs to see invoice detail should also be granted bookings:view.
+         * The boat's booking invoices (owner console). Read-only. Consumed by the
+         *     bookings and refunds page detail drawers, so either role may read it.
          */
         get: operations["MoneyController_listInvoices"];
         put?: never;
@@ -2195,6 +2193,125 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/platform/finance/invoices/{invoiceId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Full detail for one invoice — the admin "Open" drawer on the finance queues. */
+        get: operations["PlatformFinanceController_getInvoice"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/finance/invoices/{invoiceId}/approve-payout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve one invoice for payout (Payouts page). paid|payment_verified → payout_approved. */
+        post: operations["PlatformFinanceController_approveInvoiceForPayout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/finance/invoices/{invoiceId}/reject-payout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reject an approved invoice back to the verify queue. payout_approved → paid. */
+        post: operations["PlatformFinanceController_rejectInvoicePayout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/finance/payable-boats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Distinct boats with payable invoices, for the payout/pay dropdowns. */
+        get: operations["PlatformFinanceController_payableBoats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/finance/payouts/pay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Pay selected approved invoices to the vendor; returns the receipt id. */
+        post: operations["PlatformFinanceController_payInvoices"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/finance/payout-receipts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Past payout receipts (searchable). */
+        get: operations["PlatformFinanceController_listPayoutReceipts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/finance/payout-receipts/{receiptId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One payout receipt, full detail for the printable view. */
+        get: operations["PlatformFinanceController_getPayoutReceipt"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/platform/finance/refunds": {
         parameters: {
             query?: never;
@@ -2453,6 +2570,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/platform/ops/bookings/{bookingId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Full detail for one booking — the admin "Open" drawer. */
+        get: operations["PlatformOpsController_getBooking"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/platform/ops/reviews": {
         parameters: {
             query?: never;
@@ -2467,6 +2601,23 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/platform/ops/reviews/{reviewId}/hidden": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Hide or unhide a review (platform moderation). */
+        patch: operations["PlatformOpsController_setReviewHidden"];
         trace?: never;
     };
     "/api/platform/ops/accounts": {
@@ -2642,6 +2793,23 @@ export interface paths {
         patch: operations["PlatformOpsController_setRouteActive"];
         trace?: never;
     };
+    "/api/platform/ops/routes/{routeId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Edit a route's name/region. Active state stays on the toggle above. */
+        patch: operations["PlatformOpsController_updateRoute"];
+        trace?: never;
+    };
     "/api/platform/rbac/roles": {
         parameters: {
             query?: never;
@@ -2704,6 +2872,61 @@ export interface paths {
         options?: never;
         head?: never;
         patch: operations["PlatformRbacController_setStaff"];
+        trace?: never;
+    };
+    "/api/platform/system/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every editable setting with its current value, bounds and display metadata. */
+        get: operations["PlatformSystemController_listSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/system/settings/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update one setting. Bounds + audit are enforced in the service. */
+        put: operations["PlatformSystemController_updateSetting"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/system/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Live health snapshot for the console panel. Mirrors the public /health probe
+         *     (db + redis reachability) but is staff-gated and never sets a non-200 status
+         *     — the console only displays it, it isn't a load-balancer probe.
+         */
+        get: operations["PlatformSystemController_health"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/houseboats/{houseboatId}/dashboard": {
@@ -3429,14 +3652,26 @@ export interface components {
         AddRequestCommentDto: {
             body: string;
         };
+        PayInvoicesDto: {
+            houseboatId: string;
+            invoiceIds: string[];
+        };
         UpsertBillingConfigDto: {
             commissionPct?: number | null;
             monthlyFee?: number | null;
             /** @description YYYY-MM-DD — the column is a date, not a timestamp. */
             trialEnds?: string | null;
         };
+        SetReviewHiddenDto: {
+            hidden: boolean;
+        };
         SetRouteActiveDto: {
             active: boolean;
+        };
+        UpdateRouteDto: {
+            name?: string;
+            /** @description null clears the region; an absent field leaves it unchanged. */
+            region?: string | null;
         };
         CreatePlatformRoleDto: {
             name: string;
@@ -3452,6 +3687,9 @@ export interface components {
         };
         SetPlatformStaffDto: {
             isPlatform: boolean;
+        };
+        UpdateSettingDto: {
+            value: number;
         };
     };
     responses: never;
@@ -3692,6 +3930,26 @@ export interface operations {
             };
         };
     };
+    RbacController_deleteRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+                roleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     RbacController_updateRole: {
         parameters: {
             query?: never;
@@ -3753,6 +4011,26 @@ export interface operations {
         };
         responses: {
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    RbacController_deleteMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+                membershipId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5499,7 +5777,7 @@ export interface operations {
     MoneyController_listInvoices: {
         parameters: {
             query?: {
-                status?: "customer_due" | "paid" | "payment_verified" | "in_payout" | "bill_cleared";
+                status?: "customer_due" | "paid" | "payment_verified" | "payout_approved" | "in_payout" | "bill_cleared";
                 q?: string;
                 limit?: number;
                 /** @description id of the last row from the previous page. */
@@ -6831,7 +7109,7 @@ export interface operations {
     PlatformFinanceController_listInvoices: {
         parameters: {
             query?: {
-                status?: "customer_due" | "paid" | "payment_verified" | "in_payout" | "bill_cleared" | "cancelled" | "refund_requested" | "refund_verified" | "refund_completed";
+                status?: "customer_due" | "paid" | "payment_verified" | "payout_approved" | "in_payout" | "bill_cleared" | "cancelled" | "refund_requested" | "refund_verified" | "refund_completed";
                 /**
                  * @description Invoices ready to settle: owner-recorded 'paid' plus platform-verified
                  *     'payment_verified', not yet in a payout batch. Backs the payout-prep queue
@@ -6845,6 +7123,12 @@ export interface operations {
                  *     `status` is set.
                  */
                 gatewayPending?: boolean;
+                /**
+                 * @description The payout console queue: unbatched invoices in 'paid' / 'payment_verified'
+                 *     / 'payout_approved', narrowed to fully-paid, completed-trip invoices. Backs
+                 *     the Payouts (approve) page. Ignored when `status` is set.
+                 */
+                payoutQueue?: boolean;
                 houseboatId?: string;
                 limit?: number;
                 /** @description id of the last row from the previous page. */
@@ -6852,6 +7136,145 @@ export interface operations {
             };
             header?: never;
             path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformFinanceController_getInvoice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invoiceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformFinanceController_approveInvoiceForPayout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invoiceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformFinanceController_rejectInvoicePayout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invoiceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformFinanceController_payableBoats: {
+        parameters: {
+            query?: {
+                /** @description 'approve' = boats with invoices in the approve queue; 'pay' = boats with approved invoices. */
+                stage?: "approve" | "pay";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformFinanceController_payInvoices: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PayInvoicesDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformFinanceController_listPayoutReceipts: {
+        parameters: {
+            query?: {
+                q?: string;
+                limit?: number;
+                /** @description id of the last row from the previous page. */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformFinanceController_getPayoutReceipt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                receiptId: string;
+            };
             cookie?: never;
         };
         requestBody?: never;
@@ -6889,7 +7312,7 @@ export interface operations {
     PlatformFinanceController_listOverpayments: {
         parameters: {
             query?: {
-                status?: "customer_due" | "paid" | "payment_verified" | "in_payout" | "bill_cleared" | "cancelled" | "refund_requested" | "refund_verified" | "refund_completed";
+                status?: "customer_due" | "paid" | "payment_verified" | "payout_approved" | "in_payout" | "bill_cleared" | "cancelled" | "refund_requested" | "refund_verified" | "refund_completed";
                 /**
                  * @description Invoices ready to settle: owner-recorded 'paid' plus platform-verified
                  *     'payment_verified', not yet in a payout batch. Backs the payout-prep queue
@@ -6903,6 +7326,12 @@ export interface operations {
                  *     `status` is set.
                  */
                 gatewayPending?: boolean;
+                /**
+                 * @description The payout console queue: unbatched invoices in 'paid' / 'payment_verified'
+                 *     / 'payout_approved', narrowed to fully-paid, completed-trip invoices. Backs
+                 *     the Payouts (approve) page. Ignored when `status` is set.
+                 */
+                payoutQueue?: boolean;
                 houseboatId?: string;
                 limit?: number;
                 /** @description id of the last row from the previous page. */
@@ -7184,6 +7613,8 @@ export interface operations {
             query?: {
                 status?: "confirmed" | "rescheduled" | "cancelled" | "not_arrived" | "completed";
                 houseboatId?: string;
+                /** @description Free-text: matches customer name / phone, or a booking id prefix. */
+                q?: string;
                 limit?: number;
                 /** @description id of the last row from the previous page. */
                 cursor?: string;
@@ -7202,10 +7633,33 @@ export interface operations {
             };
         };
     };
+    PlatformOpsController_getBooking: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bookingId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     PlatformOpsController_listReviews: {
         parameters: {
             query?: {
                 houseboatId?: string;
+                /** @description Free-text: matches review text, customer name, or boat name. */
+                q?: string;
+                /** @description 'true' | 'false' — filter to hidden or visible reviews. Absent = all. */
+                hidden?: "true" | "false";
                 limit?: number;
                 /** @description id of the last row from the previous page. */
                 cursor?: string;
@@ -7215,6 +7669,29 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformOpsController_setReviewHidden: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reviewId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetReviewHiddenDto"];
+            };
+        };
         responses: {
             200: {
                 headers: {
@@ -7339,6 +7816,16 @@ export interface operations {
                 houseboatId?: string;
                 action?: string;
                 before?: string;
+                /** @description Free-text: matches action, or the actor's name / phone. */
+                q?: string;
+                /** @description Only entries at or after this instant (pairs with `before` for a range). */
+                after?: string;
+                /**
+                 * @description 'true' (default on the admin audit page) restricts to actions by platform
+                 *     staff — the closest proxy for "admin panel activity", since AuditLog has no
+                 *     actor-role column. 'false'/absent returns all actors.
+                 */
+                platformOnly?: "true" | "false";
                 limit?: number;
                 /** @description id of the last row from the previous page. */
                 cursor?: string;
@@ -7427,6 +7914,29 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["SetRouteActiveDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformOpsController_updateRoute: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                routeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateRouteDto"];
             };
         };
         responses: {
@@ -7555,6 +8065,65 @@ export interface operations {
                 "application/json": components["schemas"]["SetPlatformStaffDto"];
             };
         };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformSystemController_listSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+        };
+    };
+    PlatformSystemController_updateSetting: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateSettingDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformSystemController_health: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             200: {
                 headers: {

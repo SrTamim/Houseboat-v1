@@ -192,7 +192,8 @@ export class BookingController {
   @Post('checkout')
   checkout(@CurrentUser() user: AuthUser, @Body() dto: CheckoutDto) {
     // Customer books for themselves here; POS mode would pass a different customerId.
-    return this.booking.checkout(user.id, user.id, dto);
+    // 'web' channel → platform earns commission (owner POS passes 'pos').
+    return this.booking.checkout(user.id, user.id, dto, { channel: 'web' });
   }
 
   /** Full-boat group buyout: pick a band + headcount, one total, one payer. */

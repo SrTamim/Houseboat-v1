@@ -2,10 +2,12 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { SettingsService } from '../platform/settings/settings.service';
 import { newId } from '../common/uuid';
 import { money, add, percentOf, ZERO } from '../common/money';
 import { BILLING_GRACE_DAYS } from '../rbac/rbac.service';
@@ -26,7 +28,17 @@ export class FinanceService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    // @Optional() so any positional test construction keeps working; billing
+    // grace falls back to the constant when absent.
+    @Optional() private readonly settings?: SettingsService,
   ) {}
+
+  /** Editable billing grace in days, falling back to the compiled-in constant. */
+  private async graceDays(): Promise<number> {
+    return (
+      (await this.settings?.getNumber('billing.graceDays')) ?? BILLING_GRACE_DAYS
+    );
+  }
 
   // ── Owner distributions (owner-side; guarded by controller money:edit) ──
 
@@ -90,8 +102,8 @@ export class FinanceService {
 
   /**
    * Issue a monthly subscription invoice for a boat: monthly_fee (if any) plus
-   * commission accrued from settled invoices (paid/payment_verified/in_payout/
-   * bill_cleared) in the period.
+   * commission accrued from settled invoices (paid/payment_verified/
+   * payout_approved/in_payout/bill_cleared) in the period.
    * `period` is a YYYY-MM string.
    */
   async issueSubscriptionInvoice(houseboatId: string, actorId: string, period: string) {
@@ -123,7 +135,15 @@ export class FinanceService {
         paidAt: { gte: from, lt: to },
         invoice: {
           houseboatId,
-          status: { in: ['paid', 'payment_verified', 'in_payout', 'bill_cleared'] },
+          status: {
+            in: [
+              'paid',
+              'payment_verified',
+              'payout_approved',
+              'in_payout',
+              'bill_cleared',
+            ],
+          },
         },
       },
       select: { invoiceId: true, invoice: { select: { commission: true } } },
@@ -224,7 +244,8 @@ export class FinanceService {
     if (unpaid.length === 0) {
       return { locked: false, inGrace: false, dueTotal: '0.00', unpaidCount: 0 };
     }
-    const graceMs = BILLING_GRACE_DAYS * 24 * 60 * 60 * 1000;
+    const graceDays = await this.graceDays();
+    const graceMs = graceDays * 24 * 60 * 60 * 1000;
     const now = Date.now();
     // The oldest unpaid invoice drives the clock.
     const oldest = unpaid[0];
@@ -241,7 +262,7 @@ export class FinanceService {
       locked,
       inGrace: !locked,
       daysLeft,
-      graceDays: BILLING_GRACE_DAYS,
+      graceDays,
       dueTotal: dueTotal.toFixed(2),
       unpaidCount: unpaid.length,
     };
@@ -253,9 +274,8 @@ export class FinanceService {
    */
   @Cron(CronExpression.EVERY_DAY_AT_1AM)
   async markOverdue(): Promise<void> {
-    const cutoff = new Date(
-      Date.now() - BILLING_GRACE_DAYS * 24 * 60 * 60 * 1000,
-    );
+    const graceDays = await this.graceDays();
+    const cutoff = new Date(Date.now() - graceDays * 24 * 60 * 60 * 1000);
     const res = await this.prisma.houseboatSubscriptionInvoice.updateMany({
       where: { status: 'issued', issuedAt: { lt: cutoff } },
       data: { status: 'overdue' },

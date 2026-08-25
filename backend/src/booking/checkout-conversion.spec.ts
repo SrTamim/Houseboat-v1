@@ -209,6 +209,37 @@ describe('BookingService.checkout — expired holds cannot convert', () => {
     expect(after[1].state).toBe('held');
   });
 
+  it('persists channel=pos on the booking when checkout is called with the pos channel', async () => {
+    const rows = [liveHold()];
+    const { svc, tx } = makeService(rows, [{ cabinId: 'cab-1', holdId: 'h-1' }]);
+
+    await svc.checkout(
+      CUSTOMER,
+      CUSTOMER,
+      dto([{ cabinId: 'cab-1', holdId: 'h-1' }]),
+      { channel: 'pos' },
+    );
+
+    expect(tx.booking.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ channel: 'pos' }),
+      }),
+    );
+  });
+
+  it('defaults channel to web when no channel is supplied', async () => {
+    const rows = [liveHold()];
+    const { svc, tx } = makeService(rows, [{ cabinId: 'cab-1', holdId: 'h-1' }]);
+
+    await svc.checkout(CUSTOMER, CUSTOMER, dto([{ cabinId: 'cab-1', holdId: 'h-1' }]));
+
+    expect(tx.booking.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ channel: 'web' }),
+      }),
+    );
+  });
+
   it('accepts a guest-token hold that login never claimed, when still live', async () => {
     // Fallback branch: cookie cleared between holding and paying, so heldBy is
     // still null. Live holds must keep working through that path.

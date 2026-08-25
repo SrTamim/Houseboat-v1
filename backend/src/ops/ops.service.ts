@@ -287,8 +287,15 @@ export class OpsService {
       throw new BadRequestException('Only completed trips can be reviewed');
     }
     // "paid" = payment recorded and settling (owner-recorded cash, or a
-    // platform-verified gateway payment, and anything downstream).
-    const verifiedStates = ['paid', 'payment_verified', 'in_payout', 'bill_cleared'];
+    // platform-verified gateway payment, and anything downstream — including
+    // payout_approved once finance has approved the boat's payout).
+    const verifiedStates = [
+      'paid',
+      'payment_verified',
+      'payout_approved',
+      'in_payout',
+      'bill_cleared',
+    ];
     if (!booking.invoice || !verifiedStates.includes(booking.invoice.status)) {
       throw new BadRequestException('Only verified bookings can be reviewed');
     }

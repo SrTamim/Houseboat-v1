@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -164,11 +163,9 @@ export class PayoutsService {
     if (batch.status !== 'prepared') {
       throw new BadRequestException('Batch is not in prepared state');
     }
-    if (batch.preparedBy === approvedBy) {
-      throw new ForbiddenException(
-        'Separation of duties: approver must differ from preparer',
-      );
-    }
+    // Separation of duties intentionally removed: one finance member runs the
+    // whole payout flow (verify-in → approve → pay). The old preparer≠approver
+    // rule and its DB CHECK (chk_payout_prepared_ne_approved) were dropped.
     const updated = await this.prisma.houseboatPayoutBatch.update({
       where: { id: batchId },
       data: { status: 'approved', approvedBy },

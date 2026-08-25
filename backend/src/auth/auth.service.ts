@@ -1,12 +1,14 @@
 import {
   Injectable,
   ConflictException,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
+import { SettingsService } from '../platform/settings/settings.service';
 import {
   AuditService,
   auditContext,
@@ -36,6 +38,9 @@ export class AuthService {
     private readonly config: ConfigService,
     private readonly audit: AuditService,
     private readonly redis: RedisService,
+    // @Optional() so the lockout unit test constructs AuthService with five
+    // positional args; the two lockout values fall back to their constants.
+    @Optional() private readonly settings?: SettingsService,
   ) {}
 
   private async signTokens(sub: string, isPlatform: boolean, remember = false) {
@@ -107,7 +112,10 @@ export class AuthService {
     // Keyed on the phone (the login identity), not the account id, so it also
     // covers guessing against a non-existent account. Best-effort: a lockout
     // store outage never hard-fails login (the @Throttle still bounds rate).
-    if ((await this.redis.loginFailCount(phone)) >= LOGIN_LOCK_THRESHOLD) {
+    const lockThreshold =
+      (await this.settings?.getNumber('auth.loginLockThreshold')) ??
+      LOGIN_LOCK_THRESHOLD;
+    if ((await this.redis.loginFailCount(phone)) >= lockThreshold) {
       await this.audit.tryLog({
         actorAccountId: null,
         action: 'account_login_locked',
@@ -129,9 +137,12 @@ export class AuthService {
      * point at, and the FK would reject a fabricated id); the attempted phone
      * goes in `after` so the attempt is still attributable.
      */
+    const lockWindowS =
+      (await this.settings?.getNumber('auth.loginLockWindowSec')) ??
+      LOGIN_LOCK_WINDOW_S;
     const logFailure = async (reason: string) => {
       // Count toward lockout AND record for audit. Both keyed on phone.
-      await this.redis.recordLoginFailure(phone, LOGIN_LOCK_WINDOW_S);
+      await this.redis.recordLoginFailure(phone, lockWindowS);
       await this.audit.tryLog({
         actorAccountId: account?.id ?? null,
         action: 'account_login_failed',

@@ -345,6 +345,10 @@ export class OwnerBookingsService {
         ownerDiscount: dto.discount ?? null,
         throwOnUnpriced: false,
         allowOverCapacity: true,
+        // Counter-sale quote: keep pricing intent identical to posCheckout. No
+        // effect on the returned figures (commission is not in the quote), but
+        // consistent with how the sale will actually bill.
+        channel: 'pos',
       },
     );
 
@@ -469,6 +473,8 @@ export class OwnerBookingsService {
         // stays unpriced and throwOnUnpriced rejects it — the operator must set
         // a price. (The frontend blocks confirm until then.)
         allowOverCapacity: true,
+        // Owner counter sale → NO platform commission (booking.channel = 'pos').
+        channel: 'pos',
       },
     );
 

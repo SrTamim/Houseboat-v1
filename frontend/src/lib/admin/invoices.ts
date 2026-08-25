@@ -27,6 +27,7 @@ export interface ApiInvoice {
     id: string;
     status: string;
     type: string;
+    channel: string;
     createdAt: string;
     departure: { startDate: string };
   };
@@ -37,6 +38,7 @@ export type InvoiceWireStatus =
   | 'customer_due'
   | 'paid'
   | 'payment_verified'
+  | 'payout_approved'
   | 'in_payout'
   | 'bill_cleared'
   | 'cancelled'
@@ -49,6 +51,7 @@ export const WIRE_STATUS_LABEL: Record<InvoiceWireStatus, string> = {
   customer_due: 'Customer Due',
   paid: 'Paid',
   payment_verified: 'Ready for Payout',
+  payout_approved: 'Approved for Payout',
   in_payout: 'In Payout',
   bill_cleared: 'Paid to Boat',
   cancelled: 'Canceled',
@@ -61,6 +64,7 @@ export const WIRE_STATUS_TONE: Record<InvoiceWireStatus, PillTone> = {
   customer_due: 'amb',
   paid: 'blue',
   payment_verified: 'warn',
+  payout_approved: 'blue',
   in_payout: 'warn',
   bill_cleared: 'ok',
   cancelled: 'mut',
@@ -80,6 +84,20 @@ export function wireStatusTone(status: string): PillTone {
 /** "INV-9a11"-style short handle for a UUID — display only, never a key. */
 export function shortId(id: string, prefix: string): string {
   return `${prefix}-${id.slice(0, 8)}`;
+}
+
+/**
+ * Booking source label — where the booking came from. 'pos' = owner counter
+ * sale, everything else (default 'web') = the public website. Internal only:
+ * never shown to a customer or on an invoice.
+ */
+export function channelLabel(channel: string | null | undefined): string {
+  return channel === 'pos' ? 'Counter' : 'Website';
+}
+
+/** Pill tone for the source badge — Website reads as the default (blue), Counter as amber. */
+export function channelTone(channel: string | null | undefined): PillTone {
+  return channel === 'pos' ? 'amb' : 'blue';
 }
 
 /** Mask a gateway token for on-screen display. */

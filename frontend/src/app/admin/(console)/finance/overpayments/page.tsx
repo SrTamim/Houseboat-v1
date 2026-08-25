@@ -16,6 +16,8 @@ import {
   shortId,
   wireStatusLabel,
   wireStatusTone,
+  channelLabel,
+  channelTone,
 } from '@/lib/admin/invoices';
 import { BTN_O, BTN_SM, TD_NUM, TD_T1, TD_T2, UNIT } from '@/components/admin/styles';
 
@@ -27,7 +29,7 @@ interface OverpaymentRow {
   amountOverpaid: string;
   houseboat: { id: string; name: string };
   customer: { id: string; name: string | null; phone: string };
-  booking: { id: string; createdAt: string };
+  booking: { id: string; channel: string; createdAt: string };
 }
 
 export default function Overpayments() {
@@ -59,13 +61,14 @@ export default function Overpayments() {
                   <th>Boat</th>
                   <th>Customer</th>
                   <th>Status</th>
+                  <th>Source</th>
                   <th className={TD_NUM}>Bill</th>
                   <th className={TD_NUM}>Paid</th>
                   <th className={TD_NUM}>Overpaid</th>
                 </tr>
               </thead>
               {isInitialLoading ? (
-                <TableSkeleton rows={4} cols={7} />
+                <TableSkeleton rows={4} cols={8} />
               ) : (
                 <tbody>
                   {items.map((inv) => (
@@ -82,6 +85,11 @@ export default function Overpayments() {
                       <td>
                         <Pill tone={wireStatusTone(inv.status)}>
                           {wireStatusLabel(inv.status)}
+                        </Pill>
+                      </td>
+                      <td>
+                        <Pill tone={channelTone(inv.booking.channel)}>
+                          {channelLabel(inv.booking.channel)}
                         </Pill>
                       </td>
                       <td className={TD_NUM}>

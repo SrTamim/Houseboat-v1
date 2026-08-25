@@ -1,6 +1,9 @@
 import {
+  ArrayNotEmpty,
+  IsArray,
   IsBoolean,
   IsIn,
+  IsInt,
   IsISO8601,
   IsNumber,
   IsOptional,
@@ -18,6 +21,7 @@ export const INVOICE_STATUSES = [
   'customer_due',
   'paid',
   'payment_verified',
+  'payout_approved',
   'in_payout',
   'bill_cleared',
   'cancelled',
@@ -43,9 +47,48 @@ export class SetRouteActiveDto {
   @IsBoolean() active!: boolean;
 }
 
+/** Edit a platform-curated route's display fields (name/region). */
+export class UpdateRouteDto {
+  @IsOptional() @IsString() @MaxLength(120) name?: string;
+
+  /** null clears the region; an absent field leaves it unchanged. */
+  @IsOptional() @IsString() @MaxLength(120) region?: string | null;
+}
+
+/** Set one operational setting. Value bounds are enforced in SettingsService. */
+export class UpdateSettingDto {
+  @IsInt() value!: number;
+}
+
+/** Hide or unhide a review (platform moderation). */
+export class SetReviewHiddenDto {
+  @IsBoolean() hidden!: boolean;
+}
+
 /** Payout batches, optionally narrowed to one boat. */
 export class ListPayoutBatchesQueryDto extends PageQueryDto {
   @IsOptional() @IsUUID() houseboatId?: string;
+}
+
+/** Which boats to list in the payout dropdowns. */
+export class PayableBoatsQueryDto {
+  /** 'approve' = boats with invoices in the approve queue; 'pay' = boats with approved invoices. */
+  @IsOptional() @IsIn(['approve', 'pay']) stage?: 'approve' | 'pay';
+}
+
+/** Pay a selected set of one boat's approved invoices to the vendor. */
+export class PayInvoicesDto {
+  @IsUUID() houseboatId!: string;
+
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsUUID('all', { each: true })
+  invoiceIds!: string[];
+}
+
+/** Past payout receipts, optionally searched by boat name / receipt id. */
+export class ListPayoutReceiptsQueryDto extends PageQueryDto {
+  @IsOptional() @IsString() @MaxLength(100) q?: string;
 }
 
 /** Waitlist entries, optionally narrowed to one departure. */
@@ -80,6 +123,16 @@ export class ListInvoicesQueryDto extends PageQueryDto {
   @IsBoolean()
   gatewayPending?: boolean;
 
+  /**
+   * The payout console queue: unbatched invoices in 'paid' / 'payment_verified'
+   * / 'payout_approved', narrowed to fully-paid, completed-trip invoices. Backs
+   * the Payouts (approve) page. Ignored when `status` is set.
+   */
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  payoutQueue?: boolean;
+
   @IsOptional() @IsUUID() houseboatId?: string;
 }
 
@@ -90,10 +143,19 @@ export class ListBookingsQueryDto extends PageQueryDto {
   status?: (typeof BOOKING_STATUSES)[number];
 
   @IsOptional() @IsUUID() houseboatId?: string;
+
+  /** Free-text: matches customer name / phone, or a booking id prefix. */
+  @IsOptional() @IsString() @MaxLength(100) q?: string;
 }
 
 export class ListReviewsQueryDto extends PageQueryDto {
   @IsOptional() @IsUUID() houseboatId?: string;
+
+  /** Free-text: matches review text, customer name, or boat name. */
+  @IsOptional() @IsString() @MaxLength(100) q?: string;
+
+  /** 'true' | 'false' — filter to hidden or visible reviews. Absent = all. */
+  @IsOptional() @IsIn(['true', 'false']) hidden?: string;
 }
 
 /** Accounts, optionally filtered by a name/phone/email search term. */
@@ -190,4 +252,17 @@ export class ListAuditQueryDto extends PageQueryDto {
   @IsOptional() @IsString() @MaxLength(100) action?: string;
 
   @IsOptional() @IsISO8601() before?: string;
+
+  /** Free-text: matches action, or the actor's name / phone. */
+  @IsOptional() @IsString() @MaxLength(100) q?: string;
+
+  /** Only entries at or after this instant (pairs with `before` for a range). */
+  @IsOptional() @IsISO8601() after?: string;
+
+  /**
+   * 'true' (default on the admin audit page) restricts to actions by platform
+   * staff — the closest proxy for "admin panel activity", since AuditLog has no
+   * actor-role column. 'false'/absent returns all actors.
+   */
+  @IsOptional() @IsIn(['true', 'false']) platformOnly?: string;
 }

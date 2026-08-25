@@ -60,6 +60,7 @@ const INVOICE_TONES: Record<string, PillTone> = {
   customer_due: 'warn',
   paid: 'blue',
   payment_verified: 'ok',
+  payout_approved: 'blue',
   in_payout: 'lock',
   bill_cleared: 'mut',
 };

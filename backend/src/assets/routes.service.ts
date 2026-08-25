@@ -29,4 +29,19 @@ export class RoutesService {
       data: { active },
     });
   }
+
+  /**
+   * Edit a route's display fields. Only keys present in `data` are changed; a
+   * `region` of null clears it. `active` is deliberately not editable here — it
+   * has its own setActive path (retire/reactivate).
+   */
+  update(routeId: string, data: { name?: string; region?: string | null }) {
+    return this.prisma.route.update({
+      where: { id: routeId },
+      data: {
+        ...(data.name !== undefined ? { name: data.name } : {}),
+        ...(data.region !== undefined ? { region: data.region } : {}),
+      },
+    });
+  }
 }

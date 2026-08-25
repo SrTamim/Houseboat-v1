@@ -1,127 +1,97 @@
 'use client';
 
-import {
-  PageHead,
-  Card,
-  TableWrap,
-  TableSkeleton,
-  EmptyState,
-  ErrorState,
-} from '@/components/admin/ui';
-import { Pill } from '@/components/admin/Pill';
+import { useMemo, useState } from 'react';
+import useSWR from 'swr';
+import { api, fetcher } from '@/lib/api';
+import { PageHead, Note, Select } from '@/components/admin/ui';
 import { PlatformInvoiceTable } from '@/components/admin/PlatformInvoiceTable';
+import { InvoiceDetailDrawer } from '@/components/admin/InvoiceDetailDrawer';
 import { useAdminList } from '@/lib/admin/useAdminList';
-import { formatBDT, isNegative } from '@/lib/admin/money';
+import { apiErrorMessage } from '@/lib/admin/api-error';
 import type { ApiInvoice } from '@/lib/admin/invoices';
-import { BTN_O, BTN_SM, TD_NUM, TD_T1, TD_T2, UNIT } from '@/components/admin/styles';
+import { FILTERBAR } from '@/components/admin/styles';
 
-interface PayoutBatch {
+interface PayableBoat {
   id: string;
-  status: string;
-  /** Decimal(12,2) — arrives as a string, and CAN be negative (boat owes the platform). */
-  totalAmount: string;
-  paidAt: string | null;
-  preparedBy: string | null;
-  approvedBy: string | null;
-  houseboat: { id: string; name: string; slug: string };
+  name: string;
+  count: number;
 }
 
 export default function Payouts() {
-  const batches = useAdminList<PayoutBatch>('/platform/finance/payout-batches', {
-    limit: 20,
-  });
-  const readyInvoices = useAdminList<ApiInvoice>('/platform/finance/invoices', {
-    settleable: true,
-    limit: 20,
-  });
+  const boats = useSWR<PayableBoat[]>(
+    '/platform/finance/payable-boats?stage=approve',
+    fetcher,
+    { revalidateOnFocus: false },
+  );
+  const [boatId, setBoatId] = useState('');
+
+  const { items, error, isInitialLoading, hasMore, loadMore, mutate } =
+    useAdminList<ApiInvoice>('/platform/finance/invoices', {
+      payoutQueue: true,
+      houseboatId: boatId || undefined,
+      limit: 20,
+    });
+
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
+
+  const boatOptions = useMemo(
+    () => [
+      { value: '', label: 'All boats' },
+      ...(boats.data ?? []).map((b) => ({
+        value: b.id,
+        label: `${b.name} (${b.count})`,
+      })),
+    ],
+    [boats.data],
+  );
+
+  async function act(invoice: ApiInvoice, kind: 'approve' | 'reject') {
+    if (busyId) return;
+    setBusyId(invoice.id);
+    setActionError(null);
+    try {
+      await api.post(`/platform/finance/invoices/${invoice.id}/${kind}-payout`);
+      await Promise.all([mutate(), boats.mutate()]);
+    } catch (e) {
+      setActionError(
+        apiErrorMessage(e, `Could not ${kind} this invoice for payout.`),
+      );
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   return (
     <>
       <PageHead
         title="Payouts"
-        desc={<>Invoices below are ready to batch per boat — the preparer must not be the approver, and a boat with no bank account cannot be paid.</>}
+        desc="Only fully-paid invoices for completed trips appear here. Approve an invoice to queue it for vendor payment, or reject it back to the verify queue. Approved invoices are paid on the Pay to Vendors page."
       />
-      <Card title="Payout batches" flush style={{ marginBottom: 20 }}>
-        {batches.error ? (
-          <ErrorState error={batches.error} onRetry={() => batches.mutate()} />
-        ) : !batches.isInitialLoading && batches.items.length === 0 ? (
-          <EmptyState
-            title="No payout batches yet"
-            desc="Batches appear here once a boat's settleable invoices are prepared for payment."
-          />
-        ) : (
-          <>
-            <TableWrap>
-              <thead>
-                <tr>
-                  <th>Batch</th>
-                  <th>Boat</th>
-                  <th>Status</th>
-                  <th className={TD_NUM}>Total</th>
-                  <th>Paid</th>
-                </tr>
-              </thead>
-              {batches.isInitialLoading ? (
-                <TableSkeleton rows={4} cols={5} />
-              ) : (
-                <tbody>
-                  {batches.items.map((b) => (
-                    <tr key={b.id}>
-                      <td className={TD_T1}>{b.id.slice(0, 8)}</td>
-                      <td>{b.houseboat.name}</td>
-                      <td>
-                        <Pill tone={b.status === 'paid' ? 'ok' : 'mut'}>
-                          {b.status}
-                        </Pill>
-                      </td>
-                      <td
-                        className={TD_NUM}
-                        // A negative batch means the boat owes the platform —
-                        // surface that rather than hiding the sign.
-                        style={
-                          isNegative(b.totalAmount)
-                            ? { color: 'var(--danger)' }
-                            : undefined
-                        }
-                      >
-                        <span className={UNIT}>৳</span> {formatBDT(b.totalAmount)}
-                      </td>
-                      <td className={TD_T2}>
-                        {b.paidAt
-                          ? new Date(b.paidAt).toLocaleDateString('en-GB', {
-                              day: '2-digit',
-                              month: 'short',
-                              year: 'numeric',
-                            })
-                          : '—'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              )}
-            </TableWrap>
-            {batches.hasMore ? (
-              <div style={{ padding: 12, textAlign: 'center' }}>
-                <button className={`${BTN_O} ${BTN_SM}`} onClick={batches.loadMore}>
-                  Load more
-                </button>
-              </div>
-            ) : null}
-          </>
-        )}
-      </Card>
-
-      <PageHead title="Ready for payout" desc="Verified invoices not yet pulled into a batch." />
+      <div className={FILTERBAR}>
+        <Select options={boatOptions} value={boatId} onChange={setBoatId} />
+      </div>
+      {actionError ? (
+        <div className="mb-3" role="alert">
+          <Note kind="danger" icon="⚠">{actionError}</Note>
+        </div>
+      ) : null}
       <PlatformInvoiceTable
-        items={readyInvoices.items}
-        error={readyInvoices.error}
-        isLoading={readyInvoices.isInitialLoading}
-        onRetry={() => readyInvoices.mutate()}
-        emptyTitle="No invoices ready for payout"
-        emptyDesc="Invoices land here after payment verification, until they enter a payout batch."
-        hasMore={readyInvoices.hasMore}
-        onLoadMore={readyInvoices.loadMore}
+        items={items}
+        error={error}
+        isLoading={isInitialLoading}
+        onRetry={() => mutate()}
+        emptyTitle="Nothing to approve"
+        emptyDesc="Invoices appear here once a customer has fully paid and the trip has completed."
+        onApprove={(inv) => act(inv, 'approve')}
+        onReject={(inv) => act(inv, 'reject')}
+        actionBusyIdShared={busyId}
+        onOpen={(inv) => setOpenId(inv.id)}
+        hasMore={hasMore}
+        onLoadMore={loadMore}
       />
+      <InvoiceDetailDrawer invoiceId={openId} onClose={() => setOpenId(null)} />
     </>
   );
 }

@@ -17,6 +17,12 @@ describe('invoice-state machine', () => {
     ['paid', 'in_payout'],
     ['payment_verified', 'in_payout'],
     ['in_payout', 'bill_cleared'],
+    // Payout-approval path (platform console): approve, then pay or reject.
+    ['paid', 'payout_approved'],
+    ['payment_verified', 'payout_approved'],
+    ['payout_approved', 'bill_cleared'],
+    ['payout_approved', 'paid'], // Reject / un-approve
+    ['payment_verified', 'paid'], // platform "reject payment" — back to verify queue
     // Path B — customer cancels
     ['customer_due', 'cancelled'],
     ['cancelled', 'payment_verified'],
@@ -39,8 +45,10 @@ describe('invoice-state machine', () => {
     ['refund_completed', 'paid'],
     // Can't jump straight to cleared.
     ['customer_due', 'bill_cleared'],
-    // Can't un-verify.
-    ['payment_verified', 'paid'],
+    // payout_approved is committed money: refund + cancel are locked out until
+    // it's paid or rejected (the Reject → paid path is the only way back).
+    ['payout_approved', 'refund_requested'],
+    ['payout_approved', 'cancelled'],
   ];
 
   it.each(illegal)('rejects %s → %s', (from, to) => {

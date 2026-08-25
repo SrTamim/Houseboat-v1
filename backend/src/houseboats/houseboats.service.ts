@@ -39,7 +39,8 @@ export class HouseboatsService {
         routes: {
           select: { route: { select: { name: true, region: true } } },
         },
-        _count: { select: { reviews: true } },
+        // Public review count excludes platform-hidden reviews.
+        _count: { select: { reviews: { where: { hidden: false } } } },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -88,7 +89,6 @@ export class HouseboatsService {
         safetyFeatures: true,
         createdAt: true,
         routes: { select: { route: { select: { name: true, region: true } } } },
-        _count: { select: { reviews: true } },
         cabinCategories: {
           select: {
             id: true,
@@ -102,7 +102,10 @@ export class HouseboatsService {
           where: { isDefault: true },
           select: { rules: { select: { pricePerPerson: true } } },
         },
-        reviews: { select: { rating: true } },
+        // Hidden reviews (platform-moderated) are excluded from the public
+        // rating average and count.
+        _count: { select: { reviews: { where: { hidden: false } } } },
+        reviews: { where: { hidden: false }, select: { rating: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -249,8 +252,10 @@ export class HouseboatsService {
         routes: {
           select: { route: { select: { name: true, region: true } } },
         },
-        _count: { select: { reviews: true } },
+        // Hidden reviews are withheld from the public boat page and its rating.
+        _count: { select: { reviews: { where: { hidden: false } } } },
         reviews: {
+          where: { hidden: false },
           select: {
             id: true,
             rating: true,

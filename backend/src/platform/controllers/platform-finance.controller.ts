@@ -9,8 +9,11 @@ import {
   ListCreditsQueryDto,
   ListInvoicesQueryDto,
   ListPayoutBatchesQueryDto,
+  ListPayoutReceiptsQueryDto,
   ListRefundsQueryDto,
   ListSubscriptionInvoicesQueryDto,
+  PayableBoatsQueryDto,
+  PayInvoicesDto,
   UpsertBillingConfigDto,
 } from '../dto/platform.dto';
 
@@ -37,6 +40,57 @@ export class PlatformFinanceController {
   @Get('invoices')
   listInvoices(@Query() query: ListInvoicesQueryDto) {
     return this.finance.listInvoices(query);
+  }
+
+  /** Full detail for one invoice — the admin "Open" drawer on the finance queues. */
+  @Get('invoices/:invoiceId')
+  getInvoice(@Param('invoiceId') invoiceId: string) {
+    return this.finance.getInvoice(invoiceId);
+  }
+
+  /** Approve one invoice for payout (Payouts page). paid|payment_verified → payout_approved. */
+  @PlatformPermission('finance', 'edit')
+  @Post('invoices/:invoiceId/approve-payout')
+  approveInvoiceForPayout(
+    @Param('invoiceId') invoiceId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.finance.approveInvoiceForPayout(invoiceId, user.id);
+  }
+
+  /** Reject an approved invoice back to the verify queue. payout_approved → paid. */
+  @PlatformPermission('finance', 'edit')
+  @Post('invoices/:invoiceId/reject-payout')
+  rejectInvoicePayout(
+    @Param('invoiceId') invoiceId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.finance.rejectInvoicePayout(invoiceId, user.id);
+  }
+
+  /** Distinct boats with payable invoices, for the payout/pay dropdowns. */
+  @Get('payable-boats')
+  payableBoats(@Query() query: PayableBoatsQueryDto) {
+    return this.finance.payableBoats(query);
+  }
+
+  /** Pay selected approved invoices to the vendor; returns the receipt id. */
+  @PlatformPermission('finance', 'edit')
+  @Post('payouts/pay')
+  payInvoices(@Body() dto: PayInvoicesDto, @CurrentUser() user: AuthUser) {
+    return this.finance.payInvoices(dto.houseboatId, dto.invoiceIds, user.id);
+  }
+
+  /** Past payout receipts (searchable). */
+  @Get('payout-receipts')
+  listPayoutReceipts(@Query() query: ListPayoutReceiptsQueryDto) {
+    return this.finance.listPayoutReceipts(query);
+  }
+
+  /** One payout receipt, full detail for the printable view. */
+  @Get('payout-receipts/:receiptId')
+  getPayoutReceipt(@Param('receiptId') receiptId: string) {
+    return this.finance.getPayoutReceipt(receiptId);
   }
 
   @Get('refunds')

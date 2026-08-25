@@ -63,8 +63,7 @@ export class RefundsService {
               select: {
                 id: true,
                 status: true,
-                bookedBy: true,
-                customerId: true,
+                channel: true,
                 departure: { select: { startDate: true } },
               },
             },
@@ -88,9 +87,9 @@ export class RefundsService {
       paid: r.invoice.amountPaid.toFixed(2),
       bookingStatus: r.invoice.booking.status,
       departureDate: r.invoice.booking.departure.startDate,
-      // POS = owner counter-sale, where bookedBy (the owner) differs from the
-      // customer. Those refunds settle here; platform-booked ones by finance.
-      isPos: r.invoice.booking.bookedBy !== r.invoice.booking.customerId,
+      // POS = owner counter-sale (booking.channel). Those refunds settle here;
+      // platform-booked ones by finance.
+      isPos: r.invoice.booking.channel === 'pos',
     }));
   }
 
@@ -292,10 +291,9 @@ export class RefundsService {
       'edit',
     );
 
-    // POS-only: a platform booking (bookedBy === customer) must not settle in
-    // one step — separation of duties applies to it.
-    const isPos =
-      refund.invoice.booking.bookedBy !== refund.invoice.booking.customerId;
+    // POS-only: a platform (web) booking must not settle in one step —
+    // separation of duties applies to it. Source is booking.channel.
+    const isPos = refund.invoice.booking.channel === 'pos';
     if (!isPos) {
       throw new ForbiddenException(
         'Platform refunds must go through verify then complete, not one-step settle',

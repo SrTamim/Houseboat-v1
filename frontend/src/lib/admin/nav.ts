@@ -39,6 +39,7 @@ export const NAV: NavGroup[] = [
       { key: 'verify', icon: '✓', label: 'Verify', href: '/admin/finance/verify' },
       { key: 'refunds', icon: '↩', label: 'Refunds', href: '/admin/finance/refunds' },
       { key: 'payouts', icon: '💸', label: 'Payouts', href: '/admin/finance/payouts' },
+      { key: 'pay-to-vendors', icon: '🏦', label: 'Pay to Vendors', href: '/admin/finance/pay-to-vendors' },
       { key: 'overpayments', icon: '⚖', label: 'Overpayments', href: '/admin/finance/overpayments' },
       { key: 'credits', icon: '🎫', label: 'Credits', href: '/admin/finance/credits' },
       { key: 'cashouts', icon: '🏧', label: 'Cash-outs', href: '/admin/finance/cashouts' },
@@ -51,9 +52,8 @@ export const NAV: NavGroup[] = [
   {
     group: 'System',
     items: [
-      { key: 'jobs', icon: '🩺', label: 'Jobs & health', href: '/admin/jobs' },
+      { key: 'jobs', icon: '🛠', label: 'System & health', href: '/admin/jobs' },
       { key: 'audit', icon: '📜', label: 'Audit log', href: '/admin/audit' },
-      { key: 'sync', icon: '🔄', label: 'Sync conflicts', href: '/admin/sync' },
       { key: 'notifications', icon: '🔔', label: 'Notifications', href: '/admin/notifications' },
       { key: 'gateway', icon: '💳', label: 'Gateway', href: '/admin/gateway' },
       { key: 'settings', icon: '🛠', label: 'Settings', href: '/admin/settings' },
@@ -64,10 +64,8 @@ export const NAV: NavGroup[] = [
     group: 'Disputes & risk',
     items: [
       { key: 'disputes', icon: '⚑', label: 'Disputes', href: '/admin/disputes' },
-      { key: 'idor', icon: '🛡', label: 'Security', href: '/admin/security' },
       { key: 'coupons', icon: '🏷', label: 'Coupons', href: '/admin/coupons' },
       { key: 'reschedules', icon: '🔁', label: 'Reschedules', href: '/admin/reschedules' },
-      { key: 'cutoff', icon: '⛔', label: 'Cutoff', href: '/admin/cutoff' },
     ],
   },
 ];

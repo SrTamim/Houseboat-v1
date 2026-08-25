@@ -7,6 +7,13 @@
  *    still verifies online/gateway receipts (paid → payment_verified), but
  *    owner-recorded payments (cash/bkash/bank/online) settle straight from
  *    paid → in_payout with no separate verify step.
+ *
+ *  payout_approved is an OPTIONAL manual stage on the platform payout console:
+ *    finance approves an invoice for payout (paid|payment_verified →
+ *    payout_approved), which locks it against refund/cancel, then pays the
+ *    vendor (payout_approved → bill_cleared). Reject bounces it back
+ *    (payout_approved → paid) so it re-enters the verify queue. The legacy batch
+ *    path (… → in_payout → bill_cleared) still exists for owner-facing history.
  *  Path B (customer cancels): cancelled → payment_verified → in_payout → bill_cleared
  *  Path C (owner cancels):    refund_requested → refund_verified → refund_completed
  *    POS refunds (owner counter-sale, bookedBy != customer) settle in one step:
@@ -20,6 +27,7 @@ export type InvoiceStatus =
   | 'customer_due'
   | 'paid'
   | 'payment_verified'
+  | 'payout_approved'
   | 'in_payout'
   | 'bill_cleared'
   | 'cancelled'
@@ -29,8 +37,22 @@ export type InvoiceStatus =
 
 const TRANSITIONS: Record<InvoiceStatus, InvoiceStatus[]> = {
   customer_due: ['paid', 'cancelled'],
-  paid: ['payment_verified', 'in_payout', 'cancelled'],
-  payment_verified: ['in_payout', 'cancelled', 'refund_requested'],
+  paid: ['payment_verified', 'payout_approved', 'in_payout', 'cancelled'],
+  // payment_verified → paid is the platform "reject payment" action: finance
+  // bounces a verified receipt back to the verify queue for re-checking. It is
+  // NOT an owner-reachable path (owners can't un-verify); only the platform
+  // payout console triggers it.
+  payment_verified: [
+    'paid',
+    'payout_approved',
+    'in_payout',
+    'cancelled',
+    'refund_requested',
+  ],
+  // Approved for payout: pay the vendor (→ bill_cleared) or Reject back to paid.
+  // Deliberately NOT → refund_requested/cancelled: an approved invoice is
+  // committed money, so it is refund/cancel-locked until paid or rejected.
+  payout_approved: ['bill_cleared', 'paid'],
   in_payout: ['bill_cleared'],
   bill_cleared: [],
   cancelled: ['payment_verified'], // customer-cancel still flows through settlement

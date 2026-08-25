@@ -238,7 +238,7 @@ export default function OwnerRefundsPage() {
           <div className="flex flex-col gap-5" style={{ gap: 16 }}>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <Pill tone={STATUS_TONES[open.status] ?? 'mut'}>{humanize(open.status)}</Pill>
-              <Pill tone={open.isPos ? 'amb' : 'blue'}>{open.isPos ? 'POS' : 'Platform'}</Pill>
+              <Pill tone={open.isPos ? 'amb' : 'blue'}>{open.isPos ? 'Counter' : 'Website'}</Pill>
             </div>
 
             <Kv

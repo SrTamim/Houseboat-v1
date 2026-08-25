@@ -24,6 +24,7 @@ import {
   formatDate,
   nextDepartureDate,
   weekday,
+  channelLabel,
 } from '@/lib/owner/format';
 
 interface Departure {
@@ -43,6 +44,7 @@ interface Departure {
 interface Booking {
   id: string;
   status: string;
+  channel: string;
   checkinStatus: string;
   customer: { name: string | null; phone: string };
   guests: { name: string; phone: string | null }[];
@@ -319,11 +321,12 @@ export default function OwnerDeparturePage() {
           </Kpis>
 
           <Card title="Manifest" sub={`${active.package.route.name} · ${formatDate(active.startDate)}`} flush>
-            <TableWrap minWidth={920}>
+            <TableWrap minWidth={1000}>
               <thead>
                 <tr>
                   <th>Cabin</th>
                   <th>Guest</th>
+                  <th>Source</th>
                   <th>Phone</th>
                   <th>Heads</th>
                   <th className="num">Advance</th>
@@ -359,6 +362,13 @@ export default function OwnerDeparturePage() {
                           {b.cabins.map((c) => c.cabin.name).join(', ') || '—'}
                         </td>
                         <td>{b.guests[0]?.name ?? b.customer.name ?? 'Guest'}</td>
+                        <td>
+                          {b.channel === 'pos' ? (
+                            <Pill tone="amb">{channelLabel(b.channel)}</Pill>
+                          ) : (
+                            <span className="t2">{channelLabel(b.channel)}</span>
+                          )}
+                        </td>
                         <td className="t2">
                           <a href={telHref(phone)}>{phone}</a>
                         </td>

@@ -291,6 +291,35 @@
         "tags": [
           "Rbac"
         ]
+      },
+      "delete": {
+        "operationId": "RbacController_deleteRole",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "roleId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Rbac"
+        ]
       }
     },
     "/api/houseboats/{houseboatId}/members": {
@@ -388,6 +417,35 @@
             }
           }
         },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Rbac"
+        ]
+      },
+      "delete": {
+        "operationId": "RbacController_deleteMember",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "membershipId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": ""
@@ -2893,6 +2951,7 @@
                 "customer_due",
                 "paid",
                 "payment_verified",
+                "payout_approved",
                 "in_payout",
                 "bill_cleared"
               ],
@@ -2934,7 +2993,7 @@
             "description": ""
           }
         },
-        "summary": "The boat's booking invoices (owner console). Read-only. Consumed by both the\nbookings and refunds page detail drawers, so it is gated on the broad\n`bookings` page rather than a narrower money page — a refunds-only role that\nneeds to see invoice detail should also be granted bookings:view.",
+        "summary": "The boat's booking invoices (owner console). Read-only. Consumed by the\nbookings and refunds page detail drawers, so either role may read it.",
         "tags": [
           "Money"
         ]
@@ -4772,6 +4831,7 @@
                 "customer_due",
                 "paid",
                 "payment_verified",
+                "payout_approved",
                 "in_payout",
                 "bill_cleared",
                 "cancelled",
@@ -4796,6 +4856,15 @@
             "required": false,
             "in": "query",
             "description": "The gateway verify queue: 'paid' invoices carrying a gateway payment the\nplatform still checks against the gateway portal. Owner-recorded cash never\nqueues here — it settles without platform verification. Ignored when\n`status` is set.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "payoutQueue",
+            "required": false,
+            "in": "query",
+            "description": "The payout console queue: unbatched invoices in 'paid' / 'payment_verified'\n/ 'payout_approved', narrowed to fully-paid, completed-trip invoices. Backs\nthe Payouts (approve) page. Ignored when `status` is set.",
             "schema": {
               "type": "boolean"
             }
@@ -4834,6 +4903,201 @@
             "description": ""
           }
         },
+        "tags": [
+          "PlatformFinance"
+        ]
+      }
+    },
+    "/api/platform/finance/invoices/{invoiceId}": {
+      "get": {
+        "operationId": "PlatformFinanceController_getInvoice",
+        "parameters": [
+          {
+            "name": "invoiceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Full detail for one invoice — the admin \"Open\" drawer on the finance queues.",
+        "tags": [
+          "PlatformFinance"
+        ]
+      }
+    },
+    "/api/platform/finance/invoices/{invoiceId}/approve-payout": {
+      "post": {
+        "operationId": "PlatformFinanceController_approveInvoiceForPayout",
+        "parameters": [
+          {
+            "name": "invoiceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Approve one invoice for payout (Payouts page). paid|payment_verified → payout_approved.",
+        "tags": [
+          "PlatformFinance"
+        ]
+      }
+    },
+    "/api/platform/finance/invoices/{invoiceId}/reject-payout": {
+      "post": {
+        "operationId": "PlatformFinanceController_rejectInvoicePayout",
+        "parameters": [
+          {
+            "name": "invoiceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Reject an approved invoice back to the verify queue. payout_approved → paid.",
+        "tags": [
+          "PlatformFinance"
+        ]
+      }
+    },
+    "/api/platform/finance/payable-boats": {
+      "get": {
+        "operationId": "PlatformFinanceController_payableBoats",
+        "parameters": [
+          {
+            "name": "stage",
+            "required": false,
+            "in": "query",
+            "description": "'approve' = boats with invoices in the approve queue; 'pay' = boats with approved invoices.",
+            "schema": {
+              "enum": [
+                "approve",
+                "pay"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Distinct boats with payable invoices, for the payout/pay dropdowns.",
+        "tags": [
+          "PlatformFinance"
+        ]
+      }
+    },
+    "/api/platform/finance/payouts/pay": {
+      "post": {
+        "operationId": "PlatformFinanceController_payInvoices",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayInvoicesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Pay selected approved invoices to the vendor; returns the receipt id.",
+        "tags": [
+          "PlatformFinance"
+        ]
+      }
+    },
+    "/api/platform/finance/payout-receipts": {
+      "get": {
+        "operationId": "PlatformFinanceController_listPayoutReceipts",
+        "parameters": [
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 100,
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "id of the last row from the previous page.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Past payout receipts (searchable).",
+        "tags": [
+          "PlatformFinance"
+        ]
+      }
+    },
+    "/api/platform/finance/payout-receipts/{receiptId}": {
+      "get": {
+        "operationId": "PlatformFinanceController_getPayoutReceipt",
+        "parameters": [
+          {
+            "name": "receiptId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "One payout receipt, full detail for the printable view.",
         "tags": [
           "PlatformFinance"
         ]
@@ -4900,6 +5164,7 @@
                 "customer_due",
                 "paid",
                 "payment_verified",
+                "payout_approved",
                 "in_payout",
                 "bill_cleared",
                 "cancelled",
@@ -4924,6 +5189,15 @@
             "required": false,
             "in": "query",
             "description": "The gateway verify queue: 'paid' invoices carrying a gateway payment the\nplatform still checks against the gateway portal. Owner-recorded cash never\nqueues here — it settles without platform verification. Ignored when\n`status` is set.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "payoutQueue",
+            "required": false,
+            "in": "query",
+            "description": "The payout console queue: unbatched invoices in 'paid' / 'payment_verified'\n/ 'payout_approved', narrowed to fully-paid, completed-trip invoices. Backs\nthe Payouts (approve) page. Ignored when `status` is set.",
             "schema": {
               "type": "boolean"
             }
@@ -5384,6 +5658,16 @@
             }
           },
           {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Free-text: matches customer name / phone, or a booking id prefix.",
+            "schema": {
+              "maxLength": 100,
+              "type": "string"
+            }
+          },
+          {
             "name": "limit",
             "required": false,
             "in": "query",
@@ -5414,6 +5698,30 @@
         ]
       }
     },
+    "/api/platform/ops/bookings/{bookingId}": {
+      "get": {
+        "operationId": "PlatformOpsController_getBooking",
+        "parameters": [
+          {
+            "name": "bookingId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Full detail for one booking — the admin \"Open\" drawer.",
+        "tags": [
+          "PlatformOps"
+        ]
+      }
+    },
     "/api/platform/ops/reviews": {
       "get": {
         "operationId": "PlatformOpsController_listReviews",
@@ -5423,6 +5731,29 @@
             "required": false,
             "in": "query",
             "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Free-text: matches review text, customer name, or boat name.",
+            "schema": {
+              "maxLength": 100,
+              "type": "string"
+            }
+          },
+          {
+            "name": "hidden",
+            "required": false,
+            "in": "query",
+            "description": "'true' | 'false' — filter to hidden or visible reviews. Absent = all.",
+            "schema": {
+              "enum": [
+                "true",
+                "false"
+              ],
               "type": "string"
             }
           },
@@ -5452,6 +5783,40 @@
             "description": ""
           }
         },
+        "tags": [
+          "PlatformOps"
+        ]
+      }
+    },
+    "/api/platform/ops/reviews/{reviewId}/hidden": {
+      "patch": {
+        "operationId": "PlatformOpsController_setReviewHidden",
+        "parameters": [
+          {
+            "name": "reviewId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetReviewHiddenDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Hide or unhide a review (platform moderation).",
         "tags": [
           "PlatformOps"
         ]
@@ -5705,6 +6070,38 @@
             }
           },
           {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Free-text: matches action, or the actor's name / phone.",
+            "schema": {
+              "maxLength": 100,
+              "type": "string"
+            }
+          },
+          {
+            "name": "after",
+            "required": false,
+            "in": "query",
+            "description": "Only entries at or after this instant (pairs with `before` for a range).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "platformOnly",
+            "required": false,
+            "in": "query",
+            "description": "'true' (default on the admin audit page) restricts to actions by platform\nstaff — the closest proxy for \"admin panel activity\", since AuditLog has no\nactor-role column. 'false'/absent returns all actors.",
+            "schema": {
+              "enum": [
+                "true",
+                "false"
+              ],
+              "type": "string"
+            }
+          },
+          {
             "name": "limit",
             "required": false,
             "in": "query",
@@ -5847,6 +6244,40 @@
           }
         },
         "summary": "Activate/deactivate a platform-curated route.\n\nRoutesService.setActive already existed but had no HTTP route, so routes\ncould be created and never retired.",
+        "tags": [
+          "PlatformOps"
+        ]
+      }
+    },
+    "/api/platform/ops/routes/{routeId}": {
+      "patch": {
+        "operationId": "PlatformOpsController_updateRoute",
+        "parameters": [
+          {
+            "name": "routeId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRouteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Edit a route's name/region. Active state stays on the toggle above.",
         "tags": [
           "PlatformOps"
         ]
@@ -6005,6 +6436,80 @@
         },
         "tags": [
           "PlatformRbac"
+        ]
+      }
+    },
+    "/api/platform/system/settings": {
+      "get": {
+        "operationId": "PlatformSystemController_listSettings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Every editable setting with its current value, bounds and display metadata.",
+        "tags": [
+          "PlatformSystem"
+        ]
+      }
+    },
+    "/api/platform/system/settings/{key}": {
+      "put": {
+        "operationId": "PlatformSystemController_updateSetting",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSettingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Update one setting. Bounds + audit are enforced in the service.",
+        "tags": [
+          "PlatformSystem"
+        ]
+      }
+    },
+    "/api/platform/system/health": {
+      "get": {
+        "operationId": "PlatformSystemController_health",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Live health snapshot for the console panel. Mirrors the public /health probe\n(db + redis reachability) but is staff-gated and never sets a non-200 status\n— the console only displays it, it isn't a load-balancer probe.",
+        "tags": [
+          "PlatformSystem"
         ]
       }
     },
@@ -8410,6 +8915,25 @@
           "body"
         ]
       },
+      "PayInvoicesDto": {
+        "type": "object",
+        "properties": {
+          "houseboatId": {
+            "type": "string"
+          },
+          "invoiceIds": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "houseboatId",
+          "invoiceIds"
+        ]
+      },
       "UpsertBillingConfigDto": {
         "type": "object",
         "properties": {
@@ -8431,6 +8955,17 @@
           }
         }
       },
+      "SetReviewHiddenDto": {
+        "type": "object",
+        "properties": {
+          "hidden": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "hidden"
+        ]
+      },
       "SetRouteActiveDto": {
         "type": "object",
         "properties": {
@@ -8441,6 +8976,21 @@
         "required": [
           "active"
         ]
+      },
+      "UpdateRouteDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "region": {
+            "type": "string",
+            "nullable": true,
+            "description": "null clears the region; an absent field leaves it unchanged.",
+            "maxLength": 120
+          }
+        }
       },
       "CreatePlatformRoleDto": {
         "type": "object",
@@ -8489,6 +9039,17 @@
         },
         "required": [
           "isPlatform"
+        ]
+      },
+      "UpdateSettingDto": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "value"
         ]
       }
     }

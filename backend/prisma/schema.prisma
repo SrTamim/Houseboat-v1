@@ -36,6 +36,23 @@ datasource db {
   directUrl = env("DIRECT_DATABASE_URL")
 }
 
+// ---------- PLATFORM SETTINGS ----------
+
+/// Runtime-editable operational settings, as typed key→value rows.
+///
+/// Every value has a compiled-in default (see src/platform/settings/setting-defs.ts);
+/// a row here only exists once an admin overrides that default. Code reads through
+/// SettingsService, which falls back to the default when no row is present — so an
+/// empty table reproduces today's hardcoded behaviour exactly. `value` is stored as
+/// text and parsed per the setting's declared type (integer today).
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("app_setting")
+}
+
 // ---------- IDENTITY, RBAC & AUDIT ----------
 
 /// One login per person. A single human can be a customer, an owner
@@ -73,6 +90,7 @@ model Account {
   refundsCompleted     InvoiceRefund[]          @relation("RefundCompletedBy")
   payoutsPrepared      HouseboatPayoutBatch[]   @relation("PayoutPreparedBy")
   payoutsApproved      HouseboatPayoutBatch[]   @relation("PayoutApprovedBy")
+  payoutsPaid          HouseboatPayoutBatch[]   @relation("PayoutPaidBy")
   distributionsRecorded OwnerDistribution[]
   credits              CustomerCredit[]
   cashoutRequests      CashoutRequest[]         @relation("CashoutRequester")
@@ -491,6 +509,9 @@ model Booking {
   bookedBy            String   @map("booked_by") @db.Uuid
   /// cabin / group / quote
   type                String
+  /// booking origin — 'web' = customer self-service (platform earns commission),
+  /// 'pos' = owner counter sale (NO commission). Immutable, set at creation.
+  channel             String   @default("web")
   headcount           Int?
   specialInstructions String?  @map("special_instructions")
   couponId            String?  @map("coupon_id") @db.Uuid
@@ -518,6 +539,7 @@ model Booking {
   @@index([departureId])
   @@index([customerId])
   @@index([status])
+  @@index([channel])
   @@map("booking")
 }
 
@@ -772,15 +794,23 @@ model HouseboatPayoutBatch {
   /// SIGNED — can be negative if the boat owes the platform
   totalAmount Decimal   @map("total_amount") @db.Decimal(12, 2)
   preparedBy  String?   @map("prepared_by") @db.Uuid
-  /// separation of duties: must differ from prepared_by
+  /// legacy 2-person flow: was required to differ from prepared_by (constraint
+  /// dropped — one finance member now runs the whole flow)
   approvedBy  String?   @map("approved_by") @db.Uuid
-  /// prepared / approved / paid
+  /// prepared / approved / paid. The new "Pay to Vendors" flow creates rows
+  /// already 'paid' (as receipts); prepared/approved are the legacy batch path.
   status      String    @default("prepared")
   paidAt      DateTime? @map("paid_at") @db.Timestamptz
+  /// who confirmed the vendor payment (new invoice-level flow); receipt actor
+  paidBy      String?   @map("paid_by") @db.Uuid
+  /// snapshot of the boat's bank_account at pay time, so a later edit to the
+  /// boat's details never changes a historical payout receipt
+  bankSnapshot Json?    @map("bank_snapshot")
 
   houseboat Houseboat @relation(fields: [houseboatId], references: [id])
   preparedByAccount Account? @relation("PayoutPreparedBy", fields: [preparedBy], references: [id])
   approvedByAccount Account? @relation("PayoutApprovedBy", fields: [approvedBy], references: [id])
+  paidByAccount     Account? @relation("PayoutPaidBy", fields: [paidBy], references: [id])
   invoices  Invoice[]
 
   @@index([houseboatId])
@@ -1136,6 +1166,9 @@ model Review {
   rating      Int
   text        String?
   ownerReply  String? @map("owner_reply")
+  /// Platform moderation: a hidden review is withheld from public listings and
+  /// rating aggregates. Default false — reviews are visible until an admin hides one.
+  hidden      Boolean @default(false)
 
   booking   Booking   @relation(fields: [bookingId], references: [id])
   houseboat Houseboat @relation(fields: [houseboatId], references: [id])

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { api } from '@/lib/api';
 import { PageHead, Note } from '@/components/admin/ui';
 import { PlatformInvoiceTable } from '@/components/admin/PlatformInvoiceTable';
+import { InvoiceDetailDrawer } from '@/components/admin/InvoiceDetailDrawer';
 import { useAdminList } from '@/lib/admin/useAdminList';
 import type { ApiInvoice } from '@/lib/admin/invoices';
 
@@ -16,6 +17,7 @@ export default function VerifyPayments() {
 
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
 
   async function verify(invoice: ApiInvoice) {
     if (busyId) return;
@@ -57,9 +59,11 @@ export default function VerifyPayments() {
         actionLabel="Mark verified"
         actionBusyId={busyId}
         onAction={verify}
+        onOpen={(inv) => setOpenId(inv.id)}
         hasMore={hasMore}
         onLoadMore={loadMore}
       />
+      <InvoiceDetailDrawer invoiceId={openId} onClose={() => setOpenId(null)} />
     </>
   );
 }

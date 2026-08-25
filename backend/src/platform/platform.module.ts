@@ -4,6 +4,7 @@ import { AssetsModule } from '../assets/assets.module';
 import { PlatformFinanceController } from './controllers/platform-finance.controller';
 import { PlatformOpsController } from './controllers/platform-ops.controller';
 import { PlatformRbacController } from './controllers/platform-rbac.controller';
+import { PlatformSystemController } from './controllers/platform-system.controller';
 import { PlatformFinanceService } from './services/platform-finance.service';
 import { PlatformOpsService } from './services/platform-ops.service';
 import { PlatformRbacService } from './services/platform-rbac.service';
@@ -31,6 +32,7 @@ import { PlatformRbacService } from './services/platform-rbac.service';
     PlatformFinanceController,
     PlatformOpsController,
     PlatformRbacController,
+    PlatformSystemController,
   ],
   providers: [PlatformFinanceService, PlatformOpsService, PlatformRbacService],
 })

@@ -15,7 +15,9 @@ import {
   ListReviewsQueryDto,
   ListRolesQueryDto,
   ListWaitlistQueryDto,
+  SetReviewHiddenDto,
   SetRouteActiveDto,
+  UpdateRouteDto,
 } from '../dto/platform.dto';
 
 /**
@@ -55,9 +57,26 @@ export class PlatformOpsController {
     return this.ops.listBookings(query);
   }
 
+  /** Full detail for one booking — the admin "Open" drawer. */
+  @Get('bookings/:bookingId')
+  getBooking(@Param('bookingId') bookingId: string) {
+    return this.ops.getBooking(bookingId);
+  }
+
   @Get('reviews')
   listReviews(@Query() query: ListReviewsQueryDto) {
     return this.ops.listReviews(query);
+  }
+
+  /** Hide or unhide a review (platform moderation). */
+  @PlatformPermission('ops', 'edit')
+  @Patch('reviews/:reviewId/hidden')
+  setReviewHidden(
+    @Param('reviewId') reviewId: string,
+    @Body() dto: SetReviewHiddenDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.ops.setReviewHidden(reviewId, dto.hidden, user.id);
   }
 
   @PlatformPermission('accounts', 'view')
@@ -132,5 +151,15 @@ export class PlatformOpsController {
     @Body() dto: SetRouteActiveDto,
   ) {
     return this.routes.setActive(routeId, dto.active);
+  }
+
+  /** Edit a route's name/region. Active state stays on the toggle above. */
+  @PlatformPermission('ops', 'edit')
+  @Patch('routes/:routeId')
+  updateRoute(
+    @Param('routeId') routeId: string,
+    @Body() dto: UpdateRouteDto,
+  ) {
+    return this.routes.update(routeId, { name: dto.name, region: dto.region });
   }
 }

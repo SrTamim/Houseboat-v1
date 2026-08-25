@@ -4,13 +4,20 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { AvailabilityGateway } from '../realtime/availability.gateway';
+import { SettingsService } from '../platform/settings/settings.service';
 import { newId } from '../common/uuid';
 
+/**
+ * Defaults for the hold timers. These are now admin-editable via SettingsService
+ * (keys hold.ttlMin / hold.checkoutExtensionMin); the constants remain the
+ * fallback the settings registry mirrors, and specs still import them.
+ */
 export const HOLD_TTL_MIN = 10;
 /** One-off grant when the guest reaches checkout, ADDED to the time remaining. */
 export const HOLD_CHECKOUT_EXTENSION_MIN = 10;
@@ -47,6 +54,10 @@ export class HoldsService {
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     private readonly realtime: AvailabilityGateway,
+    // @Optional() so the unit tests (booking.idor.spec, holds.extension.spec)
+    // can construct HoldsService with three positional args; each read falls
+    // back to the compiled-in constant when the service is absent.
+    @Optional() private readonly settings?: SettingsService,
   ) {}
 
   /** Sliding-window rate limit per cabin. Skips silently if Redis is down. */
@@ -94,7 +105,9 @@ export class HoldsService {
       throw new ConflictException('A hold needs exactly one owner');
     }
     await this.assertHoldRate(cabinId);
-    const expiresAt = new Date(Date.now() + HOLD_TTL_MIN * 60_000);
+    const ttlMin =
+      (await this.settings?.getNumber('hold.ttlMin')) ?? HOLD_TTL_MIN;
+    const expiresAt = new Date(Date.now() + ttlMin * 60_000);
     // Whose cart this hold joins — an account's or a browser's.
     const owner = heldBy ? { heldBy } : { heldByToken };
     try {
@@ -113,7 +126,16 @@ export class HoldsService {
 
         // Per-booking cabin cap. Counted inside the transaction so two fast
         // clicks cannot both read "3 held" and both insert a 4th.
+        //
+        // `maxCabins` from the caller is the ceiling (the DTO's hard cap). The
+        // admin-editable booking.maxCabins may only TIGHTEN it — clamp to the
+        // smaller of the two so an operational setting can never raise the cap
+        // above the request-validation ceiling. Owner POS passes null and stays
+        // uncapped regardless of the setting.
         if (maxCabins != null) {
+          const editable =
+            (await this.settings?.getNumber('booking.maxCabins')) ?? maxCabins;
+          const effectiveCap = Math.min(maxCabins, editable);
           const alreadyHeld = await tx.cabinHold.count({
             where: {
               departureId,
@@ -122,9 +144,9 @@ export class HoldsService {
               expiresAt: { gt: new Date() },
             },
           });
-          if (alreadyHeld >= maxCabins) {
+          if (alreadyHeld >= effectiveCap) {
             throw new ConflictException(
-              `You can book up to ${maxCabins} cabins per booking`,
+              `You can book up to ${effectiveCap} cabins per booking`,
             );
           }
         }
@@ -302,9 +324,10 @@ export class HoldsService {
         return { expiresAt: current, extended: false };
       }
 
-      const expiresAt = new Date(
-        current.getTime() + HOLD_CHECKOUT_EXTENSION_MIN * 60_000,
-      );
+      const extensionMin =
+        (await this.settings?.getNumber('hold.checkoutExtensionMin')) ??
+        HOLD_CHECKOUT_EXTENSION_MIN;
+      const expiresAt = new Date(current.getTime() + extensionMin * 60_000);
       await tx.cabinHold.updateMany({
         where: { departureId, ...owner, state: 'held' },
         data: { expiresAt, extendedAt: new Date() },

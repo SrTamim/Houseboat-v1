@@ -1,7 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { AvailabilityGateway } from '../realtime/availability.gateway';
+import { SettingsService } from '../platform/settings/settings.service';
 import { HOLD_GRACE_MIN } from './holds.service';
 
 /**
@@ -24,12 +25,17 @@ export class HoldSweeperService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly realtime: AvailabilityGateway,
+    // @Optional() so the unit test can construct the sweeper with two positional
+    // args; falls back to the compiled-in grace constant when absent.
+    @Optional() private readonly settings?: SettingsService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
   async sweep(): Promise<void> {
     const now = new Date();
-    const staleBefore = new Date(now.getTime() - HOLD_GRACE_MIN * 60_000);
+    const graceMin =
+      (await this.settings?.getNumber('hold.graceMin')) ?? HOLD_GRACE_MIN;
+    const staleBefore = new Date(now.getTime() - graceMin * 60_000);
     // Process in one transaction per batch so count updates stay consistent.
     const reclaimable = await this.prisma.cabinHold.findMany({
       where: {

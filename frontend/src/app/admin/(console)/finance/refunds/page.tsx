@@ -15,7 +15,7 @@ import {
 import { Pill } from '@/components/admin/Pill';
 import { useAdminList } from '@/lib/admin/useAdminList';
 import { formatBDT } from '@/lib/admin/money';
-import { shortId } from '@/lib/admin/invoices';
+import { shortId, channelLabel, channelTone } from '@/lib/admin/invoices';
 import { BTN_B, BTN_O, BTN_SM, FILTERBAR, ROWACT, TD_NUM, TD_T1, TD_T2, UNIT } from '@/components/admin/styles';
 
 interface RefundRow {
@@ -34,6 +34,7 @@ interface RefundRow {
     displayTotal: string;
     houseboat: { id: string; name: string };
     customer: { id: string; name: string | null; phone: string };
+    booking: { id: string; channel: string };
   };
 }
 
@@ -114,7 +115,7 @@ export default function Refunds() {
           />
         ) : (
           <>
-            <TableWrap minWidth={1000}>
+            <TableWrap minWidth={1080}>
               <thead>
                 <tr>
                   <th>Invoice</th>
@@ -122,13 +123,14 @@ export default function Refunds() {
                   <th>Customer</th>
                   <th className={TD_NUM}>Refund</th>
                   <th>Status</th>
+                  <th>Source</th>
                   <th>Deadline</th>
                   <th>Chain</th>
                   <th />
                 </tr>
               </thead>
               {isInitialLoading ? (
-                <TableSkeleton rows={5} cols={8} />
+                <TableSkeleton rows={5} cols={9} />
               ) : (
                 <tbody>
                   {items.map((r) => (
@@ -147,6 +149,11 @@ export default function Refunds() {
                       </td>
                       <td>
                         <Pill tone={REFUND_TONE[r.status]}>{r.status}</Pill>
+                      </td>
+                      <td>
+                        <Pill tone={channelTone(r.invoice.booking.channel)}>
+                          {channelLabel(r.invoice.booking.channel)}
+                        </Pill>
                       </td>
                       <td className={TD_T2}>{formatDate(r.claimDeadline)}</td>
                       <td className={TD_T2}>

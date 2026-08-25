@@ -39,6 +39,14 @@ export function isNegative(value: string | number | null | undefined): boolean {
   return Number(value ?? 0) < 0;
 }
 
+/**
+ * Booking source label — 'pos' = owner counter sale, else (default 'web') = the
+ * public website. Owner-facing only; never shown to a customer or on an invoice.
+ */
+export function channelLabel(channel: string | null | undefined): string {
+  return channel === 'pos' ? 'Counter' : 'Website';
+}
+
 const DATE_OPTS: Intl.DateTimeFormatOptions = {
   day: 'numeric',
   month: 'short',

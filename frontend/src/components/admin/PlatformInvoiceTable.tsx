@@ -11,7 +11,7 @@ import {
   ErrorState,
 } from './ui';
 import { Pill, Tag } from './Pill';
-import { BTN_B, BTN_O, BTN_SM, ROWACT, TD_NUM, TD_T1, TD_T2, UNIT } from './styles';
+import { BTN_B, BTN_DANGER, BTN_O, BTN_OK, BTN_SM, ROWACT, TD_NUM, TD_T1, TD_T2, UNIT } from './styles';
 import { formatBDT } from '@/lib/admin/money';
 import {
   type ApiInvoice,
@@ -19,6 +19,8 @@ import {
   wireStatusTone,
   shortId,
   maskToken,
+  channelLabel,
+  channelTone,
 } from '@/lib/admin/invoices';
 
 function formatDate(iso: string) {
@@ -39,6 +41,10 @@ export function PlatformInvoiceTable({
   actionLabel,
   actionBusyId,
   onAction,
+  onApprove,
+  onReject,
+  actionBusyIdShared,
+  onOpen,
   hasMore,
   onLoadMore,
 }: {
@@ -52,10 +58,19 @@ export function PlatformInvoiceTable({
   actionLabel?: string;
   actionBusyId?: string | null;
   onAction?: (invoice: ApiInvoice) => void;
+  /** Payout-queue actions, gated by invoice status. Approve shows on paid/payment_verified; Reject on payout_approved. */
+  onApprove?: (invoice: ApiInvoice) => void;
+  onReject?: (invoice: ApiInvoice) => void;
+  /** Busy id shared by the approve/reject buttons. */
+  actionBusyIdShared?: string | null;
+  /** Open the invoice detail drawer. Omit to hide the Open button. */
+  onOpen?: (invoice: ApiInvoice) => void;
   hasMore?: boolean;
   onLoadMore?: () => void;
 }) {
-  const cols = actionLabel ? 9 : 8;
+  const hasRowActions = Boolean(actionLabel || onApprove || onReject);
+  // base 9 columns + Open (when onOpen) + a shared action column.
+  const cols = 9 + (onOpen ? 1 : 0) + (hasRowActions ? 1 : 0);
   return (
     <Card flush>
       {error ? (
@@ -64,7 +79,7 @@ export function PlatformInvoiceTable({
         <EmptyState title={emptyTitle} desc={emptyDesc} />
       ) : (
         <>
-          <TableWrap minWidth={1100}>
+          <TableWrap minWidth={1180}>
             <thead>
               <tr>
                 <th>Invoice</th>
@@ -72,10 +87,12 @@ export function PlatformInvoiceTable({
                 <th>Customer</th>
                 <th>Trip start</th>
                 <th>Status</th>
+                <th>Source</th>
                 <th>Payment</th>
                 <th className={TD_NUM}>Total</th>
                 <th>Gateway / txn</th>
-                {actionLabel ? <th /> : null}
+                {onOpen ? <th /> : null}
+                {hasRowActions ? <th /> : null}
               </tr>
             </thead>
             {isLoading ? (
@@ -104,6 +121,11 @@ export function PlatformInvoiceTable({
                         </Pill>
                       </td>
                       <td>
+                        <Pill tone={channelTone(inv.booking.channel)}>
+                          {channelLabel(inv.booking.channel)}
+                        </Pill>
+                      </td>
+                      <td>
                         {lastPayment ? <Tag>{lastPayment.method}</Tag> : <Tag>unpaid</Tag>}
                       </td>
                       <td className={TD_NUM}>
@@ -112,16 +134,52 @@ export function PlatformInvoiceTable({
                       <td className={TD_T2}>
                         {lastPayment ? maskToken(lastPayment.gatewayToken) : '—'}
                       </td>
-                      {actionLabel && onAction ? (
+                      {onOpen ? (
                         <td>
                           <div className={ROWACT}>
                             <button
-                              className={`${BTN_B} ${BTN_SM}`}
-                              disabled={actionBusyId === inv.id}
-                              onClick={() => onAction(inv)}
+                              className={`${BTN_O} ${BTN_SM}`}
+                              onClick={() => onOpen(inv)}
                             >
-                              {actionBusyId === inv.id ? '…' : actionLabel}
+                              Open
                             </button>
+                          </div>
+                        </td>
+                      ) : null}
+                      {hasRowActions ? (
+                        <td>
+                          <div className={ROWACT}>
+                            {actionLabel && onAction ? (
+                              <button
+                                className={`${BTN_B} ${BTN_SM}`}
+                                disabled={actionBusyId === inv.id}
+                                onClick={() => onAction(inv)}
+                              >
+                                {actionBusyId === inv.id ? '…' : actionLabel}
+                              </button>
+                            ) : null}
+                            {onApprove &&
+                            (inv.status === 'paid' ||
+                              inv.status === 'payment_verified') ? (
+                              <button
+                                className={`${BTN_OK} ${BTN_SM}`}
+                                disabled={actionBusyIdShared === inv.id}
+                                onClick={() => onApprove(inv)}
+                              >
+                                {actionBusyIdShared === inv.id ? '…' : 'Approve'}
+                              </button>
+                            ) : null}
+                            {onReject &&
+                            (inv.status === 'payout_approved' ||
+                              inv.status === 'payment_verified') ? (
+                              <button
+                                className={`${BTN_DANGER} ${BTN_SM}`}
+                                disabled={actionBusyIdShared === inv.id}
+                                onClick={() => onReject(inv)}
+                              >
+                                {actionBusyIdShared === inv.id ? '…' : 'Reject'}
+                              </button>
+                            ) : null}
                           </div>
                         </td>
                       ) : null}

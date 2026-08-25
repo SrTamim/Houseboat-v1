@@ -47,11 +47,12 @@ import {
 } from '@/components/owner/styles';
 import { Drawer } from '@/components/owner/Drawer';
 import { InvoiceBill } from '@/components/owner/Bill';
-import { money, formatDate, maskPhone, humanize, initials } from '@/lib/owner/format';
+import { money, formatDate, maskPhone, humanize, initials, channelLabel } from '@/lib/owner/format';
 
 interface OwnerBooking {
   id: string;
   type: string;
+  channel: string;
   status: string;
   headcount: number | null;
   referenceName: string | null;
@@ -229,13 +230,14 @@ export default function OwnerBookingsPage() {
       </FilterBar>
 
       <Card flush>
-        <TableWrap minWidth={900}>
+        <TableWrap minWidth={980}>
           <thead>
             <tr>
               <th>Guest</th>
               <th>Departure</th>
               <th>Cabins</th>
               <th>Type</th>
+              <th>Source</th>
               <th className="num">Pays</th>
               <th>Status</th>
               <th />
@@ -263,12 +265,7 @@ export default function OwnerBookingsPage() {
                 return (
                   <tr key={b.id}>
                     <td>
-                      <div className="t1">
-                        {lead?.name ?? b.customer.name ?? 'Guest'}{' '}
-                        {b.bookedByAccount.id !== b.customer.id ? (
-                          <span className="tag">POS</span>
-                        ) : null}
-                      </div>
+                      <div className="t1">{lead?.name ?? b.customer.name ?? 'Guest'}</div>
                       <div className="t2">{maskPhone(lead?.phone ?? b.customer.phone)}</div>
                     </td>
                     <td>
@@ -288,6 +285,11 @@ export default function OwnerBookingsPage() {
                     </td>
                     <td>
                       <Pill tone={b.type === 'group' ? 'amb' : 'blue'}>{b.type}</Pill>
+                    </td>
+                    <td>
+                      <Pill tone={b.channel === 'pos' ? 'amb' : 'blue'}>
+                        {channelLabel(b.channel)}
+                      </Pill>
                     </td>
                     <td className="num">{money(b.invoice?.displayTotal ?? 0)}</td>
                     <td>
@@ -347,6 +349,7 @@ export default function OwnerBookingsPage() {
                 ],
                 ['Lead guest', open.guests[0]?.name ?? open.customer.name ?? '—'],
                 ['Phone', open.guests[0]?.phone ?? open.customer.phone],
+                ['Booked via', channelLabel(open.channel)],
                 ['Booked by', open.bookedByAccount.name ?? '—'],
                 ['Reference', open.referenceName ?? '—'],
                 ['Booked on', formatDate(open.createdAt)],
