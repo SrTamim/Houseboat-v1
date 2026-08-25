@@ -17,7 +17,34 @@ import {
   Kv,
 } from '@/components/owner/ui';
 import { BookingStatusPill, Pill } from '@/components/owner/Pill';
-import { BTN_B, BTN_O, BTN_SM } from '@/components/owner/buttons';
+import {
+  BTN_B,
+  BTN_O,
+  BTN_SM,
+  INVOICE_PRINT,
+  INV_BAND_META,
+  INV_EMPTY,
+  INV_FOOT,
+  INV_GRAND,
+  INV_HEAD,
+  INV_ID,
+  INV_ITEMS,
+  INV_LOGO,
+  INV_LOGO_PH,
+  INV_NAME,
+  INV_NEG,
+  INV_NO,
+  INV_PARTIES,
+  INV_PLAT,
+  INV_ROW,
+  INV_STATUS,
+  INV_STATUS_TONE,
+  INV_SUB,
+  INV_TAG,
+  INV_TOTALS,
+  INV_TRIP,
+  INV_DUE,
+} from '@/components/owner/styles';
 import { Drawer } from '@/components/owner/Drawer';
 import { InvoiceBill } from '@/components/owner/Bill';
 import { money, formatDate, maskPhone, humanize, initials } from '@/lib/owner/format';
@@ -299,6 +326,9 @@ export default function OwnerBookingsPage() {
       >
         {open ? (
           <div className="flex flex-col gap-4">
+            {/* On-screen detail — hidden when printing so only the modern
+                invoice template below reaches paper. */}
+            <div className="flex flex-col gap-4 print:hidden">
             <div className="flex flex-wrap gap-2">
               <BookingStatusPill status={open.status} />
               <Pill tone={open.type === 'group' ? 'amb' : 'blue'}>{open.type}</Pill>
@@ -356,7 +386,16 @@ export default function OwnerBookingsPage() {
                     ['Status', humanize(open.invoice.status)],
                     ['Customer pays', money(open.invoice.displayTotal)],
                     ['Paid so far', money(open.invoice.amountPaid)],
-                    ['You receive', money(open.invoice.dueToBoat)],
+                    [
+                      'Customer due',
+                      money(
+                        Math.max(
+                          0,
+                          Number(open.invoice.displayTotal) -
+                            Number(open.invoice.amountPaid),
+                        ),
+                      ),
+                    ],
                   ]}
                 />
               </div>
@@ -366,10 +405,11 @@ export default function OwnerBookingsPage() {
                 <span>This booking has no invoice.</span>
               </div>
             )}
+            </div>
 
             {/* Customer-facing copy — hidden on screen, the only thing that
-                prints. Owner-only figures (commission / you receive / payout)
-                are deliberately excluded. */}
+                prints. Owner-only figures (commission / payout) are
+                deliberately excluded. */}
             {(() => {
               const guestName = open.guests[0]?.name ?? open.customer.name ?? '—';
               const phone = open.guests[0]?.phone ?? open.customer.phone;
@@ -392,37 +432,37 @@ export default function OwnerBookingsPage() {
                 : 'Unpaid';
 
               return (
-                <div className="invoice-print">
-                  <div className="inv-head">
-                    <div className="inv-id">
+                <div className={INVOICE_PRINT}>
+                  <div className={INV_HEAD}>
+                    <div className={INV_ID}>
                       {logoUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img className="inv-logo" src={logoUrl} alt="" />
+                        <img className={INV_LOGO} src={logoUrl} alt="" />
                       ) : (
-                        <span className="inv-logo inv-logo--ph">
+                        <span className={`${INV_LOGO} ${INV_LOGO_PH}`}>
                           {initials(boat.name)}
                         </span>
                       )}
                       <div>
-                        <div className="inv-name">{boat.name}</div>
-                        <div className="inv-tag">Invoice</div>
+                        <div className={INV_NAME}>{boat.name}</div>
+                        <div className={INV_TAG}>Invoice</div>
                       </div>
                     </div>
-                    <div className="inv-band-meta">
-                      <div className="inv-no">{invNo}</div>
+                    <div className={INV_BAND_META}>
+                      <div className={INV_NO}>{invNo}</div>
                       <div>Issued {formatDate(new Date())}</div>
                     </div>
                   </div>
 
-                  <div className="inv-parties">
+                  <div className={INV_PARTIES}>
                     <div>
                       <h5>Billed to</h5>
                       <strong>{guestName}</strong>
                       <div>{phone}</div>
                     </div>
-                    <div className="inv-trip">
+                    <div className={INV_TRIP}>
                       {hasInvoice ? (
-                        <span className={`inv-status inv-status--${tone}`}>
+                        <span className={`${INV_STATUS} ${INV_STATUS_TONE[tone as 'paid' | 'partial' | 'due']}`}>
                           {statusLabel}
                         </span>
                       ) : null}
@@ -434,7 +474,7 @@ export default function OwnerBookingsPage() {
 
                   {hasInvoice ? (
                     <>
-                      <table className="inv-items">
+                      <table className={INV_ITEMS}>
                         <thead>
                           <tr>
                             <th>Description</th>
@@ -447,7 +487,7 @@ export default function OwnerBookingsPage() {
                             <tr key={c.id}>
                               <td>
                                 <strong>Cabin {c.cabin.name}</strong>
-                                <div className="inv-sub">
+                                <div className={INV_SUB}>
                                   {trip} · Departure {departure}
                                 </div>
                               </td>
@@ -458,38 +498,38 @@ export default function OwnerBookingsPage() {
                         </tbody>
                       </table>
 
-                      <div className="inv-totals">
-                        <div className="inv-row">
+                      <div className={INV_TOTALS}>
+                        <div className={INV_ROW}>
                           <span>Subtotal</span>
                           <span>{money(roomTotal!)}</span>
                         </div>
                         {Number(discount) > 0 ? (
-                          <div className="inv-row inv-neg">
+                          <div className={`${INV_ROW} ${INV_NEG}`}>
                             <span>Coupon</span>
                             <span>−{money(discount)}</span>
                           </div>
                         ) : null}
-                        <div className="inv-row inv-grand">
+                        <div className={`${INV_ROW} ${INV_GRAND}`}>
                           <span>Total</span>
                           <span>{money(total!)}</span>
                         </div>
-                        <div className="inv-row">
+                        <div className={INV_ROW}>
                           <span>Paid</span>
                           <span>{money(paid!)}</span>
                         </div>
-                        <div className="inv-row inv-due">
+                        <div className={`${INV_ROW} ${INV_DUE}`}>
                           <span>Balance due</span>
                           <span>{money(balanceDue)}</span>
                         </div>
                       </div>
                     </>
                   ) : (
-                    <div className="inv-empty">No invoice issued.</div>
+                    <div className={INV_EMPTY}>No invoice issued.</div>
                   )}
 
-                  <div className="inv-foot">
+                  <div className={INV_FOOT}>
                     <span>Thank you for booking with {boat.name}.</span>
-                    <span className="inv-plat">⚓ HaorBoat</span>
+                    <span className={INV_PLAT}>⚓ HaorBoat</span>
                   </div>
                 </div>
               );

@@ -4,7 +4,26 @@ import { useRef, useState } from 'react';
 import useSWR from 'swr';
 import { api, fetcher } from '@/lib/api';
 import { Note } from '@/components/owner/ui';
+import {
+  BTN_O,
+  BTN_SM,
+  MEDIA_ACTIONS,
+  MEDIA_BADGE,
+  MEDIA_DEL,
+  MEDIA_GRID,
+  MEDIA_LINKOUT,
+  MEDIA_LINKOUT_LABEL,
+  MEDIA_TILE,
+  MEDIA_TILE_VIDEO,
+  MEDIA_VIDEO_ADD,
+  MEDIA_VIDEO_FALLBACK,
+  SKEL,
+} from '@/components/owner/styles';
 import { apiErrorMessage } from '@/lib/owner/format';
+
+/** Small grey caption (was owner.css `.t2`). */
+const T2 = 'text-[12px] text-muted';
+const BTN_OS = `${BTN_O} ${BTN_SM}`;
 
 export type VideoProvider =
   | 'youtube'
@@ -107,7 +126,7 @@ export function BoatLogo({
   }
 
   return (
-    <div className="stack" style={{ gap: 12 }}>
+    <div className="flex flex-col gap-3">
       <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
         <div
           aria-hidden
@@ -130,12 +149,10 @@ export function BoatLogo({
               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
             />
           ) : (
-            <span className="t2" style={{ fontSize: 12 }}>
-              No logo
-            </span>
+            <span className={T2}>No logo</span>
           )}
         </div>
-        <div className="media-actions" style={{ display: 'flex', gap: 8 }}>
+        <div className="flex gap-2">
           <input
             ref={inputRef}
             type="file"
@@ -148,7 +165,7 @@ export function BoatLogo({
           />
           <button
             type="button"
-            className="btn btn-o btn-sm"
+            className={BTN_OS}
             disabled={busy}
             onClick={() => inputRef.current?.click()}
           >
@@ -157,7 +174,7 @@ export function BoatLogo({
           {logoUrl ? (
             <button
               type="button"
-              className="btn btn-o btn-sm"
+              className={BTN_OS}
               disabled={busy}
               onClick={() => void remove()}
             >
@@ -199,18 +216,18 @@ export function MediaQueue({
   }
 
   return (
-    <div className="stack" style={{ gap: 12 }}>
+    <div className="flex flex-col gap-3">
       {files.length > 0 ? (
-        <div className="media-grid">
+        <div className={MEDIA_GRID}>
           {files.map((f, i) => {
             const url = URL.createObjectURL(f);
             return (
-              <div key={i} className="media-tile">
+              <div key={i} className={MEDIA_TILE}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={url} alt="" onLoad={() => URL.revokeObjectURL(url)} />
                 <button
                   type="button"
-                  className="media-del"
+                  className={MEDIA_DEL}
                   title="Remove image"
                   aria-label="Remove image"
                   onClick={() => onChange(files.filter((_, idx) => idx !== i))}
@@ -223,7 +240,7 @@ export function MediaQueue({
         </div>
       ) : null}
 
-      <div className="media-actions">
+      <div className={MEDIA_ACTIONS}>
         <input
           ref={fileRef}
           type="file"
@@ -234,13 +251,13 @@ export function MediaQueue({
         />
         <button
           type="button"
-          className="btn btn-o btn-sm"
+          className={BTN_OS}
           disabled={atCap}
           onClick={() => fileRef.current?.click()}
         >
           {atCap ? `Maximum ${max} images` : '＋ Add images'}
         </button>
-        <span className="t2" style={{ fontSize: 12 }}>
+        <span className={T2}>
           {files.length}/{max} images · uploaded after the cabin is created
         </span>
       </div>
@@ -332,26 +349,26 @@ export function MediaGallery({
   }
 
   return (
-    <div className="stack" style={{ gap: 12 }}>
+    <div className="flex flex-col gap-3">
       {error ? <Note kind="danger">{error}</Note> : null}
 
       {isLoading ? (
-        <div className="media-grid">
+        <div className={MEDIA_GRID}>
           {[0, 1, 2].map((i) => (
-            <div key={i} className="media-tile skel" />
+            <div key={i} className={`${MEDIA_TILE} ${SKEL} aspect-square h-auto`} />
           ))}
         </div>
       ) : items.length === 0 ? (
         <Note kind="info">No photos or video yet — add some so guests can see the boat.</Note>
       ) : (
-        <div className="media-grid">
+        <div className={MEDIA_GRID}>
           {images.map((m) => (
-            <div key={m.id} className="media-tile">
+            <div key={m.id} className={MEDIA_TILE}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={m.url} alt="" loading="lazy" />
               <button
                 type="button"
-                className="media-del"
+                className={MEDIA_DEL}
                 title="Remove image"
                 aria-label="Remove image"
                 onClick={() => remove(m.id)}
@@ -364,7 +381,7 @@ export function MediaGallery({
             const label = m.videoProvider ? PROVIDER_LABEL[m.videoProvider] : 'Video';
             const thumb = m.videoProvider === 'youtube' ? youtubeThumb(m.url) : null;
             return (
-              <div key={m.id} className="media-tile media-tile-video">
+              <div key={m.id} className={`${MEDIA_TILE} ${MEDIA_TILE_VIDEO}`}>
                 {m.embedUrl ? (
                   <iframe
                     src={m.embedUrl}
@@ -378,7 +395,7 @@ export function MediaGallery({
                   // Providers we don't inline-embed (Instagram/Facebook): a
                   // link-out card that opens the canonical URL in a new tab.
                   <a
-                    className="media-linkout"
+                    className={MEDIA_LINKOUT}
                     href={m.url}
                     target="_blank"
                     rel="noopener noreferrer nofollow"
@@ -387,15 +404,15 @@ export function MediaGallery({
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={thumb} alt="" loading="lazy" />
                     ) : (
-                      <div className="media-video-fallback">▶</div>
+                      <div className={MEDIA_VIDEO_FALLBACK}>▶</div>
                     )}
-                    <span className="media-linkout-label">Open on {label} ↗</span>
+                    <span className={MEDIA_LINKOUT_LABEL}>Open on {label} ↗</span>
                   </a>
                 )}
-                <span className="media-badge">{label}</span>
+                <span className={MEDIA_BADGE}>{label}</span>
                 <button
                   type="button"
-                  className="media-del"
+                  className={MEDIA_DEL}
                   title="Remove video"
                   aria-label="Remove video"
                   onClick={() => remove(m.id)}
@@ -408,7 +425,7 @@ export function MediaGallery({
         </div>
       )}
 
-      <div className="media-actions">
+      <div className={MEDIA_ACTIONS}>
         <input
           ref={fileRef}
           type="file"
@@ -419,18 +436,18 @@ export function MediaGallery({
         />
         <button
           type="button"
-          className="btn btn-o btn-sm"
+          className={BTN_OS}
           disabled={busy || atCap}
           onClick={() => fileRef.current?.click()}
         >
           {busy ? 'Uploading…' : atCap ? `Maximum ${max} images` : '＋ Add images'}
         </button>
-        <span className="t2" style={{ fontSize: 12 }}>
+        <span className={T2}>
           {images.length}/{max} images
         </span>
       </div>
 
-      <div className="media-video-add">
+      <div className={MEDIA_VIDEO_ADD}>
         <input
           value={videoUrl}
           onChange={(e) => setVideoUrl(e.target.value)}
@@ -445,14 +462,14 @@ export function MediaGallery({
         />
         <button
           type="button"
-          className="btn btn-o btn-sm"
+          className={BTN_OS}
           disabled={busy || videosAtCap || !videoUrl.trim()}
           onClick={() => void addVideo()}
         >
           {videosAtCap ? `Max ${MAX_VIDEOS} videos` : 'Add video'}
         </button>
       </div>
-      <span className="t2" style={{ fontSize: 12 }}>
+      <span className={T2}>
         {videos.length}/{MAX_VIDEOS} videos · YouTube, Vimeo &amp; Drive play inline;
         Facebook &amp; Instagram open in a new tab.
       </span>

@@ -18,7 +18,14 @@ import { BoatCabinMap, type MapDeck } from '@/components/owner/BoatCabinMap';
 import type { CabState } from '@/components/owner/CabGrid';
 import { Bill } from '@/components/owner/Bill';
 import { BTN_B, BTN_O, BTN_SM } from '@/components/owner/buttons';
-import { apiErrorMessage, formatDate, money, toE164, weekday } from '@/lib/owner/format';
+import {
+  apiErrorMessage,
+  formatDate,
+  money,
+  nextDepartureDate,
+  toE164,
+  weekday,
+} from '@/lib/owner/format';
 import {
   chargeForAge,
   chargeLabel,
@@ -107,14 +114,6 @@ function dayOf(iso: string): string {
   return iso.slice(0, 10);
 }
 
-/** Today's date as "YYYY-MM-DD" in the browser's local zone. */
-function today(): string {
-  const now = new Date();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  return `${now.getFullYear()}-${m}-${d}`;
-}
-
 /** Digits only (for counts / whole-taka prices). Non-digits are dropped. */
 function digits(v: string): number {
   const s = v.replace(/\D/g, '');
@@ -143,8 +142,14 @@ function numStr(v: string): string {
  */
 export default function OwnerPosPage() {
   const { boatId } = useActiveBoat();
-  const [day, setDay] = useState(today);
+  // The date filter defaults to the next upcoming scheduled departure once the
+  // list loads (see the seed effect below), not today — today often has no trip.
+  const [day, setDay] = useState('');
   const [departureId, setDepartureId] = useState('');
+  // One-shot: true once the default has been seeded OR the user has manually
+  // changed a filter. Prevents re-seeding mid-session (which would silently move
+  // the SWR key while holds are live) and prevents overriding a manual pick.
+  const daySeeded = useRef(false);
   const [picked, setPicked] = useState<Selection[]>([]);
   // Shared cart countdown: every hold this operator takes on a departure shares
   // one server-issued expiry (the backend sweeps them onto the newest). Held as
@@ -177,6 +182,16 @@ export default function OwnerPosPage() {
   const boat = useSWR<BoatDetail>(`/houseboats/${boatId}/manage`, fetcher, {
     revalidateOnFocus: false,
   });
+
+  // Seed the date filter to the next upcoming departure the first time the list
+  // loads. Runs once (daySeeded ref) and only while the operator hasn't picked a
+  // date, so it never overrides a manual choice or moves the SWR key mid-sale.
+  useEffect(() => {
+    if (daySeeded.current || !departures.data) return;
+    daySeeded.current = true;
+    const next = nextDepartureDate(departures.data);
+    if (next) setDay(next);
+  }, [departures.data]);
 
   // Bookable departures from the schedule, sorted by date and optionally
   // narrowed to a single day picked from the calendar.
@@ -662,6 +677,7 @@ export default function OwnerPosPage() {
           aria-label="Filter departures by date"
           value={day}
           onChange={(e) => {
+            daySeeded.current = true;
             clearHeldForFilterChange();
             setDay(e.target.value);
             setDepartureId('');
@@ -671,6 +687,7 @@ export default function OwnerPosPage() {
           aria-label="Departure date"
           value={activeId}
           onChange={(e) => {
+            daySeeded.current = true;
             clearHeldForFilterChange();
             setDepartureId(e.target.value);
           }}
@@ -688,6 +705,7 @@ export default function OwnerPosPage() {
             type="button"
             className={`${BTN_O} ${BTN_SM}`}
             onClick={() => {
+              daySeeded.current = true;
               clearHeldForFilterChange();
               setDay('');
               setDepartureId('');

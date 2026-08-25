@@ -28,7 +28,7 @@ export function Sidebar({ open, user }: { open: boolean; user: string }) {
 
     return (
     <aside
-      className={`sticky top-0 flex h-screen flex-col overflow-y-auto border-r border-hair bg-bg text-bodytext [scrollbar-width:thin] max-[1024px]:fixed max-[1024px]:left-0 max-[1024px]:top-0 max-[1024px]:z-[70] max-[1024px]:w-[var(--sbw)] max-[1024px]:shadow-e3 max-[1024px]:transition-transform max-[1024px]:duration-dur max-[1024px]:ease-ease ${
+      className={`owner-scroll sticky top-0 flex h-screen flex-col overflow-y-auto border-r border-hair bg-bg text-bodytext [scrollbar-width:thin] print:hidden max-[1024px]:fixed max-[1024px]:left-0 max-[1024px]:top-0 max-[1024px]:z-[70] max-[1024px]:w-[var(--sbw)] max-[1024px]:shadow-e3 max-[1024px]:transition-transform max-[1024px]:duration-dur max-[1024px]:ease-ease ${
         open ? 'max-[1024px]:translate-x-0' : 'max-[1024px]:-translate-x-full'
       }`}
     >

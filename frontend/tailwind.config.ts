@@ -149,6 +149,17 @@ const config: Config = {
           '0%': { backgroundPosition: '100% 50%' },
           '100%': { backgroundPosition: '0 50%' },
         },
+        // Owner console: exact values from owner.css (distinct from the
+        // customer `rise`/`shimmer` above — owner rises 8px and its skeleton
+        // shimmer sweeps 100%→-100%).
+        'rise-owner': {
+          from: { opacity: '0', transform: 'translateY(8px)' },
+          to: { opacity: '1', transform: 'none' },
+        },
+        'shimmer-owner': {
+          from: { backgroundPosition: '100% 0' },
+          to: { backgroundPosition: '-100% 0' },
+        },
       },
       animation: {
         ddIn: 'ddIn .16s cubic-bezier(.2,.7,.3,1)',
@@ -161,6 +172,9 @@ const config: Config = {
         rise: 'rise .5s cubic-bezier(.2,.7,.3,1) both',
         fade: 'fade .2s cubic-bezier(.2,.7,.3,1)',
         'skel-pulse': 'skel-pulse 1.4s ease infinite',
+        // Owner console page-load rise + skeleton shimmer (owner.css values).
+        'rise-owner': 'rise-owner .4s cubic-bezier(.2,.7,.3,1) both',
+        'shimmer-owner': 'shimmer-owner 1.4s ease infinite',
       },
     },
   },

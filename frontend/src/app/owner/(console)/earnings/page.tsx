@@ -17,7 +17,7 @@ import {
   AsyncBlock,
   EmptyState,
 } from '@/components/owner/ui';
-import { BTN_B } from '@/components/owner/buttons';
+import { BTN_B, BTN_O, BTN_SM } from '@/components/owner/styles';
 import { Bill } from '@/components/owner/Bill';
 import { money, moneyShort, formatDate, apiErrorMessage } from '@/lib/owner/format';
 
@@ -268,9 +268,9 @@ export default function OwnerEarningsPage() {
                       <button
                         key={sg.membershipId}
                         type="button"
-                        className={`btn btn-o btn-sm${
-                          membershipId === sg.membershipId ? ' btn-b' : ''
-                        }`}
+                        className={`${
+                          membershipId === sg.membershipId ? BTN_B : BTN_O
+                        } ${BTN_SM}`}
                         style={{ justifyContent: 'space-between' }}
                         onClick={() => setMembershipId(sg.membershipId)}
                       >

@@ -23,7 +23,6 @@ interface AccountRow {
   name: string | null;
   phone: string;
   email: string | null;
-  phoneVerified: boolean;
   isPlatform: boolean;
   platformRole: { id: string; name: string } | null;
   createdAt: string;
@@ -137,7 +136,6 @@ export default function Accounts() {
                 <tr>
                   <th>Account</th>
                   <th>Phone</th>
-                  <th>Verified</th>
                   <th>Roles</th>
                   <th>Platform access</th>
                   <th>Joined</th>
@@ -145,7 +143,7 @@ export default function Accounts() {
                 </tr>
               </thead>
               {isInitialLoading ? (
-                <TableSkeleton rows={6} cols={7} />
+                <TableSkeleton rows={6} cols={6} />
               ) : (
                 <tbody>
                   {items.map((a) => {
@@ -157,11 +155,6 @@ export default function Accounts() {
                           <div className={TD_T2}>{a.email ?? '—'}</div>
                         </td>
                         <td className={TD_T2}>{a.phone}</td>
-                        <td>
-                          <Pill tone={a.phoneVerified ? 'ok' : 'warn'}>
-                            {a.phoneVerified ? 'verified' : 'pending'}
-                          </Pill>
-                        </td>
                         <td className={TD_T2}>{roleSummary(a)}</td>
                         <td>
                           {a.isPlatform ? (

@@ -15,7 +15,7 @@ import {
   AsyncBlock,
 } from '@/components/owner/ui';
 import { Pill, DepartureStatusPill } from '@/components/owner/Pill';
-import { BTN_B, BTN_O, BTN_SM } from '@/components/owner/buttons';
+import { BTN_B, BTN_O, BTN_SM, MONEY, MONEY_NEG, SKEL } from '@/components/owner/styles';
 import {
   money,
   formatDate,
@@ -290,7 +290,7 @@ export default function OwnerDashboardPage() {
                       <td>{t.detail}</td>
                       <td>
                         <div className="rowact">
-                          <Link className="btn btn-sm btn-o" href={t.href}>
+                          <Link className={`${BTN_O} ${BTN_SM}`} href={t.href}>
                             {t.action}
                           </Link>
                         </div>
@@ -341,7 +341,7 @@ export default function OwnerDashboardPage() {
                           : '—'}
                       </td>
                       <td>
-                        <b className="money">
+                        <b className={MONEY}>
                           {d.cabinsSold} / {d.cabinsTotal}
                         </b>
                         <span className="t2"> · {d.guests} guests</span>
@@ -368,13 +368,13 @@ export default function OwnerDashboardPage() {
               <Kv
                 rows={[
                   ['Bookings', data?.week.bookings ?? 0],
-                  ['Room revenue', <span className="money" key="r">{money(data?.week.roomRevenue)}</span>],
-                  ['Commission', <span className="money" key="c">{money(data?.week.commission)}</span>],
-                  ['Costs logged', <span className="money" key="k">{money(data?.week.costs)}</span>],
+                  ['Room revenue', <span className={MONEY} key="r">{money(data?.week.roomRevenue)}</span>],
+                  ['Commission', <span className={MONEY} key="c">{money(data?.week.commission)}</span>],
+                  ['Costs logged', <span className={MONEY} key="k">{money(data?.week.costs)}</span>],
                   [
                     'Net (est.)',
                     <span
-                      className={`money${Number(data?.week.netEstimate ?? 0) < 0 ? ' neg' : ''}`}
+                      className={`${MONEY}${Number(data?.week.netEstimate ?? 0) < 0 ? ` ${MONEY_NEG}` : ''}`}
                       key="n"
                     >
                       {money(data?.week.netEstimate)}
@@ -439,7 +439,7 @@ export default function OwnerDashboardPage() {
                   ) : null}
                 </>
               ) : (
-                <div className="skel" style={{ height: 40 }} />
+                <div className={SKEL} style={{ height: 40 }} />
               )}
             </div>
           </Card>

@@ -11,6 +11,7 @@ import { initials } from '@/lib/owner/format';
 import { ThemeToggle } from '@/components/admin/ThemeToggle';
 import { Sidebar } from './Sidebar';
 import { ConsolePageGuard } from './ConsolePageGuard';
+import { CONTENT, ICON_BTN } from './styles';
 
 /** Page title + subtitle for the topbar, derived from the current route. */
 function usePageTitle(): string {
@@ -70,7 +71,7 @@ export function OwnerChrome({
     <div className="grid min-h-screen grid-cols-[var(--sbw)_1fr] max-[1024px]:grid-cols-[1fr]">
       <Sidebar open={navOpen} user={displayName} />
       <div className="flex min-w-0 flex-col">
-        <header className="sticky top-0 z-40 flex h-[var(--hh)] items-center gap-3.5 border-b border-hair px-6 [background:color-mix(in_srgb,var(--bg)_72%,transparent)] [backdrop-filter:saturate(180%)_blur(16px)] [-webkit-backdrop-filter:saturate(180%)_blur(16px)]">
+        <header className="sticky top-0 z-40 flex h-[var(--hh)] items-center gap-3.5 border-b border-hair px-6 [background:color-mix(in_srgb,var(--bg)_72%,transparent)] [backdrop-filter:saturate(180%)_blur(16px)] [-webkit-backdrop-filter:saturate(180%)_blur(16px)] print:hidden">
           <button
             className="hidden h-10 w-10 rounded border border-hair bg-raise-1 text-[17px] text-ink max-[1024px]:grid max-[1024px]:place-items-center"
             onClick={() => setNavOpen((v) => !v)}
@@ -100,7 +101,7 @@ export function OwnerChrome({
             </div>
           </div>
           <button
-            className="icon-btn"
+            className={ICON_BTN}
             onClick={signOut}
             disabled={signingOut}
             aria-label="Sign out"
@@ -109,9 +110,11 @@ export function OwnerChrome({
             ⏻
           </button>
         </header>
-        {/* Keep the `content` class: it owns the page-load stagger animation
-            (owner.css `.content > *`) and the ≤560px padding rule. */}
-        <main className="content">
+        {/* Content slot. `CONTENT` carries the padding, max-width, the ≤560px
+            padding rule, the page-load stagger (rise + nth-child delays), and
+            the reduced-motion opt-out — all as Tailwind (was owner.css
+            `.content` / `.content > *`). */}
+        <main className={CONTENT}>
           <ConsolePageGuard>{children}</ConsolePageGuard>
         </main>
       </div>

@@ -16,9 +16,9 @@ import { toE164 } from '@/lib/owner/format';
 import { DARK_CARD_SURFACE, NAV_BTN_O, PRIMARY_BTN } from '@/lib/customer/boat-card';
 
 // ---- design tokens ---------------------------------------------------------
-// Colours/radii/shadows resolve through the CSS vars owner.css defines in both
-// :root and :root[data-theme='dark'], so these switch theme without a `dark:`
-// variant each — the same idiom the customer AuthModal uses.
+// Colours/radii/shadows resolve through the CSS vars defined in globals.css in
+// both :root and :root[data-theme='dark'], so these switch theme without a
+// `dark:` variant each — the same idiom the customer AuthModal uses.
 const CARD = `flex w-[min(420px,100%)] flex-col rounded-2xl border border-hair bg-raise-1 p-7 shadow-e3 ${DARK_CARD_SURFACE}`;
 const LABEL = 'mb-1.5 block text-[13px] font-bold text-ink';
 const INPUT =

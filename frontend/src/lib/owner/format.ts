@@ -161,3 +161,37 @@ export function isBillingLockError(e: unknown): boolean {
   if (status !== 403) return false;
   return apiErrorMessage(e, '').toLowerCase().includes('locked');
 }
+
+/** Today's date as "YYYY-MM-DD" in the browser's local zone. */
+function localToday(): string {
+  const now = new Date();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${now.getFullYear()}-${m}-${d}`;
+}
+
+/**
+ * The default day ("YYYY-MM-DD") a schedule filter should land on: the soonest
+ * upcoming SCHEDULED departure (startDate today-or-later). If none are upcoming,
+ * fall back to the most recent scheduled date so the filter is never blank; ''
+ * when there are no scheduled departures at all.
+ *
+ * The `/departures-list` endpoint returns ALL rows — past dates and cancelled
+ * departures included and in no guaranteed order — so this filters on `status`
+ * and computes the min/max day-string explicitly rather than trusting the array
+ * order (POS sorts ascending, the departures page descending).
+ */
+export function nextDepartureDate(
+  departures: { startDate: string; status: string }[] | undefined,
+): string {
+  const days = (departures ?? [])
+    .filter((d) => d.status === 'scheduled')
+    .map((d) => d.startDate.slice(0, 10));
+  if (days.length === 0) return '';
+  const today = localToday();
+  const upcoming = days.filter((d) => d >= today);
+  // Soonest upcoming, or (nothing upcoming) the most recent past scheduled day.
+  return upcoming.length > 0
+    ? upcoming.reduce((min, d) => (d < min ? d : min))
+    : days.reduce((max, d) => (d > max ? d : max));
+}

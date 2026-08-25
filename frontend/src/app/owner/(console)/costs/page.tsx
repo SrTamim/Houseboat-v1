@@ -16,7 +16,17 @@ import {
   AsyncTable,
   EmptyState,
 } from '@/components/owner/ui';
-import { BTN_B, BTN_O, BTN_SM } from '@/components/owner/buttons';
+import {
+  BTN_B,
+  BTN_O,
+  BTN_SM,
+  FIELD_BLOCK,
+  FIELD_LABEL,
+  STATEMENT_PRINT,
+  STMT_HEAD,
+  STMT_META,
+  STMT_TOTAL,
+} from '@/components/owner/styles';
 import { Drawer } from '@/components/owner/Drawer';
 import { money, formatDate, normalizeDigits, apiErrorMessage } from '@/lib/owner/format';
 
@@ -180,20 +190,20 @@ export default function OwnerCostsPage() {
             alignItems: 'end',
           }}
         >
-          <div className="field">
-            <label>Date</label>
+          <div className={FIELD_BLOCK}>
+            <label className={FIELD_LABEL}>Date</label>
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
-          <div className="field">
-            <label>What for</label>
+          <div className={FIELD_BLOCK}>
+            <label className={FIELD_LABEL}>What for</label>
             <input
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Bazar — fish, vegetables"
             />
           </div>
-          <div className="field">
-            <label>Cost ৳</label>
+          <div className={FIELD_BLOCK}>
+            <label className={FIELD_LABEL}>Cost ৳</label>
             <input
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
@@ -202,8 +212,8 @@ export default function OwnerCostsPage() {
               required
             />
           </div>
-          <div className="field">
-            <label>Comment</label>
+          <div className={FIELD_BLOCK}>
+            <label className={FIELD_LABEL}>Comment</label>
             <input
               value={comment}
               onChange={(e) => setComment(e.target.value)}
@@ -303,10 +313,10 @@ export default function OwnerCostsPage() {
           </>
         }
       >
-        <div className="statement-print">
-          <div className="stmt-head">
+        <div className={STATEMENT_PRINT}>
+          <div className={STMT_HEAD}>
             <h3>Cost Report</h3>
-            <div className="stmt-meta">
+            <div className={STMT_META}>
               <div>
                 <strong>{boat.name}</strong>
               </div>
@@ -334,7 +344,7 @@ export default function OwnerCostsPage() {
                   <td className="num">{money(c.amount)}</td>
                 </tr>
               ))}
-              <tr className="stmt-total">
+              <tr className={STMT_TOTAL}>
                 <td colSpan={4} className="t1">
                   Total · {rows.length} entries
                 </td>

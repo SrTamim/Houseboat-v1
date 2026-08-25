@@ -12,7 +12,7 @@ import {
   Kv,
   AsyncBlock,
 } from '@/components/owner/ui';
-import { BTN_B, BTN_O, BTN_SM } from '@/components/owner/buttons';
+import { BTN_B, BTN_O, BTN_SM, FACILITY_GRID, FACILITY_OPT } from '@/components/owner/styles';
 import { Pill } from '@/components/owner/Pill';
 import { Drawer } from '@/components/owner/Drawer';
 import { apiErrorMessage } from '@/lib/owner/format';
@@ -387,9 +387,9 @@ export default function OwnerPackagesPage() {
           </div>
 
           <Field label="Meals">
-            <div className="facility-grid">
+            <div className={FACILITY_GRID}>
               {MEAL_OPTIONS.map((opt) => (
-                <label key={opt} className="facility-opt">
+                <label key={opt} className={FACILITY_OPT}>
                   <input
                     type="checkbox"
                     checked={mealSet.has(opt)}

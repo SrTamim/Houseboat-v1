@@ -62,7 +62,16 @@ export function Bill({ rows }: { rows: BillRow[] }) {
   );
 }
 
-/** The standard customer-side breakdown for one invoice. */
+/**
+ * The standard customer-side breakdown for one invoice:
+ *   Room total → − Coupon → Customer pays → Customer due → Commission
+ *
+ * "Customer due" is what the customer still owes (displayTotal − amountPaid).
+ * The boat's net payout (dueToBoat) is deliberately NOT shown here — it is a
+ * settlement-time figure that stays 0 until a payout batch runs, so surfacing
+ * it in the live drawer only confused owners. `dueToBoat` stays on the prop
+ * type (callers still pass it) but is no longer rendered.
+ */
 export function InvoiceBill({
   invoice,
 }: {
@@ -75,30 +84,28 @@ export function InvoiceBill({
     amountPaid: string;
   };
 }) {
+  // Outstanding customer balance — parsed only for this subtraction; the
+  // Decimal-string props themselves are never mutated.
+  const customerDue = Math.max(
+    0,
+    Number(invoice.displayTotal) - Number(invoice.amountPaid),
+  );
   return (
-    <>
-      <Bill
-        rows={[
-          { label: 'Room total', hint: 'Your price', value: invoice.roomTotal },
-          ...(Number(invoice.discountAmount) > 0
-            ? [{ label: 'Coupon', value: invoice.discountAmount, negative: true }]
-            : []),
-          { label: 'Customer pays', value: invoice.displayTotal, total: true },
-        ]}
-      />
-      <div style={{ height: 18 }} />
-      <Bill
-        rows={[
-          { label: 'Paid so far', value: invoice.amountPaid, sub: true },
-          {
-            label: 'Commission',
-            hint: 'Platform share of the room total',
-            value: invoice.commission,
-            negative: true,
-          },
-          { label: 'You receive', value: invoice.dueToBoat, total: true },
-        ]}
-      />
-    </>
+    <Bill
+      rows={[
+        { label: 'Room total', hint: 'Your price', value: invoice.roomTotal },
+        ...(Number(invoice.discountAmount) > 0
+          ? [{ label: 'Coupon', value: invoice.discountAmount, negative: true }]
+          : []),
+        { label: 'Customer pays', value: invoice.displayTotal, total: true },
+        { label: 'Customer due', value: customerDue, sub: true },
+        {
+          label: 'Commission',
+          hint: 'Platform share of the room total',
+          value: invoice.commission,
+          negative: true,
+        },
+      ]}
+    />
   );
 }

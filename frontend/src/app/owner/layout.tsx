@@ -11,7 +11,6 @@ import '@fontsource-variable/space-grotesk';
 import '@fontsource/hind-siliguri/400.css';
 import '@fontsource/hind-siliguri/600.css';
 import '@fontsource/hind-siliguri/700.css';
-import './owner.css';
 
 export const metadata: Metadata = {
   title: 'HaorBoat Owner',
@@ -32,7 +31,10 @@ export default function OwnerRootLayout({
   return (
     <>
       <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
-      {children}
+      {/* Scopes the owner element defaults + token-backed canvas (see the
+          `.owner-scope` rules in globals.css) to the console subtree, so they
+          never touch the customer or admin surfaces. */}
+      <div className="owner-scope min-h-screen">{children}</div>
     </>
   );
 }

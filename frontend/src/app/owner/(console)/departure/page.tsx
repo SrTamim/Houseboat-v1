@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import useSWR from 'swr';
 import { api, fetcher } from '@/lib/api';
 import { useActiveBoat } from '@/lib/owner/boat-context';
@@ -16,9 +16,15 @@ import {
   AsyncTable,
 } from '@/components/owner/ui';
 import { Pill, DepartureStatusPill } from '@/components/owner/Pill';
-import { BTN_B, BTN_O, BTN_SM } from '@/components/owner/buttons';
+import { BTN_B, BTN_O, BTN_SM, FIELD_BLOCK, FIELD_LABEL } from '@/components/owner/styles';
 import { Drawer } from '@/components/owner/Drawer';
-import { apiErrorMessage, money, formatDate, weekday } from '@/lib/owner/format';
+import {
+  apiErrorMessage,
+  money,
+  formatDate,
+  nextDepartureDate,
+  weekday,
+} from '@/lib/owner/format';
 
 interface Departure {
   id: string;
@@ -61,11 +67,6 @@ const PAY_METHODS = [
   { value: 'online', label: 'Online' },
 ] as const;
 
-/** Today in YYYY-MM-DD, for the default date filter. */
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 /** Digits-only phone for a tel: link. */
 function telHref(phone: string): string {
   return `tel:${phone.replace(/[^\d+]/g, '')}`;
@@ -74,7 +75,12 @@ function telHref(phone: string): string {
 export default function OwnerDeparturePage() {
   const { boatId } = useActiveBoat();
   const [selected, setSelected] = useState<string>('');
-  const [date, setDate] = useState(() => today());
+  // Defaults to the next upcoming departure once the list loads (seed effect
+  // below), not today — today often has no trip.
+  const [date, setDate] = useState('');
+  // One-shot: set once the default is seeded or the user picks a date, so the
+  // seed never overrides a manual choice.
+  const dateSeeded = useRef(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [payFor, setPayFor] = useState<Booking | null>(null);
   const [payMethod, setPayMethod] = useState<string>(PAY_METHODS[0].value);
@@ -84,6 +90,17 @@ export default function OwnerDeparturePage() {
   const departures = useSWR<Departure[]>(`/houseboats/${boatId}/departures-list`, fetcher, {
     revalidateOnFocus: false,
   });
+
+  // Seed the date filter to the next upcoming departure the first time the list
+  // loads. Runs once (dateSeeded ref) and only while the user hasn't picked, so
+  // it never overrides a manual choice. Replaces the old default-to-today, which
+  // fell through to the newest PAST departure when today had no trip.
+  useEffect(() => {
+    if (dateSeeded.current || !departures.data) return;
+    dateSeeded.current = true;
+    const next = nextDepartureDate(departures.data);
+    if (next) setDate(next);
+  }, [departures.data]);
 
   // Rated boat capacity, from the cabin layout. availableCount on the departure
   // dips while cabins are merely held, so it can't be trusted for the "x / total"
@@ -244,12 +261,18 @@ export default function OwnerDeparturePage() {
           type="date"
           aria-label="Departure date"
           value={date}
-          onChange={(e) => setDate(e.target.value)}
+          onChange={(e) => {
+            dateSeeded.current = true;
+            setDate(e.target.value);
+          }}
         />
         <select
           aria-label="Departure"
           value={activeId}
-          onChange={(e) => setSelected(e.target.value)}
+          onChange={(e) => {
+            dateSeeded.current = true;
+            setSelected(e.target.value);
+          }}
           disabled={pool.length === 0}
         >
           {pool.length === 0 ? <option value="">No departures</option> : null}
@@ -422,8 +445,8 @@ export default function OwnerDeparturePage() {
                   . Enter the amount the guest is paying now — it can be less
                   than the due.
                 </p>
-                <div className="field" style={{ marginBottom: 14 }}>
-                  <label htmlFor="pay-amount">Amount</label>
+                <div className={FIELD_BLOCK} style={{ marginBottom: 14 }}>
+                  <label htmlFor="pay-amount" className={FIELD_LABEL}>Amount</label>
                   <input
                     id="pay-amount"
                     type="number"
@@ -434,8 +457,8 @@ export default function OwnerDeparturePage() {
                     onChange={(e) => setPayAmount(e.target.value)}
                   />
                 </div>
-                <div className="field">
-                  <label htmlFor="pay-method">Payment method</label>
+                <div className={FIELD_BLOCK}>
+                  <label htmlFor="pay-method" className={FIELD_LABEL}>Payment method</label>
                   <select
                     id="pay-method"
                     value={payMethod}

@@ -58,7 +58,7 @@ export default function Boats() {
     { revalidateOnFocus: false },
   );
 
-  const [segment, setSegment] = useState<(typeof SEGMENTS)[number]['key']>('pending');
+  const [segment, setSegment] = useState<(typeof SEGMENTS)[number]['key']>('all');
   const [query, setQuery] = useState('');
   const [openBoatId, setOpenBoatId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);

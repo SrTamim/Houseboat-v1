@@ -12,7 +12,16 @@ import {
   TableWrap,
   AsyncTable,
 } from '@/components/owner/ui';
-import { BTN_B, BTN_O, BTN_SM } from '@/components/owner/buttons';
+import {
+  BTN_B,
+  BTN_O,
+  BTN_SM,
+  PERM_LIST,
+  PERM_NAME,
+  PERM_ROW,
+  PERM_TOGGLE,
+  PERM_TOGGLES,
+} from '@/components/owner/styles';
 import { Pill } from '@/components/owner/Pill';
 import { Drawer } from '@/components/owner/Drawer';
 import {
@@ -85,17 +94,17 @@ function PermissionList({
   onChange: (next: Perms) => void;
 }) {
   return (
-    <div className="perm-list">
+    <div className={PERM_LIST}>
       {PAGE_GROUPS.map((group) => (
         <div key={group.group}>
           <div className="mb-1 mt-3 px-0.5 text-[10px] font-bold uppercase tracking-[0.11em] text-muted first:mt-0">
             {group.group}
           </div>
           {group.pages.map(({ key, label }) => (
-            <div className="perm-row" key={key}>
-              <span className="perm-name">{label}</span>
-              <div className="perm-toggles">
-                <label className="perm-toggle">
+            <div className={PERM_ROW} key={key}>
+              <span className={PERM_NAME}>{label}</span>
+              <div className={PERM_TOGGLES}>
+                <label className={PERM_TOGGLE}>
                   <input
                     type="checkbox"
                     checked={perms[key].view}
@@ -108,7 +117,7 @@ function PermissionList({
                   />
                   View
                 </label>
-                <label className="perm-toggle">
+                <label className={PERM_TOGGLE}>
                   <input
                     type="checkbox"
                     checked={perms[key].edit}

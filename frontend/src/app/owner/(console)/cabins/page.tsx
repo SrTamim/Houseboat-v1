@@ -13,7 +13,14 @@ import {
   AsyncTable,
   AsyncBlock,
 } from '@/components/owner/ui';
-import { BTN_B, BTN_O, BTN_DANGER, BTN_SM } from '@/components/owner/buttons';
+import {
+  BTN_B,
+  BTN_O,
+  BTN_DANGER,
+  BTN_SM,
+  FACILITY_GRID,
+  FACILITY_OPT,
+} from '@/components/owner/styles';
 import { Pill } from '@/components/owner/Pill';
 import { Drawer } from '@/components/owner/Drawer';
 import { CabGrid, type CabTile } from '@/components/owner/CabGrid';
@@ -464,9 +471,9 @@ export default function OwnerCabinsPage() {
                 </Field>
               </div>
               <Field label="Facilities">
-                <div className="facility-grid">
+                <div className={FACILITY_GRID}>
                   {FACILITY_OPTIONS.map((opt) => (
-                    <label key={opt} className="facility-opt">
+                    <label key={opt} className={FACILITY_OPT}>
                       <input
                         type="checkbox"
                         checked={facilitySet.has(opt)}

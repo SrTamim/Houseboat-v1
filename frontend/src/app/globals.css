@@ -121,3 +121,102 @@ body {
     border-radius: 10px;
   }
 }
+
+/* Owner console element defaults + owner-specific token overrides (was the
+   owner.css :root / base rules), scoped to the /owner subtree via the
+   `.owner-scope` wrapper so they never touch the customer or admin surfaces.
+   The shared design tokens (--blue, --raise-1, --ink, --e1…) already live in
+   the :root blocks above with identical values — only the handful of owner-only
+   tokens are (re)declared here. No design-system classes: those are Tailwind
+   utilities / the styles.ts consts. */
+@layer base {
+  .owner-scope {
+    /* native controls (date/month pickers, select popups) follow the theme */
+    color-scheme: light;
+    /* form-control border (owner uses a slightly stronger line than --hair) */
+    --field-line: #aeb6c4;
+    /* owner's field fill is pure white in light (vs the shared grey --field) */
+    --field: #ffffff;
+    --display: 'Space Grotesk Variable', 'Space Grotesk', 'Inter', system-ui, sans-serif;
+    --font: 'Inter', system-ui, -apple-system, 'Segoe UI', 'Hind Siliguri', sans-serif;
+
+    background: var(--bg);
+    color: var(--body);
+    font-family: var(--font);
+    font-size: 14px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  :root[data-theme='dark'] .owner-scope {
+    color-scheme: dark;
+    --field-line: #4c5468;
+    --field: #0e1119;
+    /* tint native calendar/spin icons to the theme ink */
+    --picker-icon-filter: invert(0.85);
+  }
+  .owner-scope h1,
+  .owner-scope h2,
+  .owner-scope h3,
+  .owner-scope h4 {
+    margin: 0;
+    color: var(--ink);
+    font-family: var(--display);
+    line-height: 1.15;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+  .owner-scope a {
+    color: inherit;
+    text-decoration: none;
+  }
+  .owner-scope img {
+    max-width: 100%;
+    display: block;
+  }
+  .owner-scope ::selection {
+    background: color-mix(in srgb, var(--blue) 26%, transparent);
+  }
+  .owner-scope :focus-visible {
+    outline: none;
+    box-shadow: var(--ring);
+    border-radius: 10px;
+  }
+  /* sidebar thin scrollbar with a themed thumb (was `.sidebar::-webkit-scrollbar`);
+     no Tailwind utility expresses the webkit thumb colour. */
+  .owner-scope .owner-scroll::-webkit-scrollbar {
+    width: 8px;
+  }
+  .owner-scope .owner-scroll::-webkit-scrollbar-thumb {
+    background: var(--hair);
+    border-radius: 8px;
+  }
+}
+
+/* Print isolation for owner drawers (invoice / salary statement / cost report).
+   The Drawer renders inline as a sibling of the page content, so window.print()
+   would print the whole console behind it. Hide the entire owner subtree, then
+   reveal ONLY the drawer panel (`.owner-print-root`) and its contents — the
+   proven "hide everything, reveal one branch" pattern (was owner.css @media
+   print). Scoped to `.owner-scope` so customer/admin printing is untouched.
+
+   visibility (not display:none) collapses the page while preserving the drawer
+   subtree's own layout; elements inside the drawer that carry Tailwind
+   `print:hidden` (header, footer, the on-screen booking detail) stay gone
+   because display:none outranks visibility:visible — so only the printable
+   INVOICE_PRINT / STATEMENT_PRINT block shows. */
+@media print {
+  .owner-scope :where(*) {
+    visibility: hidden !important;
+  }
+  .owner-scope .owner-print-root,
+  .owner-scope .owner-print-root * {
+    visibility: visible !important;
+  }
+  .owner-scope .owner-print-root {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+}

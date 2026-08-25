@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { BTN_O, BTN_SM, FIELD_BLOCK, FILTERBAR_CHILDREN, SKEL, TBL } from './styles';
 
 /* ────────────────────────────────────────────────────────────
    Owner console UI primitives.
 
-   Class-name based, styled entirely by app/owner/owner.css — the
+   Tailwind-based (utilities + the shared consts in ./styles) — the
    same approach as the admin kit, but a separate set because the
    owner design system has its own card, KPI and pill structure.
    ──────────────────────────────────────────────────────────── */
@@ -156,8 +157,8 @@ export function TableWrap({
   minWidth?: number;
 }) {
   return (
-    <div className="tbl-wrap">
-      <table className="tbl" style={minWidth ? { minWidth } : undefined}>
+    <div className="overflow-x-auto">
+      <table className={TBL} style={{ minWidth: minWidth ?? 640 }}>
         {children}
       </table>
     </div>
@@ -248,9 +249,10 @@ export function Seg({
 }
 
 export function FilterBar({ children }: { children: React.ReactNode }) {
-  // .filterbar also styles bare <input>/<select> children (see owner.css); those
-  // element rules stay until each page's filter markup is migrated.
-  return <div className="filterbar flex flex-wrap items-center gap-3">{children}</div>;
+  // The old `.filterbar > input/select` element rules styled bare date/month/
+  // select controls dropped straight in; reproduced here as child variants so
+  // pages passing bare controls render identically (was owner.css).
+  return <div className={`flex flex-wrap items-center gap-3 ${FILTERBAR_CHILDREN}`}>{children}</div>;
 }
 
 /**
@@ -339,8 +341,10 @@ export function Field({
   style?: React.CSSProperties;
 }) {
   return (
-    <div className="field" style={style}>
-      <label>{label}</label>
+    <div className={FIELD_BLOCK} style={style}>
+      <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+        {label}
+      </label>
       {children}
     </div>
   );
@@ -353,7 +357,7 @@ export function TableSkeleton({ rows = 5, cols = 4 }: { rows?: number; cols?: nu
         <tr key={r}>
           {Array.from({ length: cols }).map((_, c) => (
             <td key={c}>
-              <div className="skel" style={{ width: c === 0 ? '70%' : '45%' }} />
+              <div className={SKEL} style={{ width: c === 0 ? '70%' : '45%' }} />
             </td>
           ))}
         </tr>
@@ -404,7 +408,7 @@ export function ErrorState({
       <h4 className="mb-1.5 text-[15px] text-ink">Could not load</h4>
       <p className="mx-auto max-w-[46ch] text-[13px] leading-[1.55]">{message}</p>
       {onRetry ? (
-        <button className="btn btn-o btn-sm mt-[14px]" onClick={onRetry}>
+        <button className={`${BTN_O} ${BTN_SM} mt-[14px]`} onClick={onRetry}>
           Try again
         </button>
       ) : null}
@@ -479,9 +483,9 @@ export function AsyncBlock({
   if (isLoading) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <div className="skel" style={{ width: '60%' }} />
-        <div className="skel" style={{ width: '85%' }} />
-        <div className="skel" style={{ width: '40%' }} />
+        <div className={SKEL} style={{ width: '60%' }} />
+        <div className={SKEL} style={{ width: '85%' }} />
+        <div className={SKEL} style={{ width: '40%' }} />
       </div>
     );
   }
@@ -502,7 +506,7 @@ export function LoadMore({
   if (!hasMore) return null;
   return (
     <div style={{ padding: 16, textAlign: 'center' }}>
-      <button className="btn btn-o btn-sm" onClick={onClick} disabled={isLoading}>
+      <button className={`${BTN_O} ${BTN_SM}`} onClick={onClick} disabled={isLoading}>
         {isLoading ? 'Loading…' : 'Load more'}
       </button>
     </div>

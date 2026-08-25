@@ -17,7 +17,18 @@ import {
   TableWrap,
   AsyncTable,
 } from '@/components/owner/ui';
-import { BTN_B, BTN_O, BTN_OK, BTN_SM } from '@/components/owner/buttons';
+import {
+  BTN_B,
+  BTN_O,
+  BTN_OK,
+  BTN_SM,
+  CHECK,
+  LINKLIKE,
+  STATEMENT_PRINT,
+  STMT_HEAD,
+  STMT_META,
+  STMT_TOTAL,
+} from '@/components/owner/styles';
 import { Pill } from '@/components/owner/Pill';
 import { Drawer } from '@/components/owner/Drawer';
 import { money, formatDate, maskPhone, apiErrorMessage } from '@/lib/owner/format';
@@ -317,7 +328,7 @@ export default function OwnerPayrollPage() {
                 <tr key={s.id}>
                   <td className="t1">
                     <button
-                      className="linklike"
+                      className={LINKLIKE}
                       onClick={() => setStatementFor(s)}
                       title="View salary statement"
                     >
@@ -442,7 +453,7 @@ export default function OwnerPayrollPage() {
             />
           </Field>
           {drawer?.mode === 'adjust' && drawer.payroll.paid ? (
-            <label className="check">
+            <label className={CHECK}>
               <input
                 type="checkbox"
                 checked={markUnpaid}
@@ -467,8 +478,8 @@ export default function OwnerPayrollPage() {
 
 /**
  * Bank-statement-style salary history for one crew member. "Download PDF" uses
- * the browser's print-to-PDF: print CSS (owner.css) hides the console chrome and
- * shows only the `.statement-print` block, so Save-as-PDF yields a clean sheet.
+ * the browser's print-to-PDF: the Drawer's Tailwind `print:` classes hide the
+ * console chrome and flatten the panel, so Save-as-PDF yields a clean sheet.
  */
 function StatementDrawer({
   staff,
@@ -506,10 +517,10 @@ function StatementDrawer({
         </>
       }
     >
-      <div className="statement-print">
-        <div className="stmt-head">
+      <div className={STATEMENT_PRINT}>
+        <div className={STMT_HEAD}>
           <h3>Salary Statement</h3>
-          <div className="stmt-meta">
+          <div className={STMT_META}>
             <div>
               <strong>{staff.account?.name ?? 'Crew'}</strong>
             </div>
@@ -558,7 +569,7 @@ function StatementDrawer({
                   <td className="num">{money(bal.toFixed(2))}</td>
                 </tr>
               ))}
-              <tr className="stmt-total">
+              <tr className={STMT_TOTAL}>
                 <td colSpan={5} className="t1">
                   Total earned
                 </td>

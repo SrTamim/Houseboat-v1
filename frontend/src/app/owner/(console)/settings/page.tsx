@@ -6,7 +6,7 @@ import useSWR from 'swr';
 import { api, fetcher } from '@/lib/api';
 import { useActiveBoat } from '@/lib/owner/boat-context';
 import { PageHead, Card, Note, Kv, AsyncBlock } from '@/components/owner/ui';
-import { BTN_O } from '@/components/owner/buttons';
+import { BTN_O, MONEY, MONEY_NEG } from '@/components/owner/styles';
 import { Pill } from '@/components/owner/Pill';
 import { money, formatDate, apiErrorMessage, humanize } from '@/lib/owner/format';
 
@@ -209,7 +209,7 @@ export default function OwnerSettingsPage() {
                   [
                     'Platform balance',
                     <span
-                      className={`money${Number(billing.data?.platformBalance ?? 0) < 0 ? ' neg' : ''}`}
+                      className={`${MONEY}${Number(billing.data?.platformBalance ?? 0) < 0 ? ` ${MONEY_NEG}` : ''}`}
                       key="b"
                     >
                       {money(billing.data?.platformBalance)}

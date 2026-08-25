@@ -9,7 +9,7 @@ import { apiErrorMessage, toE164 } from '@/lib/owner/format';
 import { DARK_CARD_SURFACE, PRIMARY_BTN } from '@/lib/customer/boat-card';
 
 // ---- design tokens ---------------------------------------------------------
-// Resolve through the owner.css CSS vars, so they theme-switch on [data-theme]
+// Resolve through the globals.css CSS vars, so they theme-switch on [data-theme]
 // without a `dark:` variant — same idiom as the login page and AuthModal.
 const CARD = `flex max-h-[92vh] w-[min(420px,100%)] flex-col overflow-y-auto rounded-2xl border border-hair bg-raise-1 p-6 shadow-e3 ${DARK_CARD_SURFACE}`;
 const LABEL = 'mb-1 block text-[13px] font-bold text-ink';
