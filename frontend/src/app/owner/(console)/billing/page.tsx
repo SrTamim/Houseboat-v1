@@ -1,7 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import useSWR from 'swr';
-import { fetcher } from '@/lib/api';
+import { api, fetcher } from '@/lib/api';
 import { useActiveBoat } from '@/lib/owner/boat-context';
 import {
   PageHead,
@@ -14,7 +15,14 @@ import {
   AsyncBlock,
 } from '@/components/owner/ui';
 import { Pill } from '@/components/owner/Pill';
-import { money, formatDate, isNegative, humanize } from '@/lib/owner/format';
+import { BTN_B, BTN_SM } from '@/components/owner/styles';
+import {
+  money,
+  formatDate,
+  isNegative,
+  humanize,
+  apiErrorMessage,
+} from '@/lib/owner/format';
 
 interface BillingStatus {
   locked: boolean;
@@ -29,17 +37,38 @@ interface SubscriptionInvoice {
   id: string;
   period: string;
   monthlyFee: string | null;
-  commissionTotal: string | null;
   amountDue: string;
   status: string;
   issuedAt: string;
+}
+
+/** "2026-08" → "August 2026". */
+function periodLabel(period: string): string {
+  const [y, m] = period.split('-').map(Number);
+  if (!y || !m) return period;
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString('en-GB', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+/** Last date to pay = issue date + grace days (the deadline the lock uses). */
+function lastPayDate(issuedAt: string, graceDays: number | undefined): string {
+  if (graceDays == null) return '—';
+  const d = new Date(issuedAt);
+  d.setUTCDate(d.getUTCDate() + graceDays);
+  return formatDate(d.toISOString());
 }
 
 const STATUS_TONES: Record<string, 'ok' | 'warn' | 'danger' | 'mut'> = {
   paid: 'ok',
   issued: 'warn',
   overdue: 'danger',
+  trial: 'mut',
 };
+
+const STATUS_LABELS: Record<string, string> = { trial: 'Free trial' };
 
 /**
  * Platform billing.
@@ -64,7 +93,26 @@ export default function OwnerBillingPage() {
 
   const s = status.data;
   const rows = invoices.data ?? [];
-  const unpaid = rows.filter((r) => r.status !== 'paid');
+  // A trial invoice is a $0 marker, not a bill owed — keep it out of "unpaid".
+  const unpaid = rows.filter((r) => r.status !== 'paid' && r.status !== 'trial');
+
+  const [payingId, setPayingId] = useState<string | null>(null);
+  const [payError, setPayError] = useState<string | null>(null);
+
+  async function pay(invoiceId: string) {
+    setPayingId(invoiceId);
+    setPayError(null);
+    try {
+      await api.post(
+        `/houseboats/${boatId}/subscription-invoices/${invoiceId}/pay`,
+      );
+      await Promise.all([invoices.mutate(), status.mutate()]);
+    } catch (e) {
+      setPayError(apiErrorMessage(e, 'Could not record the payment.'));
+    } finally {
+      setPayingId(null);
+    }
+  }
 
   return (
     <>
@@ -72,9 +120,10 @@ export default function OwnerBillingPage() {
         title="Platform billing"
         desc={
           <>
-            The monthly bill the <b>platform</b> sends you — separate from booking
-            commission. A monthly fee and commission can both apply, and billing is per
-            boat, never combined across the boats you operate.
+            The monthly bill the <b>platform</b> sends you for using the platform —
+            the monthly fee your admin set. This is separate from booking commission
+            (already withheld at booking), and billing is per boat, never combined
+            across the boats you operate.
           </>
         }
       />
@@ -82,8 +131,14 @@ export default function OwnerBillingPage() {
       {s?.locked ? (
         <Note kind="danger" style={{ marginBottom: 20 }}>
           This boat is locked. An overdue bill passed its grace period, so everything
-          except this page is read-only until it is settled. Pay through the platform
-          finance team to unlock.
+          except this page is read-only until it is settled. Pay the bill below to
+          unlock.
+        </Note>
+      ) : null}
+
+      {payError ? (
+        <Note kind="danger" style={{ marginBottom: 20 }}>
+          {payError}
         </Note>
       ) : null}
 
@@ -118,19 +173,20 @@ export default function OwnerBillingPage() {
 
       <Card
         title="Subscription invoices"
-        sub="monthly fee + commission total"
+        sub="the monthly platform fee — pay to keep the console unlocked"
         flush
         style={{ marginBottom: 20 }}
       >
-        <TableWrap minWidth={720}>
+        <TableWrap minWidth={820}>
           <thead>
             <tr>
               <th>Period</th>
               <th className="num">Monthly fee</th>
-              <th className="num">Commission</th>
               <th className="num">Due</th>
               <th>Issued</th>
+              <th>Last date to pay</th>
               <th>Status</th>
+              <th></th>
             </tr>
           </thead>
           <AsyncTable
@@ -150,18 +206,45 @@ export default function OwnerBillingPage() {
             }
           >
             <tbody>
-              {rows.map((r) => (
-                <tr key={r.id}>
-                  <td className="t1">{r.period}</td>
-                  <td className="num">{money(r.monthlyFee ?? 0)}</td>
-                  <td className="num">{money(r.commissionTotal ?? 0)}</td>
-                  <td className="num">{money(r.amountDue)}</td>
-                  <td className="t2">{formatDate(r.issuedAt)}</td>
-                  <td>
-                    <Pill tone={STATUS_TONES[r.status] ?? 'mut'}>{humanize(r.status)}</Pill>
-                  </td>
-                </tr>
-              ))}
+              {rows.map((r) => {
+                const isTrial = r.status === 'trial';
+                const payable = !isTrial && r.status !== 'paid';
+                return (
+                  <tr key={r.id}>
+                    <td className="t1">
+                      {periodLabel(r.period)}
+                      {isTrial && s?.trialEnds ? (
+                        <div className="text-[12px] text-muted">
+                          Trial {formatDate(r.issuedAt)} → {formatDate(s.trialEnds)}
+                        </div>
+                      ) : null}
+                    </td>
+                    <td className="num">{isTrial ? '—' : money(r.monthlyFee ?? 0)}</td>
+                    <td className="num">{money(r.amountDue)}</td>
+                    <td className="t2">{formatDate(r.issuedAt)}</td>
+                    <td className="t2">
+                      {isTrial ? '—' : lastPayDate(r.issuedAt, s?.graceDays)}
+                    </td>
+                    <td>
+                      <Pill tone={STATUS_TONES[r.status] ?? 'mut'}>
+                        {STATUS_LABELS[r.status] ?? humanize(r.status)}
+                      </Pill>
+                    </td>
+                    <td>
+                      {payable ? (
+                        <button
+                          type="button"
+                          className={`${BTN_B} ${BTN_SM}`}
+                          disabled={payingId === r.id}
+                          onClick={() => pay(r.id)}
+                        >
+                          {payingId === r.id ? 'Paying…' : 'Pay'}
+                        </button>
+                      ) : null}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </AsyncTable>
         </TableWrap>
@@ -170,6 +253,10 @@ export default function OwnerBillingPage() {
       <Card title="How this bill is settled">
         <AsyncBlock isLoading={status.isLoading} error={status.error} onRetry={() => status.mutate()}>
           <div className="flex flex-col gap-5" style={{ gap: 10 }}>
+            <Note kind="info">
+              Pressing <b>Pay</b> marks the bill settled. An online payment gateway is
+              not connected yet — once it is, Pay will open it instead.
+            </Note>
             <Note kind="info">
               An unpaid bill does not lock you out immediately — there is a grace period
               from the issue date. Only after it elapses does the console go read-only,

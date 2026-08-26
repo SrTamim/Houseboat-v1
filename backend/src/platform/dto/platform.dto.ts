@@ -40,7 +40,12 @@ export const BOOKING_STATUSES = [
 
 export const REFUND_STATUSES = ['requested', 'verified', 'completed'] as const;
 
-export const SUBSCRIPTION_STATUSES = ['issued', 'paid', 'overdue'] as const;
+export const SUBSCRIPTION_STATUSES = [
+  'issued',
+  'paid',
+  'overdue',
+  'trial',
+] as const;
 
 /** Toggle a platform-curated route on or off. */
 export class SetRouteActiveDto {
@@ -134,6 +139,9 @@ export class ListInvoicesQueryDto extends PageQueryDto {
   payoutQueue?: boolean;
 
   @IsOptional() @IsUUID() houseboatId?: string;
+
+  /** Free-text: matches customer name / phone, boat name, or a booking id prefix. */
+  @IsOptional() @IsString() @MaxLength(100) q?: string;
 }
 
 /** Bookings across all boats. Boat filter goes through departure → package. */
@@ -169,6 +177,9 @@ export class ListMembershipsQueryDto extends PageQueryDto {
   @IsOptional()
   @IsIn(['active', 'exited'])
   status?: 'active' | 'exited';
+
+  /** Free-text: matches member name / phone, or boat name. */
+  @IsOptional() @IsString() @MaxLength(100) q?: string;
 }
 
 export class ListRefundsQueryDto extends PageQueryDto {
@@ -195,10 +206,18 @@ export class ListSubscriptionInvoicesQueryDto extends PageQueryDto {
   status?: (typeof SUBSCRIPTION_STATUSES)[number];
 
   @IsOptional() @IsUUID() houseboatId?: string;
+
+  /** Free-text: matches boat name or billing period. */
+  @IsOptional() @IsString() @MaxLength(100) q?: string;
 }
 
 export class ListCouponsQueryDto extends PageQueryDto {
   @IsOptional() @IsUUID() houseboatId?: string;
+
+  /** Free-text: matches coupon code or boat name. */
+  @IsOptional() @IsString() @MaxLength(100) q?: string;
+
+  @IsOptional() @IsIn(['percent', 'flat', 'referral']) kind?: string;
 }
 
 export class ListReschedulesQueryDto extends PageQueryDto {}

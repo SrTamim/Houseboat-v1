@@ -5,6 +5,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { SettingsService } from '../platform/settings/settings.service';
@@ -106,7 +107,11 @@ export class FinanceService {
    * payout_approved/in_payout/bill_cleared) in the period.
    * `period` is a YYYY-MM string.
    */
-  async issueSubscriptionInvoice(houseboatId: string, actorId: string, period: string) {
+  async issueSubscriptionInvoice(
+    houseboatId: string,
+    actorId: string | null,
+    period: string,
+  ) {
     if (!/^\d{4}-\d{2}$/.test(period)) {
       throw new BadRequestException('period must be YYYY-MM');
     }
@@ -123,40 +128,11 @@ export class FinanceService {
       throw new BadRequestException(`Already invoiced for ${period}`);
     }
 
-    // Commission accrued that period. Invoice has no timestamp, so scope by when
-    // money actually moved: payments (InvoicePayment.paidAt) in the window whose
-    // invoice belongs to this boat and reached a payout-eligible state. Dedup so
-    // a partially-paid invoice's commission counts once.
-    const [year, mon] = period.split('-').map(Number);
-    const from = new Date(Date.UTC(year, mon - 1, 1));
-    const to = new Date(Date.UTC(year, mon, 1));
-    const payments = await this.prisma.invoicePayment.findMany({
-      where: {
-        paidAt: { gte: from, lt: to },
-        invoice: {
-          houseboatId,
-          status: {
-            in: [
-              'paid',
-              'payment_verified',
-              'payout_approved',
-              'in_payout',
-              'bill_cleared',
-            ],
-          },
-        },
-      },
-      select: { invoiceId: true, invoice: { select: { commission: true } } },
-    });
-    const seen = new Set<string>();
-    let commissionTotal = ZERO;
-    for (const p of payments) {
-      if (seen.has(p.invoiceId)) continue;
-      seen.add(p.invoiceId);
-      commissionTotal = add(commissionTotal, money(p.invoice.commission));
-    }
+    // The subscription bill is the monthly fee only. Booking commission is
+    // already withheld from the booking money the platform holds, so charging it
+    // again here would double-bill the owner.
     const monthlyFee = config.monthlyFee ? money(config.monthlyFee) : ZERO;
-    const amountDue = add(monthlyFee, commissionTotal);
+    const amountDue = monthlyFee;
 
     const row = await this.prisma.houseboatSubscriptionInvoice.create({
       data: {
@@ -165,7 +141,6 @@ export class FinanceService {
         billingConfigId: config.id,
         period,
         monthlyFee: config.monthlyFee ?? undefined,
-        commissionTotal,
         amountDue,
         status: 'issued',
       },
@@ -182,17 +157,54 @@ export class FinanceService {
   }
 
   /** Mark a subscription invoice paid → debit it off the boat's platform_balance. */
-  async paySubscriptionInvoice(invoiceId: string, actorId: string) {
+  async paySubscriptionInvoice(invoiceId: string, actorId: string | null) {
     const inv = await this.prisma.houseboatSubscriptionInvoice.findUnique({
       where: { id: invoiceId },
     });
     if (!inv) throw new NotFoundException('Subscription invoice not found');
+    return this.applyPayment(inv, actorId);
+  }
+
+  /**
+   * Owner-initiated payment of the owner's OWN subscription invoice. Verifies the
+   * invoice belongs to the boat (an owner must never pay another boat's bill) and
+   * that it is actually payable, then runs the same paid-transition as the
+   * platform path. Placeholder until a real gateway is wired — for now it simply
+   * marks the bill paid.
+   */
+  async payOwnSubscriptionInvoice(
+    houseboatId: string,
+    invoiceId: string,
+    actorId: string,
+  ) {
+    const inv = await this.prisma.houseboatSubscriptionInvoice.findUnique({
+      where: { id: invoiceId },
+    });
+    if (!inv || inv.houseboatId !== houseboatId) {
+      throw new NotFoundException('Subscription invoice not found');
+    }
+    if (inv.status === 'trial') {
+      throw new BadRequestException('A free-trial bill has nothing to pay');
+    }
+    return this.applyPayment(inv, actorId);
+  }
+
+  /** Shared paid-transition: flip to paid + credit the signed platform_balance. */
+  private applyPayment(
+    inv: {
+      id: string;
+      houseboatId: string;
+      status: string;
+      amountDue: Prisma.Decimal;
+    },
+    actorId: string | null,
+  ) {
     if (inv.status === 'paid') {
       throw new BadRequestException('Already paid');
     }
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.houseboatSubscriptionInvoice.update({
-        where: { id: invoiceId },
+        where: { id: inv.id },
         data: { status: 'paid' },
       });
       // platform_balance is signed; paying the bill removes the debt.
@@ -216,7 +228,7 @@ export class FinanceService {
           actorAccountId: actorId,
           action: 'subscription_pay',
           entityType: 'houseboat_subscription_invoice',
-          entityId: invoiceId,
+          entityId: inv.id,
         },
         tx,
       );
@@ -232,19 +244,46 @@ export class FinanceService {
   }
 
   /**
+   * Owner-facing billing config values (platform balance + trial end). The owner
+   * billing page reads these from billingStatus; without them its KPIs render
+   * blank. Kept in sync with owner-dashboard.service.ts's billing block.
+   */
+  private async billingConfigView(houseboatId: string) {
+    const config = await this.prisma.houseboatBillingConfig.findFirst({
+      where: { houseboatId },
+      select: { platformBalance: true, trialEnds: true },
+    });
+    return {
+      platformBalance: config?.platformBalance.toFixed(2) ?? '0.00',
+      trialEnds: config?.trialEnds ?? null,
+    };
+  }
+
+  /**
    * Billing status for a boat's dashboard: whether it's currently within the
    * grace window, how many days remain to pay, or already locked. Never blocks —
    * this is the read the owner sees to know they must pay.
+   *
+   * Trial invoices ($0, status 'trial') are excluded everywhere they'd read as
+   * debt: they must never count toward the amount due or drive the lock clock.
    */
   async billingStatus(houseboatId: string) {
+    const configView = await this.billingConfigView(houseboatId);
     const unpaid = await this.prisma.houseboatSubscriptionInvoice.findMany({
-      where: { houseboatId, status: { not: 'paid' } },
+      where: { houseboatId, status: { notIn: ['paid', 'trial'] } },
       orderBy: { issuedAt: 'asc' },
     });
-    if (unpaid.length === 0) {
-      return { locked: false, inGrace: false, dueTotal: '0.00', unpaidCount: 0 };
-    }
     const graceDays = await this.graceDays();
+    if (unpaid.length === 0) {
+      return {
+        locked: false,
+        inGrace: false,
+        dueTotal: '0.00',
+        unpaidCount: 0,
+        graceDays,
+        ...configView,
+      };
+    }
     const graceMs = graceDays * 24 * 60 * 60 * 1000;
     const now = Date.now();
     // The oldest unpaid invoice drives the clock.
@@ -265,6 +304,7 @@ export class FinanceService {
       graceDays,
       dueTotal: dueTotal.toFixed(2),
       unpaidCount: unpaid.length,
+      ...configView,
     };
   }
 
@@ -282,6 +322,101 @@ export class FinanceService {
     });
     if (res.count > 0) {
       console.log(`Marked ${res.count} subscription invoice(s) overdue`);
+    }
+  }
+
+  /** UTC last instant of a YYYY-MM period, used to decide trial-vs-monthly. */
+  private periodEnd(period: string): Date {
+    const [year, mon] = period.split('-').map(Number);
+    // First day of the NEXT month, minus 1ms → end of this period.
+    return new Date(Date.UTC(year, mon, 1) - 1);
+  }
+
+  /**
+   * Issue the correct bill for one boat for one period, choosing trial vs
+   * monthly automatically:
+   *   • trial still active (trialEnds set AND covers this period's end) →
+   *     a $0 trial invoice (status 'trial'). issuedAt marks the trial start on
+   *     the owner page; trialEnds is the end. It carries no fee/commission and
+   *     is excluded from every "amount due" / lock query.
+   *   • trial ended (or none) → the normal monthly invoice (fee + commission),
+   *     via issueSubscriptionInvoice.
+   *
+   * Idempotent: skips if a boat already has any invoice for `period`. Skips a
+   * boat with no billing config (nothing to bill yet). Returns the created row,
+   * or null when skipped.
+   */
+  async issueDueInvoiceForPeriod(
+    houseboatId: string,
+    actorId: string | null,
+    period: string,
+  ) {
+    if (!/^\d{4}-\d{2}$/.test(period)) {
+      throw new BadRequestException('period must be YYYY-MM');
+    }
+    const config = await this.prisma.houseboatBillingConfig.findFirst({
+      where: { houseboatId },
+    });
+    if (!config) return null;
+
+    const existing = await this.prisma.houseboatSubscriptionInvoice.findFirst({
+      where: { houseboatId, period },
+    });
+    if (existing) return null;
+
+    const trialActive =
+      config.trialEnds != null && config.trialEnds >= this.periodEnd(period);
+
+    if (!trialActive) {
+      return this.issueSubscriptionInvoice(houseboatId, actorId, period);
+    }
+
+    const row = await this.prisma.houseboatSubscriptionInvoice.create({
+      data: {
+        id: newId(),
+        houseboatId,
+        billingConfigId: config.id,
+        period,
+        monthlyFee: null,
+        amountDue: ZERO,
+        status: 'trial',
+      },
+    });
+    await this.audit.log({
+      houseboatId,
+      actorAccountId: actorId,
+      action: 'subscription_trial_issue',
+      entityType: 'houseboat_subscription_invoice',
+      entityId: row.id,
+      after: { period, trialEnds: config.trialEnds?.toISOString().slice(0, 10) },
+    });
+    return row;
+  }
+
+  /**
+   * Monthly billing run: on the 1st, issue every boat with a billing config its
+   * bill for the current period (trial $0 or monthly fee). Idempotent per
+   * period, so a manual mid-month run or a re-fire never double-bills.
+   */
+  @Cron(CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT)
+  async issueMonthlyInvoices(): Promise<void> {
+    const now = new Date();
+    const period = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+    const configs = await this.prisma.houseboatBillingConfig.findMany({
+      select: { houseboatId: true },
+    });
+    let issued = 0;
+    for (const c of configs) {
+      // Cron has no human actor → null actorAccountId (nullable FK on audit_log).
+      const row = await this.issueDueInvoiceForPeriod(
+        c.houseboatId,
+        null,
+        period,
+      );
+      if (row) issued++;
+    }
+    if (issued > 0) {
+      console.log(`Issued ${issued} subscription invoice(s) for ${period}`);
     }
   }
 }

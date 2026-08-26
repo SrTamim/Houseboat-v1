@@ -1506,6 +1506,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/houseboats/{houseboatId}/approved-payouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Invoices approved for payout but not yet paid, owner-readable. Same
+         *     read-only guard — the owner sees money that is confirmed and coming, they
+         *     don't approve or move it (that stays platform-only above).
+         */
+        get: operations["MoneyController_listApprovedPayouts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/payout-batches/{batchId}/approve": {
         parameters: {
             query?: never;
@@ -1648,6 +1669,26 @@ export interface paths {
         get: operations["MoneyController_ownerSubscriptionInvoices"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/houseboats/{houseboatId}/subscription-invoices/{invoiceId}/pay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Owner pays their own bill. allowWhenLocked so a locked owner can settle to
+         *      unlock. No real gateway yet — this just marks the bill paid.
+         */
+        post: operations["MoneyController_ownerPaySubscription"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5539,6 +5580,13 @@ export interface operations {
     OwnerBookingsController_list: {
         parameters: {
             query?: {
+                /**
+                 * @description One booking status, or a comma-separated list (e.g. `confirmed,completed`).
+                 *     The departure manifest passes both so a trip's guests stay visible after the
+                 *     completion cron relabels their bookings `confirmed → completed`. Normalized
+                 *     to a string[]; the service maps a single value to `status:` and many to
+                 *     `status: { in: [...] }`.
+                 */
                 status?: "confirmed" | "rescheduled" | "cancelled" | "not_arrived" | "completed";
                 /** @description Guest name or phone. */
                 q?: string;
@@ -5957,6 +6005,25 @@ export interface operations {
             };
         };
     };
+    MoneyController_listApprovedPayouts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     MoneyController_approveBatch: {
         parameters: {
             query?: never;
@@ -6199,6 +6266,26 @@ export interface operations {
         requestBody?: never;
         responses: {
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MoneyController_ownerPaySubscription: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                houseboatId: string;
+                invoiceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -7130,6 +7217,8 @@ export interface operations {
                  */
                 payoutQueue?: boolean;
                 houseboatId?: string;
+                /** @description Free-text: matches customer name / phone, boat name, or a booking id prefix. */
+                q?: string;
                 limit?: number;
                 /** @description id of the last row from the previous page. */
                 cursor?: string;
@@ -7333,6 +7422,8 @@ export interface operations {
                  */
                 payoutQueue?: boolean;
                 houseboatId?: string;
+                /** @description Free-text: matches customer name / phone, boat name, or a booking id prefix. */
+                q?: string;
                 limit?: number;
                 /** @description id of the last row from the previous page. */
                 cursor?: string;
@@ -7436,8 +7527,10 @@ export interface operations {
     PlatformFinanceController_listSubscriptionInvoices: {
         parameters: {
             query?: {
-                status?: "issued" | "paid" | "overdue";
+                status?: "issued" | "paid" | "overdue" | "trial";
                 houseboatId?: string;
+                /** @description Free-text: matches boat name or billing period. */
+                q?: string;
                 limit?: number;
                 /** @description id of the last row from the previous page. */
                 cursor?: string;
@@ -7517,6 +7610,9 @@ export interface operations {
         parameters: {
             query?: {
                 houseboatId?: string;
+                /** @description Free-text: matches coupon code or boat name. */
+                q?: string;
+                kind?: "percent" | "flat" | "referral";
                 limit?: number;
                 /** @description id of the last row from the previous page. */
                 cursor?: string;
@@ -7728,6 +7824,8 @@ export interface operations {
             query?: {
                 houseboatId?: string;
                 status?: "active" | "exited";
+                /** @description Free-text: matches member name / phone, or boat name. */
+                q?: string;
                 limit?: number;
                 /** @description id of the last row from the previous page. */
                 cursor?: string;

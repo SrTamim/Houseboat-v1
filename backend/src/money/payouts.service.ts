@@ -75,6 +75,28 @@ export class PayoutsService {
   }
 
   /**
+   * Invoices approved for payout but not yet paid (owner-readable).
+   *
+   * Read side only — admin approves via the platform finance flow; the owner
+   * sees what has been approved and will be paid soon, without moving money.
+   * Mirrors the `pay`-stage predicate in PlatformFinanceService.payableBoats
+   * ({ status: 'payout_approved', payoutBatchId: null }). dueToBoat is stored
+   * at approve time, so no recompute here.
+   */
+  async listApprovedForBoat(houseboatId: string) {
+    const invoices = await this.prisma.invoice.findMany({
+      where: { houseboatId, status: 'payout_approved', payoutBatchId: null },
+      orderBy: { id: 'desc' },
+      select: { id: true, bookingId: true, dueToBoat: true },
+    });
+    return invoices.map((i) => ({
+      id: i.id,
+      bookingId: i.bookingId,
+      dueToBoat: i.dueToBoat.toFixed(2), // signed, matches listForBoat
+    }));
+  }
+
+  /**
    * Prepare a batch: pull all settleable invoices (paid + payment_verified),
    * compute due_to_boat per invoice (gateway receipts − commission; cash
    * excluded), lock them in_payout.

@@ -409,11 +409,21 @@ export class PlatformOpsService {
   async listMemberships(
     query: ListMembershipsQueryDto,
   ): Promise<Page<{ id: string }>> {
+    const q = query.q?.trim();
     const rows = await this.prisma.houseboatMember.findMany({
       ...cursorArgs(query),
       where: {
         houseboatId: query.houseboatId ?? undefined,
         status: query.status ?? undefined,
+        ...(q
+          ? {
+              OR: [
+                { account: { name: { contains: q, mode: 'insensitive' } } },
+                { account: { phone: { contains: q } } },
+                { houseboat: { name: { contains: q, mode: 'insensitive' } } },
+              ],
+            }
+          : {}),
       },
       select: {
         id: true,

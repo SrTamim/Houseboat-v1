@@ -210,7 +210,8 @@ export class RbacService {
     const overdue = await this.prisma.houseboatSubscriptionInvoice.findFirst({
       where: {
         houseboatId,
-        status: { not: 'paid' },
+        // 'trial' is a $0 marker invoice — it must never lock a boat.
+        status: { notIn: ['paid', 'trial'] },
         issuedAt: { lt: cutoff },
       },
       select: { id: true },

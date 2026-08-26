@@ -158,9 +158,12 @@ export default function OwnerDeparturePage() {
     setPayMethod(PAY_METHODS[0].value);
   }, [payFor]);
 
+  // Both statuses: a trip's bookings are `confirmed` before it runs and flipped
+  // to `completed` by the completion cron once its arrival passes. Requesting
+  // both keeps the manifest populated for past trips as well as upcoming ones.
   const bookings = useOwnerList<Booking>(
     activeId ? `/houseboats/${boatId}/bookings` : null,
-    { departureId: activeId, status: 'confirmed' },
+    { departureId: activeId, status: 'confirmed,completed' },
   );
 
   const crew = useSWR<Crew[]>(

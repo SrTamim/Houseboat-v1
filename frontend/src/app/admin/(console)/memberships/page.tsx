@@ -9,10 +9,11 @@ import {
   EmptyState,
   ErrorState,
   Select,
+  Search,
 } from '@/components/admin/ui';
 import { Pill } from '@/components/admin/Pill';
 import { useAdminList } from '@/lib/admin/useAdminList';
-import { BTN_O, BTN_SM, FILTERBAR, TD_NUM, TD_T1, TD_T2 } from '@/components/admin/styles';
+import { BTN_O, BTN_SM, FILTERBAR, TD_NUM, TD_T1, TD_T2, TH_NUM } from '@/components/admin/styles';
 
 interface MembershipRow {
   id: string;
@@ -49,9 +50,11 @@ function period(m: MembershipRow): string {
 
 export default function Memberships() {
   const [status, setStatus] = useState('');
+  const [query, setQuery] = useState('');
   const { items, error, isInitialLoading, hasMore, loadMore, mutate } =
     useAdminList<MembershipRow>('/platform/ops/memberships', {
       status: status || undefined,
+      q: query || undefined,
       limit: 25,
     });
 
@@ -62,6 +65,12 @@ export default function Memberships() {
         desc="Per-boat co-owners for dispute support. An exited shareholder keeps read access to their own period only. Distributions are recorded, never auto-split."
       />
       <div className={FILTERBAR}>
+        <Search
+          placeholder="Search member, phone or boat…"
+          maxWidth={420}
+          value={query}
+          onChange={setQuery}
+        />
         <Select options={STATUS_OPTIONS} value={status} onChange={setStatus} />
       </div>
       <Card flush>
@@ -69,8 +78,12 @@ export default function Memberships() {
           <ErrorState error={error} onRetry={() => mutate()} />
         ) : !isInitialLoading && items.length === 0 ? (
           <EmptyState
-            title="No memberships yet"
-            desc="Members appear here when owners add co-owners and staff to their boats."
+            title={query || status ? 'No memberships match' : 'No memberships yet'}
+            desc={
+              query || status
+                ? 'Try a different search or filter.'
+                : 'Members appear here when owners add co-owners and staff to their boats.'
+            }
           />
         ) : (
           <>
@@ -80,7 +93,7 @@ export default function Memberships() {
                   <th>Member</th>
                   <th>Boat</th>
                   <th>Role</th>
-                  <th className={TD_NUM}>Share</th>
+                  <th className={TH_NUM}>Share</th>
                   <th>Period</th>
                   <th>Status</th>
                 </tr>

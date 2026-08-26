@@ -80,6 +80,14 @@ export const TD_T2 = 'mt-px text-[12px] text-muted';
 /** Right-aligned numeric cell (was `.tbl .num`). Add TD_NEG for negatives. */
 export const TD_NUM =
   'whitespace-nowrap text-right font-display font-semibold tracking-[-0.01em] tabular-nums text-ink';
+/**
+ * Right-aligned numeric column HEADER. The base table CSS forces
+ * `thead th { text-align: left }` via a descendant-variant selector, which
+ * out-specifies a plain `text-right` utility — so numeric headers drift left of
+ * their right-aligned numbers. This `!text-right` overrides that so a numeric
+ * header sits directly above its column. Use on `<th>` for any TD_NUM column.
+ */
+export const TH_NUM = '!text-right';
 /** Negative-amount colour (was `.tbl .num.neg`). Append to TD_NUM. */
 export const TD_NEG = 'text-danger';
 /** Right-aligned row-action cluster, revealed on row hover (was `.tbl .rowact`).
@@ -141,6 +149,61 @@ export const STACK = 'flex flex-col gap-5';
 export const GRID_2 = 'grid grid-cols-[2fr_1fr] items-start gap-5 max-[1024px]:grid-cols-1';
 /** Auto-fill form field grid (was `.form-grid`). */
 export const FORM_GRID = 'grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3.5';
+
+/* ---------- payout receipt (printable, modern invoice design) ----------
+   Ported from the owner booking invoice (`INV_*` in owner/styles.ts): fixed
+   hex, not theme tokens, because the receipt always prints on white paper. On
+   screen it lives inside the pay-to-vendors drawer; the `.admin-print-root`
+   @media print rule in globals.css reveals only this subtree. Add
+   `[print-color-adjust:exact]` to the root so the blue accent prints. */
+
+/** Header band with the single blue accent underline (was `.inv-head`). */
+export const PINV_HEAD =
+  'flex items-center justify-between gap-4 border-b-2 border-[#1a73e8] px-2 pb-4 pt-1';
+export const PINV_ID = 'flex items-center gap-3';
+/** Platform ⚓ mark in a solid blue tile (paper-safe, prints in colour). */
+export const PINV_LOGO =
+  'grid h-11 w-11 flex-none place-items-center rounded-[11px] bg-[#1a73e8] text-[18px] text-white';
+/** HaorBoat wordmark (blue "Boat"). */
+export const PINV_NAME = 'text-[18px] font-extrabold tracking-[-0.02em] text-[#111]';
+export const PINV_NAME_ACCENT = 'text-[#1a73e8]';
+/** Platform contact line under the wordmark. */
+export const PINV_CONTACT = 'mt-0.5 text-[10.5px] leading-[1.5] text-[#667085]';
+export const PINV_TAG =
+  'mt-px text-[11px] font-semibold uppercase tracking-[0.18em] text-[#667085]';
+/** Short-id mono caption under a party name (vendor/account id). */
+export const PINV_ID_CAPTION =
+  'mt-0.5 font-mono text-[10.5px] uppercase tracking-[0.04em] text-[#98a2b3]';
+export const PINV_BAND_META = 'text-right text-[12px] leading-[1.5] text-[#475467]';
+export const PINV_NO = 'text-[14px] font-bold tracking-[0.04em] text-[#111]';
+/** Parties row: "Paid to" vendor + bank on the left, status/meta on the right. */
+export const PINV_PARTIES =
+  'flex justify-between gap-6 px-2 pb-5 pt-[18px] [&_h5]:m-0 [&_h5]:mb-1.5 [&_h5]:text-[10.5px] [&_h5]:font-bold [&_h5]:uppercase [&_h5]:tracking-[0.1em] [&_h5]:text-[#667085] [&_strong]:block [&_strong]:text-[14px] [&_strong]:text-[#111] [&>div>div]:mt-0.5 [&>div>div]:text-[#475467]';
+export const PINV_META = 'text-right';
+/** Status chip base + tones (from batch status). */
+export const PINV_STATUS =
+  'mb-2 inline-block rounded-full border border-current px-2.5 py-0.5 text-[11px] font-bold tracking-[0.03em]';
+export const PINV_STATUS_TONE: Record<'paid' | 'pending', string> = {
+  paid: 'text-[#12925a]',
+  pending: 'text-[#b7791f]',
+};
+/** Line-item table (was `.inv-items` + th/td). */
+export const PINV_ITEMS =
+  'mt-0.5 w-full border-collapse ' +
+  '[&_th]:border-y [&_th]:border-[#e4e7ec] [&_th]:px-2 [&_th]:py-[9px] [&_th]:text-left [&_th]:text-[10.5px] [&_th]:font-bold [&_th]:uppercase [&_th]:tracking-[0.08em] [&_th]:text-[#667085] ' +
+  '[&_td]:border-b [&_td]:border-[#eef1f4] [&_td]:px-2 [&_td]:py-3 [&_td]:align-top [&_td]:text-[#111] ' +
+  '[&_th.num]:text-right [&_td.num]:text-right';
+export const PINV_SUB = 'mt-[3px] text-[11px] text-[#667085]';
+/** Totals box (was `.inv-totals` + rows/grand). */
+export const PINV_TOTALS =
+  'ml-auto mr-2 mt-[18px] max-w-[300px] overflow-hidden rounded-lg border border-[#e4e7ec]';
+export const PINV_ROW =
+  'flex justify-between gap-4 px-3.5 py-[9px] text-[13px] [&>span:first-child]:text-[#475467] [&>span:last-child]:text-[#111]';
+export const PINV_GRAND =
+  'border-t border-[#e4e7ec] text-[15px] font-extrabold text-[#1a73e8] [&>span:first-child]:!text-[#1a73e8] [&>span:last-child]:!text-[#1a73e8]';
+export const PINV_FOOT =
+  'mx-2 mt-6 flex items-center justify-between gap-3 border-t border-[#eef1f4] pt-3.5 text-[11.5px] text-[#667085]';
+export const PINV_PLAT = 'whitespace-nowrap font-semibold tracking-[0.04em]';
 
 /* ---------- invoice breakdown rows (was .bd) ---------- */
 

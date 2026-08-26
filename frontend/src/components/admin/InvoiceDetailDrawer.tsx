@@ -190,6 +190,8 @@ export function InvoiceDetailDrawer({
               <dd className={KV_DD}>{shortId(inv.booking.id, 'BK')}</dd>
               <dt className={KV_DT}>Departure</dt>
               <dd className={KV_DD}>{formatDate(inv.booking.departure.startDate)}</dd>
+              <dt className={KV_DT}>Duration</dt>
+              <dd className={KV_DD}>{inv.booking.departure.package.durationLabel ?? '—'}</dd>
             </dl>
           </div>
 

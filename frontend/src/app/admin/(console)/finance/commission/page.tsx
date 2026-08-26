@@ -11,7 +11,7 @@ import {
   Note,
 } from '@/components/admin/ui';
 import { StatRow } from '@/components/admin/StatCard';
-import { TD_NUM, TD_T1, UNIT } from '@/components/admin/styles';
+import { TD_NUM, TD_T1, TH_NUM, UNIT } from '@/components/admin/styles';
 import { formatBDT } from '@/lib/admin/money';
 
 interface Analytics {
@@ -85,9 +85,9 @@ export default function Commission() {
                 <thead>
                   <tr>
                     <th>Boat</th>
-                    <th className={TD_NUM}>Invoices</th>
-                    <th className={TD_NUM}>GMV</th>
-                    <th className={TD_NUM}>Commission</th>
+                    <th className={TH_NUM}>Invoices</th>
+                    <th className={TH_NUM}>GMV</th>
+                    <th className={TH_NUM}>Commission</th>
                   </tr>
                 </thead>
                 <tbody>

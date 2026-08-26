@@ -139,6 +139,17 @@ export class MoneyController {
     return this.payouts.listForBoat(houseboatId);
   }
 
+  /**
+   * Invoices approved for payout but not yet paid, owner-readable. Same
+   * read-only guard — the owner sees money that is confirmed and coming, they
+   * don't approve or move it (that stays platform-only above).
+   */
+  @Get('houseboats/:houseboatId/approved-payouts')
+  @RequirePermission({ module: 'payouts', action: 'view' })
+  listApprovedPayouts(@Param('houseboatId') houseboatId: string) {
+    return this.payouts.listApprovedForBoat(houseboatId);
+  }
+
   @PlatformOnly()
   @Post('houseboats/:houseboatId/payout-batches')
   prepareBatch(
@@ -252,6 +263,23 @@ export class MoneyController {
   @RequirePermission({ module: 'billing', action: 'view', allowWhenLocked: true })
   ownerSubscriptionInvoices(@Param('houseboatId') houseboatId: string) {
     return this.finance.listSubscriptionInvoices(houseboatId);
+  }
+
+  /** Owner pays their own bill. allowWhenLocked so a locked owner can settle to
+   *  unlock. No real gateway yet — this just marks the bill paid. */
+  @Post('houseboats/:houseboatId/subscription-invoices/:invoiceId/pay')
+  @RequirePermission({
+    module: 'billing',
+    action: 'view',
+    anyOf: ['settings'],
+    allowWhenLocked: true,
+  })
+  ownerPaySubscription(
+    @Param('houseboatId') houseboatId: string,
+    @Param('invoiceId') invoiceId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.finance.payOwnSubscriptionInvoice(houseboatId, invoiceId, user.id);
   }
 
   @PlatformOnly()

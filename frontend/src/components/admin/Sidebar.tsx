@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import useSWR from 'swr';
 import { fetcher } from '@/lib/api';
 import { NAV } from '@/lib/admin/nav';
+import type { NavItem } from '@/lib/admin/nav';
 
 interface Overview {
   pendingBoats: number;
@@ -37,6 +38,46 @@ export function Sidebar({ open }: { open: boolean }) {
         }
       : {};
 
+  // One nav link. Shared by flat groups and subgrouped ones (Finance) so
+  // active-state, badges and icon rendering stay identical across both.
+  const renderItem = (it: NavItem) => {
+    const active = pathname === it.href || pathname.startsWith(it.href + '/');
+    const badge = badges[it.key];
+    return (
+      <Link
+        key={it.key}
+        href={it.href}
+        className={`relative flex items-center gap-[11px] rounded px-3 py-2 text-[13.5px] transition-[background,color] duration-dur ease-ease ${
+          active
+            ? "font-semibold bg-[color-mix(in_srgb,var(--blue)_10%,transparent)] text-blue before:absolute before:-left-3 before:top-1/2 before:h-5 before:w-[3px] before:-translate-y-1/2 before:rounded-[0_3px_3px_0] before:bg-blue before:content-['']"
+            : 'font-medium text-bodytext hover:bg-hover hover:text-ink'
+        }`}
+      >
+        <span
+          className={`grid h-5 w-5 flex-none place-items-center text-[14px] ${
+            active ? 'opacity-100' : 'opacity-[0.72] grayscale-[0.35]'
+          }`}
+        >
+          {it.icon}
+        </span>{' '}
+        {it.label}
+        {badge && badge.count > 0 ? (
+          <span
+            className={`ml-auto rounded-full px-2 py-px text-[11px] font-bold tabular-nums ${
+              badge.warn
+                ? 'bg-[color-mix(in_srgb,var(--amber)_20%,transparent)] text-amber-700 dark:text-amber'
+                : active
+                  ? 'bg-[color-mix(in_srgb,var(--blue)_18%,transparent)] text-blue'
+                  : 'bg-chip text-bodytext'
+            }`}
+          >
+            {badge.count}
+          </span>
+        ) : null}
+      </Link>
+    );
+  };
+
   return (
     <aside
       id="sidebar"
@@ -59,43 +100,16 @@ export function Sidebar({ open }: { open: boolean }) {
             <div className="mb-[7px] mt-[18px] px-3 text-[10px] font-bold uppercase tracking-[0.11em] text-muted">
               {grp.group}
             </div>
-            {grp.items.map((it) => {
-              const active = pathname === it.href || pathname.startsWith(it.href + '/');
-              const badge = badges[it.key];
-              return (
-                <Link
-                  key={it.key}
-                  href={it.href}
-                  className={`relative flex items-center gap-[11px] rounded px-3 py-2 text-[13.5px] transition-[background,color] duration-dur ease-ease ${
-                    active
-                      ? "font-semibold bg-[color-mix(in_srgb,var(--blue)_10%,transparent)] text-blue before:absolute before:-left-3 before:top-1/2 before:h-5 before:w-[3px] before:-translate-y-1/2 before:rounded-[0_3px_3px_0] before:bg-blue before:content-['']"
-                      : 'font-medium text-bodytext hover:bg-hover hover:text-ink'
-                  }`}
-                >
-                  <span
-                    className={`grid h-5 w-5 flex-none place-items-center text-[14px] ${
-                      active ? 'opacity-100' : 'opacity-[0.72] grayscale-[0.35]'
-                    }`}
-                  >
-                    {it.icon}
-                  </span>{' '}
-                  {it.label}
-                  {badge && badge.count > 0 ? (
-                    <span
-                      className={`ml-auto rounded-full px-2 py-px text-[11px] font-bold tabular-nums ${
-                        badge.warn
-                          ? 'bg-[color-mix(in_srgb,var(--amber)_20%,transparent)] text-amber-700 dark:text-amber'
-                          : active
-                            ? 'bg-[color-mix(in_srgb,var(--blue)_18%,transparent)] text-blue'
-                            : 'bg-chip text-bodytext'
-                      }`}
-                    >
-                      {badge.count}
-                    </span>
-                  ) : null}
-                </Link>
-              );
-            })}
+            {grp.subgroups
+              ? grp.subgroups.map((sub) => (
+                  <div key={sub.subgroup}>
+                    <div className="mb-[3px] mt-2.5 flex items-center gap-2 px-3 text-[9.5px] font-semibold uppercase tracking-[0.09em] text-muted/80 before:h-px before:w-2.5 before:bg-hair before:content-['']">
+                      {sub.subgroup}
+                    </div>
+                    {sub.items.map(renderItem)}
+                  </div>
+                ))
+              : grp.items?.map(renderItem)}
           </div>
         ))}
       </nav>

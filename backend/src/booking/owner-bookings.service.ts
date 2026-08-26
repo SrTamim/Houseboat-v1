@@ -46,7 +46,14 @@ export class OwnerBookingsService {
       ...cursorArgs(query),
       where: {
         departure: { package: { houseboatId } },
-        ...(query.status ? { status: query.status } : {}),
+        ...(query.status?.length
+          ? {
+              status:
+                query.status.length === 1
+                  ? query.status[0]
+                  : { in: query.status },
+            }
+          : {}),
         ...(query.departureId ? { departureId: query.departureId } : {}),
         ...(query.from || query.to
           ? {

@@ -6,7 +6,33 @@ import { Drawer } from './Drawer';
 import { ErrorState } from './ui';
 import { formatBDT } from '@/lib/admin/money';
 import { shortId } from '@/lib/admin/invoices';
-import { BTN_B, BTN_O, DSEC, DSEC_H4, KV, KV_DD, KV_DT, MINI, MINI_TD, MINI_TD_T1, MINI_TH, TD_T2, UNIT } from './styles';
+import { PLATFORM } from '@/lib/customer/platform';
+import {
+  BTN_B,
+  BTN_O,
+  PINV_BAND_META,
+  PINV_CONTACT,
+  PINV_FOOT,
+  PINV_GRAND,
+  PINV_HEAD,
+  PINV_ID,
+  PINV_ID_CAPTION,
+  PINV_ITEMS,
+  PINV_LOGO,
+  PINV_META,
+  PINV_NAME,
+  PINV_NAME_ACCENT,
+  PINV_NO,
+  PINV_PARTIES,
+  PINV_PLAT,
+  PINV_ROW,
+  PINV_STATUS,
+  PINV_STATUS_TONE,
+  PINV_TAG,
+  PINV_TOTALS,
+  TD_T2,
+  UNIT,
+} from './styles';
 
 interface Receipt {
   id: string;
@@ -83,73 +109,108 @@ export function PayoutReceiptDrawer({
       ) : isLoading || !r ? (
         <p className={`p-4 ${TD_T2}`}>Loading receipt…</p>
       ) : (
-        // The printable sheet: everything else on the page is hidden by the
-        // `.admin-scope .admin-print-root` @media print rule in globals.css.
-        <div className="admin-print-root">
-          <div className="mb-5 flex items-start justify-between gap-4">
-            <div>
-              <h2 className="text-[20px] font-bold">Payout receipt</h2>
-              <p className={TD_T2}>Houseboat platform — vendor payment record</p>
+        // The printable sheet. The drawer `<aside>` carries `admin-print-root`,
+        // so the @media print rule in globals.css reveals only this branch.
+        // The white card makes the fixed-hex text readable on the dark drawer;
+        // print drops the card. `[print-color-adjust:exact]` keeps blue on paper.
+        <div className="rounded-lg bg-white p-6 text-[#111] [print-color-adjust:exact] print:rounded-none print:bg-transparent print:p-0">
+          <div className={PINV_HEAD}>
+            <div className={PINV_ID}>
+              <span className={PINV_LOGO}>{PLATFORM.mark}</span>
+              <div>
+                <div className={PINV_NAME}>
+                  Haor<span className={PINV_NAME_ACCENT}>Boat</span>
+                </div>
+                <div className={PINV_CONTACT}>
+                  {PLATFORM.address}
+                  <br />
+                  {PLATFORM.email} · {PLATFORM.site}
+                </div>
+              </div>
             </div>
-            <div className="text-right">
-              <div className="font-semibold">{shortId(r.id, 'PR')}</div>
-              <div className={TD_T2}>{formatDate(r.paidAt)}</div>
+            <div className={PINV_BAND_META}>
+              <div className={PINV_TAG}>Vendor payout receipt</div>
+              <div className={PINV_NO}>{shortId(r.id, 'PR')}</div>
+              <div>Issued {formatDate(r.paidAt)}</div>
             </div>
           </div>
 
-          <div className={DSEC}>
-            <h4 className={DSEC_H4}>Vendor</h4>
-            <dl className={KV}>
-              <dt className={KV_DT}>Boat</dt>
-              <dd className={KV_DD}>{r.houseboat.name}</dd>
+          <div className={PINV_PARTIES}>
+            <div>
+              <h5>From</h5>
+              <strong>{PLATFORM.legalName}</strong>
+              <div>Paid by {r.paidByAccount?.name ?? '—'}</div>
+              {r.paidByAccount ? (
+                <div className={PINV_ID_CAPTION}>{shortId(r.paidByAccount.id, 'ACC')}</div>
+              ) : null}
+            </div>
+            <div className={PINV_META}>
+              <span
+                className={`${PINV_STATUS} ${
+                  r.status === 'paid' ? PINV_STATUS_TONE.paid : PINV_STATUS_TONE.pending
+                }`}
+              >
+                {r.status === 'paid' ? 'Paid' : humanizeStatus(r.status)}
+              </span>
+              <h5>To vendor</h5>
+              <strong>{r.houseboat.name}</strong>
+              <div className={PINV_ID_CAPTION}>{shortId(r.houseboat.id, 'BOAT')}</div>
               {r.bankSnapshot
                 ? bankLines(r.bankSnapshot).map(([label, value]) => (
-                    <FragmentRow key={label} label={label} value={value} />
+                    <div key={label}>
+                      {label}: {value}
+                    </div>
                   ))
                 : null}
-            </dl>
+              <div>Paid on {formatDate(r.paidAt)}</div>
+            </div>
           </div>
 
-          <div className={DSEC}>
-            <h4 className={DSEC_H4}>Invoices paid</h4>
-            <table className={MINI}>
-              <thead>
-                <tr>
-                  <th className={MINI_TH}>Invoice</th>
-                  <th className={MINI_TH}>Customer</th>
-                  <th className={MINI_TH}>Trip</th>
-                  <th className={MINI_TH}>Paid to boat</th>
+          <table className={PINV_ITEMS}>
+            <thead>
+              <tr>
+                <th>Invoice</th>
+                <th>Customer</th>
+                <th>Trip</th>
+                <th className="num">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {r.invoices.map((inv) => (
+                <tr key={inv.id}>
+                  <td>{shortId(inv.id, 'INV')}</td>
+                  <td>{inv.customer.name ?? inv.customer.phone}</td>
+                  <td>{formatDate(inv.booking.departure.startDate)}</td>
+                  <td className="num">
+                    <span className={UNIT}>৳</span> {formatBDT(inv.dueToBoat)}
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {r.invoices.map((inv) => (
-                  <tr key={inv.id}>
-                    <td className={`${MINI_TD} ${MINI_TD_T1}`}>{shortId(inv.id, 'INV')}</td>
-                    <td className={MINI_TD}>{inv.customer.name ?? inv.customer.phone}</td>
-                    <td className={MINI_TD}>{formatDate(inv.booking.departure.startDate)}</td>
-                    <td className={MINI_TD}>
-                      <span className={UNIT}>৳</span> {formatBDT(inv.dueToBoat)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+              ))}
+            </tbody>
+          </table>
+
+          <div className={PINV_TOTALS}>
+            <div className={PINV_ROW}>
+              <span>Invoices</span>
+              <span>{r.invoices.length}</span>
+            </div>
+            <div className={`${PINV_ROW} ${PINV_GRAND}`}>
+              <span>Total paid to vendor</span>
+              <span>
+                <span className={UNIT}>৳</span> {formatBDT(r.totalAmount)}
+              </span>
+            </div>
           </div>
 
-          <div className={DSEC}>
-            <h4 className={DSEC_H4}>Total</h4>
-            <dl className={KV}>
-              <dt className={KV_DT}>Invoices</dt>
-              <dd className={KV_DD}>{r.invoices.length}</dd>
-              <dt className={KV_DT}>Total paid to vendor</dt>
-              <dd className={KV_DD}>
-                <span className={UNIT}>৳</span> {formatBDT(r.totalAmount)}
-              </dd>
-              <dt className={KV_DT}>Paid by</dt>
-              <dd className={KV_DD}>{r.paidByAccount?.name ?? '—'}</dd>
-              <dt className={KV_DT}>Paid on</dt>
-              <dd className={KV_DD}>{formatDate(r.paidAt)}</dd>
-            </dl>
+          <div className={PINV_FOOT}>
+            <span>
+              {PLATFORM.legalName} · {PLATFORM.address}
+              <br />
+              {PLATFORM.email} · {PLATFORM.site}
+            </span>
+            <span className={PINV_PLAT}>
+              {PLATFORM.mark} {PLATFORM.name}
+            </span>
           </div>
         </div>
       )}
@@ -157,11 +218,7 @@ export function PayoutReceiptDrawer({
   );
 }
 
-function FragmentRow({ label, value }: { label: string; value: string }) {
-  return (
-    <>
-      <dt className={KV_DT}>{label}</dt>
-      <dd className={KV_DD}>{value}</dd>
-    </>
-  );
+/** Title-case a batch status like `pending` → `Pending`. */
+function humanizeStatus(status: string) {
+  return status.replace(/[_-]/g, ' ').replace(/^./, (c) => c.toUpperCase());
 }

@@ -2557,6 +2557,7 @@
             "name": "status",
             "required": false,
             "in": "query",
+            "description": "One booking status, or a comma-separated list (e.g. `confirmed,completed`).\nThe departure manifest passes both so a trip's guests stay visible after the\ncompletion cron relabels their bookings `confirmed → completed`. Normalized\nto a string[]; the service maps a single value to `status:` and many to\n`status: { in: [...] }`.",
             "schema": {
               "enum": [
                 "confirmed",
@@ -3203,6 +3204,30 @@
         ]
       }
     },
+    "/api/houseboats/{houseboatId}/approved-payouts": {
+      "get": {
+        "operationId": "MoneyController_listApprovedPayouts",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Invoices approved for payout but not yet paid, owner-readable. Same\nread-only guard — the owner sees money that is confirmed and coming, they\ndon't approve or move it (that stays platform-only above).",
+        "tags": [
+          "Money"
+        ]
+      }
+    },
     "/api/payout-batches/{batchId}/approve": {
       "post": {
         "operationId": "MoneyController_approveBatch",
@@ -3533,6 +3558,38 @@
           }
         },
         "summary": "Owner-visible list of their subscription invoices (to see what to pay).\n Accessible even when locked.",
+        "tags": [
+          "Money"
+        ]
+      }
+    },
+    "/api/houseboats/{houseboatId}/subscription-invoices/{invoiceId}/pay": {
+      "post": {
+        "operationId": "MoneyController_ownerPaySubscription",
+        "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "invoiceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Owner pays their own bill. allowWhenLocked so a locked owner can settle to\n unlock. No real gateway yet — this just marks the bill paid.",
         "tags": [
           "Money"
         ]
@@ -4878,6 +4935,16 @@
             }
           },
           {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Free-text: matches customer name / phone, boat name, or a booking id prefix.",
+            "schema": {
+              "maxLength": 100,
+              "type": "string"
+            }
+          },
+          {
             "name": "limit",
             "required": false,
             "in": "query",
@@ -5211,6 +5278,16 @@
             }
           },
           {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Free-text: matches customer name / phone, boat name, or a booking id prefix.",
+            "schema": {
+              "maxLength": 100,
+              "type": "string"
+            }
+          },
+          {
             "name": "limit",
             "required": false,
             "in": "query",
@@ -5395,7 +5472,8 @@
               "enum": [
                 "issued",
                 "paid",
-                "overdue"
+                "overdue",
+                "trial"
               ],
               "type": "string"
             }
@@ -5405,6 +5483,16 @@
             "required": false,
             "in": "query",
             "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Free-text: matches boat name or billing period.",
+            "schema": {
+              "maxLength": 100,
               "type": "string"
             }
           },
@@ -5509,6 +5597,29 @@
             "required": false,
             "in": "query",
             "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Free-text: matches coupon code or boat name.",
+            "schema": {
+              "maxLength": 100,
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "percent",
+                "flat",
+                "referral"
+              ],
               "type": "string"
             }
           },
@@ -5887,6 +5998,16 @@
                 "active",
                 "exited"
               ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Free-text: matches member name / phone, or boat name.",
+            "schema": {
+              "maxLength": 100,
               "type": "string"
             }
           },

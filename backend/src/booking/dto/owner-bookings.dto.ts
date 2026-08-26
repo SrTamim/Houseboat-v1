@@ -13,7 +13,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { LEN_CODE, LEN_NAME, LEN_TEXT } from '../../common/field-limits';
 import { PageQueryDto } from '../../common/dto/pagination.dto';
 
@@ -37,7 +37,23 @@ export class CheckinDto {
 }
 
 export class OwnerBookingsQueryDto extends PageQueryDto {
-  @IsOptional() @IsIn(BOOKING_STATUSES) status?: string;
+  /**
+   * One booking status, or a comma-separated list (e.g. `confirmed,completed`).
+   * The departure manifest passes both so a trip's guests stay visible after the
+   * completion cron relabels their bookings `confirmed → completed`. Normalized
+   * to a string[]; the service maps a single value to `status:` and many to
+   * `status: { in: [...] }`.
+   */
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string'
+      ? value.split(',').map((s) => s.trim()).filter(Boolean)
+      : value,
+  )
+  @IsArray()
+  @IsIn(BOOKING_STATUSES, { each: true })
+  @ArrayMaxSize(BOOKING_STATUSES.length)
+  status?: string[];
   /** Guest name or phone. */
   @IsOptional() @IsString() @MaxLength(LEN_NAME) q?: string;
   @IsOptional() @IsString() @MaxLength(LEN_CODE) departureId?: string;

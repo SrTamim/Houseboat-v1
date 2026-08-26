@@ -42,11 +42,11 @@ export function Drawer({
       {/* Panel (was `.drawer` / `.drawer.wide` / `.drawer.open`). In print it
           becomes static full-width so the open drawer prints as the invoice. */}
       <aside
-        className={`fixed right-0 top-0 z-[81] flex h-screen translate-x-0 flex-col border-l border-hair bg-raise-1 shadow-e3 ${
+        className={`admin-print-root fixed right-0 top-0 z-[81] flex h-screen translate-x-0 flex-col border-l border-hair bg-raise-1 shadow-e3 ${
           wide ? 'w-[min(780px,96vw)]' : 'w-[min(480px,95vw)]'
-        } print:static print:h-auto print:w-full print:border-none print:shadow-none`}
+        } print:static print:h-auto print:w-auto print:max-w-none print:translate-x-0 print:border-none print:shadow-none`}
       >
-        <div className="flex items-center justify-between border-b border-hair-2 px-[22px] py-[18px]">
+        <div className="flex items-center justify-between border-b border-hair-2 px-[22px] py-[18px] print:hidden">
           <h3 className="text-[16px] font-semibold">{title}</h3>
           <button
             onClick={onClose}

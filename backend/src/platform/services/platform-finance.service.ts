@@ -86,6 +86,7 @@ export class PlatformFinanceService {
    * :houseboatId.
    */
   async listInvoices(query: ListInvoicesQueryDto): Promise<Page<{ id: string }>> {
+    const q = query.q?.trim();
     const rows = await this.prisma.invoice.findMany({
       ...cursorArgs(query),
       where: {
@@ -120,6 +121,18 @@ export class PlatformFinanceService {
                     ...this.fullyPaidCompleted(),
                   }
                 : {}),
+        // Free-text search (booking-invoice console only — the verify/payout
+        // pages never send `q`). ANDs with the status/branch predicate above.
+        // Booking id is a UUID (no prefix search), so match customer + boat.
+        ...(q
+          ? {
+              OR: [
+                { customer: { name: { contains: q, mode: 'insensitive' } } },
+                { customer: { phone: { contains: q } } },
+                { houseboat: { name: { contains: q, mode: 'insensitive' } } },
+              ],
+            }
+          : {}),
         houseboatId: query.houseboatId ?? undefined,
       },
       select: {
@@ -140,6 +153,7 @@ export class PlatformFinanceService {
             channel: true,
             createdAt: true,
             departure: { select: { startDate: true } },
+            cabins: { select: { id: true } },
           },
         },
         payments: {
@@ -147,7 +161,13 @@ export class PlatformFinanceService {
         },
       },
     });
-    return toPage(rows, query);
+    // Flatten the cabins array into a count — the table shows a per-booking
+    // cabin count, mirroring platform-ops.service.ts listBookings.
+    const shaped = rows.map(({ booking, ...r }) => {
+      const { cabins, ...bk } = booking;
+      return { ...r, booking: bk, cabinCount: cabins.length };
+    });
+    return toPage(shaped, query);
   }
 
   /**
@@ -692,17 +712,25 @@ export class PlatformFinanceService {
   async listSubscriptionInvoices(
     query: ListSubscriptionInvoicesQueryDto,
   ): Promise<Page<{ id: string }>> {
+    const q = query.q?.trim();
     const rows = await this.prisma.houseboatSubscriptionInvoice.findMany({
       ...cursorArgs(query),
       where: {
         status: query.status ?? undefined,
         houseboatId: query.houseboatId ?? undefined,
+        ...(q
+          ? {
+              OR: [
+                { houseboat: { name: { contains: q, mode: 'insensitive' } } },
+                { period: { contains: q, mode: 'insensitive' } },
+              ],
+            }
+          : {}),
       },
       select: {
         id: true,
         period: true,
         monthlyFee: true,
-        commissionTotal: true,
         amountDue: true,
         status: true,
         issuedAt: true,
@@ -822,9 +850,21 @@ export class PlatformFinanceService {
   }
 
   async listCoupons(query: ListCouponsQueryDto): Promise<Page<{ id: string }>> {
+    const q = query.q?.trim();
     const rows = await this.prisma.coupon.findMany({
       ...cursorArgs(query),
-      where: { houseboatId: query.houseboatId ?? undefined },
+      where: {
+        houseboatId: query.houseboatId ?? undefined,
+        kind: query.kind ?? undefined,
+        ...(q
+          ? {
+              OR: [
+                { code: { contains: q, mode: 'insensitive' } },
+                { houseboat: { name: { contains: q, mode: 'insensitive' } } },
+              ],
+            }
+          : {}),
+      },
       select: {
         id: true,
         code: true,

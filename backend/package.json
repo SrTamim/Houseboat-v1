@@ -19,6 +19,7 @@
     "prisma:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
+    "db:backfill-invoices": "tsx scripts/backfill-subscription-invoices.ts",
     "db:migrate-role-pages": "tsx prisma/migrate-role-pages.ts",
     "openapi:export": "tsx scripts/export-openapi.ts",
     "openapi": "pnpm build && pnpm openapi:export"

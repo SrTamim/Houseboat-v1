@@ -8,9 +8,16 @@ export type NavItem = {
   href: string;
 };
 
+export type NavSubgroup = {
+  subgroup: string;
+  items: NavItem[];
+};
+
 export type NavGroup = {
   group: string;
-  items: NavItem[];
+  // Flat groups carry `items`; grouped ones (Finance) carry `subgroups`.
+  items?: NavItem[];
+  subgroups?: NavSubgroup[];
 };
 
 export const NAV: NavGroup[] = [
@@ -35,18 +42,34 @@ export const NAV: NavGroup[] = [
   },
   {
     group: 'Finance',
-    items: [
-      { key: 'verify', icon: '✓', label: 'Verify', href: '/admin/finance/verify' },
-      { key: 'refunds', icon: '↩', label: 'Refunds', href: '/admin/finance/refunds' },
-      { key: 'payouts', icon: '💸', label: 'Payouts', href: '/admin/finance/payouts' },
-      { key: 'pay-to-vendors', icon: '🏦', label: 'Pay to Vendors', href: '/admin/finance/pay-to-vendors' },
-      { key: 'overpayments', icon: '⚖', label: 'Overpayments', href: '/admin/finance/overpayments' },
-      { key: 'credits', icon: '🎫', label: 'Credits', href: '/admin/finance/credits' },
-      { key: 'cashouts', icon: '🏧', label: 'Cash-outs', href: '/admin/finance/cashouts' },
-      { key: 'commission', icon: '%', label: 'Commission', href: '/admin/finance/commission' },
-      { key: 'billing', icon: '🧾', label: 'Subscriptions', href: '/admin/billing' },
-      { key: 'billing-config', icon: '⚙', label: 'Billing config', href: '/admin/billing-config' },
-      { key: 'debtors', icon: '🔻', label: 'Debtors', href: '/admin/debtors' },
+    subgroups: [
+      {
+        subgroup: 'Vendor',
+        items: [
+          { key: 'booking-invoice', icon: '📋', label: 'Booking Invoice', href: '/admin/finance/booking-invoice' },
+          { key: 'verify', icon: '✓', label: 'Verify', href: '/admin/finance/verify' },
+          { key: 'payouts', icon: '💸', label: 'Payouts', href: '/admin/finance/payouts' },
+          { key: 'pay-to-vendors', icon: '🏦', label: 'Pay to Vendors', href: '/admin/finance/pay-to-vendors' },
+          { key: 'commission', icon: '%', label: 'Commission', href: '/admin/finance/commission' },
+          { key: 'billing', icon: '🧾', label: 'Subscriptions', href: '/admin/billing' },
+        ],
+      },
+      {
+        subgroup: 'Customer',
+        items: [
+          { key: 'refunds', icon: '↩', label: 'Refunds', href: '/admin/finance/refunds' },
+          { key: 'credits', icon: '🎫', label: 'Credits', href: '/admin/finance/credits' },
+          { key: 'cashouts', icon: '🏧', label: 'Cash-outs', href: '/admin/finance/cashouts' },
+        ],
+      },
+      {
+        subgroup: 'Other',
+        items: [
+          { key: 'overpayments', icon: '⚖', label: 'Overpayments', href: '/admin/finance/overpayments' },
+          { key: 'billing-config', icon: '⚙', label: 'Billing config', href: '/admin/billing-config' },
+          { key: 'debtors', icon: '🔻', label: 'Debtors', href: '/admin/debtors' },
+        ],
+      },
     ],
   },
   {
@@ -56,16 +79,13 @@ export const NAV: NavGroup[] = [
       { key: 'audit', icon: '📜', label: 'Audit log', href: '/admin/audit' },
       { key: 'notifications', icon: '🔔', label: 'Notifications', href: '/admin/notifications' },
       { key: 'gateway', icon: '💳', label: 'Gateway', href: '/admin/gateway' },
-      { key: 'settings', icon: '🛠', label: 'Settings', href: '/admin/settings' },
       { key: 'roles', icon: '🔑', label: 'Roles', href: '/admin/roles' },
     ],
   },
   {
     group: 'Disputes & risk',
     items: [
-      { key: 'disputes', icon: '⚑', label: 'Disputes', href: '/admin/disputes' },
       { key: 'coupons', icon: '🏷', label: 'Coupons', href: '/admin/coupons' },
-      { key: 'reschedules', icon: '🔁', label: 'Reschedules', href: '/admin/reschedules' },
     ],
   },
 ];

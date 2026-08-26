@@ -18,6 +18,12 @@ interface PayoutBatch {
   invoices: { id: string; bookingId: string; dueToBoat: string }[];
 }
 
+interface ApprovedInvoice {
+  id: string;
+  bookingId: string;
+  dueToBoat: string;
+}
+
 interface BoatProfile {
   bankAccount: Record<string, unknown> | null;
 }
@@ -40,6 +46,11 @@ export default function OwnerPayoutsPage() {
     fetcher,
     { revalidateOnFocus: false },
   );
+  const { data: approvedData } = useSWR<ApprovedInvoice[]>(
+    `/houseboats/${boatId}/approved-payouts`,
+    fetcher,
+    { revalidateOnFocus: false },
+  );
   const { data: boat } = useSWR<BoatProfile>(
     `/houseboats/${boatId}/manage`,
     fetcher,
@@ -47,9 +58,13 @@ export default function OwnerPayoutsPage() {
   );
 
   const batches = data ?? [];
-  const pending = batches.filter((b) => b.status !== 'paid');
   const lastPaid = batches.find((b) => b.status === 'paid');
-  const pendingTotal = pending.reduce((s, b) => s + Number(b.totalAmount), 0);
+
+  // Pending = money already approved for payout but not yet paid. These are
+  // invoices at status 'payout_approved' (not yet pulled into a paid batch), so
+  // they never appear in the batch history below — surface them on their own.
+  const approved = approvedData ?? [];
+  const pendingTotal = approved.reduce((s, i) => s + Number(i.dueToBoat), 0);
 
   // Bank account shape is bank-dependent, so read defensively for display.
   // Canonical key is accountNo; older/seed records used accountNumber (see
@@ -80,7 +95,9 @@ export default function OwnerPayoutsPage() {
           icon="💸"
           label="Pending"
           value={money(pendingTotal.toFixed(2))}
-          detail={`${pending.reduce((s, b) => s + b.invoiceCount, 0)} invoices in batch`}
+          detail={`${approved.length} ${
+            approved.length === 1 ? 'invoice' : 'invoices'
+          } approved, awaiting payment`}
         />
         <Kpi
           icon="📅"
@@ -104,6 +121,44 @@ export default function OwnerPayoutsPage() {
         </Note>
       ) : null}
 
+      <h3 className="mb-3 text-[15px] font-semibold text-ink">
+        Approved — awaiting payment
+      </h3>
+      <Card flush style={{ marginBottom: 20 }}>
+        <TableWrap minWidth={560}>
+          <thead>
+            <tr>
+              <th>Invoice</th>
+              <th>Booking</th>
+              <th className="num">Due to boat</th>
+            </tr>
+          </thead>
+          <tbody>
+            {approved.length === 0 ? (
+              <tr>
+                <td colSpan={3} className="px-6 py-8 text-center text-muted">
+                  <p className="mx-auto max-w-[52ch] text-[13px] leading-[1.55]">
+                    Nothing awaiting payment. Once finance approves a verified
+                    invoice for your boat, it shows here until the transfer runs.
+                  </p>
+                </td>
+              </tr>
+            ) : (
+              approved.map((i) => (
+                <tr key={i.id}>
+                  <td className="t1">{batchRef(i.id)}</td>
+                  <td className="t2">{batchRef(i.bookingId)}</td>
+                  <td className={`num${isNegative(i.dueToBoat) ? ' neg' : ''}`}>
+                    {money(i.dueToBoat)}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </TableWrap>
+      </Card>
+
+      <h3 className="mb-3 text-[15px] font-semibold text-ink">Payout history</h3>
       <Card flush>
         <TableWrap minWidth={820}>
           <thead>

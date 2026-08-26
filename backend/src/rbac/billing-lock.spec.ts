@@ -8,13 +8,23 @@ describe('RbacService.isBillingLocked — 14-day grace', () => {
   function serviceWithInvoice(issuedAt: Date | null) {
     const prisma = {
       houseboatSubscriptionInvoice: {
-        findFirst: jest.fn((args: { where: { issuedAt?: { lt: Date } } }) => {
-          // Emulate the query: return a row only if an unpaid invoice is older
-          // than the cutoff the service passes in.
-          if (issuedAt == null) return Promise.resolve(null);
-          const cutoff = args.where.issuedAt!.lt;
-          return Promise.resolve(issuedAt < cutoff ? { id: 'inv' } : null);
-        }),
+        findFirst: jest.fn(
+          (args: {
+            where: {
+              issuedAt?: { lt: Date };
+              status?: { notIn?: string[] };
+            };
+          }) => {
+            // A trial ($0) invoice must never lock: the query excludes it, so a
+            // boat whose only unpaid invoice is a trial finds no lock row.
+            expect(args.where.status?.notIn).toEqual(['paid', 'trial']);
+            // Emulate the query: return a row only if an unpaid invoice is older
+            // than the cutoff the service passes in.
+            if (issuedAt == null) return Promise.resolve(null);
+            const cutoff = args.where.issuedAt!.lt;
+            return Promise.resolve(issuedAt < cutoff ? { id: 'inv' } : null);
+          },
+        ),
       },
     };
     return new RbacService(prisma as never);

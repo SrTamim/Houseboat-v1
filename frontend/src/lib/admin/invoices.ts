@@ -21,6 +21,8 @@ export interface ApiInvoice {
   dueToBoat: string;
   commission: string;
   payoutBatchId: string | null;
+  /** Number of cabins on the booking. */
+  cabinCount: number;
   houseboat: { id: string; name: string; slug: string };
   customer: { id: string; name: string | null; phone: string };
   booking: {

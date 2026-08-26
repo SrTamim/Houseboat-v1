@@ -348,6 +348,64 @@ async function ensureBillingConfig(houseboatId: string) {
 }
 
 /**
+ * One-time backfill so no boat's billing page is empty: issue the current
+ * period's bill. Mirrors FinanceService.issueDueInvoiceForPeriod — trial-active
+ * boats get a $0 'trial' invoice, past-trial boats get monthly fee (+ any
+ * commission accrued that period). Idempotent: skips if the period is already
+ * invoiced. Runs against raw Prisma (seed has no Nest DI).
+ */
+async function ensureCurrentPeriodInvoice(houseboatId: string) {
+  const config = await prisma.houseboatBillingConfig.findFirst({
+    where: { houseboatId },
+  });
+  if (!config) return;
+
+  const now = new Date();
+  const period = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+
+  const existing = await prisma.houseboatSubscriptionInvoice.findFirst({
+    where: { houseboatId, period },
+  });
+  if (existing) return;
+
+  // End of this period (first day of next month − 1ms).
+  const periodEnd = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1) - 1,
+  );
+  const trialActive = config.trialEnds != null && config.trialEnds >= periodEnd;
+
+  if (trialActive) {
+    await prisma.houseboatSubscriptionInvoice.create({
+      data: {
+        id: id(),
+        houseboatId,
+        billingConfigId: config.id,
+        period,
+        monthlyFee: null,
+        amountDue: 0,
+        status: 'trial',
+      },
+    });
+    return;
+  }
+
+  // Past trial → monthly fee only (booking commission is withheld at booking).
+  const monthlyFee = config.monthlyFee ? Number(config.monthlyFee) : 0;
+
+  await prisma.houseboatSubscriptionInvoice.create({
+    data: {
+      id: id(),
+      houseboatId,
+      billingConfigId: config.id,
+      period,
+      monthlyFee: config.monthlyFee ?? undefined,
+      amountDue: monthlyFee,
+      status: 'issued',
+    },
+  });
+}
+
+/**
  * Demo operating data so the owner console isn't empty: package, pricing,
  * departures, maintenance, inventory, staff, costs, one cash booking.
  * Every block is guarded find-first so re-runs are no-ops.
@@ -1626,6 +1684,7 @@ async function main() {
   });
   await ensureOwnerMembership(jolKololId, owner.id);
   await ensureBillingConfig(jolKololId);
+  await ensureCurrentPeriodInvoice(jolKololId);
 
   // Haor Bilash — generic demo boat via the idempotent helpers.
   const haorBilashId = await ensureBoat({
@@ -1635,6 +1694,7 @@ async function main() {
   });
   await ensureOwnerMembership(haorBilashId, owner.id);
   await ensureBillingConfig(haorBilashId);
+  await ensureCurrentPeriodInvoice(haorBilashId);
   await ensureDemoData(haorBilashId, owner.id, 1);
 
   console.log(

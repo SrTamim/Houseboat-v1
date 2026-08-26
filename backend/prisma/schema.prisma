@@ -882,7 +882,6 @@ model HouseboatSubscriptionInvoice {
   billingConfigId String   @map("billing_config_id") @db.Uuid
   period          String
   monthlyFee      Decimal? @map("monthly_fee") @db.Decimal(12, 2)
-  commissionTotal Decimal? @map("commission_total") @db.Decimal(12, 2)
   amountDue       Decimal  @map("amount_due") @db.Decimal(12, 2)
   /// issued / paid / overdue
   status          String   @default("issued")

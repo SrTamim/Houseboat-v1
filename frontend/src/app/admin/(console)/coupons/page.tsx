@@ -11,13 +11,15 @@ import {
   EmptyState,
   ErrorState,
   Note,
+  Search,
+  Select,
 } from '@/components/admin/ui';
 import { Pill, Tag } from '@/components/admin/Pill';
 import { Drawer } from '@/components/admin/Drawer';
 import { useAdminList } from '@/lib/admin/useAdminList';
 import { formatBDT } from '@/lib/admin/money';
 import { apiErrorMessage } from '@/lib/admin/api-error';
-import { BTN_B, BTN_O, BTN_SM, FIELD, FIELD_INPUT, FIELD_LABEL, FORM_GRID, SELECT, STACK, TD_NUM, TD_T1, TD_T2, UNIT } from '@/components/admin/styles';
+import { BTN_B, BTN_O, BTN_SM, FIELD, FIELD_INPUT, FIELD_LABEL, FILTERBAR, FORM_GRID, SELECT, STACK, TD_NUM, TD_T1, TD_T2, TH_NUM, UNIT } from '@/components/admin/styles';
 
 interface CouponRow {
   id: string;
@@ -53,6 +55,20 @@ function validity(c: CouponRow): { label: string; tone: 'ok' | 'mut' | 'warn' } 
   return { label: 'active', tone: 'ok' };
 }
 
+const KIND_OPTIONS = [
+  { value: '', label: 'All kinds' },
+  { value: 'percent', label: 'Percent' },
+  { value: 'flat', label: 'Flat' },
+  { value: 'referral', label: 'Referral' },
+];
+
+const VALIDITY_OPTIONS = [
+  { value: '', label: 'All validity' },
+  { value: 'active', label: 'Active' },
+  { value: 'expired', label: 'Expired' },
+  { value: 'not started', label: 'Not started' },
+];
+
 const EMPTY_FORM = {
   boatId: '',
   code: '',
@@ -63,8 +79,21 @@ const EMPTY_FORM = {
 };
 
 export default function Coupons() {
+  const [query, setQuery] = useState('');
+  const [kind, setKind] = useState('');
+  const [validityFilter, setValidityFilter] = useState('');
   const { items, error, isInitialLoading, hasMore, loadMore, mutate } =
-    useAdminList<CouponRow>('/platform/finance/coupons', { limit: 25 });
+    useAdminList<CouponRow>('/platform/finance/coupons', {
+      q: query || undefined,
+      kind: kind || undefined,
+      limit: 25,
+    });
+
+  // Validity is derived from dates (not a DB column), so it's filtered on the
+  // client over the rows the backend already narrowed by search + kind.
+  const rows = validityFilter
+    ? items.filter((c) => validity(c).label === validityFilter)
+    : items;
   const boats = useSWR<ModerationBoat[]>('/platform/houseboats', fetcher, {
     revalidateOnFocus: false,
   });
@@ -124,13 +153,33 @@ export default function Coupons() {
           </button>
         }
       />
+      <div className={FILTERBAR}>
+        <Search
+          placeholder="Search code or boat…"
+          maxWidth={360}
+          value={query}
+          onChange={setQuery}
+        />
+        <Select options={KIND_OPTIONS} value={kind} onChange={setKind} />
+        <Select
+          options={VALIDITY_OPTIONS}
+          value={validityFilter}
+          onChange={setValidityFilter}
+        />
+      </div>
       <Card flush>
         {error ? (
           <ErrorState error={error} onRetry={() => mutate()} />
-        ) : !isInitialLoading && items.length === 0 ? (
+        ) : !isInitialLoading && rows.length === 0 ? (
           <EmptyState
-            title="No coupons yet"
-            desc="Create one with the button above, or boat owners can add their own."
+            title={
+              query || kind || validityFilter ? 'No coupons match' : 'No coupons yet'
+            }
+            desc={
+              query || kind || validityFilter
+                ? 'Try a different search or filter.'
+                : 'Create one with the button above, or boat owners can add their own.'
+            }
           />
         ) : (
           <>
@@ -140,8 +189,8 @@ export default function Coupons() {
                   <th>Code</th>
                   <th>Boat</th>
                   <th>Kind</th>
-                  <th className={TD_NUM}>Value</th>
-                  <th className={TD_NUM}>Uses</th>
+                  <th className={TH_NUM}>Value</th>
+                  <th className={TH_NUM}>Uses</th>
                   <th>Valid</th>
                   <th>Status</th>
                 </tr>
@@ -150,7 +199,7 @@ export default function Coupons() {
                 <TableSkeleton rows={4} cols={7} />
               ) : (
                 <tbody>
-                  {items.map((c) => {
+                  {rows.map((c) => {
                     const v = validity(c);
                     return (
                       <tr key={c.id}>
