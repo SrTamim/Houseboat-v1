@@ -58,23 +58,165 @@ export class NotificationsService implements OnModuleInit {
     }
   }
 
-  /** Send an SMS via the configured HTTP provider. No-op if unconfigured. */
+  /**
+   * Send an SMS via the configured HTTP provider. No-op if unconfigured.
+   *
+   * Matches the onecodesoft contract: a GET to /api/send-sms with the params in
+   * the query string (api_key, type=text, number, senderid, message). The
+   * recipient must be the 88-prefixed number (8801XXXXXXXXX) — an E.164 '+' or a
+   * bare local number gets the send rejected. Success is the body ErrorCode
+   * (0 or 202), which is authoritative over the HTTP status.
+   */
   private async sendSms(to: string, message: string): Promise<boolean> {
     const url = this.config.get<string>('notifications.smsApiUrl');
     const apiKey = this.config.get<string>('notifications.smsApiKey');
     const senderId = this.config.get<string>('notifications.smsSenderId');
     if (!url || !apiKey) return false;
+
+    // Recipient as 88-prefixed digits: strip '+'/spaces, then ensure the 88
+    // country code (both '+8801…' and a bare '01…' normalise to '8801…').
+    let number = to.replace(/\D/g, '');
+    if (!number.startsWith('88')) number = `88${number}`;
+
+    const params = new URLSearchParams({
+      api_key: apiKey,
+      type: 'text',
+      number,
+      senderid: senderId ?? '',
+      message,
+    });
+
     try {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ api_key: apiKey, senderid: senderId, to, message }),
+      const res = await fetch(`${url}?${params.toString()}`, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
       });
-      return res.ok;
+
+      // Read the body (guarded so a test mock without .text()/.json() still
+      // works) so a rejected send is diagnosable instead of a silent no-op.
+      let bodyText = '';
+      try {
+        bodyText = typeof res.text === 'function' ? await res.text() : '';
+      } catch {
+        /* body unreadable — fall through to the status check */
+      }
+
+      // The gateway's numeric code is authoritative over the HTTP status when
+      // present (0 = OK for sms-check, 202 = SUBMITTED for send). The field name
+      // varies by version, so probe candidates.
+      let code: number | undefined;
+      if (bodyText) {
+        try {
+          const parsed = JSON.parse(bodyText) as Record<string, unknown> & {
+            results?: { gateway?: { ErrorCode?: unknown } }[];
+          };
+          const raw =
+            parsed.results?.[0]?.gateway?.ErrorCode ??
+            (parsed.ErrorCode as unknown) ??
+            (parsed.response_code as unknown) ??
+            (parsed.error_code as unknown) ??
+            (parsed.code as unknown);
+          if (raw !== undefined && raw !== null) code = Number(raw);
+        } catch {
+          /* not JSON — fall back to HTTP status */
+        }
+      }
+
+      const httpOk = res.status === 200 || res.status === 202 || res.ok;
+      const success =
+        code !== undefined ? code === 0 || code === 202 : httpOk;
+
+      if (!success) {
+        this.logger.warn(
+          `SMS send failed [HTTP ${res.status}${code !== undefined ? `, code ${code}` : ''}]: ${bodyText}`,
+        );
+        return false;
+      }
+      return true;
     } catch (e) {
       this.logger.warn(`SMS send failed: ${(e as Error).message}`);
       return false;
     }
+  }
+
+  /**
+   * Send a one-off OTP SMS. Deliberately does NOT write a Notification row —
+   * the OTP is a short-lived secret and must never be persisted (unlike
+   * booking/payment notices, which record() for the delivery audit).
+   */
+  async sendOtpSms(phone: string, message: string): Promise<boolean> {
+    return this.sendSms(phone, message);
+  }
+
+  /**
+   * Current SMS provider balance, for the admin System & health page. Returns
+   * `{ configured: false }` when SMS is not set up (same early-out as sendSms).
+   *
+   * The balance endpoint is a DIFFERENT path from the send endpoint, and
+   * smsApiUrl is stored as the full send URL — so we use an explicit
+   * smsBalanceUrl if given, else derive `{origin}/api/get-balance` from it.
+   */
+  async getSmsBalance(): Promise<{
+    configured: boolean;
+    balance?: number | string;
+    raw?: unknown;
+  }> {
+    const apiKey = this.config.get<string>('notifications.smsApiKey');
+    const sendUrl = this.config.get<string>('notifications.smsApiUrl');
+    if (!apiKey || !sendUrl) return { configured: false };
+
+    let balanceUrl = this.config.get<string>('notifications.smsBalanceUrl');
+    if (!balanceUrl) {
+      try {
+        balanceUrl = `${new URL(sendUrl).origin}/api/get-balance`;
+      } catch {
+        return { configured: false };
+      }
+    }
+
+    try {
+      const u = new URL(balanceUrl);
+      u.searchParams.set('api_key', apiKey);
+      const res = await fetch(u.toString(), {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+      });
+      if (!res.ok) return { configured: true };
+      const raw: unknown = await res.json().catch(() => null);
+      const balance = this.pickBalance(raw);
+      return { configured: true, balance, raw };
+    } catch (e) {
+      this.logger.warn(`SMS balance check failed: ${(e as Error).message}`);
+      return { configured: true };
+    }
+  }
+
+  /** Best-effort extraction of a numeric balance from varied provider shapes. */
+  private pickBalance(raw: unknown): number | string | undefined {
+    if (raw == null) return undefined;
+    if (typeof raw === 'number' || typeof raw === 'string') return raw;
+    if (typeof raw === 'object') {
+      const o = raw as Record<string, unknown>;
+      const candidate =
+        o.balance ??
+        o.Balance ??
+        o.credit ??
+        o.Credit ??
+        o.amount ??
+        o.Amount ??
+        o.data ??
+        (o.Data as Record<string, unknown>);
+      if (typeof candidate === 'number' || typeof candidate === 'string') {
+        return candidate;
+      }
+      if (candidate && typeof candidate === 'object') {
+        const c = candidate as Record<string, unknown>;
+        const inner =
+          c.balance ?? c.Balance ?? c.credit ?? c.Credit ?? c.amount ?? c.Amount;
+        if (typeof inner === 'number' || typeof inner === 'string') return inner;
+      }
+    }
+    return undefined;
   }
 
   /** Send an email via SMTP. No-op if unconfigured. */
@@ -206,11 +348,48 @@ export class NotificationsService implements OnModuleInit {
     boatName: string;
     departureDate: Date;
     displayTotal: string;
+    /** Operator (boat) name — shown on the SMS confirmation. Falls back to boatName. */
+    operator?: string;
+    route?: string;
+    /** Departure ghat / boarding location (TripPackage.departureGhat). */
+    boarding?: string;
+    /** Comma-joined cabin names on this booking. */
+    cabin?: string;
+    /** Departure time as HH:mm (from the @db.Time field), if set. */
+    departureTimeStr?: string;
+    /** Whole-taka display amounts (no decimals). */
+    displayPaid?: string;
+    displayDue?: string;
   }): Promise<void> {
     const dateStr = params.departureDate.toISOString().slice(0, 10);
-    const smsText =
-      `Houseboat booking confirmed! ${params.boatName}, ${dateStr}. ` +
-      `Ref ${params.bookingId.slice(0, 8)}. Total BDT ${params.displayTotal}.`;
+
+    // Multi-line SMS confirmation. Optional lines (Boarding/Cabin/time) are
+    // dropped entirely when their data is absent rather than printing 'undefined'.
+    const dateTime = params.departureTimeStr
+      ? `${dateStr} ${params.departureTimeStr}`
+      : dateStr;
+    const lines: string[] = [
+      'Your Trip Booked at bookkoro.xyz',
+      '',
+      `Operator: ${params.operator ?? params.boatName}`,
+    ];
+    if (params.route) lines.push(`Route: ${params.route}`);
+    lines.push(
+      '',
+      `Booking ID: ${params.bookingId.slice(0, 8)}`,
+      `Date and Time: ${dateTime}`,
+    );
+    if (params.boarding) lines.push(`Boarding: ${params.boarding}`);
+    if (params.cabin) lines.push(`Cabin: ${params.cabin}`);
+    lines.push('', `Total: ${params.displayTotal} BDT`);
+    if (params.displayPaid !== undefined) {
+      lines.push(`Paid: ${params.displayPaid} BDT`);
+    }
+    if (params.displayDue !== undefined) {
+      lines.push(`Due: ${params.displayDue} BDT`);
+    }
+    lines.push('', 'bookkoro.xyz');
+    const smsText = lines.join('\n');
 
     if (params.to.phone) {
       const ok = await this.sendSms(params.to.phone, smsText);

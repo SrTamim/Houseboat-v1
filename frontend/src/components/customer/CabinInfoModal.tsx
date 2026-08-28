@@ -34,6 +34,7 @@ export function CabinInfoModal({
   cabin,
   boatName,
   safetyFeatures,
+  cancellationPolicy,
   foodMenu,
   childPolicy,
   departure,
@@ -43,6 +44,7 @@ export function CabinInfoModal({
   cabin: CabinInfo | null;
   boatName: string;
   safetyFeatures: string | null;
+  cancellationPolicy: string | null;
   foodMenu: FoodMenu | null;
   childPolicy: ChildPolicyBand[] | null;
   departure: Departure | null;
@@ -261,9 +263,10 @@ export function CabinInfoModal({
               <h4 className="mb-2 mt-4 font-display text-sm font-semibold text-ink">
                 Cancellation
               </h4>
-              <p className="text-sm text-bodytext">
-                Cancellation terms and any refund are shown before you pay, and
-                again on your booking.
+              <p className="whitespace-pre-line text-sm text-bodytext">
+                {cancellationPolicy?.trim()
+                  ? cancellationPolicy
+                  : 'Cancellation terms and any refund are shown before you pay, and again on your booking.'}
               </p>
             </div>
           ) : null}

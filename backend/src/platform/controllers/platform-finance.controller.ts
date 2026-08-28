@@ -98,6 +98,12 @@ export class PlatformFinanceController {
     return this.finance.listRefunds(query);
   }
 
+  /** Decrypted payout destination for one refund — revealed on demand in the drawer. */
+  @Get('refunds/:refundId/bank')
+  refundBankDetails(@Param('refundId') refundId: string) {
+    return this.finance.bankDetailsForRefund(refundId);
+  }
+
   @Get('overpayments')
   listOverpayments(@Query() query: ListInvoicesQueryDto) {
     return this.finance.listOverpayments(query);

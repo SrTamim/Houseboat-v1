@@ -233,9 +233,23 @@ test.describe('auth modal', () => {
     await page.locator('#auth-password').fill('short');
     await page.getByRole('button', { name: /Create account/ }).click();
 
-    await expect(page.getByText(/at least 8 characters/i)).toBeVisible({
+    await expect(page.getByText(/at least 6 characters/i)).toBeVisible({
       timeout: 10_000,
     });
+    await expect(page.getByRole('dialog')).toBeVisible();
+  });
+
+  test('rejects a password missing a number with the JS message', async ({ page }) => {
+    await gotoReady(page);
+    await openModal(page, 'Register');
+    await page.locator('#auth-name').fill('No Digit');
+    await page.locator('#auth-phone').fill(newPhone());
+    await page.locator('#auth-password').fill('lettersonly');
+    await page.getByRole('button', { name: /Create account/ }).click();
+
+    await expect(
+      page.getByText(/at least one letter and one number/i),
+    ).toBeVisible({ timeout: 10_000 });
     await expect(page.getByRole('dialog')).toBeVisible();
   });
 });

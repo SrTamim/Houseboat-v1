@@ -213,6 +213,18 @@ export class AuthService {
       throw new UnauthorizedException('Refresh token has been revoked');
     }
 
+    // Session cutoff: a password reset stamps pwchanged for the account, so a
+    // refresh token minted before that reset (a session an attacker may hold)
+    // is refused here — forcing a re-login with the new password. Best-effort:
+    // getPwChanged returns 0 (no cutoff) if the store is unreachable, so an
+    // outage never hard-fails a legitimate refresh.
+    if (payload.iat) {
+      const changedAt = await this.redis.getPwChanged(payload.sub);
+      if (changedAt && payload.iat < changedAt) {
+        throw new UnauthorizedException('Session ended — please sign in again');
+      }
+    }
+
     const account = await this.prisma.account.findUnique({
       where: { id: payload.sub },
       select: { id: true, isPlatform: true },

@@ -13,6 +13,7 @@ import {
   maskToken,
   channelLabel,
   channelTone,
+  hostCancelBadge,
 } from '@/lib/admin/invoices';
 import {
   BTN_O,
@@ -41,6 +42,8 @@ interface InvoiceDetail {
   commission: string;
   dueToBoat: string;
   payoutBatchId: string | null;
+  /** Latest InvoiceRefund status — feeds the host-cancelled/refund badge. */
+  refundStatus?: string | null;
   houseboat: { id: string; name: string; slug: string };
   customer: { id: string; name: string | null; phone: string; email: string | null };
   booking: {
@@ -53,6 +56,8 @@ interface InvoiceDetail {
       id: string;
       startDate: string;
       endDate: string | null;
+      status?: string;
+      cancelReason?: string | null;
       package: { durationLabel: string | null; houseboat: { id: string; name: string } };
     };
     cabins: {
@@ -136,11 +141,24 @@ export function InvoiceDetailDrawer({
             <h4 className={DSEC_H4}>Status</h4>
             <div className="mb-3 flex flex-wrap gap-2">
               <Pill tone={wireStatusTone(inv.status)}>{wireStatusLabel(inv.status)}</Pill>
+              {(() => {
+                const b = hostCancelBadge(
+                  inv.booking.departure.status,
+                  inv.refundStatus,
+                );
+                return b ? <Pill tone={b.tone}>{b.label}</Pill> : null;
+              })()}
               <Pill tone={channelTone(inv.booking.channel)}>
                 {channelLabel(inv.booking.channel)}
               </Pill>
               <Pill tone="mut">{inv.booking.type}</Pill>
             </div>
+            {inv.booking.departure.status === 'cancelled' &&
+            inv.booking.departure.cancelReason ? (
+              <p className={`${TD_T2} mb-1`}>
+                Host cancel reason: {inv.booking.departure.cancelReason}
+              </p>
+            ) : null}
           </div>
 
           <div className={DSEC}>

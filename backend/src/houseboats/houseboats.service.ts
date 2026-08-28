@@ -209,6 +209,7 @@ export class HouseboatsService {
         slug: true,
         description: true,
         safetyFeatures: true,
+        cancellationPolicy: true,
         foodMenu: true,
         childPolicy: true,
         // Boat-level gallery only: cabin-scoped rows carry a cabinId and are

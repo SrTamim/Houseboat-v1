@@ -245,7 +245,7 @@ export default function OwnerSignupPage() {
                 Sign in
               </Link>
               <br />
-              At least 8 characters · your password is hashed, never stored as typed
+              At least 6 characters with a letter and a number · your password is hashed, never stored as typed
             </div>
           </>
         ) : (

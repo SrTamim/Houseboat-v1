@@ -79,3 +79,28 @@ const DEPARTURE_TONES: Record<string, PillTone> = {
 export function DepartureStatusPill({ status }: { status: string }) {
   return <Pill tone={DEPARTURE_TONES[status] ?? 'mut'}>{humanize(status)}</Pill>;
 }
+
+/**
+ * Badge for a host-cancelled trip, shown beside the normal invoice/booking
+ * status. A host-cancelled booking keeps its invoice 'paid' and booking
+ * 'confirmed' until the customer requests a refund, so this is the only signal
+ * that the owner cancelled the trip. Renders nothing when not host-cancelled.
+ */
+export function HostCancelBadge({
+  departureStatus,
+  refundStatus,
+}: {
+  departureStatus: string | null | undefined;
+  refundStatus?: string | null;
+}) {
+  if (departureStatus !== 'cancelled') return null;
+  const [tone, label]: [PillTone, string] =
+    refundStatus === 'requested'
+      ? ['warn', 'Refund requested']
+      : refundStatus === 'verified'
+        ? ['blue', 'Refund verified']
+        : refundStatus === 'completed'
+          ? ['ok', 'Refunded']
+          : ['amb', 'Host-cancelled'];
+  return <Pill tone={tone}>{label}</Pill>;
+}

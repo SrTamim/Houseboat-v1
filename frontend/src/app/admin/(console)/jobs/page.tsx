@@ -43,6 +43,21 @@ function healthTone(state: string): 'ok' | 'danger' | 'mut' {
   return 'mut';
 }
 
+interface SmsBalance {
+  configured: boolean;
+  balance?: number | string;
+  time: string;
+}
+
+/** Below 100 = danger (top up now), below 500 = warn, else ok. */
+function balanceTone(balance: number | string | undefined): 'ok' | 'warn' | 'danger' | 'mut' {
+  const n = typeof balance === 'string' ? parseFloat(balance) : balance;
+  if (n === undefined || Number.isNaN(n)) return 'mut';
+  if (n < 100) return 'danger';
+  if (n < 500) return 'warn';
+  return 'ok';
+}
+
 function SettingField({
   row,
   onSaved,
@@ -136,6 +151,10 @@ export default function System() {
     revalidateOnFocus: false,
     refreshInterval: 30_000,
   });
+  const sms = useSWR<SmsBalance>('/platform/system/sms-balance', fetcher, {
+    revalidateOnFocus: false,
+    refreshInterval: 60_000,
+  });
 
   const groups = useMemo(() => {
     const map = new Map<string, SettingRow[]>();
@@ -176,6 +195,30 @@ export default function System() {
           </div>
         )}
       </Card>
+
+      <div className="mt-5">
+        <Card
+          title="SMS balance"
+          sub={sms.data ? `checked ${new Date(sms.data.time).toLocaleTimeString('en-GB')}` : undefined}
+        >
+          {sms.error ? (
+            <ErrorState error={sms.error} onRetry={() => sms.mutate()} />
+          ) : !sms.data ? (
+            <p className={TD_T2}>Checking…</p>
+          ) : !sms.data.configured ? (
+            <Pill tone="mut">not configured</Pill>
+          ) : sms.data.balance === undefined ? (
+            <Pill tone="warn">unavailable</Pill>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2.5">
+              <Pill tone={balanceTone(sms.data.balance)}>৳{sms.data.balance}</Pill>
+              {balanceTone(sms.data.balance) !== 'ok' ? (
+                <span className={TD_T2}>Top up soon to keep OTP delivery working.</span>
+              ) : null}
+            </div>
+          )}
+        </Card>
+      </div>
 
       <div className="mt-5">
         {settings.error ? (

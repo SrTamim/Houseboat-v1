@@ -46,6 +46,7 @@ interface BoatDetail {
   slug: string;
   description: string | null;
   safetyFeatures: string | null;
+  cancellationPolicy: string | null;
   foodMenu: FoodMenu | null;
   bankAccount: BankAccount | null;
   childPolicy: ChildBand[] | null;
@@ -132,6 +133,7 @@ export default function OwnerProfilePage() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [safetyFeatures, setSafetyFeatures] = useState('');
+  const [cancellationPolicy, setCancellationPolicy] = useState('');
   const [foodMenu, setFoodMenu] = useState<FoodMenu>({});
   const [bank, setBank] = useState<BankAccount>(EMPTY_BANK);
   const [childPolicy, setChildPolicy] = useState<ChildBand[]>([]);
@@ -149,6 +151,7 @@ export default function OwnerProfilePage() {
     setName(b.name);
     setDescription(b.description ?? '');
     setSafetyFeatures(b.safetyFeatures ?? '');
+    setCancellationPolicy(b.cancellationPolicy ?? '');
     setFoodMenu(b.foodMenu ?? {});
     setBank(normalizeBank(b.bankAccount as Record<string, unknown> | null));
     setChildPolicy(normalizeBands(b.childPolicy));
@@ -168,6 +171,7 @@ export default function OwnerProfilePage() {
         name,
         description: description || undefined,
         safetyFeatures: safetyFeatures || undefined,
+        cancellationPolicy: cancellationPolicy || undefined,
         foodMenu,
         bankAccount: bankFilled ? bank : undefined,
         childPolicy,
@@ -511,6 +515,23 @@ export default function OwnerProfilePage() {
                   <Note kind="info">
                     “Age to” is exclusive: 0–3 at 0% means under-3s are free; 3–5 at 50% is
                     ages 3 and 4 at half price.
+                  </Note>
+                </div>
+              </Card>
+
+              <Card title="Cancellation policy" sub="shown to customers before they book">
+                <div style={{ display: 'grid', gap: 12 }}>
+                  <Field label="Cancellation policy">
+                    <textarea
+                      rows={3}
+                      value={cancellationPolicy}
+                      onChange={(e) => setCancellationPolicy(e.target.value)}
+                      placeholder="Free cancellation up to 7 days before departure; 50% refund within 3 days; no refund after."
+                    />
+                  </Field>
+                  <Note kind="info">
+                    Shown to customers in the cabin details → Policies tab. Leave blank to use
+                    the default notice.
                   </Note>
                 </div>
               </Card>

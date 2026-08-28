@@ -932,6 +932,14 @@ export class BookingService {
     if (booking.status === 'completed') {
       throw new BadRequestException('Completed trips cannot be cancelled');
     }
+    // Host-cancelled trips must go through the refund-request flow (bkash/bank),
+    // not this self-cancel path (which would route the refund to the wallet).
+    // Backstops the hidden UI button against a stale client / direct API call.
+    if (booking.departure.status === 'cancelled') {
+      throw new BadRequestException(
+        'This trip was cancelled by the host — request a refund instead',
+      );
+    }
 
     const houseboatId = booking.invoice.houseboatId;
     // Authorization: the booking's own customer, or a member with bookings:edit.
@@ -1224,6 +1232,8 @@ export class BookingService {
               select: { amount: true, method: true, paidAt: true },
               orderBy: { paidAt: 'asc' },
             },
+            // Latest refund drives the detail page's "Request refund" vs status.
+            refunds: { orderBy: { id: 'desc' }, take: 1, select: { status: true } },
           },
         },
         departure: {
@@ -1268,14 +1278,54 @@ export class BookingService {
       hb.logoUrl = key ? (this.storage?.publicUrl(key) ?? null) : null;
       delete hb.logoStorageKey;
     }
+    // Flatten latest refund status onto the booking (in place — the return is
+    // by identity, like logoUrl above). Then drop the nested array.
+    const inv = booking.invoice as
+      | { refunds?: { status: string }[] }
+      | null
+      | undefined;
+    const refundStatus = inv?.refunds?.[0]?.status ?? null;
+    if (inv && 'refunds' in inv) delete inv.refunds;
+    (booking as { refundStatus?: string | null }).refundStatus = refundStatus;
     return booking;
   }
 
-  listForCustomer(customerId: string) {
-    return this.prisma.booking.findMany({
+  async listForCustomer(customerId: string) {
+    const rows = await this.prisma.booking.findMany({
       where: { customerId },
-      include: { invoice: true, departure: true },
+      include: {
+        invoice: {
+          include: {
+            // Latest refund (if any) so the trips list can show refund progress
+            // and hide the "Request refund" button once one exists.
+            refunds: { orderBy: { id: 'desc' }, take: 1, select: { status: true } },
+          },
+        },
+        // Narrow select: the list needs the host-cancel signal + the 6-day
+        // window anchor, on top of the dates the card already renders.
+        departure: {
+          select: {
+            id: true,
+            startDate: true,
+            endDate: true,
+            status: true,
+            cancelReason: true,
+            cancelledAt: true,
+          },
+        },
+      },
       orderBy: { createdAt: 'desc' },
+    });
+    // Surface the latest refund status as a flat field; drop the nested array.
+    return rows.map(({ invoice, ...b }) => {
+      const refundStatus = invoice?.refunds[0]?.status ?? null;
+      const invoiceOut = invoice
+        ? (() => {
+            const { refunds: _refunds, ...rest } = invoice;
+            return rest;
+          })()
+        : null;
+      return { ...b, invoice: invoiceOut, refundStatus };
     });
   }
 

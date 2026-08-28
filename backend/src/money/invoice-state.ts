@@ -16,6 +16,9 @@
  *    path (… → in_payout → bill_cleared) still exists for owner-facing history.
  *  Path B (customer cancels): cancelled → payment_verified → in_payout → bill_cleared
  *  Path C (owner cancels):    refund_requested → refund_verified → refund_completed
+ *    Entered from payment_verified (owner/finance-raised) OR from paid (customer
+ *    raises a web refund after the owner cancelled the departure — one admin may
+ *    verify then complete; see refunds.service requestRefundAsCustomer).
  *    POS refunds (owner counter-sale, bookedBy != customer) settle in one step:
  *    refund_requested → refund_completed. There is no separate finance to verify a
  *    walk-in refund, so the owner both raises and settles it. The 3-person
@@ -36,8 +39,20 @@ export type InvoiceStatus =
   | 'refund_completed';
 
 const TRANSITIONS: Record<InvoiceStatus, InvoiceStatus[]> = {
-  customer_due: ['paid', 'cancelled'],
-  paid: ['payment_verified', 'payout_approved', 'in_payout', 'cancelled'],
+  // refund_requested here: an owner cancels the departure while the customer has
+  // only paid the deposit (invoice still customer_due, balance due at boarding).
+  // They're refunded what they paid — see refunds.service requestRefundAsCustomer.
+  customer_due: ['paid', 'cancelled', 'refund_requested'],
+  // refund_requested here is the CUSTOMER owner-cancel path: an owner cancels the
+  // departure, the paid booking's customer requests a bkash/bank refund. Distinct
+  // from the owner/finance path which enters refund_requested from payment_verified.
+  paid: [
+    'payment_verified',
+    'payout_approved',
+    'in_payout',
+    'cancelled',
+    'refund_requested',
+  ],
   // payment_verified → paid is the platform "reject payment" action: finance
   // bounces a verified receipt back to the verify queue for re-checking. It is
   // NOT an owner-reachable path (owners can't un-verify); only the platform

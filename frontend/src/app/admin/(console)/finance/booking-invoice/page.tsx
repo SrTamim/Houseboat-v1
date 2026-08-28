@@ -21,6 +21,7 @@ import {
   wireStatusTone,
   channelLabel,
   channelTone,
+  hostCancelBadge,
   WIRE_STATUS_LABEL,
   type ApiInvoice,
   type InvoiceWireStatus,
@@ -65,15 +66,22 @@ const STATUS_OPTIONS = [
   ),
 ];
 
+const CANCEL_OPTIONS = [
+  { value: '', label: 'All trips' },
+  { value: '1', label: 'Host-cancelled only' },
+];
+
 export default function BookingInvoice() {
   const [status, setStatus] = useState('');
   const [query, setQuery] = useState('');
+  const [cancelled, setCancelled] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);
 
   const { items, error, isInitialLoading, hasMore, loadMore, mutate } =
     useAdminList<ApiInvoice>('/platform/finance/invoices', {
       status: status || undefined,
       q: query || undefined,
+      departureCancelled: cancelled ? true : undefined,
       limit: 25,
     });
 
@@ -92,6 +100,7 @@ export default function BookingInvoice() {
           onChange={setQuery}
         />
         <Select options={STATUS_OPTIONS} value={status} onChange={setStatus} />
+        <Select options={CANCEL_OPTIONS} value={cancelled} onChange={setCancelled} />
       </div>
 
       <Card flush>
@@ -149,9 +158,18 @@ export default function BookingInvoice() {
                       </td>
                       <td className={TD_NUM}>{inv.cabinCount || '—'}</td>
                       <td>
-                        <Pill tone={wireStatusTone(inv.status)}>
-                          {wireStatusLabel(inv.status)}
-                        </Pill>
+                        <div className="flex flex-wrap gap-1.5">
+                          <Pill tone={wireStatusTone(inv.status)}>
+                            {wireStatusLabel(inv.status)}
+                          </Pill>
+                          {(() => {
+                            const b = hostCancelBadge(
+                              inv.booking.departure.status,
+                              inv.refundStatus,
+                            );
+                            return b ? <Pill tone={b.tone}>{b.label}</Pill> : null;
+                          })()}
+                        </div>
                       </td>
                       <td>
                         <Pill tone={channelTone(inv.booking.channel)}>

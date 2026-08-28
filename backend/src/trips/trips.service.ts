@@ -329,15 +329,33 @@ export class TripsService {
   ) {
     await this.ownedDeparture(houseboatId, departureId);
 
+    // Operator + route names for the cancellation SMS — loaded once.
+    const meta = await this.prisma.tripDeparture.findUnique({
+      where: { id: departureId },
+      select: {
+        package: {
+          select: {
+            houseboat: { select: { name: true } },
+            route: { select: { name: true } },
+          },
+        },
+      },
+    });
+    const operatorName = meta?.package.houseboat.name ?? '';
+    const routeName = meta?.package.route?.name ?? '';
+
     // Affected customers to notify — active (non-cancelled) bookings on this trip.
     const bookings = await this.prisma.booking.findMany({
       where: { departureId, status: { not: 'cancelled' } },
-      select: { customer: { select: { id: true, phone: true, email: true } } },
+      select: {
+        id: true,
+        customer: { select: { id: true, phone: true, email: true } },
+      },
     });
 
     const dep = await this.prisma.tripDeparture.update({
       where: { id: departureId },
-      data: { status: 'cancelled', cancelReason: reason },
+      data: { status: 'cancelled', cancelReason: reason, cancelledAt: new Date() },
     });
 
     // Best-effort — notify() never throws back into this flow.
@@ -347,7 +365,14 @@ export class TripsService {
         event: 'departure_cancelled',
         to: { phone: b.customer.phone, email: b.customer.email ?? undefined },
         subject: 'Your trip has been cancelled',
-        message: `The operator cancelled your upcoming trip. Reason: ${reason}. You can request a refund from your booking.`,
+        message:
+          `[book koro]\n\n` +
+          `Your booking cancelled by the boat operator.\n\n` +
+          `Operator: ${operatorName}\n` +
+          `Booking ID: ${b.id.slice(0, 8)}\n` +
+          `Route: ${routeName}\n\n` +
+          `Request for refund within 6 days.\n` +
+          `login to bookkoro.xyz`,
       });
     }
 
@@ -374,7 +399,7 @@ export class TripsService {
     }
     const dep = await this.prisma.tripDeparture.update({
       where: { id: departureId },
-      data: { status: 'scheduled', cancelReason: null },
+      data: { status: 'scheduled', cancelReason: null, cancelledAt: null },
     });
     await this.audit.log({
       houseboatId,

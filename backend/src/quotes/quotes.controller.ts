@@ -2,7 +2,7 @@ import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { QuotesService } from './quotes.service';
 import { CurrentUser } from '../auth/decorators';
 import { AuthUser } from '../auth/auth.types';
-import { CreateQuoteDto, PriceQuoteDto } from './dto/quotes.dto';
+import { CreateQuoteDto, PriceQuoteDto, ReplyQuoteDto } from './dto/quotes.dto';
 
 /**
  * Group quote requests. Customers request/accept; owners list/price. Owner-side
@@ -31,6 +31,15 @@ export class QuotesController {
   @Post('quotes/:quoteId/accept')
   accept(@Param('quoteId') quoteId: string, @CurrentUser() user: AuthUser) {
     return this.quotes.accept(quoteId, user.id);
+  }
+
+  @Post('quotes/:quoteId/reply')
+  reply(
+    @Param('quoteId') quoteId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() dto: ReplyQuoteDto,
+  ) {
+    return this.quotes.reply(quoteId, user.id, dto.message);
   }
 
   // ── Owner ──────────────────────────────────────────────────

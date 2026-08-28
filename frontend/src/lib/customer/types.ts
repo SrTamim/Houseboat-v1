@@ -53,6 +53,8 @@ export interface BoatDetail {
   description: string | null;
   /** Free-text on the boat row (Prisma `String?`), not a list. */
   safetyFeatures: string | null;
+  /** Owner-entered free text; null/empty → UI shows the generic fallback. */
+  cancellationPolicy: string | null;
   /** `{ breakfast, brunch, lunch, snacks, dinner }` — any field may be blank. */
   foodMenu: FoodMenu | null;
   childPolicy: ChildPolicyBand[] | null;
@@ -164,6 +166,19 @@ export interface Quote {
   displayTotal: string;
 }
 
+/** GET /me/quotes — a customer's custom (whole-boat) quote requests. */
+export interface CustomQuote {
+  id: string;
+  date: string | null;
+  groupSize: number | null;
+  specialNeeds: string | null;
+  quotedPrice: string | null; // null until owner prices it
+  customerReply: string | null;
+  status: string; // requested | sent | accepted | expired
+  expiresAt: string | null;
+  houseboat?: { id: string; name: string; slug: string };
+}
+
 /** A hold (POST /booking/hold). */
 export interface Hold {
   id: string;
@@ -191,7 +206,14 @@ export interface TripListItem {
     id: string;
     startDate: string;
     endDate: string | null;
+    /** Departure lifecycle; `cancelled` = the owner cancelled the whole trip. */
+    status?: string;
+    cancelReason?: string | null;
+    /** When the owner cancelled — anchors the 6-day refund-request window. */
+    cancelledAt?: string | null;
   } | null;
+  /** Latest InvoiceRefund status for this booking, if any (null = none). */
+  refundStatus?: string | null;
 }
 
 /**
@@ -270,6 +292,8 @@ export interface BookingDetail {
     status?: string;
     /** Owner-supplied reason, present when the departure was host-cancelled. */
     cancelReason?: string | null;
+    /** When the owner cancelled — anchors the 6-day refund-request window. */
+    cancelledAt?: string | null;
     package: {
       durationLabel: string | null;
       durationDays?: number;
@@ -285,6 +309,8 @@ export interface BookingDetail {
       } | null;
     } | null;
   } | null;
+  /** Latest InvoiceRefund status for this booking, if any (null = none). */
+  refundStatus?: string | null;
 }
 
 /** GET /me/credits. */

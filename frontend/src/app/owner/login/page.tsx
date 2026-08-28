@@ -14,6 +14,7 @@ import {
 import type { OwnerBoat } from '@/lib/owner/session';
 import { toE164 } from '@/lib/owner/format';
 import { DARK_CARD_SURFACE, NAV_BTN_O, PRIMARY_BTN } from '@/lib/customer/boat-card';
+import { ForgotPasswordFlow } from '@/components/customer/ForgotPasswordFlow';
 
 // ---- design tokens ---------------------------------------------------------
 // Colours/radii/shadows resolve through the CSS vars defined in globals.css in
@@ -56,6 +57,8 @@ function OwnerLoginForm() {
   const [password, setPassword] = useState('');
   const [remember, setRemember] = useState(true);
   const [busy, setBusy] = useState(false);
+  // Local view toggle for the forgot-password flow (shares the login shell).
+  const [view, setView] = useState<'login' | 'forgot'>('login');
 
   // Step 2: which boat to open. Only shown when the account operates several.
   const [boats, setBoats] = useState<OwnerBoat[] | null>(null);
@@ -194,6 +197,14 @@ function OwnerLoginForm() {
 
           <Foot>Permissions are checked per boat, on every request · CSRF-protected</Foot>
         </div>
+      ) : view === 'forgot' ? (
+        <div className={`relative ${CARD}`}>
+          <Logo />
+          <Badge>Owner console</Badge>
+          <div className="mt-3">
+            <ForgotPasswordFlow onDone={() => setView('login')} />
+          </div>
+        </div>
       ) : (
         /*
           method="post" is a safety net, not the submit path. If hydration fails
@@ -291,9 +302,13 @@ function OwnerLoginForm() {
               />
               Keep me signed in
             </label>
-            <Link href="#" className="text-[13.5px] font-bold text-blue hover:underline">
+            <button
+              type="button"
+              onClick={() => setView('forgot')}
+              className="text-[13.5px] font-bold text-blue hover:underline"
+            >
               Forgot password?
-            </Link>
+            </button>
           </div>
 
           <button className={PRIMARY_BTN} type="submit" disabled={busy}>

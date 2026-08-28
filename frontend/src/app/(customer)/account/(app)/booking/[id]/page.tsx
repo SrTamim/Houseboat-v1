@@ -7,6 +7,12 @@ import useSWR from 'swr';
 import { api, fetcher } from '@/lib/api';
 import { money, formatDate, apiErrorMessage } from '@/lib/owner/format';
 import type { BookingDetail } from '@/lib/customer/types';
+import {
+  isHostCancelled,
+  refundWindowOpen,
+  refundStatusLabel,
+} from '@/lib/customer/booking';
+import { RefundRequestModal } from '@/components/customer/RefundRequestModal';
 
 const CARD = 'overflow-hidden rounded-2xl border border-hair bg-raise-1 shadow-e1';
 const CARD_HEAD =
@@ -35,6 +41,7 @@ export default function BookingDetailPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [rating, setRating] = useState(0);
   const [reviewText, setReviewText] = useState('');
+  const [refundOpen, setRefundOpen] = useState(false);
 
   if (isLoading) return <p className="text-muted">Loading…</p>;
   if (error || !data)
@@ -60,7 +67,9 @@ export default function BookingDetailPage() {
   const cancellable = data.status === 'confirmed' || data.status === 'rescheduled';
   const route = data.departure?.package?.route;
   const boat = data.departure?.package?.houseboat;
-  const hostCancelled = data.departure?.status === 'cancelled';
+  const hostCancelled = isHostCancelled(data.departure);
+  const refundWindow = refundWindowOpen(data.departure);
+  const canRequestRefund = refundWindow && !data.refundStatus;
 
   const cancel = async () => {
     const warning = hostCancelled
@@ -152,8 +161,11 @@ export default function BookingDetailPage() {
               {data.departure?.cancelReason
                 ? `Reason: ${data.departure.cancelReason}. `
                 : ''}
-              You&rsquo;re entitled to a refund. Cancel the booking below and your
-              refund lands in your wallet.
+              {data.refundStatus
+                ? `${refundStatusLabel(data.refundStatus)} — we'll transfer your full refund to the account you provided.`
+                : refundWindow
+                  ? "You're entitled to a full refund. Request it below — we'll send it to your bKash/bank. You have 6 days from the cancellation."
+                  : 'The 6-day window to request a refund has passed. Contact support if you still need help.'}
             </p>
           </div>
         </div>
@@ -278,8 +290,44 @@ export default function BookingDetailPage() {
 
         {/* sidebar column */}
         <div className="grid gap-[18px]">
-          {/* balance / pay */}
-          {data.status !== 'cancelled' && due > 0 ? (
+          {/* refund — host-cancelled trips only (replaces pay + self-cancel) */}
+          {hostCancelled && data.status !== 'cancelled' ? (
+            <div className={CARD}>
+              <div className={CARD_HEAD}>
+                <h3 className="font-display text-[15px] font-semibold text-ink">
+                  Refund
+                </h3>
+              </div>
+              <div className="grid gap-2.5 p-5">
+                <div className="text-[13px] text-bodytext">
+                  Full refund of {money(paid)} you paid.
+                </div>
+                {canRequestRefund ? (
+                  <button
+                    onClick={() => setRefundOpen(true)}
+                    className="inline-flex w-full items-center justify-center rounded bg-blue px-5 py-2.5 text-sm font-bold text-white shadow-e1 transition-colors hover:bg-blue-600"
+                  >
+                    Request refund
+                  </button>
+                ) : data.refundStatus ? (
+                  <div className="rounded-lg border border-[color-mix(in_srgb,var(--blue)_25%,transparent)] bg-[color-mix(in_srgb,var(--blue)_6%,transparent)] px-3 py-2.5 text-[13px] font-semibold text-blue">
+                    {refundStatusLabel(data.refundStatus)}
+                    {data.refundStatus !== 'completed'
+                      ? ' — we’ll transfer it to the account you provided.'
+                      : ' — sent to the account you provided.'}
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-hair bg-chip px-3 py-2.5 text-[12.5px] text-muted">
+                    The 6-day window to request a refund has passed. Contact
+                    support if you still need help.
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : null}
+
+          {/* balance / pay — never for host-cancelled trips */}
+          {!hostCancelled && data.status !== 'cancelled' && due > 0 ? (
             <div className={CARD}>
               <div className={CARD_HEAD}>
                 <h3 className="font-display text-[15px] font-semibold text-ink">
@@ -317,8 +365,8 @@ export default function BookingDetailPage() {
             </div>
           ) : null}
 
-          {/* manage booking */}
-          {data.status !== 'cancelled' && cancellable ? (
+          {/* manage booking — self-cancel; hidden for host-cancelled trips */}
+          {data.status !== 'cancelled' && cancellable && !hostCancelled ? (
             <div className={CARD}>
               <div className={CARD_HEAD}>
                 <h3 className="font-display text-[15px] font-semibold text-ink">
@@ -336,9 +384,9 @@ export default function BookingDetailPage() {
                 <div className="flex items-start gap-2 rounded-lg border border-[color-mix(in_srgb,var(--blue)_25%,transparent)] bg-[color-mix(in_srgb,var(--blue)_6%,transparent)] px-3 py-2.5 text-[12.5px] text-bodytext">
                   <span>🛡️</span>
                   <div>
-                    {hostCancelled
-                      ? 'The host cancelled this trip — cancelling your booking returns any refund you are owed to your wallet.'
-                      : 'Cancelling may forfeit what you have paid — you may not get your money back. Check the boat’s cancellation policy before you cancel.'}
+                    Cancelling may forfeit what you have paid — you may not get your
+                    money back. Check the boat’s cancellation policy before you
+                    cancel.
                   </div>
                 </div>
               </div>
@@ -351,6 +399,18 @@ export default function BookingDetailPage() {
         <div className="rounded-2xl border border-hair bg-raise-1 px-5 py-4 text-sm text-bodytext shadow-e1">
           {msg}
         </div>
+      ) : null}
+
+      {refundOpen ? (
+        <RefundRequestModal
+          bookingId={id}
+          onClose={() => setRefundOpen(false)}
+          onDone={async () => {
+            setRefundOpen(false);
+            await mutate();
+            setMsg('Refund requested — we’ll transfer it to the account you provided.');
+          }}
+        />
       ) : null}
     </>
   );

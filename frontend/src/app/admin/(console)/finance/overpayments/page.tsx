@@ -18,6 +18,7 @@ import {
   wireStatusTone,
   channelLabel,
   channelTone,
+  hostCancelBadge,
 } from '@/lib/admin/invoices';
 import { BTN_O, BTN_SM, TD_NUM, TD_T1, TD_T2, UNIT } from '@/components/admin/styles';
 
@@ -29,7 +30,12 @@ interface OverpaymentRow {
   amountOverpaid: string;
   houseboat: { id: string; name: string };
   customer: { id: string; name: string | null; phone: string };
-  booking: { id: string; channel: string; createdAt: string };
+  booking: {
+    id: string;
+    channel: string;
+    createdAt: string;
+    departure?: { status?: string; cancelReason?: string | null };
+  };
 }
 
 export default function Overpayments() {
@@ -83,9 +89,15 @@ export default function Overpayments() {
                         <div className={TD_T2}>{inv.customer.phone}</div>
                       </td>
                       <td>
-                        <Pill tone={wireStatusTone(inv.status)}>
-                          {wireStatusLabel(inv.status)}
-                        </Pill>
+                        <div className="flex flex-wrap gap-1.5">
+                          <Pill tone={wireStatusTone(inv.status)}>
+                            {wireStatusLabel(inv.status)}
+                          </Pill>
+                          {(() => {
+                            const b = hostCancelBadge(inv.booking.departure?.status);
+                            return b ? <Pill tone={b.tone}>{b.label}</Pill> : null;
+                          })()}
+                        </div>
                       </td>
                       <td>
                         <Pill tone={channelTone(inv.booking.channel)}>

@@ -21,17 +21,29 @@ export default function VerifyPayments() {
 
   async function verify(invoice: ApiInvoice) {
     if (busyId) return;
+    // A refund_requested invoice needs its REFUND verified, not a payment:
+    // refund_requested → refund_verified via the refund id carried on the row.
+    const isRefund =
+      invoice.status === 'refund_requested' && !!invoice.refundId;
     setBusyId(invoice.id);
     setActionError(null);
     try {
-      await api.post(`/invoices/${invoice.id}/verify`);
+      if (isRefund) {
+        await api.post(`/refunds/${invoice.refundId}/verify`);
+      } else {
+        await api.post(`/invoices/${invoice.id}/verify`);
+      }
       await mutate();
     } catch (e) {
       const message =
         (e as { response?: { data?: { message?: unknown } } })?.response?.data
           ?.message;
       setActionError(
-        typeof message === 'string' ? message : 'Could not verify this payment.',
+        typeof message === 'string'
+          ? message
+          : isRefund
+            ? 'Could not verify this refund.'
+            : 'Could not verify this payment.',
       );
     } finally {
       setBusyId(null);
@@ -42,7 +54,7 @@ export default function VerifyPayments() {
     <>
       <PageHead
         title="Payment verification"
-        desc="Invoices whose payment landed but has not been human-checked against the gateway portal. Verifying moves an invoice to Ready for Payout."
+        desc="Gateway payments awaiting a human check against the portal, plus customer refund requests awaiting approval. Verifying a payment moves it to Ready for Payout; verifying a refund sends it to the Refunds page to pay out."
       />
       {actionError ? (
         <div className="mb-3" role="alert">
@@ -56,7 +68,9 @@ export default function VerifyPayments() {
         onRetry={() => mutate()}
         emptyTitle="Nothing to verify"
         emptyDesc="Invoices appear here when a customer payment is recorded and awaits verification."
-        actionLabel="Mark verified"
+        actionLabel={(inv) =>
+          inv.status === 'refund_requested' ? 'Verify refund' : 'Mark verified'
+        }
         actionBusyId={busyId}
         onAction={verify}
         onOpen={(inv) => setOpenId(inv.id)}

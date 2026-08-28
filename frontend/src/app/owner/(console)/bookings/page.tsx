@@ -16,7 +16,7 @@ import {
   LoadMore,
   Kv,
 } from '@/components/owner/ui';
-import { BookingStatusPill, Pill } from '@/components/owner/Pill';
+import { BookingStatusPill, HostCancelBadge, Pill } from '@/components/owner/Pill';
 import {
   BTN_B,
   BTN_O,
@@ -293,7 +293,10 @@ export default function OwnerBookingsPage() {
                     </td>
                     <td className="num">{money(b.invoice?.displayTotal ?? 0)}</td>
                     <td>
-                      <BookingStatusPill status={b.status} />
+                      <div className="flex flex-wrap gap-1.5">
+                        <BookingStatusPill status={b.status} />
+                        <HostCancelBadge departureStatus={b.departure.status} />
+                      </div>
                     </td>
                     <td>
                       <div className="rowact">
@@ -333,6 +336,7 @@ export default function OwnerBookingsPage() {
             <div className="flex flex-col gap-4 print:hidden">
             <div className="flex flex-wrap gap-2">
               <BookingStatusPill status={open.status} />
+              <HostCancelBadge departureStatus={open.departure.status} />
               <Pill tone={open.type === 'group' ? 'amb' : 'blue'}>{open.type}</Pill>
               {open.invoice?.payoutBatchId ? <Pill tone="lock">in payout</Pill> : null}
             </div>

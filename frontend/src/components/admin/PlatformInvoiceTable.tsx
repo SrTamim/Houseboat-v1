@@ -21,6 +21,7 @@ import {
   maskToken,
   channelLabel,
   channelTone,
+  hostCancelBadge,
 } from '@/lib/admin/invoices';
 
 function formatDate(iso: string) {
@@ -54,8 +55,8 @@ export function PlatformInvoiceTable({
   onRetry?: () => void;
   emptyTitle: string;
   emptyDesc?: React.ReactNode;
-  /** Omit for a read-only queue. */
-  actionLabel?: string;
+  /** Omit for a read-only queue. A function resolves the label per row. */
+  actionLabel?: string | ((invoice: ApiInvoice) => string);
   actionBusyId?: string | null;
   onAction?: (invoice: ApiInvoice) => void;
   /** Payout-queue actions, gated by invoice status. Approve shows on paid/payment_verified; Reject on payout_approved. */
@@ -116,9 +117,18 @@ export function PlatformInvoiceTable({
                         {formatDate(inv.booking.departure.startDate)}
                       </td>
                       <td>
-                        <Pill tone={wireStatusTone(inv.status)}>
-                          {wireStatusLabel(inv.status)}
-                        </Pill>
+                        <div className="flex flex-wrap gap-1.5">
+                          <Pill tone={wireStatusTone(inv.status)}>
+                            {wireStatusLabel(inv.status)}
+                          </Pill>
+                          {(() => {
+                            const b = hostCancelBadge(
+                              inv.booking.departure.status,
+                              inv.refundStatus,
+                            );
+                            return b ? <Pill tone={b.tone}>{b.label}</Pill> : null;
+                          })()}
+                        </div>
                       </td>
                       <td>
                         <Pill tone={channelTone(inv.booking.channel)}>
@@ -155,7 +165,11 @@ export function PlatformInvoiceTable({
                                 disabled={actionBusyId === inv.id}
                                 onClick={() => onAction(inv)}
                               >
-                                {actionBusyId === inv.id ? '…' : actionLabel}
+                                {actionBusyId === inv.id
+                                  ? '…'
+                                  : typeof actionLabel === 'function'
+                                    ? actionLabel(inv)
+                                    : actionLabel}
                               </button>
                             ) : null}
                             {onApprove &&

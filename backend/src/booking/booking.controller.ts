@@ -16,6 +16,7 @@ import { MAX_CABINS_PER_BOOKING } from './booking.limits';
 import { ensureGuestToken, readGuestToken } from './guest-token';
 import { BookingService } from './booking.service';
 import { WaitlistService } from './waitlist.service';
+import { RefundsService } from '../money/refunds.service';
 import { CurrentUser, Public } from '../auth/decorators';
 import { AuthUser } from '../auth/auth.types';
 import {
@@ -26,6 +27,7 @@ import {
   JoinOpenSeatDto,
   GroupCheckoutDto,
   QuoteDto,
+  RequestRefundDto,
 } from './dto/booking.dto';
 
 /**
@@ -43,6 +45,7 @@ export class BookingController {
     private readonly holds: HoldsService,
     private readonly booking: BookingService,
     private readonly waitlist: WaitlistService,
+    private readonly refunds: RefundsService,
     private readonly config: ConfigService,
   ) {}
 
@@ -254,6 +257,28 @@ export class BookingController {
     @CurrentUser() user: AuthUser,
   ) {
     return this.booking.cancel(bookingId, user.id, user.isPlatform);
+  }
+
+  /**
+   * Request a refund for a HOST-cancelled trip (Path C, customer-initiated).
+   * Web bookings only, within 6 days of the cancellation. Collects the payout
+   * destination (bkash/nagad/bank), stored encrypted for the admin to pay.
+   */
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  @Post(':bookingId/request-refund')
+  requestRefund(
+    @Param('bookingId') bookingId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() dto: RequestRefundDto,
+  ) {
+    return this.refunds.requestRefundAsCustomer(bookingId, user.id, {
+      bankDetails: {
+        method: dto.method,
+        accountRef: dto.accountRef,
+        accountName: dto.accountName ?? null,
+        bankName: dto.bankName ?? null,
+      },
+    });
   }
 
   /** Reschedule a booking to another departure (owner-side; reprices). */

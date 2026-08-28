@@ -33,6 +33,7 @@ interface Quote {
   groupSize: number | null;
   specialNeeds: string | null;
   quotedPrice: string | null;
+  customerReply: string | null;
   status: string;
   expiresAt: string | null;
   customer?: { id: string; name: string | null; phone: string | null };
@@ -72,6 +73,11 @@ export default function OwnerQuotesPage() {
     acc[q.status] = (acc[q.status] ?? 0) + 1;
     return acc;
   }, {});
+
+  // A quote can still be (re)priced only while pending with the customer.
+  // Accepted/expired quotes open the same drawer read-only.
+  const priceable =
+    open ? open.status === 'requested' || open.status === 'sent' : false;
 
   async function sendQuote(e: React.FormEvent) {
     e.preventDefault();
@@ -146,7 +152,14 @@ export default function OwnerQuotesPage() {
                   </td>
                   <td className="t2">{formatDate(q.date)}</td>
                   <td>{q.groupSize ?? '—'}</td>
-                  <td className="t2">{q.specialNeeds ?? '—'}</td>
+                  <td className="t2">
+                    {q.specialNeeds ?? '—'}
+                    {q.customerReply ? (
+                      <div className="mt-1 text-[12px] text-blue">
+                        💬 {q.customerReply}
+                      </div>
+                    ) : null}
+                  </td>
                   <td>
                     {q.expiresAt ? (
                       <Pill tone={timeLeft(q.expiresAt) === 'expired' ? 'mut' : 'warn'}>
@@ -167,10 +180,14 @@ export default function OwnerQuotesPage() {
                         onClick={() => {
                           setOpen(q);
                           setPrice(q.quotedPrice ?? '');
+                          setError(null);
                         }}
-                        disabled={q.status === 'accepted' || q.status === 'expired'}
                       >
-                        {q.quotedPrice ? 'Reprice' : 'Price it'}
+                        {q.status === 'requested' || q.status === 'sent'
+                          ? q.quotedPrice
+                            ? 'Reprice'
+                            : 'Price it'
+                          : 'View'}
                       </button>
                     </div>
                   </td>
@@ -183,24 +200,32 @@ export default function OwnerQuotesPage() {
 
       <Drawer
         open={open !== null}
-        title="Price this quote"
+        title={priceable ? 'Price this quote' : 'Quote details'}
         onClose={() => setOpen(null)}
         footer={
-          <>
+          priceable ? (
+            <>
+              <button className={BTN_O} onClick={() => setOpen(null)}>
+                Cancel
+              </button>
+              <button className={BTN_B} onClick={sendQuote} disabled={busy || !price}>
+                {busy ? 'Sending…' : 'Send quote'}
+              </button>
+            </>
+          ) : (
             <button className={BTN_O} onClick={() => setOpen(null)}>
-              Cancel
+              Close
             </button>
-            <button className={BTN_B} onClick={sendQuote} disabled={busy || !price}>
-              {busy ? 'Sending…' : 'Send quote'}
-            </button>
-          </>
+          )
         }
       >
         {open ? (
           <div className="flex flex-col gap-5" style={{ gap: 16 }}>
             {open.expiresAt ? (
               <div>
-                <Pill tone="warn">{timeLeft(open.expiresAt)}</Pill>
+                <Pill tone={timeLeft(open.expiresAt) === 'expired' ? 'mut' : 'warn'}>
+                  {timeLeft(open.expiresAt)}
+                </Pill>
               </div>
             ) : null}
 
@@ -213,25 +238,42 @@ export default function OwnerQuotesPage() {
                 ['Date', formatDate(open.date)],
                 ['Group size', open.groupSize ?? '—'],
                 ['Special needs', open.specialNeeds ?? '—'],
+                ['Customer reply', open.customerReply ?? '—'],
+                ...(priceable
+                  ? []
+                  : [['Quoted price', open.quotedPrice ? money(open.quotedPrice) : '—'] as [
+                      string,
+                      string,
+                    ]]),
               ]}
             />
 
-            <Field label="Quoted price (৳)">
-              <input
-                type="number"
-                min={0}
-                step="0.01"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                placeholder="150000"
-              />
-            </Field>
+            {priceable ? (
+              <>
+                <Field label="Quoted price (৳)">
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                    placeholder="150000"
+                  />
+                </Field>
 
-            <Note kind="info">
-              This is a whole-boat price for the whole group — it replaces per-cabin
-              pricing for this booking. Compare it against your group price bands before
-              sending.
-            </Note>
+                <Note kind="info">
+                  This is a whole-boat price for the whole group — it replaces per-cabin
+                  pricing for this booking. Compare it against your group price bands
+                  before sending.
+                </Note>
+              </>
+            ) : (
+              <Note kind={open.status === 'accepted' ? 'info' : 'danger'}>
+                {open.status === 'accepted'
+                  ? 'The customer accepted this quote. It can no longer be repriced.'
+                  : 'This quote expired before it was accepted.'}
+              </Note>
+            )}
           </div>
         ) : null}
       </Drawer>

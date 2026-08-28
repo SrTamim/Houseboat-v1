@@ -140,6 +140,16 @@ export class ListInvoicesQueryDto extends PageQueryDto {
 
   @IsOptional() @IsUUID() houseboatId?: string;
 
+  /**
+   * Only invoices whose trip the owner cancelled (`departure.status='cancelled'`).
+   * These keep invoice status 'paid' until the customer requests a refund, so this
+   * is the only way to list them. ANDs with the other predicates.
+   */
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  departureCancelled?: boolean;
+
   /** Free-text: matches customer name / phone, boat name, or a booking id prefix. */
   @IsOptional() @IsString() @MaxLength(100) q?: string;
 }

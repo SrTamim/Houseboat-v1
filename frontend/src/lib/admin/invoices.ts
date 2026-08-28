@@ -31,9 +31,20 @@ export interface ApiInvoice {
     type: string;
     channel: string;
     createdAt: string;
-    departure: { startDate: string };
+    departure: {
+      startDate: string;
+      /** 'cancelled' = the owner cancelled the whole trip (host-cancelled badge). */
+      status?: string;
+      cancelReason?: string | null;
+    };
   };
   payments: ApiInvoicePayment[];
+  /** Latest InvoiceRefund id for this invoice (verify-refund action target). */
+  refundId?: string | null;
+  /** 'customer' | 'owner' — drives the verify-refund vs gateway-verify branch. */
+  refundOrigin?: string | null;
+  /** Latest InvoiceRefund status — feeds the host-cancelled/refund badge. */
+  refundStatus?: string | null;
 }
 
 export type InvoiceWireStatus =
@@ -106,4 +117,27 @@ export function channelTone(channel: string | null | undefined): PillTone {
 export function maskToken(token: string | null): string {
   if (!token) return '— (cash)';
   return token.length > 10 ? `${token.slice(0, 8)}…${token.slice(-4)}` : token;
+}
+
+/**
+ * Badge for a host-cancelled trip, shown alongside the normal invoice status.
+ * A host-cancelled invoice keeps status 'paid' until the customer requests a
+ * refund, so this is the only on-screen signal that the trip was cancelled.
+ * Returns null when the trip was not host-cancelled.
+ */
+export function hostCancelBadge(
+  departureStatus: string | null | undefined,
+  refundStatus?: string | null,
+): { label: string; tone: PillTone } | null {
+  if (departureStatus !== 'cancelled') return null;
+  switch (refundStatus) {
+    case 'requested':
+      return { label: 'Refund requested', tone: 'warn' };
+    case 'verified':
+      return { label: 'Refund verified', tone: 'blue' };
+    case 'completed':
+      return { label: 'Refunded', tone: 'ok' };
+    default:
+      return { label: 'Host-cancelled', tone: 'amb' };
+  }
 }

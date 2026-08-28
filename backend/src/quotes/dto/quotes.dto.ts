@@ -19,3 +19,7 @@ export class CreateQuoteDto {
 export class PriceQuoteDto {
   @IsNumber() @IsPositive() quotedPrice!: number;
 }
+
+export class ReplyQuoteDto {
+  @IsString() @MaxLength(LEN_LONG_TEXT) message!: string;
+}

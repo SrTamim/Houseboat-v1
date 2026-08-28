@@ -33,7 +33,7 @@ describe('PlatformFinanceService.upsertBillingConfig', () => {
         update,
       },
     };
-    const svc = new PlatformFinanceService(prisma as never, audit as never);
+    const svc = new PlatformFinanceService(prisma as never, audit as never, { get: () => undefined } as never);
     return { svc, create, update, audit };
   }
 

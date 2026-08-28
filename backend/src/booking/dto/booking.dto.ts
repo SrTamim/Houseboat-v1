@@ -3,12 +3,14 @@ import {
   IsArray,
   IsBoolean,
   IsEmail,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
   Max,
   MaxLength,
   Min,
+  MinLength,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -155,4 +157,23 @@ export class GroupCheckoutDto {
   @IsOptional() @IsString() @MaxLength(LEN_TEXT) specialInstructions?: string;
   @IsOptional() @IsString() @MaxLength(LEN_NAME) referenceName?: string;
   @IsOptional() @IsBoolean() useCredit?: boolean;
+}
+
+/**
+ * A customer's refund request after the owner cancelled their trip. The refund
+ * amount is NOT taken from the client (the server refunds the full amount paid);
+ * only the payout destination is collected here and stored encrypted at rest.
+ */
+export class RequestRefundDto {
+  @IsIn(['bkash', 'nagad', 'bank'])
+  method!: 'bkash' | 'nagad' | 'bank';
+
+  /** bKash/Nagad number, or bank account number. */
+  @IsString() @MinLength(3) @MaxLength(64) accountRef!: string;
+
+  /** Account holder name — helps the admin match the transfer. */
+  @IsOptional() @IsString() @MaxLength(LEN_NAME) accountName?: string;
+
+  /** Required in practice for method=bank. */
+  @IsOptional() @IsString() @MaxLength(120) bankName?: string;
 }

@@ -1,10 +1,10 @@
-import { Body, Controller, Get, Param, Put, Res } from '@nestjs/common';
+import { Body, Controller, Get, Param, Put } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
-import type { Response } from 'express';
 import { CurrentUser, PlatformOnly } from '../../auth/decorators';
 import { AuthUser } from '../../auth/auth.types';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../redis/redis.service';
+import { NotificationsService } from '../../notifications/notifications.service';
 import { PlatformPermission } from '../rbac/platform-permission.decorator';
 import { SettingsService } from '../settings/settings.service';
 import { UpdateSettingDto } from '../dto/platform.dto';
@@ -23,6 +23,7 @@ export class PlatformSystemController {
     private readonly settings: SettingsService,
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /** Every editable setting with its current value, bounds and display metadata. */
@@ -76,5 +77,17 @@ export class PlatformSystemController {
       redis,
       time: new Date().toISOString(),
     };
+  }
+
+  /**
+   * SMS provider balance for the console. Never returns the API key — only the
+   * balance (or a "not configured" flag). Polled by the page, so throttle-exempt
+   * like health().
+   */
+  @SkipThrottle()
+  @Get('sms-balance')
+  async smsBalance() {
+    const result = await this.notifications.getSmsBalance();
+    return { ...result, time: new Date().toISOString() };
   }
 }

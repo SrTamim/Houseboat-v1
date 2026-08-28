@@ -36,7 +36,7 @@ function makeService(invoices: any[], bankAccount: unknown = { bankName: 'X' }) 
     $transaction: jest.fn((fn: (t: unknown) => unknown) => Promise.resolve(fn(tx))),
   };
   const audit = { log: jest.fn().mockResolvedValue(undefined) };
-  const svc = new PlatformFinanceService(prisma as never, audit as never);
+  const svc = new PlatformFinanceService(prisma as never, audit as never, { get: () => undefined } as never);
   return { svc, prisma, tx, audit, created, updated };
 }
 
@@ -140,7 +140,7 @@ function makeRejectService(invoice: any) {
     $transaction: jest.fn((fn: (t: unknown) => unknown) => Promise.resolve(fn(tx))),
   };
   const audit = { log: jest.fn().mockResolvedValue(undefined) };
-  const svc = new PlatformFinanceService(prisma as never, audit as never);
+  const svc = new PlatformFinanceService(prisma as never, audit as never, { get: () => undefined } as never);
   return { svc, updated };
 }
 

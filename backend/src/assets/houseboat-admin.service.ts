@@ -133,6 +133,7 @@ export class HouseboatAdminService {
         slug: dto.name ? this.slugify(dto.name) : undefined,
         description: dto.description,
         safetyFeatures: dto.safetyFeatures,
+        cancellationPolicy: dto.cancellationPolicy,
         foodMenu: dto.foodMenu as never,
         bankAccount: dto.bankAccount as never,
         childPolicy: dto.childPolicy as never,

@@ -7,6 +7,11 @@ import { fetcher } from '@/lib/api';
 import { money, formatDate } from '@/lib/owner/format';
 import { photoFor } from '@/lib/customer/boat-card';
 import type { TripListItem } from '@/lib/customer/types';
+import {
+  isHostCancelled,
+  refundWindowOpen,
+  refundStatusLabel,
+} from '@/lib/customer/booking';
 
 type Filter = 'all' | 'upcoming' | 'completed' | 'cancelled';
 
@@ -22,6 +27,9 @@ const STATUS_PILL: Record<string, [string, string]> = {
 /** Bucket a booking into the filter tabs by status + departure date. */
 function bucketOf(t: TripListItem): Exclude<Filter, 'all'> {
   if (t.status === 'cancelled') return 'cancelled';
+  // A host-cancelled trip (departure cancelled, booking still "confirmed") also
+  // belongs in the Cancelled tab, not Upcoming.
+  if (isHostCancelled(t.departure)) return 'cancelled';
   if (t.status === 'completed') return 'completed';
   const start = t.departure ? new Date(t.departure.startDate) : null;
   if (start && start.getTime() < Date.now()) return 'completed';
@@ -111,8 +119,17 @@ export default function TripsPage() {
             const paid = t.invoice ? Number(t.invoice.amountPaid) : 0;
             const total = t.invoice ? Number(t.invoice.displayTotal) : 0;
             const due = Math.max(total - paid, 0);
-            const pill = STATUS_PILL[t.status] ?? ['bg-chip text-muted', t.status];
-            const showPay = due > 0 && t.status === 'confirmed';
+            const hostCancelled = isHostCancelled(t.departure);
+            const canRequestRefund =
+              refundWindowOpen(t.departure) && !t.refundStatus;
+            // Host-cancelled trips override the normal status pill (booking.status
+            // is still "confirmed" server-side) and never show Pay balance.
+            const pill: [string, string] = hostCancelled
+              ? t.refundStatus
+                ? ['bg-[color-mix(in_srgb,var(--blue)_12%,transparent)] text-blue', refundStatusLabel(t.refundStatus)]
+                : ['bg-[color-mix(in_srgb,var(--amber)_14%,transparent)] text-amber-700', '⚑ Cancelled by host']
+              : STATUS_PILL[t.status] ?? ['bg-chip text-muted', t.status];
+            const showPay = due > 0 && t.status === 'confirmed' && !hostCancelled;
             return (
               <article
                 key={t.id}
@@ -147,13 +164,19 @@ export default function TripsPage() {
                     <Fact label="Dates" value={t.departure ? formatDate(t.departure.startDate) : '—'} />
                     <Fact label="Guests" value={`${t.headcount ?? '—'} guests`} plain />
                     <Fact label="Paid" value={money(paid)} />
-                    {due > 0 ? (
+                    {due > 0 && !hostCancelled ? (
                       <Fact label="Due at boarding" value={money(due)} amber />
                     ) : null}
                   </div>
 
                   <div className="mt-4 flex flex-wrap items-center gap-2.5">
-                    {due > 0 ? (
+                    {hostCancelled ? (
+                      <span className="text-[13px] font-semibold text-amber-700">
+                        {t.refundStatus
+                          ? refundStatusLabel(t.refundStatus)
+                          : 'Cancelled by host — refund available'}
+                      </span>
+                    ) : due > 0 ? (
                       <span className="inline-flex items-center gap-1.5 rounded-full bg-[color-mix(in_srgb,var(--amber)_12%,transparent)] px-3 py-1.5 text-[13px] font-semibold text-amber-700">
                         ⏳ {money(due)} due at boarding
                       </span>
@@ -166,7 +189,11 @@ export default function TripsPage() {
                     <Link href={`/account/booking/${t.id}`} className={BTN_O}>
                       View details
                     </Link>
-                    {showPay ? (
+                    {canRequestRefund ? (
+                      <Link href={`/account/booking/${t.id}`} className={BTN_B}>
+                        Request refund
+                      </Link>
+                    ) : showPay ? (
                       <Link href={`/account/booking/${t.id}`} className={BTN_B}>
                         Pay balance
                       </Link>

@@ -3,11 +3,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
 import { newId } from '../../common/uuid';
 import { money, add, ZERO } from '../../common/money';
 import { dueToBoat } from '../../common/billing';
+import { decryptJson } from '../../common/crypto';
 import { assertTransition, type InvoiceStatus } from '../../money/invoice-state';
 import { cursorArgs, toPage, type Page } from '../../common/paginate';
 import type {
@@ -35,6 +37,7 @@ export class PlatformFinanceService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly config: ConfigService,
   ) {}
 
   /**
@@ -105,9 +108,32 @@ export class PlatformFinanceService {
             ? { status: { in: ['paid', 'payment_verified'] }, payoutBatchId: null }
             : query.gatewayPending
               ? {
-                  status: 'paid',
-                  payments: { some: { method: 'gateway' } },
-                  ...this.fullyPaidCompleted(),
+                  // Verify page — combined list of two things needing a human:
+                  //  (a) gateway payments to verify (paid + fully-paid/completed);
+                  //  (b) customer-requested refunds to verify (refund_requested,
+                  //      web only). Refund invoices are fully paid but NOT
+                  //      completed (the trip was cancelled), so they must NOT go
+                  //      through fullyPaidCompleted() — hence a separate OR arm.
+                  //  Combined under a named AND so this OR never collides with the
+                  //  free-text `q` OR below (object-literal keys would dedupe).
+                  AND: [
+                    {
+                      OR: [
+                        {
+                          status: 'paid',
+                          payments: { some: { method: 'gateway' } },
+                          ...this.fullyPaidCompleted(),
+                        },
+                        {
+                          status: 'refund_requested',
+                          booking: { is: { channel: 'web' } },
+                          amountPaid: {
+                            gte: this.prisma.invoice.fields.displayTotal,
+                          },
+                        },
+                      ],
+                    },
+                  ],
                 }
               : query.payoutQueue
                 ? {
@@ -134,6 +160,10 @@ export class PlatformFinanceService {
             }
           : {}),
         houseboatId: query.houseboatId ?? undefined,
+        // Filter to invoices whose trip the owner cancelled (badge filter).
+        ...(query.departureCancelled
+          ? { booking: { is: { departure: { is: { status: 'cancelled' } } } } }
+          : {}),
       },
       select: {
         id: true,
@@ -152,20 +182,42 @@ export class PlatformFinanceService {
             type: true,
             channel: true,
             createdAt: true,
-            departure: { select: { startDate: true } },
+            // status + cancelReason drive the "Host-cancelled" badge — a
+            // host-cancelled trip leaves the invoice 'paid', so the invoice
+            // status alone can't reveal it.
+            departure: {
+              select: { startDate: true, status: true, cancelReason: true },
+            },
             cabins: { select: { id: true } },
           },
         },
         payments: {
           select: { id: true, amount: true, method: true, gatewayToken: true },
         },
+        // Latest refund (if any) so the Verify page can fire the verify-refund
+        // action against the right refund id and label it by origin.
+        refunds: {
+          orderBy: { id: 'desc' },
+          take: 1,
+          select: { id: true, status: true, origin: true },
+        },
       },
     });
     // Flatten the cabins array into a count — the table shows a per-booking
-    // cabin count, mirroring platform-ops.service.ts listBookings.
-    const shaped = rows.map(({ booking, ...r }) => {
+    // cabin count, mirroring platform-ops.service.ts listBookings. Surface the
+    // latest refund's id/origin/status as flat fields for the refund-verify
+    // action and the host-cancelled badge.
+    const shaped = rows.map(({ booking, refunds, ...r }) => {
       const { cabins, ...bk } = booking;
-      return { ...r, booking: bk, cabinCount: cabins.length };
+      const latestRefund = refunds[0] ?? null;
+      return {
+        ...r,
+        booking: bk,
+        cabinCount: cabins.length,
+        refundId: latestRefund?.id ?? null,
+        refundOrigin: latestRefund?.origin ?? null,
+        refundStatus: latestRefund?.status ?? null,
+      };
     });
     return toPage(shaped, query);
   }
@@ -205,6 +257,9 @@ export class PlatformFinanceService {
                 id: true,
                 startDate: true,
                 endDate: true,
+                // Host-cancelled badge in the drawer's Status section.
+                status: true,
+                cancelReason: true,
                 package: {
                   select: {
                     durationLabel: true,
@@ -249,6 +304,12 @@ export class PlatformFinanceService {
           },
           orderBy: { paidAt: 'asc' },
         },
+        // Latest refund → the drawer's host-cancelled/refund badge.
+        refunds: {
+          orderBy: { id: 'desc' },
+          take: 1,
+          select: { status: true, origin: true },
+        },
       },
     });
     if (!invoice) throw new NotFoundException('Invoice not found');
@@ -259,7 +320,12 @@ export class PlatformFinanceService {
       commission: invoice.commission,
       payments: invoice.payments,
     });
-    return { ...invoice, dueToBoat: live.toFixed(2) };
+    const { refunds, ...rest } = invoice;
+    return {
+      ...rest,
+      dueToBoat: live.toFixed(2),
+      refundStatus: refunds[0]?.status ?? null,
+    };
   }
 
   // ── Payout console: approve / reject / pay + receipts ──────────────────────
@@ -566,6 +632,7 @@ export class PlatformFinanceService {
         amount: true,
         reason: true,
         status: true,
+        origin: true,
         claimDeadline: true,
         completedAt: true,
         requestedByAccount: { select: { id: true, name: true } },
@@ -586,6 +653,25 @@ export class PlatformFinanceService {
     return toPage(rows, query);
   }
 
+  /**
+   * Decrypt one refund's payout destination for the admin who is sending the
+   * money. bank_details are AES-encrypted at rest and kept off listRefunds
+   * (PII minimization) — this reveals them only on demand in the drawer.
+   */
+  async bankDetailsForRefund(refundId: string) {
+    const refund = await this.prisma.invoiceRefund.findUnique({
+      where: { id: refundId },
+      select: { bankDetails: true },
+    });
+    if (!refund) throw new NotFoundException('Refund not found');
+    if (refund.bankDetails == null) return { bankDetails: null };
+    const bankDetails = decryptJson(
+      refund.bankDetails as unknown as string,
+      this.config.get<string>('encryptionKey') ?? '',
+    );
+    return { bankDetails };
+  }
+
   /** Invoices where the customer paid more than the final bill (buyout adjustments). */
   async listOverpayments(query: ListInvoicesQueryDto): Promise<Page<{ id: string }>> {
     const rows = await this.prisma.invoice.findMany({
@@ -602,7 +688,15 @@ export class PlatformFinanceService {
         amountOverpaid: true,
         houseboat: { select: { id: true, name: true } },
         customer: { select: { id: true, name: true, phone: true } },
-        booking: { select: { id: true, channel: true, createdAt: true } },
+        booking: {
+          select: {
+            id: true,
+            channel: true,
+            createdAt: true,
+            // Host-cancelled badge on the overpayments list.
+            departure: { select: { status: true, cancelReason: true } },
+          },
+        },
       },
     });
     return toPage(rows, query);

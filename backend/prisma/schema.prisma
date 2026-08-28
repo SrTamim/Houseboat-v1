@@ -209,6 +209,8 @@ model Houseboat {
   slug              String    @unique
   description       String?
   safetyFeatures    String?   @map("safety_features")
+  /// owner-entered free text shown in the customer cabin modal → Policies tab
+  cancellationPolicy String?  @map("cancellation_policy")
   /// { breakfast, brunch, lunch, snacks, dinner } — separate meal inputs
   foodMenu          Json?     @map("food_menu")
   /// MANDATORY before any payout can run
@@ -425,6 +427,8 @@ model TripDeparture {
   status           String    @default("scheduled")
   /// owner-supplied reason when status='cancelled' — shown to customers for refund requests
   cancelReason     String?   @map("cancel_reason")
+  /// when the owner cancelled this departure — anchors the customer's 6-day refund-request window; nulled on revive
+  cancelledAt      DateTime? @map("cancelled_at") @db.Timestamptz
 
   package        TripPackage       @relation(fields: [packageId], references: [id])
   pricingProfile PricingProfile?   @relation(fields: [pricingProfileId], references: [id])
@@ -683,6 +687,8 @@ model QuoteRequest {
   quotedPrice  Decimal?  @map("quoted_price") @db.Decimal(12, 2)
   /// requested / sent / accepted / expired
   status       String    @default("requested")
+  /// customer's one-shot note back to the owner (after they see the price)
+  customerReply String?  @map("customer_reply")
   /// 24h OR when the date fills, whichever first
   expiresAt    DateTime? @map("expires_at") @db.Timestamptz
 
@@ -775,7 +781,11 @@ model InvoiceRefund {
   completedBy   String?   @map("completed_by") @db.Uuid
   /// requested / verified / completed
   status        String    @default("requested")
-  /// 6 days from owner cancellation; after this the refund button disappears
+  /// who raised it: 'owner' = owner/finance-raised (POS or owner-cancel), strict 3-person duties;
+  /// 'customer' = customer-raised web refund, one admin may verify+complete
+  origin        String    @default("owner")
+  /// 6 days from owner cancellation; after this the refund button disappears.
+  /// NULL for customer-origin refunds — their window is enforced at request time, not on admin steps.
   claimDeadline DateTime? @map("claim_deadline") @db.Timestamptz
   completedAt   DateTime? @map("completed_at") @db.Timestamptz
 

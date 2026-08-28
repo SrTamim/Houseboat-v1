@@ -1,6 +1,7 @@
 import { Module, Global } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { AuthService } from './auth.service';
+import { PasswordResetService } from './password-reset.service';
 import { AuthController } from './auth.controller';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { HoldsService } from '../booking/holds.service';
@@ -18,7 +19,7 @@ import { HoldsService } from '../booking/holds.service';
 @Module({
   imports: [JwtModule.register({})],
   controllers: [AuthController],
-  providers: [AuthService, JwtAuthGuard, HoldsService],
+  providers: [AuthService, PasswordResetService, JwtAuthGuard, HoldsService],
   exports: [AuthService, JwtAuthGuard, JwtModule],
 })
 export class AuthModule {}

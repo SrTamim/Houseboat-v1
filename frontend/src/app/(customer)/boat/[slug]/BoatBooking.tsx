@@ -12,6 +12,7 @@ import {
   type InfoTab,
 } from '@/components/customer/CabinInfoModal';
 import { PhotoLightbox } from '@/components/customer/PhotoLightbox';
+import { QuoteRequestModal } from '@/components/customer/QuoteRequestModal';
 import { useAuthModal } from '@/components/customer/AuthModalProvider';
 import { PRIMARY_BTN } from '@/lib/customer/boat-card';
 import { useHoldHeartbeat } from '@/lib/customer/useHoldHeartbeat';
@@ -371,6 +372,28 @@ export function BoatBooking({
     photos: string[];
     title: string;
   } | null>(null);
+
+  // Custom-quote modal. A signed-out guest is bounced to the auth popup first;
+  // pendingQuote remembers that intent so the modal opens once login flips
+  // isSignedIn to true (router.refresh() re-runs the server shell but keeps this
+  // client island mounted, so this state survives).
+  const [quoteOpen, setQuoteOpen] = useState(false);
+  const [pendingQuote, setPendingQuote] = useState(false);
+  useEffect(() => {
+    if (isSignedIn && pendingQuote) {
+      setPendingQuote(false);
+      setQuoteOpen(true);
+    }
+  }, [isSignedIn, pendingQuote]);
+
+  const openQuote = useCallback(() => {
+    if (!isSignedIn) {
+      setPendingQuote(true);
+      openAuth('login', { reason: 'login_required' });
+      return;
+    }
+    setQuoteOpen(true);
+  }, [isSignedIn, openAuth]);
 
   const selectedCabins = useMemo(
     () =>
@@ -1125,6 +1148,20 @@ export function BoatBooking({
               Selecting a group clears any picked cabins.
             </p>
 
+            <div className="mb-[18px] flex flex-wrap items-center gap-3 rounded-2xl border border-dashed border-hair bg-bg px-4 py-3.5">
+              <div className="text-[13.5px] text-bodytext">
+                Big group or special plan?{' '}
+                <b className="text-ink">Ask the owner for a custom price.</b>
+              </div>
+              <button
+                type="button"
+                onClick={openQuote}
+                className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-blue bg-[color-mix(in_srgb,var(--blue)_8%,transparent)] px-4 py-2 text-[13.5px] font-bold text-blue transition-colors hover:bg-[color-mix(in_srgb,var(--blue)_14%,transparent)]"
+              >
+                💬 Get a custom quote
+              </button>
+            </div>
+
             <div className="mb-[18px] grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(150px,1fr))]">
               {bands.map((b) => (
                 <button
@@ -1476,6 +1513,7 @@ export function BoatBooking({
           cabin={infoFor.cabin}
           boatName={boat.name}
           safetyFeatures={boat.safetyFeatures}
+          cancellationPolicy={boat.cancellationPolicy}
           foodMenu={boat.foodMenu}
           childPolicy={boat.childPolicy}
           departure={departure}
@@ -1489,6 +1527,14 @@ export function BoatBooking({
           photos={photosFor.photos}
           title={photosFor.title}
           onClose={() => setPhotosFor(null)}
+        />
+      ) : null}
+
+      {quoteOpen ? (
+        <QuoteRequestModal
+          boatId={boat.id}
+          boatName={boat.name}
+          onClose={() => setQuoteOpen(false)}
         />
       ) : null}
 

@@ -6,6 +6,7 @@ export interface JwtPayload {
   type: 'access' | 'refresh';
   jti?: string; // present on refresh tokens — used for revocation
   remember?: boolean; // refresh tokens only — "keep me signed in", survives rotation
+  iat?: number; // issued-at (stamped by jwt) — used for the password-change cutoff
 }
 
 /** Shape attached to req.user after AuthGuard runs. */

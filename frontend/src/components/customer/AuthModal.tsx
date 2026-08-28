@@ -5,6 +5,7 @@ import { api, clearCsrfToken, refreshCsrfToken } from '@/lib/api';
 import { toE164, apiErrorMessage } from '@/lib/owner/format';
 import { authReasonCopy, type AuthMode } from '@/lib/customer/login-url';
 import { DARK_CARD_SURFACE, PRIMARY_BTN } from '@/lib/customer/boat-card';
+import { ForgotPasswordFlow } from './ForgotPasswordFlow';
 
 // ---- design tokens ---------------------------------------------------------
 // Colours/radii/shadows resolve through the CSS vars in customer.css, so these
@@ -56,6 +57,11 @@ export function AuthModal({
   const restoreTo = useRef<HTMLElement | null>(null);
   const firstFieldRef = useRef<HTMLInputElement>(null);
   const titleId = useId();
+
+  /** Local sub-view: the forgot-password flow lives inside this same dialog but
+   *  is deliberately NOT part of the shared AuthMode union (which feeds the URL
+   *  ?auth= param and the tab list). */
+  const [view, setView] = useState<'auth' | 'forgot'>('auth');
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -168,8 +174,12 @@ export function AuthModal({
       setError('A password is required.');
       return;
     }
-    if (isRegister && password.length < 8) {
-      setError('Password must be at least 8 characters.');
+    if (isRegister && password.length < 6) {
+      setError('Password must be at least 6 characters.');
+      return;
+    }
+    if (isRegister && !/(?=.*[A-Za-z])(?=.*\d)/.test(password)) {
+      setError('Password must contain at least one letter and one number.');
       return;
     }
     setBusy(true);
@@ -276,6 +286,8 @@ export function AuthModal({
               Taking you back…
             </p>
           </div>
+        ) : view === 'forgot' ? (
+          <ForgotPasswordFlow onDone={() => setView('auth')} />
         ) : (
           <>
         <div
@@ -393,15 +405,27 @@ export function AuthModal({
             </div>
 
             {!isRegister ? (
-              <label className="mb-4 flex cursor-pointer items-center gap-2 text-[13.5px] font-semibold text-bodytext">
-                <input
-                  type="checkbox"
-                  checked={remember}
-                  onChange={(e) => setRemember(e.target.checked)}
-                  className="h-[17px] w-[17px] accent-blue"
-                />
-                Remember me
-              </label>
+              <div className="mb-4 flex items-center justify-between">
+                <label className="flex cursor-pointer items-center gap-2 text-[13.5px] font-semibold text-bodytext">
+                  <input
+                    type="checkbox"
+                    checked={remember}
+                    onChange={(e) => setRemember(e.target.checked)}
+                    className="h-[17px] w-[17px] accent-blue"
+                  />
+                  Remember me
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError(null);
+                    setView('forgot');
+                  }}
+                  className="text-[13.5px] font-bold text-blue hover:underline"
+                >
+                  Forgot password?
+                </button>
+              </div>
             ) : null}
 
             <div aria-live="polite">

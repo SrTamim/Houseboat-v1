@@ -73,10 +73,13 @@ export class QuotesService {
     });
     if (!quote) throw new NotFoundException('Quote not found');
     await this.rbac.assert(actorId, isPlatform, quote.houseboatId, 'quotes', 'edit');
-    if (quote.status !== 'requested') {
+    // Price a fresh request or reprice one still pending with the customer.
+    // Once accepted or expired the price is settled — repricing is refused.
+    if (quote.status !== 'requested' && quote.status !== 'sent') {
       throw new BadRequestException(`Cannot price a ${quote.status} quote`);
     }
 
+    // Repricing restarts the customer's 24h window on the new figure.
     const expiresAt = new Date(Date.now() + QUOTE_TTL_HOURS * 60 * 60 * 1000);
     const updated = await this.prisma.quoteRequest.update({
       where: { id: quoteId },
@@ -147,11 +150,40 @@ export class QuotesService {
     });
   }
 
+  /** Customer replies to a quote (one-shot note back to the owner). */
+  async reply(quoteId: string, customerId: string, message: string) {
+    const quote = await this.prisma.quoteRequest.findUnique({
+      where: { id: quoteId },
+    });
+    if (!quote) throw new NotFoundException('Quote not found');
+    if (quote.customerId !== customerId) {
+      throw new BadRequestException('Not your quote');
+    }
+    if (quote.status !== 'requested' && quote.status !== 'sent') {
+      throw new BadRequestException(`Cannot reply to a ${quote.status} quote`);
+    }
+    const updated = await this.prisma.quoteRequest.update({
+      where: { id: quoteId },
+      data: { customerReply: message },
+    });
+    await this.audit.log({
+      houseboatId: quote.houseboatId,
+      actorAccountId: customerId,
+      action: 'quote_reply',
+      entityType: 'quote_request',
+      entityId: quoteId,
+    });
+    return updated;
+  }
+
   /** Customer's own quote requests. */
   listForCustomer(customerId: string) {
     return this.prisma.quoteRequest.findMany({
       where: { customerId },
       orderBy: { id: 'desc' },
+      include: {
+        houseboat: { select: { id: true, name: true, slug: true } },
+      },
     });
   }
 }

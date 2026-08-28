@@ -70,6 +70,10 @@ export default () => ({
     smsApiUrl: process.env.SMS_API_URL,
     smsApiKey: process.env.SMS_API_KEY,
     smsSenderId: process.env.SMS_SENDER_ID,
+    // Optional balance-check endpoint. When unset we derive it from smsApiUrl's
+    // origin (see NotificationsService.getSmsBalance) — set this only if the
+    // provider's balance host differs from its send host.
+    smsBalanceUrl: process.env.SMS_BALANCE_URL,
     // Email (SMTP).
     smtpUrl: process.env.SMTP_URL, // smtp://user:pass@host:port
     emailFrom: process.env.EMAIL_FROM ?? 'no-reply@houseboat.local',

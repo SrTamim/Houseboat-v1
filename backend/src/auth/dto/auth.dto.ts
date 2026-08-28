@@ -19,13 +19,26 @@ const BD_PHONE = /^(?:\+?8801|01)[3-9]\d{8}$/;
  */
 const PASSWORD_MAX = 72;
 
+/**
+ * Shared password policy — the single source of truth for register AND reset.
+ * At least 6 chars, and must contain a letter and a number. Special characters
+ * are allowed but not required (the rule below permits them).
+ */
+export const PASSWORD_MIN = 6;
+export const PASSWORD_RULE = /(?=.*[A-Za-z])(?=.*\d)/;
+export const PASSWORD_RULE_MESSAGE =
+  'password must contain at least one letter and one number';
+
 export class RegisterDto {
   @IsString()
   @Matches(BD_PHONE, { message: 'phone must be a valid Bangladeshi mobile number' })
   phone!: string;
 
   @IsString()
-  @MinLength(8, { message: 'password must be at least 8 characters' })
+  @MinLength(PASSWORD_MIN, {
+    message: `password must be at least ${PASSWORD_MIN} characters`,
+  })
+  @Matches(PASSWORD_RULE, { message: PASSWORD_RULE_MESSAGE })
   @MaxLength(PASSWORD_MAX)
   password!: string;
 
@@ -60,4 +73,38 @@ export class LoginDto {
   @IsOptional()
   @IsBoolean()
   rememberMe?: boolean;
+}
+
+// ── Password reset (forgot-password via SMS OTP) ────────────────────────────
+
+/** Step 1: request an OTP to a phone number. */
+export class RequestOtpDto {
+  @IsString()
+  @Matches(BD_PHONE, { message: 'phone must be a valid Bangladeshi mobile number' })
+  phone!: string;
+}
+
+/** Step 2: verify the 6-digit code and get a single-use reset ticket. */
+export class VerifyOtpDto {
+  @IsString()
+  @Matches(BD_PHONE, { message: 'phone must be a valid Bangladeshi mobile number' })
+  phone!: string;
+
+  @IsString()
+  @Matches(/^\d{6}$/, { message: 'code must be a 6-digit number' })
+  code!: string;
+}
+
+/** Step 3: set a new password using the reset ticket. */
+export class ResetPasswordDto {
+  @IsString()
+  resetTicket!: string;
+
+  @IsString()
+  @MinLength(PASSWORD_MIN, {
+    message: `password must be at least ${PASSWORD_MIN} characters`,
+  })
+  @Matches(PASSWORD_RULE, { message: PASSWORD_RULE_MESSAGE })
+  @MaxLength(PASSWORD_MAX)
+  password!: string;
 }

@@ -6,7 +6,7 @@ import { Drawer } from './Drawer';
 import { Pill } from './Pill';
 import { ErrorState } from './ui';
 import { formatBDT } from '@/lib/admin/money';
-import { wireStatusLabel, wireStatusTone, shortId, channelLabel, channelTone } from '@/lib/admin/invoices';
+import { wireStatusLabel, wireStatusTone, shortId, channelLabel, channelTone, hostCancelBadge } from '@/lib/admin/invoices';
 import {
   BTN_O,
   DSEC,
@@ -131,6 +131,10 @@ export function BookingDetailDrawer({
             <h4 className={DSEC_H4}>Status</h4>
             <div className="mb-3 flex flex-wrap gap-2">
               <Pill tone={BOOKING_TONE[b.status] ?? 'mut'}>{b.status}</Pill>
+              {(() => {
+                const badge = hostCancelBadge(b.departure.status);
+                return badge ? <Pill tone={badge.tone}>{badge.label}</Pill> : null;
+              })()}
               <Pill tone="mut">{b.type}</Pill>
               <Pill tone={channelTone(b.channel)}>{channelLabel(b.channel)}</Pill>
               {b.invoice ? (

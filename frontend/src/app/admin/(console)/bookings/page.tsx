@@ -15,7 +15,7 @@ import { Pill } from '@/components/admin/Pill';
 import { BookingDetailDrawer } from '@/components/admin/BookingDetailDrawer';
 import { useAdminList } from '@/lib/admin/useAdminList';
 import { formatBDT } from '@/lib/admin/money';
-import { wireStatusLabel, wireStatusTone, shortId, channelLabel, channelTone } from '@/lib/admin/invoices';
+import { wireStatusLabel, wireStatusTone, shortId, channelLabel, channelTone, hostCancelBadge } from '@/lib/admin/invoices';
 import { BTN_O, BTN_SM, FILTERBAR, ROWACT, TD_NUM, TD_T1, TD_T2, UNIT } from '@/components/admin/styles';
 
 interface BookingRow {
@@ -154,13 +154,21 @@ export default function Bookings() {
                         <Pill tone={channelTone(b.channel)}>{channelLabel(b.channel)}</Pill>
                       </td>
                       <td>
-                        {b.invoice ? (
-                          <Pill tone={wireStatusTone(b.invoice.status)}>
-                            {wireStatusLabel(b.invoice.status)}
-                          </Pill>
-                        ) : (
-                          <span className={TD_T2}>—</span>
-                        )}
+                        <div className="flex flex-wrap gap-1.5">
+                          {b.invoice ? (
+                            <Pill tone={wireStatusTone(b.invoice.status)}>
+                              {wireStatusLabel(b.invoice.status)}
+                            </Pill>
+                          ) : (
+                            <span className={TD_T2}>—</span>
+                          )}
+                          {(() => {
+                            const badge = hostCancelBadge(b.departure.status);
+                            return badge ? (
+                              <Pill tone={badge.tone}>{badge.label}</Pill>
+                            ) : null;
+                          })()}
+                        </div>
                       </td>
                       <td className={TD_NUM}>
                         {b.invoice ? (

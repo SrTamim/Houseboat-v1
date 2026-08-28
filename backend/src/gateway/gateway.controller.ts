@@ -220,8 +220,16 @@ export class GatewayController {
         booking: {
           include: {
             guests: { take: 1 },
+            cabins: { include: { cabin: { select: { name: true } } } },
             departure: {
-              include: { package: { include: { houseboat: { select: { name: true } } } } },
+              include: {
+                package: {
+                  include: {
+                    houseboat: { select: { name: true } },
+                    route: { select: { name: true } },
+                  },
+                },
+              },
             },
           },
         },
@@ -229,6 +237,18 @@ export class GatewayController {
     });
     if (!invoice?.booking || !invoice.customer) return;
     const guest = invoice.booking.guests[0];
+    const dep = invoice.booking.departure;
+    const pkg = dep.package;
+    // @db.Time is stored on the 1970-01-01 epoch date; the time part is UTC, so
+    // slice HH:mm off the ISO string (matches trips.service.timeToDate's storage).
+    const departureTimeStr = dep.departureTime
+      ? dep.departureTime.toISOString().slice(11, 16)
+      : undefined;
+    const cabin =
+      invoice.booking.cabins.map((c) => c.cabin.name).join(', ') || undefined;
+    // Whole-taka display (no decimals), half-up.
+    const taka = (v: Parameters<typeof money>[0]) => money(v).toFixed(0);
+    const displayDue = sub(invoice.displayTotal, invoice.amountPaid);
     await this.notifications.sendETicket({
       accountId: invoice.customer.id,
       bookingId: invoice.booking.id,
@@ -237,9 +257,16 @@ export class GatewayController {
         email: invoice.customer.email ?? undefined,
         name: guest?.name ?? invoice.customer.name ?? 'Guest',
       },
-      boatName: invoice.booking.departure.package.houseboat.name,
-      departureDate: invoice.booking.departure.startDate,
-      displayTotal: invoice.displayTotal.toFixed(2),
+      boatName: pkg.houseboat.name,
+      operator: pkg.houseboat.name,
+      route: pkg.route?.name ?? undefined,
+      boarding: pkg.departureGhat ?? undefined,
+      cabin,
+      departureTimeStr,
+      departureDate: dep.startDate,
+      displayTotal: taka(invoice.displayTotal),
+      displayPaid: taka(invoice.amountPaid),
+      displayDue: taka(displayDue),
     });
   }
 

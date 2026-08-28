@@ -48,6 +48,7 @@ export class CreateHouseboatDto {
   @IsString() @MaxLength(LEN_NAME) name!: string;
   @IsOptional() @IsString() @MaxLength(LEN_LONG_TEXT) description?: string;
   @IsOptional() @IsString() @MaxLength(LEN_LONG_TEXT) safetyFeatures?: string;
+  @IsOptional() @IsString() @MaxLength(LEN_LONG_TEXT) cancellationPolicy?: string;
   @IsOptional() @ValidateNested() @Type(() => FoodMenuDto) foodMenu?: FoodMenuDto;
 }
 
@@ -55,6 +56,7 @@ export class UpdateHouseboatDto {
   @IsOptional() @IsString() @MaxLength(LEN_NAME) name?: string;
   @IsOptional() @IsString() @MaxLength(LEN_LONG_TEXT) description?: string;
   @IsOptional() @IsString() @MaxLength(LEN_LONG_TEXT) safetyFeatures?: string;
+  @IsOptional() @IsString() @MaxLength(LEN_LONG_TEXT) cancellationPolicy?: string;
   @IsOptional() @ValidateNested() @Type(() => FoodMenuDto) foodMenu?: FoodMenuDto;
   /** Payout destination — structured bank fields (§9). */
   @IsOptional() @ValidateNested() @Type(() => BankAccountDto) bankAccount?: BankAccountDto;

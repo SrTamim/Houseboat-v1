@@ -15,6 +15,7 @@ const LINKS: {
   badge?: BadgeKind;
 }[] = [
   { href: '/account/trips', icon: '🎟️', label: 'My trips' },
+  { href: '/account/quotes', icon: '💬', label: 'Custom quotes' },
   { href: '/account/wallet', icon: '💳', label: 'Wallet & credits' },
   { href: '/account/waitlist', icon: '⏳', label: 'Waitlist', badge: 'warn' },
   { href: '/account/notifications', icon: '🔔', label: 'Notifications', badge: 'blue' },

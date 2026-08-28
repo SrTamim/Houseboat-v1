@@ -12,7 +12,14 @@ import { Throttle } from '@nestjs/throttler';
 import { randomUUID } from 'crypto';
 import { Request, Response, CookieOptions } from 'express';
 import { AuthService } from './auth.service';
-import { RegisterDto, LoginDto } from './dto/auth.dto';
+import { PasswordResetService } from './password-reset.service';
+import {
+  RegisterDto,
+  LoginDto,
+  RequestOtpDto,
+  VerifyOtpDto,
+  ResetPasswordDto,
+} from './dto/auth.dto';
 import { Public, CurrentUser } from './decorators';
 import { AuthUser } from './auth.types';
 import {
@@ -29,6 +36,7 @@ import { GUEST_COOKIE, readGuestToken } from '../booking/guest-token';
 export class AuthController {
   constructor(
     private readonly auth: AuthService,
+    private readonly passwordReset: PasswordResetService,
     private readonly config: ConfigService,
     @Inject(CSRF_UTILS) private readonly csrf: CsrfUtils,
     private readonly holds: HoldsService,
@@ -200,6 +208,34 @@ export class AuthController {
     res.clearCookie(REFRESH_COOKIE, this.cookieBase());
     res.clearCookie(SESSION_COOKIE, this.cookieBase());
     return { ok: true };
+  }
+
+  // ── Forgot password (SMS OTP) ─────────────────────────────────────────────
+  // All @Public() and anonymous (no hb_sid), so CSRF auto-skips. The tight
+  // @Throttle is a coarse IP floor on top of the Redis send/attempt limits in
+  // PasswordResetService (which also key on phone).
+
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
+  @Public()
+  @Post('password/request-otp')
+  async requestOtp(@Body() dto: RequestOtpDto, @Req() req: Request) {
+    await this.passwordReset.requestOtp(dto.phone, req.ip);
+    // Uniform response — never reveals whether the phone has an account.
+    return { ok: true };
+  }
+
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  @Public()
+  @Post('password/verify-otp')
+  async verifyOtp(@Body() dto: VerifyOtpDto) {
+    return this.passwordReset.verifyOtp(dto.phone, dto.code);
+  }
+
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  @Public()
+  @Post('password/reset')
+  async resetPassword(@Body() dto: ResetPasswordDto, @Req() req: Request) {
+    return this.passwordReset.resetPassword(dto.resetTicket, dto.password, req);
   }
 
   @Get('me')
