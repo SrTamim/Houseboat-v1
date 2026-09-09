@@ -1,11 +1,23 @@
 import { cookies } from 'next/headers';
 
+/** Per-page platform permissions, `{ [navKey]: { view, edit } }`. */
+export type PlatformPermissionMap = Record<
+  string,
+  { view?: boolean; edit?: boolean }
+>;
+
 export interface AdminUser {
   id: string;
   name: string | null;
   phone: string;
   email: string | null;
   isPlatform: boolean;
+  /**
+   * Effective per-page permissions for nav-gating. `null` = superadmin (no role
+   * assigned) → treated as allow-all. Absent on an older /auth/me payload is
+   * likewise treated as allow-all, so a rollout skew never locks staff out.
+   */
+  platformPermissions?: PlatformPermissionMap | null;
 }
 
 /**

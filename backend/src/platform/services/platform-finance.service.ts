@@ -7,7 +7,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
 import { newId } from '../../common/uuid';
-import { money, add, ZERO } from '../../common/money';
+import { money, add, sub, ZERO } from '../../common/money';
 import { dueToBoat } from '../../common/billing';
 import { decryptJson } from '../../common/crypto';
 import { assertTransition, type InvoiceStatus } from '../../money/invoice-state';
@@ -243,6 +243,7 @@ export class PlatformFinanceService {
         commission: true,
         dueToBoat: true,
         payoutBatchId: true,
+        creditsFrom: { select: { amount: true, status: true } }, // refund subtract
         houseboat: { select: { id: true, name: true, slug: true } },
         customer: { select: { id: true, name: true, phone: true, email: true } },
         booking: {
@@ -279,19 +280,6 @@ export class PlatformFinanceService {
                 cabin: { select: { id: true, name: true } },
               },
             },
-            rescheduleHistory: {
-              select: {
-                id: true,
-                oldPrice: true,
-                newPrice: true,
-                reason: true,
-                changedAt: true,
-                prevDeparture: { select: { startDate: true } },
-                toDeparture: { select: { startDate: true } },
-                changedByAccount: { select: { id: true, name: true } },
-              },
-              orderBy: { changedAt: 'asc' },
-            },
           },
         },
         payments: {
@@ -318,9 +306,12 @@ export class PlatformFinanceService {
     // Verify/Payouts drawers show the real amount. Same math as dueForInvoice.
     const live = this.dueForInvoice({
       commission: invoice.commission,
+      displayTotal: invoice.displayTotal,
       payments: invoice.payments,
+      creditsFrom: invoice.creditsFrom,
     });
-    const { refunds, ...rest } = invoice;
+    const { refunds, creditsFrom, ...rest } = invoice;
+    void creditsFrom; // used only for the dueForInvoice refund adjustment above
     return {
       ...rest,
       dueToBoat: live.toFixed(2),
@@ -330,15 +321,48 @@ export class PlatformFinanceService {
 
   // ── Payout console: approve / reject / pay + receipts ──────────────────────
 
-  /** Gateway receipts − commission for one invoice. SIGNED, same math as prepareBatch. */
+  /**
+   * Gateway receipts − commission for one invoice. SIGNED.
+   *
+   * Overpayment cap: the gateway payment path (recordGatewayPayment) does not
+   * reject overpayments, so gateway receipts can exceed the invoice's
+   * displayTotal. The boat is only owed on what it actually billed, so cap the
+   * receipts at displayTotal before computing due — otherwise a customer's
+   * accidental overpayment would inflate the boat's payout. The surplus is
+   * tracked separately as amountOverpaid (refunded to the customer, not paid to
+   * the boat). displayTotal is optional so legacy callers that don't select it
+   * fall back to the uncapped figure.
+   */
   private dueForInvoice(inv: {
     commission: unknown;
+    displayTotal?: unknown;
     payments: { method: string; amount: unknown }[];
+    creditsFrom?: { amount: unknown; status: string }[];
   }) {
-    const gatewayReceipts = inv.payments
+    let gatewayReceipts = inv.payments
       .filter((p) => p.method === 'gateway')
       .reduce((s, p) => add(s, money(p.amount as string)), ZERO);
-    return dueToBoat(gatewayReceipts, money(inv.commission as string));
+    if (inv.displayTotal != null) {
+      const total = money(inv.displayTotal as string);
+      if (gatewayReceipts.greaterThan(total)) gatewayReceipts = total;
+    }
+    let due = dueToBoat(gatewayReceipts, money(inv.commission as string));
+
+    // Second, separate adjustment (ordered AFTER the receipts cap so the two
+    // never double-count): when a booking is cancelled, the customer's refund is
+    // issued as a CustomerCredit sourced from this invoice while amountPaid is
+    // left intact. If such an invoice is later re-verified and paid out, the boat
+    // would receive the full receipts even though the platform already handed the
+    // customer that refund. Subtract those refund credits from the boat's due.
+    // Excludes 'used' credits (already spent by the customer on another booking,
+    // so no longer an outstanding refund liability).
+    if (inv.creditsFrom?.length) {
+      const refunded = inv.creditsFrom
+        .filter((c) => c.status !== 'used')
+        .reduce((s, c) => add(s, money(c.amount as string)), ZERO);
+      due = sub(due, refunded);
+    }
+    return due;
   }
 
   /**
@@ -354,8 +378,10 @@ export class PlatformFinanceService {
           id: true,
           status: true,
           commission: true,
+          displayTotal: true, // overpayment cap in dueForInvoice
           houseboatId: true,
           payments: { select: { method: true, amount: true } },
+          creditsFrom: { select: { amount: true, status: true } }, // refund subtract
         },
       });
       if (!inv) throw new NotFoundException('Invoice not found');
@@ -486,7 +512,9 @@ export class PlatformFinanceService {
           houseboatId: true,
           payoutBatchId: true,
           commission: true,
+          displayTotal: true, // overpayment cap in dueForInvoice
           payments: { select: { method: true, amount: true } },
+          creditsFrom: { select: { amount: true, status: true } }, // refund subtract
         },
       });
       if (invoices.length !== invoiceIds.length) {
@@ -773,12 +801,31 @@ export class PlatformFinanceService {
       if (req.status !== 'pending') {
         throw new NotFoundException('Cash-out request is already resolved');
       }
-      // Move this account's locked credits: approved → used (spent as cash-out),
-      // rejected → open (back to spendable balance).
-      await tx.customerCredit.updateMany({
-        where: { accountId: req.accountId, status: 'pending_cashout' },
-        data: { status: outcome === 'approved' ? 'used' : 'open' },
+      // Move the credits locked BY THIS request: approved → used (spent as
+      // cash-out), rejected → open + unlink (back to spendable balance). Scoped
+      // by cashoutRequestId so a second concurrent request's credits are never
+      // touched. (Legacy rows locked before this column existed have a null id;
+      // fall back to the account-wide match only when this request locked none.)
+      const scoped = await tx.customerCredit.updateMany({
+        where: {
+          accountId: req.accountId,
+          status: 'pending_cashout',
+          cashoutRequestId: req.id,
+        },
+        data:
+          outcome === 'approved'
+            ? { status: 'used' }
+            : { status: 'open', cashoutRequestId: null },
       });
+      if (scoped.count === 0) {
+        // Legacy request (pre-cashoutRequestId): its credits weren't stamped, so
+        // fall back to the old account-wide move. Safe because the one-pending-
+        // per-account guard means at most this request's credits are pending.
+        await tx.customerCredit.updateMany({
+          where: { accountId: req.accountId, status: 'pending_cashout' },
+          data: { status: outcome === 'approved' ? 'used' : 'open' },
+        });
+      }
       const updated = await tx.cashoutRequest.update({
         where: { id },
         data: {

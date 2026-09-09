@@ -82,4 +82,10 @@ describe('validateEnv', () => {
       /COOKIE_SECURE/,
     );
   });
+
+  it('throws when PAYMENTS_BYPASS is enabled in production', () => {
+    expect(() => validateEnv({ ...good, PAYMENTS_BYPASS: 'true' })).toThrow(
+      /PAYMENTS_BYPASS/,
+    );
+  });
 });

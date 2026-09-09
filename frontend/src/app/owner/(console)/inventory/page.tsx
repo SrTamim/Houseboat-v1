@@ -17,6 +17,7 @@ import { BTN_B, BTN_O, BTN_SM } from '@/components/owner/buttons';
 import { Pill } from '@/components/owner/Pill';
 import { Drawer } from '@/components/owner/Drawer';
 import { apiErrorMessage, normalizeDigits } from '@/lib/owner/format';
+import { submitOrQueue, isOfflineUnavailable } from '@/lib/owner/submit-or-queue';
 
 interface LastCount {
   countedQty: string;
@@ -41,6 +42,7 @@ export default function OwnerInventoryPage() {
   const [moveFor, setMoveFor] = useState<Item | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [savedOffline, setSavedOffline] = useState(false);
 
   const [name, setName] = useState('');
   const [kind, setKind] = useState<'consumable' | 'durable'>('consumable');
@@ -114,25 +116,43 @@ export default function OwnerInventoryPage() {
     if (busy || !moveFor || !qty) return;
     setBusy(true);
     setError(null);
+    setSavedOffline(false);
     try {
-      const res = await api.post(
-        `/houseboats/${boatId}/inventory/${moveFor.id}/movements`,
+      const qtyNum = Number(normalizeDigits(qty));
+      const res = await submitOrQueue(
+        () =>
+          api.post(`/houseboats/${boatId}/inventory/${moveFor.id}/movements`, {
+            direction,
+            qty: qtyNum,
+          }),
         {
-          direction,
-          qty: Number(normalizeDigits(qty)),
+          houseboatId: boatId,
+          action: 'stock_movement',
+          // itemId lives only in the URL online — replay needs it in the payload.
+          payload: { itemId: moveFor.id, direction, qty: qtyNum },
         },
       );
       setQty('');
-      if (direction === 'count') {
+      if (res.status === 'queued') {
+        // No server response offline, so a count can't show its discrepancy yet.
+        // Close the drawer and let the "saved offline" note stand in for it.
+        setMoveFor(null);
+        setSavedOffline(true);
+      } else if (direction === 'count') {
         // Keep the drawer open to show what the count found.
-        const discrepancy = Number(res.data?.discrepancy ?? 0);
+        const discrepancy = Number(res.data.data?.discrepancy ?? 0);
         setCountResult({ discrepancy, unit: moveFor.unit });
+        await mutate();
       } else {
         setMoveFor(null);
+        await mutate();
       }
-      await mutate();
     } catch (err) {
-      setError(apiErrorMessage(err, 'Could not record the movement.'));
+      setError(
+        isOfflineUnavailable(err)
+          ? (err as Error).message
+          : apiErrorMessage(err, 'Could not record the movement.'),
+      );
     } finally {
       setBusy(false);
     }
@@ -174,6 +194,12 @@ export default function OwnerInventoryPage() {
       {error ? (
         <Note kind="danger" style={{ marginBottom: 18 }}>
           {error}
+        </Note>
+      ) : null}
+
+      {savedOffline ? (
+        <Note kind="ok" style={{ marginBottom: 18 }}>
+          Saved offline — it’ll sync when you’re back online. See Offline sync.
         </Note>
       ) : null}
 

@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { api, clearCsrfToken } from '@/lib/api';
+import { flushQueue, isOnline } from '@/lib/owner/sync-runner';
 import type { OwnerUser } from '@/lib/owner/session';
 import { OWNER_LOGIN_PATH } from '@/lib/owner/login-url';
 import { OWNER_NAV } from '@/lib/owner/nav';
@@ -44,6 +45,20 @@ export function OwnerChrome({
   const [signingOut, setSigningOut] = useState(false);
   const { boat } = useActiveBoat();
   const title = usePageTitle();
+
+  // Drain the offline capture queue when connectivity returns (and once on
+  // load, to clear any backlog left from a previous offline session). This is
+  // the single console-wide flush point; flushQueue no-ops when offline/empty,
+  // dedupes server-side, and removes only confirmed intents, so it is safe to
+  // run alongside the manual "Sync now" on the Offline sync page.
+  useEffect(() => {
+    const onOnline = () => {
+      void flushQueue();
+    };
+    window.addEventListener('online', onOnline);
+    if (isOnline()) void flushQueue();
+    return () => window.removeEventListener('online', onOnline);
+  }, []);
 
   async function signOut() {
     if (signingOut) return;

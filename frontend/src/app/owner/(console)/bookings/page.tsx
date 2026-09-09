@@ -162,7 +162,6 @@ export default function OwnerBookingsPage() {
   const options = [
     { value: '', label: 'All', count: counts?.all },
     { value: 'confirmed', label: 'Confirmed', count: counts?.confirmed },
-    { value: 'rescheduled', label: 'Rescheduled', count: counts?.rescheduled },
     { value: 'cancelled', label: 'Cancelled', count: counts?.cancelled },
     { value: 'not_arrived', label: 'Not arrived', count: counts?.not_arrived },
     { value: 'completed', label: 'Completed', count: counts?.completed },

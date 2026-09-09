@@ -1,7 +1,132 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PricingService } from '../pricing/pricing.service';
 import { StorageService } from '../storage/storage.service';
+
+/**
+ * Capacity ranges for the sidebar size chips. MIRRORS frontend
+ * src/app/(customer)/search/filters.ts SIZE_BUCKETS — keep the two in sync.
+ * `max: null` = open-ended (Large).
+ */
+const SIZE_BUCKET_RANGES: Record<string, { min: number; max: number | null }> = {
+  small: { min: 0, max: 12 },
+  medium: { min: 13, max: 30 },
+  large: { min: 31, max: null },
+};
+
+/**
+ * Amenity keyword synonyms, matched (case-insensitive substring) against the
+ * rolled-up amenitiesText. MIRRORS frontend filters.ts AMENITIES[].match — keep
+ * in sync. A boat matches a selected amenity if ANY synonym appears; all
+ * selected amenities must match (AND across keys, OR within a key).
+ */
+const AMENITY_SYNONYMS: Record<string, string[]> = {
+  meals: ['meal', 'food', 'buffet'],
+  balcony: ['balcony', 'balconies'],
+  swing: ['swing'],
+  games: ['game', 'games'],
+  washroom: ['attached bath', 'attached washroom'],
+  generator: ['generator'],
+};
+
+/** Shared select for a search card — reads the denormalized boat-level facets. */
+const SEARCH_CARD_SELECT = {
+  id: true,
+  name: true,
+  slug: true,
+  description: true,
+  safetyFeatures: true,
+  createdAt: true,
+  routes: { select: { route: { select: { name: true, region: true } } } },
+  minPricePerPerson: true,
+  maxCapacity: true,
+  hasAc: true,
+  hasNonAc: true,
+  ratingAvg: true,
+  reviewCount: true,
+  amenitiesText: true,
+  _count: { select: { cabinCategories: true } },
+} satisfies Prisma.HouseboatSelect;
+
+type SearchCardRow = Prisma.HouseboatGetPayload<{ select: typeof SEARCH_CARD_SELECT }>;
+
+/** A route/region/name substring filter, shared by both search paths. */
+function routeWhere(route: string): Prisma.HouseboatWhereInput['routes'] {
+  return {
+    some: {
+      route: {
+        OR: [
+          { id: route },
+          { region: { contains: route, mode: 'insensitive' } },
+          { name: { contains: route, mode: 'insensitive' } },
+        ],
+      },
+    },
+  };
+}
+
+/**
+ * Map a boat row to the search card the frontend expects. Response keys stay
+ * `priceFrom`/`cabinCount`/`facilities` (NOT the DB column names) — the customer
+ * cards (SearchBoatCard, BoatCard) depend on these names.
+ */
+function toSearchCard(b: SearchCardRow) {
+  return {
+    id: b.id,
+    name: b.name,
+    slug: b.slug,
+    description: b.description,
+    safetyFeatures: b.safetyFeatures,
+    routes: b.routes,
+    reviewCount: b.reviewCount,
+    priceFrom: b.minPricePerPerson != null ? Number(b.minPricePerPerson) : null,
+    hasAc: b.hasAc,
+    hasNonAc: b.hasNonAc,
+    maxCapacity: b.maxCapacity,
+    cabinCount: b._count.cabinCategories,
+    ratingAvg: b.ratingAvg,
+    // Amenities were previously never returned (dead filter); expose the rolled-up
+    // list so the amenity filter actually matches.
+    facilities: b.amenitiesText
+      ? b.amenitiesText.split(/\s+/).filter(Boolean)
+      : [],
+  };
+}
+
+/** In-memory sort for the flat catalogue path (small live set). */
+function sortSearchCards<
+  T extends { priceFrom: number | null; ratingAvg: number | null },
+>(rows: T[], sort?: string): T[] {
+  const byPrice = (a: T, b: T) =>
+    (a.priceFrom ?? Infinity) - (b.priceFrom ?? Infinity);
+  switch (sort) {
+    case 'price_asc':
+      return [...rows].sort(byPrice);
+    case 'price_desc':
+      return [...rows].sort((a, b) => byPrice(b, a));
+    case 'rating':
+      return [...rows].sort((a, b) => (b.ratingAvg ?? 0) - (a.ratingAvg ?? 0));
+    default:
+      return rows; // already newest-first from the query
+  }
+}
+
+/** Map a sort key to an indexed orderBy for the DB-side results query. */
+function searchOrderBy(sort?: string): Prisma.HouseboatOrderByWithRelationInput {
+  switch (sort) {
+    case 'price_asc':
+      return { minPricePerPerson: { sort: 'asc', nulls: 'last' } };
+    case 'price_desc':
+      return { minPricePerPerson: { sort: 'desc', nulls: 'last' } };
+    case 'rating':
+      return { ratingAvg: { sort: 'desc', nulls: 'last' } };
+    case 'reviews':
+      return { reviewCount: 'desc' };
+    default:
+      return { createdAt: 'desc' }; // newest / recommended
+  }
+}
 
 /**
  * Public-facing houseboat read model. Only `live` boats are ever exposed
@@ -47,11 +172,11 @@ export class HouseboatsService {
   }
 
   /**
-   * Public search over live boats. Price/AC/capacity live per-cabin-category and
-   * per-pricing-rule, and availability per-departure — none are boat-level — so
-   * this rolls those up into a boat-level summary the search cards need, then
-   * filters + sorts in memory. The live-boat set is small (public catalogue), so
-   * a rollup-then-filter is fine; revisit with a denormalized summary if it grows.
+   * Backward-compatible flat-array search used by the home page (HomeHero +
+   * FeaturedBoats fetch it with no params). Reads the denormalized facets and
+   * filters/sorts in memory over the small live set. The scalable, paginated,
+   * faceted path is searchResults() below — do NOT change this method's flat
+   * `SearchBoat[]` shape or the home page breaks.
    */
   async search(q: {
     route?: string;
@@ -62,51 +187,17 @@ export class HouseboatsService {
     guests?: number;
     sort?: 'price_asc' | 'price_desc' | 'rating' | 'newest';
   }) {
+    // Unfiltered flat-array catalogue read used by the home page (HomeHero
+    // destination chips + FeaturedBoats). Kept backward-compatible on purpose:
+    // the filtered/paginated/faceted path lives in searchResults() below. Facets
+    // are read from the denormalized columns (no per-request rollup) and mapped
+    // back to the legacy response keys (priceFrom/cabinCount) the cards expect.
     const boats = await this.prisma.houseboat.findMany({
       where: {
         status: 'live',
-        ...(q.route
-          ? {
-              routes: {
-                some: {
-                  route: {
-                    OR: [
-                      { id: q.route },
-                      { region: { contains: q.route, mode: 'insensitive' } },
-                      { name: { contains: q.route, mode: 'insensitive' } },
-                    ],
-                  },
-                },
-              },
-            }
-          : {}),
+        ...(q.route ? { routes: routeWhere(q.route) } : {}),
       },
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-        description: true,
-        safetyFeatures: true,
-        createdAt: true,
-        routes: { select: { route: { select: { name: true, region: true } } } },
-        cabinCategories: {
-          select: {
-            id: true,
-            isAc: true,
-            baseCapacity: true,
-            extendedCapacity: true,
-          },
-        },
-        // Min per-person price across the boat's default profile rules = "from".
-        pricingProfiles: {
-          where: { isDefault: true },
-          select: { rules: { select: { pricePerPerson: true } } },
-        },
-        // Hidden reviews (platform-moderated) are excluded from the public
-        // rating average and count.
-        _count: { select: { reviews: { where: { hidden: false } } } },
-        reviews: { where: { hidden: false }, select: { rating: true } },
-      },
+      select: SEARCH_CARD_SELECT,
       orderBy: { createdAt: 'desc' },
     });
 
@@ -114,54 +205,10 @@ export class HouseboatsService {
     // on/after the requested date. One grouped query, not N per boat.
     let availableBoatIds: Set<string> | null = null;
     if (q.date) {
-      const from = new Date(q.date);
-      if (!Number.isNaN(from.getTime())) {
-        const deps = await this.prisma.tripDeparture.findMany({
-          where: {
-            status: 'scheduled',
-            availableCount: { gt: 0 },
-            startDate: { gte: from },
-            package: { houseboat: { status: 'live' } },
-          },
-          select: { package: { select: { houseboatId: true } } },
-        });
-        availableBoatIds = new Set(deps.map((d) => d.package.houseboatId));
-      }
+      availableBoatIds = await this.availableBoatIdsFrom(q.date);
     }
 
-    const rows = boats.map((b) => {
-      const prices = b.pricingProfiles
-        .flatMap((p) => p.rules)
-        .map((r) => Number(r.pricePerPerson))
-        .filter((n) => n > 0);
-      const priceFrom = prices.length ? Math.min(...prices) : null;
-      const hasAc = b.cabinCategories.some((c) => c.isAc);
-      const hasNonAc = b.cabinCategories.some((c) => !c.isAc);
-      const maxCapacity = b.cabinCategories.reduce(
-        (m, c) => Math.max(m, c.extendedCapacity ?? c.baseCapacity),
-        0,
-      );
-      const ratingCount = b.reviews.length;
-      const ratingAvg = ratingCount
-        ? b.reviews.reduce((s, r) => s + r.rating, 0) / ratingCount
-        : null;
-      return {
-        id: b.id,
-        name: b.name,
-        slug: b.slug,
-        description: b.description,
-        safetyFeatures: b.safetyFeatures,
-        routes: b.routes,
-        reviewCount: b._count.reviews,
-        priceFrom,
-        hasAc,
-        hasNonAc,
-        maxCapacity,
-        cabinCount: b.cabinCategories.length,
-        ratingAvg,
-      };
-    });
-
+    const rows = boats.map(toSearchCard);
     const filtered = rows.filter((r) => {
       if (q.ac === 'ac' && !r.hasAc) return false;
       if (q.ac === 'nonac' && !r.hasNonAc) return false;
@@ -175,28 +222,161 @@ export class HouseboatsService {
       if (availableBoatIds && !availableBoatIds.has(r.id)) return false;
       return true;
     });
-
-    const sorted = this.sortSearch(filtered, q.sort);
-    return sorted;
+    return sortSearchCards(filtered, q.sort);
   }
 
-  private sortSearch<
-    T extends { priceFrom: number | null; ratingAvg: number | null },
-  >(rows: T[], sort?: string): T[] {
-    const byPrice = (a: T, b: T) =>
-      (a.priceFrom ?? Infinity) - (b.priceFrom ?? Infinity);
-    switch (sort) {
-      case 'price_asc':
-        return [...rows].sort(byPrice);
-      case 'price_desc':
-        return [...rows].sort((a, b) => byPrice(b, a));
-      case 'rating':
-        return [...rows].sort(
-          (a, b) => (b.ratingAvg ?? 0) - (a.ratingAvg ?? 0),
-        );
-      default:
-        return rows; // already newest-first from the query
+  /** Grouped one-shot: boat ids with a bookable departure on/after `date`. */
+  private async availableBoatIdsFrom(date: string): Promise<Set<string> | null> {
+    const from = new Date(date);
+    if (Number.isNaN(from.getTime())) return null;
+    const deps = await this.prisma.tripDeparture.findMany({
+      where: {
+        status: 'scheduled',
+        availableCount: { gt: 0 },
+        startDate: { gte: from },
+        package: { houseboat: { status: 'live' } },
+      },
+      select: { package: { select: { houseboatId: true } } },
+    });
+    return new Set(deps.map((d) => d.package.houseboatId));
+  }
+
+  /**
+   * DB-side filtered + sorted + paginated search backing the results page.
+   *
+   * Every filter is a real WHERE against the denormalized facets (or a relation
+   * for route/date), sort maps to an indexed column, and pagination is offset
+   * (`page`/`pageSize`) since price/rating sorts can't ride the id cursor helper.
+   * Returns the flat cards plus `total` (for the numbered pager) and `facets`
+   * (so the sidebar counts/price bounds don't need the whole catalogue).
+   */
+  async searchResults(q: {
+    route?: string;
+    date?: string;
+    ac?: 'ac' | 'nonac' | 'both';
+    minPrice?: number;
+    maxPrice?: number;
+    guests?: number;
+    rating?: number;
+    amenities?: string[];
+    /** Size-bucket keys from the sidebar chips (small/medium/large). */
+    sizes?: string[];
+    sort?: string;
+    page?: number;
+    pageSize?: number;
+  }) {
+    const pageSize = Math.min(Math.max(q.pageSize ?? 9, 1), 60);
+    const page = Math.max(q.page ?? 1, 1);
+
+    // Date availability narrows to a boat-id set (relation filter would need a
+    // nested availableCount>0 some — the grouped set is cheaper and reused).
+    const availableIds =
+      q.date != null ? await this.availableBoatIdsFrom(q.date) : null;
+
+    const where: Prisma.HouseboatWhereInput = {
+      status: 'live',
+      ...(q.route ? { routes: routeWhere(q.route) } : {}),
+      ...(q.ac === 'ac' ? { hasAc: true } : {}),
+      ...(q.ac === 'nonac' ? { hasNonAc: true } : {}),
+      // min + max share one column — merge into a single range, else the second
+      // spread would clobber the first and drop a bound.
+      ...(q.minPrice != null || q.maxPrice != null
+        ? {
+            minPricePerPerson: {
+              ...(q.minPrice != null ? { gte: q.minPrice } : {}),
+              ...(q.maxPrice != null ? { lte: q.maxPrice } : {}),
+            },
+          }
+        : {}),
+      ...(q.guests != null ? { maxCapacity: { gte: q.guests } } : {}),
+      // Size buckets = union of capacity ranges; a boat matching ANY selected
+      // bucket qualifies. Ranges mirror the frontend SIZE_BUCKETS (filters.ts) —
+      // kept here too so the DB WHERE is self-contained; keep the two in sync.
+      ...(() => {
+        const ranges = (q.sizes ?? [])
+          .map((k) => SIZE_BUCKET_RANGES[k])
+          .filter((r): r is { min: number; max: number | null } => !!r);
+        return ranges.length
+          ? {
+              OR: ranges.map((r) => ({
+                maxCapacity:
+                  r.max != null ? { gte: r.min, lte: r.max } : { gte: r.min },
+              })),
+            }
+          : {};
+      })(),
+      ...(q.rating != null ? { ratingAvg: { gte: q.rating } } : {}),
+      // Each selected amenity must match ANY of its synonyms (OR within a key),
+      // and all selected amenities must match (AND across keys).
+      ...(() => {
+        const clauses = (q.amenities ?? [])
+          .map((key) => AMENITY_SYNONYMS[key] ?? [key.toLowerCase()])
+          .map((syns) => ({
+            OR: syns.map((s) => ({
+              amenitiesText: { contains: s, mode: 'insensitive' as const },
+            })),
+          }));
+        return clauses.length ? { AND: clauses } : {};
+      })(),
+      ...(availableIds ? { id: { in: [...availableIds] } } : {}),
+    };
+
+    const [total, boats] = await Promise.all([
+      this.prisma.houseboat.count({ where }),
+      this.prisma.houseboat.findMany({
+        where,
+        select: SEARCH_CARD_SELECT,
+        orderBy: searchOrderBy(q.sort),
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+
+    const facets = await this.searchFacets();
+    return {
+      items: boats.map(toSearchCard),
+      total,
+      page,
+      pageSize,
+      facets,
+    };
+  }
+
+  /**
+   * Sidebar facets over the FULL live set (independent of the current filter, so
+   * options never read 0 merely because another group is narrowing). Price
+   * bounds + distinct destinations; size/amenity counts are derived client-side
+   * from the returned items today, so only the always-needed aggregates are here.
+   */
+  private async searchFacets() {
+    const [agg, routeRows] = await Promise.all([
+      this.prisma.houseboat.aggregate({
+        where: { status: 'live', minPricePerPerson: { not: null } },
+        _min: { minPricePerPerson: true },
+        _max: { minPricePerPerson: true },
+      }),
+      this.prisma.houseboatRoute.findMany({
+        where: { houseboat: { status: 'live' } },
+        select: { route: { select: { name: true, region: true } } },
+      }),
+    ]);
+
+    const destSeen = new Map<string, { label: string; sub: string }>();
+    for (const r of routeRows) {
+      const name = r.route?.name;
+      if (name && !destSeen.has(name)) {
+        destSeen.set(name, { label: name, sub: r.route?.region ?? '' });
+      }
     }
+    return {
+      priceMin: agg._min.minPricePerPerson
+        ? Number(agg._min.minPricePerPerson)
+        : null,
+      priceMax: agg._max.minPricePerPerson
+        ? Number(agg._max.minPricePerPerson)
+        : null,
+      destinations: [...destSeen.values()],
+    };
   }
 
   /** Public boat detail by slug. */
@@ -253,8 +433,12 @@ export class HouseboatsService {
         routes: {
           select: { route: { select: { name: true, region: true } } },
         },
-        // Hidden reviews are withheld from the public boat page and its rating.
-        _count: { select: { reviews: { where: { hidden: false } } } },
+        // Rating/count read from the denormalized facets so the detail page and
+        // the search grid show an IDENTICAL score (the facet is the mean over all
+        // non-hidden reviews, kept fresh by HouseboatFacetsService). The reviews
+        // list below is only the recent sample shown on the page.
+        ratingAvg: true,
+        reviewCount: true,
         reviews: {
           where: { hidden: false },
           select: {
@@ -273,13 +457,6 @@ export class HouseboatsService {
       throw new NotFoundException(`No live houseboat found for "${slug}"`);
     }
 
-    // Rating rolled up the same way `search` does (lines 139–142), so a boat
-    // shows an identical score on the results grid and on its detail page.
-    const ratingCount = boat.reviews.length;
-    const ratingAvg = ratingCount
-      ? boat.reviews.reduce((s, r) => s + r.rating, 0) / ratingCount
-      : null;
-
     // storageKey → public URL via StorageService, never by string concatenation:
     // the local dev driver returns a root-relative /uploads/* path so uploaded
     // images stay same-origin and satisfy CSP `img-src 'self'`.
@@ -289,9 +466,8 @@ export class HouseboatsService {
     return {
       ...boat,
       media: undefined,
+      // ratingAvg + reviewCount come straight from the selected facet columns.
       photos: urls(boat.media),
-      ratingAvg,
-      reviewCount: boat._count.reviews,
       decks: boat.decks.map((d) => ({
         ...d,
         cabins: d.cabins.map((c) => {

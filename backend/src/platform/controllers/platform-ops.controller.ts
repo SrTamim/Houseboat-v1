@@ -11,7 +11,6 @@ import {
   ListBookingsQueryDto,
   ListMembershipsQueryDto,
   ListNotificationsQueryDto,
-  ListReschedulesQueryDto,
   ListReviewsQueryDto,
   ListRolesQueryDto,
   ListWaitlistQueryDto,
@@ -25,7 +24,6 @@ import {
  * @PlatformOnly() is class-level rather than per-route.
  */
 @PlatformOnly()
-@PlatformPermission('ops', 'view')
 @Controller('platform/ops')
 export class PlatformOpsController {
   constructor(
@@ -34,42 +32,50 @@ export class PlatformOpsController {
     private readonly notifications: NotificationsService,
   ) {}
 
-  /** Live counts for the dashboard KPIs and sidebar badges. */
+  /**
+   * Live counts for the dashboard KPIs and sidebar badges. Intentionally
+   * ungated: the sidebar polls this on every console page for every staffer, so
+   * a per-page grant here would 403 console-wide for a restricted role.
+   */
   @Get('overview')
   overview() {
     return this.ops.overview();
   }
 
-  /** Non-secret config status — presence booleans, never secret values. */
-  @PlatformPermission('settings', 'view')
+  /** Non-secret config status — presence booleans, never secret values. Feeds the System & health page. */
+  @PlatformPermission('jobs', 'view')
   @Get('settings')
   settingsStatus() {
     return this.ops.settingsStatus();
   }
 
+  @PlatformPermission('waitlist', 'view')
   @Get('waitlist')
   listWaitlist(@Query() query: ListWaitlistQueryDto) {
     return this.ops.listWaitlist(query);
   }
 
+  @PlatformPermission('bookings', 'view')
   @Get('bookings')
   listBookings(@Query() query: ListBookingsQueryDto) {
     return this.ops.listBookings(query);
   }
 
   /** Full detail for one booking — the admin "Open" drawer. */
+  @PlatformPermission('bookings', 'view')
   @Get('bookings/:bookingId')
   getBooking(@Param('bookingId') bookingId: string) {
     return this.ops.getBooking(bookingId);
   }
 
+  @PlatformPermission('reviews', 'view')
   @Get('reviews')
   listReviews(@Query() query: ListReviewsQueryDto) {
     return this.ops.listReviews(query);
   }
 
   /** Hide or unhide a review (platform moderation). */
-  @PlatformPermission('ops', 'edit')
+  @PlatformPermission('reviews', 'edit')
   @Patch('reviews/:reviewId/hidden')
   setReviewHidden(
     @Param('reviewId') reviewId: string,
@@ -85,24 +91,20 @@ export class PlatformOpsController {
     return this.ops.listAccounts(query);
   }
 
-  @PlatformPermission('accounts', 'view')
+  @PlatformPermission('memberships', 'view')
   @Get('memberships')
   listMemberships(@Query() query: ListMembershipsQueryDto) {
     return this.ops.listMemberships(query);
   }
 
-  @Get('reschedules')
-  listReschedules(@Query() query: ListReschedulesQueryDto) {
-    return this.ops.listReschedules(query);
-  }
-
+  @PlatformPermission('notifications', 'view')
   @Get('notifications')
   listNotifications(@Query() query: ListNotificationsQueryDto) {
     return this.ops.listNotifications(query);
   }
 
   /** Re-dispatch a recorded notification from its stored payload (422 for legacy rows). */
-  @PlatformPermission('ops', 'edit')
+  @PlatformPermission('notifications', 'edit')
   @Post('notifications/:notificationId/resend')
   resendNotification(
     @Param('notificationId') notificationId: string,
@@ -111,6 +113,7 @@ export class PlatformOpsController {
     return this.notifications.resend(notificationId, user.id);
   }
 
+  @PlatformPermission('audit', 'view')
   @Get('audit')
   listAudit(@Query() query: ListAuditQueryDto) {
     return this.ops.listAudit(query);
@@ -122,7 +125,8 @@ export class PlatformOpsController {
     return this.ops.listRoles(query);
   }
 
-  /** Departures at/past their date still awaiting status advance or finalize. */
+  /** Departures at/past their date still awaiting status advance or finalize. Read on the bookings surface. */
+  @PlatformPermission('bookings', 'view')
   @Get('departures/due')
   listDueDepartures() {
     return this.ops.listDueDepartures();
@@ -133,6 +137,7 @@ export class PlatformOpsController {
    *
    * Distinct from the public GET /api/routes, which is active-only.
    */
+  @PlatformPermission('routes', 'view')
   @Get('routes')
   listRoutes() {
     return this.ops.listRoutes();
@@ -144,7 +149,7 @@ export class PlatformOpsController {
    * RoutesService.setActive already existed but had no HTTP route, so routes
    * could be created and never retired.
    */
-  @PlatformPermission('ops', 'edit')
+  @PlatformPermission('routes', 'edit')
   @Patch('routes/:routeId/active')
   setRouteActive(
     @Param('routeId') routeId: string,
@@ -154,7 +159,7 @@ export class PlatformOpsController {
   }
 
   /** Edit a route's name/region. Active state stays on the toggle above. */
-  @PlatformPermission('ops', 'edit')
+  @PlatformPermission('routes', 'edit')
   @Patch('routes/:routeId')
   updateRoute(
     @Param('routeId') routeId: string,

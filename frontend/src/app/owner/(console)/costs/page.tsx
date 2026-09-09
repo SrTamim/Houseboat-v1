@@ -29,6 +29,7 @@ import {
 } from '@/components/owner/styles';
 import { Drawer } from '@/components/owner/Drawer';
 import { money, formatDate, normalizeDigits, apiErrorMessage } from '@/lib/owner/format';
+import { submitOrQueue, isOfflineUnavailable } from '@/lib/owner/submit-or-queue';
 
 interface Cost {
   id: string;
@@ -53,6 +54,7 @@ export default function OwnerCostsPage() {
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [savedOffline, setSavedOffline] = useState(false);
 
   const today = now.toISOString().slice(0, 10);
   const [date, setDate] = useState(today);
@@ -108,21 +110,36 @@ export default function OwnerCostsPage() {
     if (busy || !amount) return;
     setBusy(true);
     setError(null);
+    setSavedOffline(false);
     try {
-      await api.post(`/houseboats/${boatId}/costs`, {
+      const body = {
         date,
         description: description || undefined,
         // Bangla numerals are accepted at the input layer so nobody has to
         // switch keyboards to log a bazar run.
         amount: Number(normalizeDigits(amount)),
         comment: comment || undefined,
-      });
+      };
+      const res = await submitOrQueue(
+        () => api.post(`/houseboats/${boatId}/costs`, body),
+        { houseboatId: boatId, action: 'cost_add', payload: body },
+      );
       setDescription('');
       setAmount('');
       setComment('');
-      await mutate();
+      if (res.status === 'sent') {
+        await mutate();
+      } else {
+        // Queued offline — no server row yet, so don't mutate() (it would erase
+        // the optimistic view). The note below tells the owner it's pending.
+        setSavedOffline(true);
+      }
     } catch (err) {
-      setError(apiErrorMessage(err, 'Could not log that cost.'));
+      setError(
+        isOfflineUnavailable(err)
+          ? (err as Error).message
+          : apiErrorMessage(err, 'Could not log that cost.'),
+      );
     } finally {
       setBusy(false);
     }
@@ -177,6 +194,12 @@ export default function OwnerCostsPage() {
       {error ? (
         <Note kind="danger" style={{ marginBottom: 18 }}>
           {error}
+        </Note>
+      ) : null}
+
+      {savedOffline ? (
+        <Note kind="ok" style={{ marginBottom: 18 }}>
+          Saved offline — it’ll sync when you’re back online. See Offline sync.
         </Note>
       ) : null}
 

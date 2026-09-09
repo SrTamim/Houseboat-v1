@@ -274,24 +274,37 @@ export class OwnerReportsService {
 
     const agg = await this.aggregateRanges(houseboatId, ranges);
 
-    // 12-month trend ending with the current month — for the charts.
-    const trend = [];
-    for (let i = 11; i >= 0; i--) {
+    // 12-month trend ending with the current month — for the charts. Run the
+    // twelve monthly aggregations concurrently instead of awaiting each in turn:
+    // they are independent reads, so a serial loop just paid 12× the latency and
+    // held a connection for the whole chain.
+    const months = Array.from({ length: 12 }, (_, k) => {
+      const i = 11 - k;
       const d = new Date(
         Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1),
       );
-      const label = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
-      const m = await this.aggregateRanges(houseboatId, [
-        { from: d, to: new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1)) },
-      ]);
-      trend.push({
-        month: label,
-        revenue: m.revenue.toFixed(2),
-        totalCost: m.totalCost.toFixed(2),
-        profit: m.profit.toFixed(2),
-        trips: m.trips,
-      });
-    }
+      return {
+        d,
+        label: `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`,
+      };
+    });
+    const trend = await Promise.all(
+      months.map(async ({ d, label }) => {
+        const m = await this.aggregateRanges(houseboatId, [
+          {
+            from: d,
+            to: new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1)),
+          },
+        ]);
+        return {
+          month: label,
+          revenue: m.revenue.toFixed(2),
+          totalCost: m.totalCost.toFixed(2),
+          profit: m.profit.toFixed(2),
+          trips: m.trips,
+        };
+      }),
+    );
 
     return {
       period: periodLabel,

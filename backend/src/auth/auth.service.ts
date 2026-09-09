@@ -19,6 +19,10 @@ import { newId } from '../common/uuid';
 import { randomUUID } from 'crypto';
 import { RegisterDto, LoginDto } from './dto/auth.dto';
 import { JwtPayload, normalizePhone } from './auth.types';
+import {
+  expandLegacyPlatformPermissions,
+  type PlatformPermissionMap,
+} from '../platform/rbac/platform-permission.types';
 
 /**
  * Login lockout: after this many consecutive failures for one phone within the
@@ -110,8 +114,10 @@ export class AuthService {
     // this phone, refuse logins for LOGIN_LOCK_WINDOW_S. This defends a single
     // targeted account across many IPs — the per-IP @Throttle on the route can't.
     // Keyed on the phone (the login identity), not the account id, so it also
-    // covers guessing against a non-existent account. Best-effort: a lockout
-    // store outage never hard-fails login (the @Throttle still bounds rate).
+    // covers guessing against a non-existent account. In production the lockout
+    // read is fail-CLOSED: if the store is unreachable, loginFailCount saturates
+    // and logins are refused rather than silently disarming the defence (dev
+    // falls back to a per-process count).
     const lockThreshold =
       (await this.settings?.getNumber('auth.loginLockThreshold')) ??
       LOGIN_LOCK_THRESHOLD;
@@ -266,7 +272,7 @@ export class AuthService {
   }
 
   async me(accountId: string) {
-    return this.prisma.account.findUnique({
+    const account = await this.prisma.account.findUnique({
       where: { id: accountId },
       select: {
         id: true,
@@ -277,7 +283,24 @@ export class AuthService {
         isPlatform: true,
         createdAt: true,
         nid: true,
+        platformRoleId: true,
+        platformRole: { select: { permissions: true } },
       },
     });
+    if (!account) return account;
+
+    // Effective per-page platform permissions for the admin console's client-side
+    // nav-gating. Only meaningful for platform staff; null = superadmin (no role)
+    // → the client treats a null map as allow-all. Legacy module keys are expanded
+    // to pages so an un-migrated role gates correctly. Non-platform accounts (owner,
+    // customer) ignore these fields entirely.
+    const { platformRole, ...rest } = account;
+    const platformPermissions: PlatformPermissionMap | null =
+      account.isPlatform && account.platformRoleId
+        ? expandLegacyPlatformPermissions(
+            platformRole?.permissions as PlatformPermissionMap,
+          )
+        : null;
+    return { ...rest, platformPermissions };
   }
 }

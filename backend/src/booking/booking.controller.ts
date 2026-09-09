@@ -23,7 +23,6 @@ import {
   HoldCabinDto,
   CheckoutDto,
   WaitlistDto,
-  RescheduleDto,
   JoinOpenSeatDto,
   GroupCheckoutDto,
   QuoteDto,
@@ -281,19 +280,4 @@ export class BookingController {
     });
   }
 
-  /** Reschedule a booking to another departure (owner-side; reprices). */
-  @Post(':bookingId/reschedule')
-  reschedule(
-    @Param('bookingId') bookingId: string,
-    @CurrentUser() user: AuthUser,
-    @Body() dto: RescheduleDto,
-  ) {
-    return this.booking.reschedule(
-      bookingId,
-      user.id,
-      user.isPlatform,
-      dto.newDepartureId,
-      dto.reason,
-    );
-  }
 }

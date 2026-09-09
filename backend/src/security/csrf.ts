@@ -46,11 +46,17 @@ export function buildCsrf(secret: string, cookieSecure: boolean) {
       // exist yet. Without this, the proactive refresh 403s and an owner is
       // bounced to login every ~15 minutes when the access token lapses.
       //
-      // Safe: refresh already requires a valid HttpOnly hb_refresh JWT that
-      // cross-origin JS cannot read, sameSite blocks the cross-site form-post
-      // case, and the refresh token is single-use (rotated per call). A forced
-      // cross-site refresh could at most rotate the victim's own token — no
-      // privilege gain, no state mutation.
+      // Accepted tradeoff (documented): refresh requires a valid HttpOnly
+      // hb_refresh JWT that cross-origin JS cannot read, and the token is
+      // single-use (rotated per call). NOTE: in production the auth cookies are
+      // sameSite=None (the SPA is cross-site, Vercel↔Railway), so sameSite does
+      // NOT block a cross-site top-level POST here — the single-use rotation is
+      // the real limiter. The worst a forced cross-site refresh can do is rotate
+      // the victim's OWN token, desyncing their tab into a re-login: a nuisance,
+      // not a data or privilege compromise, and never a state mutation. Closing
+      // it fully means minting hb_csrf in the Edge middleware before the first
+      // navigation refresh; deferred as not worth the silent-refresh regression
+      // risk for a forced-logout-only exposure.
       //
       // Exact match: doubleCsrfProtection runs as raw Express middleware and the
       // global 'api' prefix is preserved end-to-end (Next rewrites /api/* to

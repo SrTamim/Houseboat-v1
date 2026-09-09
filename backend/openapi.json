@@ -107,6 +107,78 @@
         ]
       }
     },
+    "/api/auth/password/request-otp": {
+      "post": {
+        "operationId": "AuthController_requestOtp",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestOtpDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/auth/password/verify-otp": {
+      "post": {
+        "operationId": "AuthController_verifyOtp",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyOtpDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/auth/password/reset": {
+      "post": {
+        "operationId": "AuthController_resetPassword",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetPasswordDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
     "/api/auth/me": {
       "get": {
         "operationId": "AuthController_me",
@@ -653,6 +725,154 @@
           }
         },
         "summary": "GET /houseboats/search — public filtered search. Static path, declared\nbefore the `:slug` catch-all so \"search\" isn't read as a slug.",
+        "tags": [
+          "Houseboats"
+        ]
+      }
+    },
+    "/api/houseboats/search/results": {
+      "get": {
+        "operationId": "HouseboatsController_searchResults",
+        "parameters": [
+          {
+            "name": "route",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "name": "date",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 32,
+              "type": "string"
+            }
+          },
+          {
+            "name": "ac",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "ac",
+                "nonac",
+                "both"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "minPrice",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "maxPrice",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "guests",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "type": "number"
+            }
+          },
+          {
+            "name": "rating",
+            "required": false,
+            "in": "query",
+            "description": "Minimum average rating (e.g. 3, 4, 5).",
+            "schema": {
+              "minimum": 0,
+              "maximum": 5,
+              "type": "number"
+            }
+          },
+          {
+            "name": "amenities",
+            "required": false,
+            "in": "query",
+            "description": "Amenity keywords; every one must appear in the boat's rolled-up facilities.\nA single `?amenities=x` arrives as a string — normalize to an array.",
+            "schema": {
+              "maxLength": 40,
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "sizes",
+            "required": false,
+            "in": "query",
+            "description": "Size-bucket keys (small/medium/large); a single value arrives as a string.",
+            "schema": {
+              "enum": [
+                "small",
+                "medium",
+                "large"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "recommended",
+                "newest",
+                "price_asc",
+                "price_desc",
+                "rating",
+                "reviews"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 60,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "GET /houseboats/search/results — DB-side filtered, sorted, paginated search\nreturning { items, total, page, pageSize, facets }. Static path declared\nbefore `:slug`. Distinct from the bare /houseboats/search flat array (which\nthe home page still uses), so this shape change is non-breaking.",
         "tags": [
           "Houseboats"
         ]
@@ -2417,17 +2637,7 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object"
-                  }
-                }
-              }
-            }
+            "description": ""
           }
         },
         "tags": [
@@ -2507,9 +2717,9 @@
         ]
       }
     },
-    "/api/booking/{bookingId}/reschedule": {
+    "/api/booking/{bookingId}/request-refund": {
       "post": {
-        "operationId": "BookingController_reschedule",
+        "operationId": "BookingController_requestRefund",
         "parameters": [
           {
             "name": "bookingId",
@@ -2525,7 +2735,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/RescheduleDto"
+                "$ref": "#/components/schemas/RequestRefundDto"
               }
             }
           }
@@ -2535,7 +2745,7 @@
             "description": ""
           }
         },
-        "summary": "Reschedule a booking to another departure (owner-side; reprices).",
+        "summary": "Request a refund for a HOST-cancelled trip (Path C, customer-initiated).\nWeb bookings only, within 6 days of the cancellation. Collects the payout\ndestination (bkash/nagad/bank), stored encrypted for the admin to pay.",
         "tags": [
           "Booking"
         ]
@@ -2561,7 +2771,6 @@
             "schema": {
               "enum": [
                 "confirmed",
-                "rescheduled",
                 "cancelled",
                 "not_arrived",
                 "completed"
@@ -3181,27 +3390,6 @@
         "tags": [
           "Money"
         ]
-      },
-      "post": {
-        "operationId": "MoneyController_prepareBatch",
-        "parameters": [
-          {
-            "name": "houseboatId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Money"
-        ]
       }
     },
     "/api/houseboats/{houseboatId}/approved-payouts": {
@@ -3223,52 +3411,6 @@
           }
         },
         "summary": "Invoices approved for payout but not yet paid, owner-readable. Same\nread-only guard — the owner sees money that is confirmed and coming, they\ndon't approve or move it (that stays platform-only above).",
-        "tags": [
-          "Money"
-        ]
-      }
-    },
-    "/api/payout-batches/{batchId}/approve": {
-      "post": {
-        "operationId": "MoneyController_approveBatch",
-        "parameters": [
-          {
-            "name": "batchId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Money"
-        ]
-      }
-    },
-    "/api/payout-batches/{batchId}/pay": {
-      "post": {
-        "operationId": "MoneyController_payBatch",
-        "parameters": [
-          {
-            "name": "batchId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
         "tags": [
           "Money"
         ]
@@ -3742,7 +3884,17 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -3763,6 +3915,39 @@
             }
           }
         ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Quotes"
+        ]
+      }
+    },
+    "/api/quotes/{quoteId}/reply": {
+      "post": {
+        "operationId": "QuotesController_reply",
+        "parameters": [
+          {
+            "name": "quoteId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplyQuoteDto"
+              }
+            }
+          }
+        },
         "responses": {
           "201": {
             "description": ""
@@ -4935,6 +5120,15 @@
             }
           },
           {
+            "name": "departureCancelled",
+            "required": false,
+            "in": "query",
+            "description": "Only invoices whose trip the owner cancelled (`departure.status='cancelled'`).\nThese keep invoice status 'paid' until the customer requests a refund, so this\nis the only way to list them. ANDs with the other predicates.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
             "name": "q",
             "required": false,
             "in": "query",
@@ -4970,6 +5164,7 @@
             "description": ""
           }
         },
+        "summary": "Shared invoice list — the queues on verify, booking-invoice, payouts and pay-to-vendors all read it.",
         "tags": [
           "PlatformFinance"
         ]
@@ -4993,7 +5188,7 @@
             "description": ""
           }
         },
-        "summary": "Full detail for one invoice — the admin \"Open\" drawer on the finance queues.",
+        "summary": "Full detail for one invoice — the admin \"Open\" drawer on the finance queues (same four pages).",
         "tags": [
           "PlatformFinance"
         ]
@@ -5070,7 +5265,7 @@
             "description": ""
           }
         },
-        "summary": "Distinct boats with payable invoices, for the payout/pay dropdowns.",
+        "summary": "Distinct boats with payable invoices — payouts (stage=approve) and pay-to-vendors (stage=pay) both read it.",
         "tags": [
           "PlatformFinance"
         ]
@@ -5218,6 +5413,30 @@
         ]
       }
     },
+    "/api/platform/finance/refunds/{refundId}/bank": {
+      "get": {
+        "operationId": "PlatformFinanceController_refundBankDetails",
+        "parameters": [
+          {
+            "name": "refundId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Decrypted payout destination for one refund — revealed on demand in the drawer.",
+        "tags": [
+          "PlatformFinance"
+        ]
+      }
+    },
     "/api/platform/finance/overpayments": {
       "get": {
         "operationId": "PlatformFinanceController_listOverpayments",
@@ -5275,6 +5494,15 @@
             "in": "query",
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "departureCancelled",
+            "required": false,
+            "in": "query",
+            "description": "Only invoices whose trip the owner cancelled (`departure.status='cancelled'`).\nThese keep invoice status 'paid' until the customer requests a refund, so this\nis the only way to list them. ANDs with the other predicates.",
+            "schema": {
+              "type": "boolean"
             }
           },
           {
@@ -5663,6 +5891,7 @@
             "description": ""
           }
         },
+        "summary": "Summary feeds both the Analytics page and the Commission page.",
         "tags": [
           "PlatformFinance"
         ]
@@ -5677,7 +5906,7 @@
             "description": ""
           }
         },
-        "summary": "Live counts for the dashboard KPIs and sidebar badges.",
+        "summary": "Live counts for the dashboard KPIs and sidebar badges. Intentionally\nungated: the sidebar polls this on every console page for every staffer, so\na per-page grant here would 403 console-wide for a restricted role.",
         "tags": [
           "PlatformOps"
         ]
@@ -5692,7 +5921,7 @@
             "description": ""
           }
         },
-        "summary": "Non-secret config status — presence booleans, never secret values.",
+        "summary": "Non-secret config status — presence booleans, never secret values. Feeds the System & health page.",
         "tags": [
           "PlatformOps"
         ]
@@ -5752,7 +5981,6 @@
             "schema": {
               "enum": [
                 "confirmed",
-                "rescheduled",
                 "cancelled",
                 "not_arrived",
                 "completed"
@@ -6042,41 +6270,6 @@
         ]
       }
     },
-    "/api/platform/ops/reschedules": {
-      "get": {
-        "operationId": "PlatformOpsController_listReschedules",
-        "parameters": [
-          {
-            "name": "limit",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "minimum": 1,
-              "maximum": 200,
-              "default": 50,
-              "type": "number"
-            }
-          },
-          {
-            "name": "cursor",
-            "required": false,
-            "in": "query",
-            "description": "id of the last row from the previous page.",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "PlatformOps"
-        ]
-      }
-    },
     "/api/platform/ops/notifications": {
       "get": {
         "operationId": "PlatformOpsController_listNotifications",
@@ -6305,7 +6498,7 @@
             "description": ""
           }
         },
-        "summary": "Departures at/past their date still awaiting status advance or finalize.",
+        "summary": "Departures at/past their date still awaiting status advance or finalize. Read on the bookings surface.",
         "tags": [
           "PlatformOps"
         ]
@@ -6629,6 +6822,21 @@
           }
         },
         "summary": "Live health snapshot for the console panel. Mirrors the public /health probe\n(db + redis reachability) but is staff-gated and never sets a non-200 status\n— the console only displays it, it isn't a load-balancer probe.",
+        "tags": [
+          "PlatformSystem"
+        ]
+      }
+    },
+    "/api/platform/system/sms-balance": {
+      "get": {
+        "operationId": "PlatformSystemController_smsBalance",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "SMS provider balance for the console. Never returns the API key — only the\nbalance (or a \"not configured\" flag). Polled by the page, so throttle-exempt\nlike health().",
         "tags": [
           "PlatformSystem"
         ]
@@ -7049,8 +7257,9 @@
           },
           "password": {
             "type": "string",
-            "minLength": 8,
-            "maxLength": 72
+            "minLength": 6,
+            "maxLength": 72,
+            "pattern": "PASSWORD_RULE"
           },
           "name": {
             "type": "string",
@@ -7087,6 +7296,53 @@
         },
         "required": [
           "phone",
+          "password"
+        ]
+      },
+      "RequestOtpDto": {
+        "type": "object",
+        "properties": {
+          "phone": {
+            "type": "string",
+            "pattern": "BD_PHONE"
+          }
+        },
+        "required": [
+          "phone"
+        ]
+      },
+      "VerifyOtpDto": {
+        "type": "object",
+        "properties": {
+          "phone": {
+            "type": "string",
+            "pattern": "BD_PHONE"
+          },
+          "code": {
+            "type": "string",
+            "pattern": "/^\\d{6}$/"
+          }
+        },
+        "required": [
+          "phone",
+          "code"
+        ]
+      },
+      "ResetPasswordDto": {
+        "type": "object",
+        "properties": {
+          "resetTicket": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 6,
+            "maxLength": 72,
+            "pattern": "PASSWORD_RULE"
+          }
+        },
+        "required": [
+          "resetTicket",
           "password"
         ]
       },
@@ -7286,6 +7542,10 @@
             "type": "string",
             "maxLength": 5000
           },
+          "cancellationPolicy": {
+            "type": "string",
+            "maxLength": 5000
+          },
           "foodMenu": {
             "$ref": "#/components/schemas/FoodMenuDto"
           }
@@ -7357,6 +7617,10 @@
             "maxLength": 5000
           },
           "safetyFeatures": {
+            "type": "string",
+            "maxLength": 5000
+          },
+          "cancellationPolicy": {
             "type": "string",
             "maxLength": 5000
           },
@@ -8175,20 +8439,37 @@
           "adults"
         ]
       },
-      "RescheduleDto": {
+      "RequestRefundDto": {
         "type": "object",
         "properties": {
-          "newDepartureId": {
+          "method": {
             "type": "string",
+            "enum": [
+              "bkash",
+              "nagad",
+              "bank"
+            ]
+          },
+          "accountRef": {
+            "type": "string",
+            "description": "bKash/Nagad number, or bank account number.",
+            "minLength": 3,
             "maxLength": 64
           },
-          "reason": {
+          "accountName": {
             "type": "string",
-            "maxLength": 500
+            "description": "Account holder name — helps the admin match the transfer.",
+            "maxLength": 120
+          },
+          "bankName": {
+            "type": "string",
+            "description": "Required in practice for method=bank.",
+            "maxLength": 120
           }
         },
         "required": [
-          "newDepartureId"
+          "method",
+          "accountRef"
         ]
       },
       "CheckinDto": {
@@ -8580,6 +8861,18 @@
             "maxLength": 5000
           }
         }
+      },
+      "ReplyQuoteDto": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "maxLength": 5000
+          }
+        },
+        "required": [
+          "message"
+        ]
       },
       "PriceQuoteDto": {
         "type": "object",

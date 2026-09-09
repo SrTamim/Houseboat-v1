@@ -26,6 +26,7 @@ import {
   weekday,
   channelLabel,
 } from '@/lib/owner/format';
+import { submitOrQueue, isOfflineUnavailable } from '@/lib/owner/submit-or-queue';
 
 interface Departure {
   id: string;
@@ -88,6 +89,7 @@ export default function OwnerDeparturePage() {
   const [payMethod, setPayMethod] = useState<string>(PAY_METHODS[0].value);
   const [payAmount, setPayAmount] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [savedOffline, setSavedOffline] = useState(false);
 
   const departures = useSWR<Departure[]>(`/houseboats/${boatId}/departures-list`, fetcher, {
     revalidateOnFocus: false,
@@ -196,11 +198,28 @@ export default function OwnerDeparturePage() {
     if (busyId) return;
     setBusyId(b.id);
     setError(null);
+    setSavedOffline(false);
     try {
-      await api.patch(`/houseboats/${boatId}/bookings/${b.id}/checkin`, { status });
-      await bookings.mutate();
+      const res = await submitOrQueue(
+        () =>
+          api.patch(`/houseboats/${boatId}/bookings/${b.id}/checkin`, { status }),
+        {
+          houseboatId: boatId,
+          action: 'checkin_set',
+          payload: { bookingId: b.id, status },
+        },
+      );
+      if (res.status === 'sent') {
+        await bookings.mutate();
+      } else {
+        setSavedOffline(true);
+      }
     } catch (err) {
-      setError(apiErrorMessage(err, 'Could not update check-in status.'));
+      setError(
+        isOfflineUnavailable(err)
+          ? (err as Error).message
+          : apiErrorMessage(err, 'Could not update check-in status.'),
+      );
     } finally {
       setBusyId(null);
     }
@@ -258,6 +277,12 @@ export default function OwnerDeparturePage() {
       {error ? (
         <Note kind="danger" style={{ marginBottom: 18 }}>
           {error}
+        </Note>
+      ) : null}
+
+      {savedOffline ? (
+        <Note kind="ok" style={{ marginBottom: 18 }}>
+          Saved offline — it’ll sync when you’re back online. See Offline sync.
         </Note>
       ) : null}
 

@@ -55,7 +55,6 @@ const BOOKING_TONE: Record<string, 'ok' | 'warn' | 'danger' | 'mut' | 'blue'> = 
 const STATUS_OPTIONS = [
   { value: '', label: 'All statuses' },
   { value: 'confirmed', label: 'Confirmed' },
-  { value: 'rescheduled', label: 'Rescheduled' },
   { value: 'cancelled', label: 'Cancelled' },
   { value: 'not_arrived', label: 'Not arrived' },
   { value: 'completed', label: 'Completed' },

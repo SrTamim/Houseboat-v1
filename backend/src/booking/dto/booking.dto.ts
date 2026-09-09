@@ -133,11 +133,6 @@ export class WaitlistDto {
   @IsOptional() @IsString() @MaxLength(LEN_CODE) cabinId?: string;
 }
 
-export class RescheduleDto {
-  @IsString() @MaxLength(LEN_CODE) newDepartureId!: string;
-  @IsOptional() @IsString() @MaxLength(LEN_TEXT) reason?: string;
-}
-
 export class JoinOpenSeatDto {
   @IsString() @MaxLength(LEN_CODE) openSeatCabinId!: string;
   @IsInt() @Min(1) adults!: number;

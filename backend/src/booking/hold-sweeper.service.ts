@@ -21,6 +21,8 @@ import { HOLD_GRACE_MIN } from './holds.service';
 @Injectable()
 export class HoldSweeperService {
   private readonly logger = new Logger(HoldSweeperService.name);
+  /** Re-entrancy guard: skip a tick if the previous sweep is still running. */
+  private running = false;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -32,11 +34,23 @@ export class HoldSweeperService {
 
   @Cron(CronExpression.EVERY_MINUTE)
   async sweep(): Promise<void> {
+    // If a previous minute's sweep is still going (a large backlog under load),
+    // don't start a second concurrent one — it would double the DB load and race
+    // on the same holds. Just skip; the next tick picks up whatever remains.
+    if (this.running) return;
+    this.running = true;
+    try {
+      await this.runSweep();
+    } finally {
+      this.running = false;
+    }
+  }
+
+  private async runSweep(): Promise<void> {
     const now = new Date();
     const graceMin =
       (await this.settings?.getNumber('hold.graceMin')) ?? HOLD_GRACE_MIN;
     const staleBefore = new Date(now.getTime() - graceMin * 60_000);
-    // Process in one transaction per batch so count updates stay consistent.
     const reclaimable = await this.prisma.cabinHold.findMany({
       where: {
         state: 'held',
@@ -61,39 +75,48 @@ export class HoldSweeperService {
     });
     if (reclaimable.length === 0) return;
 
-    const touched = new Set<string>();
-    for (const hold of reclaimable) {
-      const didRelease = await this.prisma.$transaction(async (tx) => {
-        // Re-check state inside the tx — another worker may have got here first.
-        const fresh = await tx.cabinHold.findUnique({
-          where: { id: hold.id },
-          select: { state: true },
-        });
-        if (!fresh || fresh.state !== 'held') return false;
-        await tx.cabinHold.update({
-          where: { id: hold.id },
-          data: { state: 'released' },
-        });
-        await tx.tripDeparture.update({
-          where: { id: hold.departureId },
-          data: { availableCount: { increment: 1 } },
-        });
-        return true;
-      });
-      if (didRelease) {
-        touched.add(hold.departureId);
-        this.realtime.emitCabinState(hold.departureId, hold.cabinId, 'released');
-      }
+    // Group the reclaimable holds by departure so each departure is touched once.
+    const byDeparture = new Map<
+      string,
+      { ids: string[]; cabinIds: string[] }
+    >();
+    for (const h of reclaimable) {
+      const g = byDeparture.get(h.departureId) ?? { ids: [], cabinIds: [] };
+      g.ids.push(h.id);
+      g.cabinIds.push(h.cabinId);
+      byDeparture.set(h.departureId, g);
     }
 
-    // Emit fresh counts once per affected departure.
-    for (const departureId of touched) {
+    // One transaction per departure instead of one per hold: release all its
+    // still-held rows in a single updateMany (the state='held' filter keeps it
+    // idempotent — another worker that already released some won't be
+    // double-counted), then bump availableCount by the number ACTUALLY released.
+    let released = 0;
+    for (const [departureId, g] of byDeparture) {
+      const count = await this.prisma.$transaction(async (tx) => {
+        const res = await tx.cabinHold.updateMany({
+          where: { id: { in: g.ids }, state: 'held' },
+          data: { state: 'released' },
+        });
+        if (res.count > 0) {
+          await tx.tripDeparture.update({
+            where: { id: departureId },
+            data: { availableCount: { increment: res.count } },
+          });
+        }
+        return res.count;
+      });
+      if (count === 0) continue;
+      released += count;
+      for (const cabinId of g.cabinIds) {
+        this.realtime.emitCabinState(departureId, cabinId, 'released');
+      }
       const dep = await this.prisma.tripDeparture.findUnique({
         where: { id: departureId },
         select: { availableCount: true },
       });
       if (dep) this.realtime.emitAvailability(departureId, dep.availableCount);
     }
-    this.logger.debug(`Swept ${reclaimable.length} stale/expired hold(s)`);
+    this.logger.debug(`Swept ${released} stale/expired hold(s)`);
   }
 }

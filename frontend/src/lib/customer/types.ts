@@ -22,11 +22,28 @@ export interface SearchBoat {
   cabinCount: number;
   ratingAvg: number | null;
   /**
-   * Rolled-up cabin-category facilities text, used by the search Amenities
-   * filter. Optional: the field is added to the search projection in a
-   * follow-up step, so older responses simply omit it.
+   * Rolled-up cabin-category facilities, used by the search Amenities filter.
+   * Now always returned by both search endpoints (was previously omitted, which
+   * left the amenity filter matching nothing).
    */
   facilities?: string[];
+}
+
+/**
+ * Paginated results envelope (GET /houseboats/search/results). Distinct from the
+ * bare /houseboats/search flat array (still used by the home page + the results
+ * sidebar's full-set facet counts). `total` drives the numbered pager.
+ */
+export interface SearchResultsPage {
+  items: SearchBoat[];
+  total: number;
+  page: number;
+  pageSize: number;
+  facets: {
+    priceMin: number | null;
+    priceMax: number | null;
+    destinations: { label: string; sub: string }[];
+  };
 }
 
 /** Owner-entered meal plan (Prisma `Houseboat.foodMenu` JSON). */

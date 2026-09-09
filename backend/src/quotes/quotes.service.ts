@@ -8,6 +8,7 @@ import { AuditService } from '../audit/audit.service';
 import { RbacService } from '../rbac/rbac.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { newId } from '../common/uuid';
+import { money } from '../common/money';
 
 /** Quote requests expire 24h after being sent, or when the date fills. */
 const QUOTE_TTL_HOURS = 24;
@@ -79,11 +80,17 @@ export class QuotesService {
       throw new BadRequestException(`Cannot price a ${quote.status} quote`);
     }
 
+    // Normalise to exact 2dp money at the boundary — the incoming JS number is
+    // the one float in the quote path, so round it into a Decimal before it is
+    // stored or displayed (it later becomes a group-booking price). Everything
+    // downstream reads the Decimal column, never the raw number.
+    const price = money(quotedPrice);
+
     // Repricing restarts the customer's 24h window on the new figure.
     const expiresAt = new Date(Date.now() + QUOTE_TTL_HOURS * 60 * 60 * 1000);
     const updated = await this.prisma.quoteRequest.update({
       where: { id: quoteId },
-      data: { quotedPrice, status: 'sent', expiresAt },
+      data: { quotedPrice: price, status: 'sent', expiresAt },
     });
 
     await this.notifications.notify({
@@ -94,7 +101,7 @@ export class QuotesService {
         email: quote.customer.email ?? undefined,
       },
       subject: 'Your houseboat quote is ready',
-      message: `Your group quote is BDT ${quotedPrice.toFixed(2)}. It expires in ${QUOTE_TTL_HOURS}h.`,
+      message: `Your group quote is BDT ${price.toFixed(2)}. It expires in ${QUOTE_TTL_HOURS}h.`,
     });
     await this.audit.log({
       houseboatId: quote.houseboatId,
@@ -102,7 +109,7 @@ export class QuotesService {
       action: 'quote_price',
       entityType: 'quote_request',
       entityId: quoteId,
-      after: { quotedPrice: quotedPrice.toFixed(2) },
+      after: { quotedPrice: price.toFixed(2) },
     });
     return updated;
   }

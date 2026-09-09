@@ -6,6 +6,7 @@ import useSWR from 'swr';
 import { fetcher } from '@/lib/api';
 import { NAV } from '@/lib/admin/nav';
 import type { NavItem } from '@/lib/admin/nav';
+import { useAdminPerms } from '@/lib/admin/permissions';
 
 interface Overview {
   pendingBoats: number;
@@ -18,6 +19,7 @@ interface Overview {
 
 export function Sidebar({ open }: { open: boolean }) {
   const pathname = usePathname();
+  const { canView } = useAdminPerms();
 
   // Live queue counts. Badges simply don't render until the endpoint answers —
   // a stale-looking fake number is worse than no badge.
@@ -95,23 +97,35 @@ export function Sidebar({ open }: { open: boolean }) {
         </span>
       </div>
       <nav className="flex-1 px-3 pb-4 pt-2">
-        {NAV.map((grp) => (
-          <div key={grp.group}>
-            <div className="mb-[7px] mt-[18px] px-3 text-[10px] font-bold uppercase tracking-[0.11em] text-muted">
-              {grp.group}
-            </div>
-            {grp.subgroups
-              ? grp.subgroups.map((sub) => (
-                  <div key={sub.subgroup}>
-                    <div className="mb-[3px] mt-2.5 flex items-center gap-2 px-3 text-[9.5px] font-semibold uppercase tracking-[0.09em] text-muted/80 before:h-px before:w-2.5 before:bg-hair before:content-['']">
-                      {sub.subgroup}
+        {NAV.map((grp) => {
+          // Gate each item by view permission; drop empty subgroups and groups
+          // so a restricted role never sees a bare heading with no links.
+          const items = grp.items?.filter((it) => canView(it.key)) ?? [];
+          const subgroups = (grp.subgroups ?? [])
+            .map((sub) => ({
+              ...sub,
+              items: sub.items.filter((it) => canView(it.key)),
+            }))
+            .filter((sub) => sub.items.length > 0);
+          if (items.length === 0 && subgroups.length === 0) return null;
+          return (
+            <div key={grp.group}>
+              <div className="mb-[7px] mt-[18px] px-3 text-[10px] font-bold uppercase tracking-[0.11em] text-muted">
+                {grp.group}
+              </div>
+              {grp.subgroups
+                ? subgroups.map((sub) => (
+                    <div key={sub.subgroup}>
+                      <div className="mb-[3px] mt-2.5 flex items-center gap-2 px-3 text-[9.5px] font-semibold uppercase tracking-[0.09em] text-muted/80 before:h-px before:w-2.5 before:bg-hair before:content-['']">
+                        {sub.subgroup}
+                      </div>
+                      {sub.items.map(renderItem)}
                     </div>
-                    {sub.items.map(renderItem)}
-                  </div>
-                ))
-              : grp.items?.map(renderItem)}
-          </div>
-        ))}
+                  ))
+                : items.map(renderItem)}
+            </div>
+          );
+        })}
       </nav>
       <div className="border-t border-hair px-[18px] py-[14px] text-[11.5px] text-muted">
         Signed in as platform staff · UTC+6 (BST)

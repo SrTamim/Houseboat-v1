@@ -135,7 +135,6 @@ async function deleteBoatCascade(slug: string) {
   // Booking children → bookings.
   await prisma.bookingCabin.deleteMany({ where: bookingWhere });
   await prisma.bookingGuest.deleteMany({ where: bookingWhere });
-  await prisma.bookingRescheduleHistory.deleteMany({ where: bookingWhere });
   await prisma.review.deleteMany({ where: { houseboatId } });
   await prisma.booking.deleteMany({
     where: { departure: { package: { houseboatId } } },
@@ -1163,8 +1162,6 @@ async function reseedJolKolol(opts: {
   const futureC = await mkDeparture(9, 'scheduled', generalProfile.id);
   const weekendDep = await mkDeparture(4, 'scheduled', weekendProfile.id);
   const groupDep = await mkDeparture(14, 'scheduled', generalProfile.id);
-  const rescheduleDst = await mkDeparture(20, 'scheduled', generalProfile.id);
-  const rescheduleSrc = await mkDeparture(6, 'scheduled', generalProfile.id);
   const pastCompleted = await mkDeparture(-14, 'completed', generalProfile.id);
   const pastNoShowDep = await mkDeparture(-7, 'completed', generalProfile.id);
   const cancelledDep = await mkDeparture(-3, 'cancelled', generalProfile.id);
@@ -1435,46 +1432,7 @@ async function reseedJolKolol(opts: {
     },
   });
 
-  // 10. Rescheduled: original marked rescheduled, history row, new confirmed booking.
-  const original = await makeBooking({
-    departureId: rescheduleSrc.id,
-    cabinId: luxuryCabins[2].id,
-    customerName: 'Shamima Nasrin',
-    customerPhone: '+8801755550010',
-    type: 'cabin',
-    bookingStatus: 'rescheduled',
-    adults: 2,
-    roomTotal: 10000,
-    invoiceStatus: 'paid',
-    payment: { method: 'cash', verifiedById: checkerAdminId },
-    decrementAvail: false,
-  });
-  const rebooked = await makeBooking({
-    departureId: rescheduleDst.id,
-    cabinId: luxuryCabins[2].id,
-    customerName: 'Shamima Nasrin',
-    customerPhone: '+8801755550010',
-    type: 'cabin',
-    bookingStatus: 'confirmed',
-    adults: 2,
-    roomTotal: 11000, // repriced at the new date
-    invoiceStatus: 'paid',
-    payment: { method: 'cash', verifiedById: checkerAdminId },
-    decrementAvail: true,
-  });
-  await prisma.bookingRescheduleHistory.create({
-    data: {
-      id: id(),
-      bookingId: rebooked.booking.id,
-      prevDepartureId: rescheduleSrc.id,
-      changedToDepartureId: rescheduleDst.id,
-      oldPrice: 10000,
-      newPrice: 11000,
-      reason: 'Customer requested a later date.',
-      changedBy: ownerAccountId,
-    },
-  });
-  void original;
+  // (The reschedule demo booking was removed with the reschedule feature.)
   void weekendDep;
 
   // ---- Media gallery: images + one video per allowlisted provider. ----
@@ -1697,9 +1655,71 @@ async function main() {
   await ensureCurrentPeriodInvoice(haorBilashId);
   await ensureDemoData(haorBilashId, owner.id, 1);
 
+  // Denormalized search facets (min price, capacity, AC flags, rating, amenities)
+  // are recomputed by HouseboatFacetsService in the running app; seed writes only
+  // source data, so refresh every boat here or the search facets read as defaults.
+  await recomputeAllFacets();
+
   console.log(
     'Seed complete: 2 live houseboats (owner: Kamal Uddin), Jol Kolol fully populated, 2 routes, 2 platform admins.',
   );
+}
+
+/**
+ * Recompute Houseboat search facets for every boat, mirroring
+ * HouseboatFacetsService.recompute() (kept in sync manually — seed has no DI).
+ */
+async function recomputeAllFacets(): Promise<void> {
+  const boats = await prisma.houseboat.findMany({
+    select: {
+      id: true,
+      cabinCategories: {
+        select: {
+          isAc: true,
+          baseCapacity: true,
+          extendedCapacity: true,
+          facilities: true,
+        },
+      },
+      pricingProfiles: {
+        where: { isDefault: true },
+        select: { rules: { select: { pricePerPerson: true } } },
+      },
+      reviews: { where: { hidden: false }, select: { rating: true } },
+    },
+  });
+
+  for (const b of boats) {
+    const prices = b.pricingProfiles
+      .flatMap((p) => p.rules)
+      .map((r) => Number(r.pricePerPerson))
+      .filter((n) => n > 0);
+    const reviewCount = b.reviews.length;
+    const amenityText = b.cabinCategories
+      .map((c) => (c.facilities ?? '').trim())
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+
+    await prisma.houseboat.update({
+      where: { id: b.id },
+      data: {
+        minPricePerPerson: prices.length ? Math.min(...prices) : null,
+        maxCapacity: b.cabinCategories.reduce(
+          (m, c) => Math.max(m, c.extendedCapacity ?? c.baseCapacity),
+          0,
+        ),
+        hasAc: b.cabinCategories.some((c) => c.isAc),
+        hasNonAc: b.cabinCategories.some((c) => !c.isAc),
+        ratingAvg: reviewCount
+          ? b.reviews.reduce((s, r) => s + r.rating, 0) / reviewCount
+          : null,
+        reviewCount,
+        amenitiesText: amenityText || null,
+      },
+    });
+  }
+  console.log(`Recomputed search facets for ${boats.length} boats.`);
 }
 
 main()

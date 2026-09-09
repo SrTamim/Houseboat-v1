@@ -16,8 +16,18 @@ import { Pill } from '@/components/admin/Pill';
 import { Drawer } from '@/components/admin/Drawer';
 import {
   PlatformPermMatrix,
+  PLATFORM_PAGE_COUNT,
   type PlatformPermissionMap,
 } from '@/components/admin/PlatformPermMatrix';
+
+/** Drop pages that grant nothing, so a stored map only lists granted pages. */
+function grantedOnly(perms: PlatformPermissionMap): PlatformPermissionMap {
+  const out: PlatformPermissionMap = {};
+  for (const [page, p] of Object.entries(perms)) {
+    if (p?.view || p?.edit) out[page] = p;
+  }
+  return out;
+}
 import { useAdminList } from '@/lib/admin/useAdminList';
 import { apiErrorMessage } from '@/lib/admin/api-error';
 import { BTN_B, BTN_DANGER, BTN_O, BTN_SM, FIELD, FIELD_INPUT, FIELD_LABEL, ROWACT, STACK, TD_NUM, TD_T1, TD_T2 } from '@/components/admin/styles';
@@ -68,12 +78,12 @@ export default function Roles() {
       if (form.id) {
         await api.patch(`/platform/rbac/roles/${form.id}`, {
           name: form.name.trim(),
-          permissions: form.permissions,
+          permissions: grantedOnly(form.permissions),
         });
       } else {
         await api.post('/platform/rbac/roles', {
           name: form.name.trim(),
-          permissions: form.permissions,
+          permissions: grantedOnly(form.permissions),
         });
       }
       setForm(null);
@@ -145,14 +155,17 @@ export default function Roles() {
             ) : (
               <tbody>
                 {proles.map((role) => {
-                  const summary = Object.entries(role.permissions ?? {})
-                    .filter(([, p]) => p?.view || p?.edit)
-                    .map(([mod, p]) => `${mod}:${p?.edit ? 'edit' : 'view'}`)
-                    .join(' · ');
+                  const granted = Object.values(role.permissions ?? {}).filter(
+                    (p) => p?.view || p?.edit,
+                  ).length;
+                  const summary =
+                    granted === 0
+                      ? 'no access'
+                      : `${granted} of ${PLATFORM_PAGE_COUNT} pages`;
                   return (
                     <tr key={role.id} className="group">
                       <td className={TD_T1}>{role.name}</td>
-                      <td className={TD_T2}>{summary || 'no access'}</td>
+                      <td className={TD_T2}>{summary}</td>
                       <td className={TD_NUM}>{role._count.accounts}</td>
                       <td className={ROWACT}>
                         <button

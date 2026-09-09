@@ -124,6 +124,21 @@ export class RefundsService {
         'Invoice is locked in a payout batch — pull it before refunding',
       );
     }
+
+    // Amount guard: a refund can be at most what the customer actually paid, and
+    // must be positive. Without this the owner/finance path trusts the DTO amount
+    // verbatim (no upper bound), so a mistyped or malicious value could send out
+    // more money than was ever collected. The customer path (requestRefundAsCustomer)
+    // already hard-caps at amountPaid; this brings the staff path in line.
+    if (
+      money(input.amount).lessThanOrEqualTo(ZERO) ||
+      money(input.amount).greaterThan(money(invoice.amountPaid))
+    ) {
+      throw new BadRequestException(
+        'Refund amount must be greater than zero and no more than the amount paid',
+      );
+    }
+
     assertTransition(invoice.status as InvoiceStatus, 'refund_requested');
 
     const claimDeadline = new Date(

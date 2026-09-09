@@ -17,10 +17,14 @@ import { Transform, Type } from 'class-transformer';
 import { LEN_CODE, LEN_NAME, LEN_TEXT } from '../../common/field-limits';
 import { PageQueryDto } from '../../common/dto/pagination.dto';
 
-/** Mirrors booking.status in the schema. */
+/**
+ * Booking status values a filter may request. 'rescheduled' was removed with the
+ * reschedule feature — nothing writes it any more, and status counts are computed
+ * dynamically (groupBy), so any legacy 'rescheduled' row still displays; it just
+ * can no longer be selected as a filter.
+ */
 export const BOOKING_STATUSES = [
   'confirmed',
-  'rescheduled',
   'cancelled',
   'not_arrived',
   'completed',

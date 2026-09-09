@@ -78,7 +78,6 @@ model Account {
   auditLogs            AuditLog[]
   bookingsAsCustomer   Booking[]                @relation("BookingCustomer")
   bookingsBooked       Booking[]                @relation("BookingBookedBy")
-  rescheduleChanges    BookingRescheduleHistory[]
   holds                CabinHold[]
   waitlists            BookingWaitlist[]
   quoteRequests        QuoteRequest[]
@@ -197,6 +196,10 @@ model AuditLog {
   @@id([id, serverTime])
   @@index([houseboatId])
   @@index([entityType, entityId])
+  // The boat audit trail + dashboard recent-activity read WHERE houseboatId
+  // ORDER BY serverTime DESC (keyset). Matches that order so the fast-growing,
+  // month-partitioned table doesn't scan+sort per page.
+  @@index([houseboatId, serverTime(sort: Desc)])
   @@map("audit_log")
 }
 
@@ -230,6 +233,25 @@ model Houseboat {
   logoStorageKey    String?   @map("logo_storage_key")
   createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
+  // ── Denormalized search facets ──────────────────────────────────────────
+  // Rolled up from the default pricing profile's rules, cabin categories, and
+  // non-hidden reviews so /houseboats/search can filter/sort/paginate in the DB
+  // instead of reading the whole live catalogue per request. Kept fresh by
+  // HouseboatFacetsService.recompute() on every mutation that changes them, plus
+  // a nightly backstop cron. NULL price/rating mean "no priced rules / no
+  // reviews" (same semantics search() had when it computed these per request).
+  /// min per-person price across the boat's default profile rules; NULL = unpriced
+  minPricePerPerson Decimal? @map("min_price_per_person") @db.Decimal(12, 2)
+  /// max party size across cabin categories (extended ?? base)
+  maxCapacity       Int      @default(0) @map("max_capacity")
+  hasAc             Boolean  @default(false) @map("has_ac")
+  hasNonAc          Boolean  @default(false) @map("has_non_ac")
+  /// mean of non-hidden review ratings; NULL = no reviews
+  ratingAvg         Float?   @map("rating_avg")
+  reviewCount       Int      @default(0) @map("review_count")
+  /// lowercased, space-joined rollup of cabin-category facilities, for amenity `contains`
+  amenitiesText     String?  @map("amenities_text")
+
   billingConfig        HouseboatBillingConfig?       @relation("HouseboatBillingConfig", fields: [billingConfigId], references: [id])
   members              HouseboatMember[]
   roles                Role[]
@@ -256,6 +278,13 @@ model Houseboat {
   media                HouseboatMedia[]
   maintenanceRequests  MaintenanceRequest[]
 
+  // Search reads WHERE status='live' then filters/sorts on the denormalized
+  // facets; these composite indexes back each supported sort + range filter.
+  @@index([status])
+  @@index([status, createdAt(sort: Desc)])
+  @@index([status, minPricePerPerson])
+  @@index([status, ratingAvg])
+  @@index([status, reviewCount])
   @@map("houseboat")
 }
 
@@ -439,13 +468,16 @@ model TripDeparture {
   crew           TripCrew[]
   costs          Cost[]
   stockMovements StockMovement[]
-  reschedulesFrom BookingRescheduleHistory[] @relation("RescheduleFrom")
-  reschedulesTo   BookingRescheduleHistory[] @relation("RescheduleTo")
 
   @@index([packageId])
   @@index([startDate])
   @@index([status])
   @@index([scheduleSlotId])
+  // Reports, dashboard, calendar and availability all filter departures by
+  // package + date range (and often status). The single-column indexes above
+  // can't serve the combined predicate; these composites do.
+  @@index([packageId, startDate])
+  @@index([packageId, status])
   @@map("trip_departure")
 }
 
@@ -521,22 +553,19 @@ model Booking {
   couponId            String?  @map("coupon_id") @db.Uuid
   /// free text, optional — who referred/sent the customer
   referenceName       String?  @map("reference_name")
-  /// confirmed / rescheduled / cancelled / not_arrived / completed
+  /// confirmed / cancelled / not_arrived / completed
+  /// (legacy 'rescheduled' rows may still exist; the reschedule feature is retired)
   status              String   @default("confirmed")
   /// departure attendance, owner-set on the manifest: pending / checked_in / absent
   checkinStatus       String   @default("pending") @map("checkin_status")
-  rescheduleOf        String?  @map("reschedule_of") @db.Uuid
   createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   departure  TripDeparture @relation(fields: [departureId], references: [id])
   customer   Account       @relation("BookingCustomer", fields: [customerId], references: [id])
   bookedByAccount Account  @relation("BookingBookedBy", fields: [bookedBy], references: [id])
   coupon     Coupon?       @relation(fields: [couponId], references: [id])
-  rescheduledFrom Booking?  @relation("BookingReschedule", fields: [rescheduleOf], references: [id])
-  reschedules     Booking[] @relation("BookingReschedule")
   cabins     BookingCabin[]
   guests     BookingGuest[]
-  rescheduleHistory BookingRescheduleHistory[]
   invoice    Invoice?
   review     Review?
 
@@ -592,27 +621,6 @@ model BookingGuest {
   @@map("booking_guest")
 }
 
-model BookingRescheduleHistory {
-  id                    String   @id @db.Uuid
-  bookingId             String   @map("booking_id") @db.Uuid
-  prevDepartureId       String   @map("prev_departure_id") @db.Uuid
-  changedToDepartureId  String   @map("changed_to_departure_id") @db.Uuid
-  oldPrice              Decimal? @map("old_price") @db.Decimal(12, 2)
-  /// reschedule REPRICES at the new date; advance adjusts against new amount
-  newPrice              Decimal? @map("new_price") @db.Decimal(12, 2)
-  reason                String?
-  changedBy             String   @map("changed_by") @db.Uuid
-  changedAt             DateTime @default(now()) @map("changed_at") @db.Timestamptz
-
-  booking       Booking       @relation(fields: [bookingId], references: [id])
-  prevDeparture TripDeparture @relation("RescheduleFrom", fields: [prevDepartureId], references: [id])
-  toDeparture   TripDeparture @relation("RescheduleTo", fields: [changedToDepartureId], references: [id])
-  changedByAccount Account    @relation(fields: [changedBy], references: [id])
-
-  @@index([bookingId])
-  @@map("booking_reschedule_history")
-}
-
 /// ENFORCE partial unique index on (cabin_id, departure_id) WHERE state='held'.
 /// The second simultaneous tap fails at the DB. This kills double-booking.
 model CabinHold {
@@ -647,6 +655,11 @@ model CabinHold {
   @@index([expiresAt])
   @@index([heldByToken])
   @@index([lastSeenAt])
+  // The every-minute sweeper filters state='held' AND (expiresAt<=now OR
+  // lastSeenAt<stale). Leading with state keeps it off the released/converted
+  // rows (holds are never deleted, only state-flipped, so the table only grows).
+  @@index([state, expiresAt])
+  @@index([state, lastSeenAt])
   @@map("cabin_hold")
 }
 
@@ -742,6 +755,9 @@ model Invoice {
   @@index([houseboatId])
   @@index([customerId])
   @@index([status])
+  // The platform verify/payout queues filter status + payoutBatchId IS NULL and
+  // scan the whole invoice set as GMV grows; this composite serves them.
+  @@index([status, payoutBatchId])
   @@map("invoice")
 }
 
@@ -935,12 +951,18 @@ model CustomerCredit {
   /// so they can't be spent on a booking until finance approves (→ used) or rejects
   /// (→ back to open).
   status          String  @default("open")
+  /// The cash-out request that locked this credit (set when status → pending_cashout,
+  /// cleared when it returns to open). Scopes resolve so approving one request only
+  /// touches ITS credits, never every pending_cashout credit on the account.
+  cashoutRequestId String? @map("cashout_request_id") @db.Uuid
 
   account       Account  @relation(fields: [accountId], references: [id])
   sourceInvoice Invoice? @relation("CreditSource", fields: [sourceInvoiceId], references: [id])
   usedInInvoice Invoice? @relation("CreditUsed", fields: [usedInInvoiceId], references: [id])
+  cashoutRequest CashoutRequest? @relation(fields: [cashoutRequestId], references: [id])
 
   @@index([accountId])
+  @@index([cashoutRequestId])
   @@map("customer_credit")
 }
 
@@ -967,6 +989,7 @@ model CashoutRequest {
 
   account          Account  @relation("CashoutRequester", fields: [accountId], references: [id])
   resolvedByAccount Account? @relation("CashoutResolvedBy", fields: [resolvedByAccountId], references: [id])
+  lockedCredits     CustomerCredit[]
 
   @@index([accountId])
   @@index([status])
@@ -1200,11 +1223,20 @@ model Notification {
   /// minimal replay payload for console resend: {phone?, email?, subject?, html?, message?, bookingId?}.
   /// NULL = row predates this column and cannot be resent.
   payload   Json?
+  /// automated-retry bookkeeping (delivered:false rows only). See NotificationRetryService.
+  attemptCount  Int       @default(0) @map("attempt_count")
+  /// when the retry cron may next attempt this row; NULL = not scheduled (delivered, or gave up).
+  nextAttemptAt DateTime? @map("next_attempt_at") @db.Timestamptz
   at        DateTime @default(now()) @db.Timestamptz
 
   account Account @relation(fields: [accountId], references: [id])
 
   @@index([accountId])
+  // Inbox/history reads WHERE accountId ORDER BY at DESC. Notification is the
+  // fastest-growing table (one row per send); this serves the ordered read.
+  @@index([accountId, at(sort: Desc)])
+  // The retry cron scans WHERE delivered=false AND nextAttemptAt <= now.
+  @@index([delivered, nextAttemptAt])
   @@map("notification")
 }
 

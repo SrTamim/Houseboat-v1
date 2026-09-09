@@ -7,6 +7,8 @@ import type { AdminUser } from '@/lib/admin/session';
 import { LOGIN_PATH } from '@/lib/admin/login-url';
 import { Sidebar } from './Sidebar';
 import { ThemeToggle } from './ThemeToggle';
+import { ConsolePageGuard } from './ConsolePageGuard';
+import { AdminPermsProvider } from '@/lib/admin/permissions';
 import { ICON_BTN } from './styles';
 
 /** "Rafiq Ahmed" → "RA". Falls back to the phone when there's no name. */
@@ -53,6 +55,7 @@ export function AdminChrome({
   }
 
   return (
+    <AdminPermsProvider permissions={user.platformPermissions}>
     <div className="grid min-h-screen grid-cols-[var(--sbw)_1fr] max-[1024px]:grid-cols-[1fr]">
       <Sidebar open={navOpen} />
       <div className="flex min-w-0 flex-col">
@@ -99,9 +102,10 @@ export function AdminChrome({
         </header>
         {/* Content well + staggered load-in (was `.content` + `.content > *` rise). */}
         <main className="w-full max-w-[1360px] px-6 py-7 max-[560px]:px-4 max-[560px]:py-[18px] [&>*]:motion-safe:animate-rise [&>*:nth-child(2)]:[animation-delay:0.04s] [&>*:nth-child(3)]:[animation-delay:0.08s] [&>*:nth-child(4)]:[animation-delay:0.12s] [&>*:nth-child(5)]:[animation-delay:0.16s]">
-          {children}
+          <ConsolePageGuard>{children}</ConsolePageGuard>
         </main>
       </div>
     </div>
+    </AdminPermsProvider>
   );
 }

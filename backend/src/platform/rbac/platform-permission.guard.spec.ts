@@ -8,7 +8,7 @@ import { PLATFORM_PERMISSION_KEY } from './platform-permission.decorator';
  */
 describe('PlatformPermissionGuard', () => {
   function makeGuard(opts: {
-    meta?: { module: string; action: string };
+    meta?: { page: string; action: string; anyOf?: string[] };
     account?: {
       isPlatform: boolean;
       platformRole: { permissions: unknown } | null;
@@ -41,7 +41,7 @@ describe('PlatformPermissionGuard', () => {
 
   it('403s when DB isPlatform=false even though the JWT claims platform (staleness)', async () => {
     const { guard, context } = makeGuard({
-      meta: { module: 'finance', action: 'view' },
+      meta: { page: 'payouts', action: 'view' },
       account: { isPlatform: false, platformRole: null },
     });
     await expect(guard.canActivate(context)).rejects.toThrow(
@@ -51,7 +51,7 @@ describe('PlatformPermissionGuard', () => {
 
   it('passes with a null role (superadmin)', async () => {
     const { guard, context } = makeGuard({
-      meta: { module: 'finance', action: 'edit' },
+      meta: { page: 'payouts', action: 'edit' },
       account: { isPlatform: true, platformRole: null },
     });
     expect(await guard.canActivate(context)).toBe(true);
@@ -59,10 +59,10 @@ describe('PlatformPermissionGuard', () => {
 
   it('edit implies view: an edit grant passes a view route', async () => {
     const { guard, context } = makeGuard({
-      meta: { module: 'finance', action: 'view' },
+      meta: { page: 'payouts', action: 'view' },
       account: {
         isPlatform: true,
-        platformRole: { permissions: { finance: { edit: true } } },
+        platformRole: { permissions: { payouts: { edit: true } } },
       },
     });
     expect(await guard.canActivate(context)).toBe(true);
@@ -70,10 +70,10 @@ describe('PlatformPermissionGuard', () => {
 
   it('view-only grant 403s on an edit route', async () => {
     const { guard, context } = makeGuard({
-      meta: { module: 'finance', action: 'edit' },
+      meta: { page: 'payouts', action: 'edit' },
       account: {
         isPlatform: true,
-        platformRole: { permissions: { finance: { view: true } } },
+        platformRole: { permissions: { payouts: { view: true } } },
       },
     });
     await expect(guard.canActivate(context)).rejects.toThrow(
@@ -81,17 +81,41 @@ describe('PlatformPermissionGuard', () => {
     );
   });
 
-  it('missing module in the map 403s', async () => {
+  it('missing page in the map 403s', async () => {
     const { guard, context } = makeGuard({
-      meta: { module: 'boats', action: 'view' },
+      meta: { page: 'boats', action: 'view' },
       account: {
         isPlatform: true,
-        platformRole: { permissions: { finance: { view: true } } },
+        platformRole: { permissions: { payouts: { view: true } } },
       },
     });
     await expect(guard.canActivate(context)).rejects.toThrow(
       ForbiddenException,
     );
+  });
+
+  it('anyOf: a grant on an alternate page satisfies a shared route', async () => {
+    const { guard, context } = makeGuard({
+      meta: { page: 'booking-invoice', action: 'view', anyOf: ['verify'] },
+      account: {
+        isPlatform: true,
+        platformRole: { permissions: { verify: { view: true } } },
+      },
+    });
+    expect(await guard.canActivate(context)).toBe(true);
+  });
+
+  it('legacy module grant is expanded to its pages at read time', async () => {
+    // A pre-migration role storing the old `finance` module must still reach a
+    // finance page route.
+    const { guard, context } = makeGuard({
+      meta: { page: 'payouts', action: 'edit' },
+      account: {
+        isPlatform: true,
+        platformRole: { permissions: { finance: { edit: true } } },
+      },
+    });
+    expect(await guard.canActivate(context)).toBe(true);
   });
 
   it('uses handler-then-class metadata resolution', async () => {

@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import useSWR from 'swr';
 import { fetcher } from '@/lib/api';
-import type { SearchBoat } from '@/lib/customer/types';
+import type { SearchBoat, SearchResultsPage } from '@/lib/customer/types';
 import { SearchBoatCard } from '@/components/customer/SearchBoatCard';
 import { SearchBar } from './SearchBar';
 import { FilterSidebar } from './FilterSidebar';
@@ -19,17 +19,37 @@ import {
   destinationFacets,
   filtersFromParams,
   priceBounds,
-  sortBoats,
 } from './filters';
 
 /**
  * Search results (design: haorboat-search.html lines 400–509).
  *
- * One unfiltered fetch of the catalogue; every filter, sort and page is applied
- * in the browser (see filters.ts for why). The URL still carries the full filter
- * state so results stay shareable, the back button works, and the home hero's
- * /search?route=…&date=…&guests=…&ac=… handoff lands correctly.
+ * Two fetches, by design:
+ *   - the paginated GRID comes from GET /houseboats/search/results (filtered,
+ *     sorted and paged in the DB), so the grid scales past the catalogue size;
+ *   - the SIDEBAR facet counts (size/amenity/destination counts, price bounds)
+ *     still need the whole live set, so they keep reading the bare
+ *     /houseboats/search flat array and computing counts client-side.
+ * The URL carries the full filter state so results stay shareable, the back
+ * button works, and the home hero's /search?route&date&guests&ac handoff lands.
  */
+
+/** Build the /houseboats/search/results query string from the filter model. */
+function resultsQuery(f: SearchFilters, page: number): string {
+  const q = new URLSearchParams();
+  if (f.route) q.set('route', f.route);
+  if (f.date) q.set('date', f.date);
+  if (f.guests) q.set('guests', String(f.guests));
+  if (f.ac !== 'both') q.set('ac', f.ac);
+  if (f.maxPrice != null) q.set('maxPrice', String(f.maxPrice));
+  if (f.rating != null) q.set('rating', String(f.rating));
+  for (const s of f.sizes) q.append('sizes', s);
+  for (const a of f.amenities) q.append('amenities', a);
+  if (f.sort !== 'recommended') q.set('sort', f.sort);
+  q.set('page', String(page));
+  q.set('pageSize', String(PAGE_SIZE));
+  return q.toString();
+}
 
 const SORT_OPTIONS: { value: Sort; label: string }[] = [
   { value: 'recommended', label: 'Sort: Recommended' },
@@ -51,12 +71,13 @@ export function SearchResults() {
   const [drawer, setDrawer] = useState(false);
   const gridRef = useRef<HTMLDivElement>(null);
 
-  // Single unfiltered fetch — same SWR key HomeHero uses, so it dedupes.
-  const { data, error, isLoading } = useSWR<SearchBoat[]>('/houseboats/search', fetcher, {
+  // Sidebar facets need the whole live set — bare fetch (same key HomeHero uses,
+  // so it dedupes). Used ONLY for the price bounds + facet counts, never the grid.
+  const { data: allData } = useSWR<SearchBoat[]>('/houseboats/search', fetcher, {
     revalidateOnFocus: false,
     keepPreviousData: true,
   });
-  const all = useMemo(() => data ?? [], [data]);
+  const all = useMemo(() => allData ?? [], [allData]);
 
   const bounds = useMemo(() => priceBounds(all), [all]);
   const destinations = useMemo(() => destinationFacets(all), [all]);
@@ -65,12 +86,21 @@ export function SearchResults() {
   const [priceDraft, setPriceDraft] = useState<number | null>(null);
   const effectivePrice = priceDraft ?? filters.maxPrice ?? bounds.max;
 
-  const filtered = useMemo(() => applyFilters(all, filters), [all, filters]);
-  const sorted = useMemo(() => sortBoats(filtered, filters.sort), [filtered, filters.sort]);
+  // The grid itself is filtered/sorted/paginated in the DB.
+  const {
+    data: results,
+    error,
+    isLoading,
+  } = useSWR<SearchResultsPage>(
+    `/houseboats/search/results?${resultsQuery(filters, page)}`,
+    fetcher,
+    { revalidateOnFocus: false, keepPreviousData: true },
+  );
 
-  const pageCount = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const pageBoats = results?.items ?? [];
+  const total = results?.total ?? 0;
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const safePage = Math.min(page, pageCount);
-  const pageBoats = sorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   // Any filter change puts you back on page 1.
   useEffect(() => setPage(1), [params]);
@@ -199,8 +229,8 @@ export function SearchResults() {
           {/* toolbar */}
           <div className="col-[1/-1] mb-[2px] flex flex-wrap items-center gap-2.5">
             <span className="text-sm font-semibold text-bodytext">
-              <b className="font-extrabold text-ink">{sorted.length}</b>{' '}
-              {sorted.length === 1 ? 'boat' : 'boats'}
+              <b className="font-extrabold text-ink">{total}</b>{' '}
+              {total === 1 ? 'boat' : 'boats'}
               {filters.route ? ` · ${filters.route}` : ''}
             </span>
 
@@ -328,7 +358,7 @@ export function SearchResults() {
             ref={gridRef}
             className="grid gap-[18px] [grid-template-columns:repeat(3,1fr)] max-[820px]:[grid-template-columns:repeat(2,1fr)] max-[560px]:[grid-template-columns:1fr]"
           >
-            {isLoading && all.length === 0 ? (
+            {isLoading && !results ? (
               Array.from({ length: PAGE_SIZE }).map((_, i) => (
                 <div
                   key={i}

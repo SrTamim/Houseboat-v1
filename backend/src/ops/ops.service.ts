@@ -3,10 +3,12 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { HouseboatFacetsService } from '../houseboats/houseboat-facets.service';
 import { newId } from '../common/uuid';
 import { money, add, sub } from '../common/money';
 import {
@@ -30,6 +32,10 @@ export class OpsService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
+    // @Optional so the IDOR unit spec can construct positionally; the facet
+    // refresh is skipped there and covered by the nightly backstop in prod.
+    @Optional()
+    private readonly facets?: HouseboatFacetsService,
   ) {}
 
   /** Notify active members of a boat (best-effort) about an event. */
@@ -300,7 +306,7 @@ export class OpsService {
       throw new BadRequestException('Only verified bookings can be reviewed');
     }
 
-    return this.prisma.review.create({
+    const review = await this.prisma.review.create({
       data: {
         id: newId(),
         bookingId,
@@ -310,6 +316,9 @@ export class OpsService {
         text: dto.text,
       },
     });
+    // New review shifts the boat's ratingAvg/reviewCount facets.
+    await this.facets?.recompute(booking.invoice.houseboatId);
+    return review;
   }
 
   listReviews(houseboatId: string) {
@@ -350,6 +359,17 @@ export class OpsService {
   listNotifications(accountId: string) {
     return this.prisma.notification.findMany({
       where: { accountId },
+      // Explicit select: the retry-bookkeeping columns (attemptCount,
+      // nextAttemptAt) are internal and must not leak onto the customer wire.
+      select: {
+        id: true,
+        event: true,
+        channel: true,
+        delivered: true,
+        readAt: true,
+        payload: true,
+        at: true,
+      },
       orderBy: { at: 'desc' },
       take: 100,
     });

@@ -32,7 +32,6 @@ export const INVOICE_STATUSES = [
 
 export const BOOKING_STATUSES = [
   'confirmed',
-  'rescheduled',
   'cancelled',
   'not_arrived',
   'completed',
@@ -229,8 +228,6 @@ export class ListCouponsQueryDto extends PageQueryDto {
 
   @IsOptional() @IsIn(['percent', 'flat', 'referral']) kind?: string;
 }
-
-export class ListReschedulesQueryDto extends PageQueryDto {}
 
 /** Per-boat roles, optionally narrowed to one boat. */
 export class ListRolesQueryDto extends PageQueryDto {

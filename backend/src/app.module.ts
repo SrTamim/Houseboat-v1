@@ -22,6 +22,7 @@ import { PermissionGuard } from './rbac/permission.guard';
 import { PlatformPermissionGuard } from './platform/rbac/platform-permission.guard';
 import { HealthController } from './health/health.controller';
 import { HouseboatsModule } from './houseboats/houseboats.module';
+import { HouseboatFacetsModule } from './houseboats/houseboat-facets.module';
 import { MeModule } from './me/me.module';
 import { AssetsModule } from './assets/assets.module';
 import { MediaModule } from './media/media.module';
@@ -107,6 +108,7 @@ import { MaintenanceModule } from './maintenance/maintenance.module';
     AuthModule,
     RbacModule,
     HouseboatsModule,
+    HouseboatFacetsModule,
     MeModule,
     AssetsModule,
     MediaModule,

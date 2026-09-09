@@ -65,6 +65,14 @@ export function validateEnv(env: NodeJS.ProcessEnv = process.env): void {
     problems.push('COOKIE_SECURE must be "true" in production (cookies over HTTPS)');
   }
 
+  // PAYMENTS_BYPASS enables the dev/settle route that confirms a booking WITHOUT
+  // taking money. It must never be on in production — a copy-pasted env or a
+  // debugging flag left set would let any customer confirm their own booking for
+  // free. Fail fast so a prod boot with it set never listens.
+  if (env.PAYMENTS_BYPASS === 'true') {
+    problems.push('PAYMENTS_BYPASS must not be "true" in production (free-booking route)');
+  }
+
   // DB connection hygiene. Warn-level concerns, but silent in production is
   // worse: unencrypted transport leaks credentials, and an unbounded pool lets
   // a few replicas exhaust Postgres' max_connections.

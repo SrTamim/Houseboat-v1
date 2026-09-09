@@ -21,6 +21,7 @@ import { BTN_B, BTN_O, BTN_OK, BTN_SM } from '@/components/owner/buttons';
 import { Pill, PillTone } from '@/components/owner/Pill';
 import { Drawer } from '@/components/owner/Drawer';
 import { formatDateTime, humanize, apiErrorMessage } from '@/lib/owner/format';
+import { submitOrQueue, isOfflineUnavailable } from '@/lib/owner/submit-or-queue';
 
 interface RequestComment {
   id: string;
@@ -77,6 +78,7 @@ export default function OwnerMaintenancePage() {
   const { boatId } = useActiveBoat();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [savedOffline, setSavedOffline] = useState(false);
 
   // Filters (client-side over the loaded list).
   const [q, setQ] = useState('');
@@ -125,17 +127,26 @@ export default function OwnerMaintenancePage() {
     if (busy) return;
     setBusy(true);
     setError(null);
+    setSavedOffline(false);
     try {
-      await api.post(`/houseboats/${boatId}/maintenance/requests`, {
-        topic,
-        urgency,
-        comment: openingComment || undefined,
-      });
+      const body = { topic, urgency, comment: openingComment || undefined };
+      const res = await submitOrQueue(
+        () => api.post(`/houseboats/${boatId}/maintenance/requests`, body),
+        { houseboatId: boatId, action: 'maintenance_request', payload: body },
+      );
       resetForm();
       setCreating(false);
-      await mutate();
+      if (res.status === 'sent') {
+        await mutate();
+      } else {
+        setSavedOffline(true);
+      }
     } catch (err) {
-      setError(apiErrorMessage(err, 'Could not create that request.'));
+      setError(
+        isOfflineUnavailable(err)
+          ? (err as Error).message
+          : apiErrorMessage(err, 'Could not create that request.'),
+      );
     } finally {
       setBusy(false);
     }
@@ -146,15 +157,33 @@ export default function OwnerMaintenancePage() {
     if (busy) return;
     setBusy(true);
     setError(null);
+    setSavedOffline(false);
     try {
-      await api.patch(`/houseboats/${boatId}/maintenance/requests/${requestId}`, {
-        status,
-        comment: comment.trim() || undefined,
-      });
+      const trimmed = comment.trim() || undefined;
+      const res = await submitOrQueue(
+        () =>
+          api.patch(`/houseboats/${boatId}/maintenance/requests/${requestId}`, {
+            status,
+            comment: trimmed,
+          }),
+        {
+          houseboatId: boatId,
+          action: 'maintenance_request',
+          payload: { op: 'update', requestId, status, comment: trimmed },
+        },
+      );
       setComment('');
-      await mutate();
+      if (res.status === 'sent') {
+        await mutate();
+      } else {
+        setSavedOffline(true);
+      }
     } catch (err) {
-      setError(apiErrorMessage(err, 'Could not update that request.'));
+      setError(
+        isOfflineUnavailable(err)
+          ? (err as Error).message
+          : apiErrorMessage(err, 'Could not update that request.'),
+      );
     } finally {
       setBusy(false);
     }
@@ -201,6 +230,12 @@ export default function OwnerMaintenancePage() {
       {error && !creating && !openId ? (
         <Note kind="danger" style={{ marginBottom: 18 }}>
           {error}
+        </Note>
+      ) : null}
+
+      {savedOffline ? (
+        <Note kind="ok" style={{ marginBottom: 18 }}>
+          Saved offline — it’ll sync when you’re back online. See Offline sync.
         </Note>
       ) : null}
 

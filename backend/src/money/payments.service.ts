@@ -9,12 +9,25 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { RbacService } from '../rbac/rbac.service';
 import { newId } from '../common/uuid';
-import { money, add } from '../common/money';
+import { money, add, sub, ZERO } from '../common/money';
 import { cursorArgs, toPage } from '../common/paginate';
 import {
   assertTransition,
   InvoiceStatus,
 } from './invoice-state';
+
+/**
+ * Invoice states in which the amount owed to the boat is locked and no further
+ * payment may be recorded. Once an invoice is approved for payout (or paid /
+ * cleared), a late or duplicate gateway notification must not append money that
+ * would inflate the settlement. See the freeze guard in recordGatewayPayment /
+ * recordPayment.
+ */
+const FROZEN_FOR_PAYMENT: ReadonlySet<InvoiceStatus> = new Set<InvoiceStatus>([
+  'payout_approved',
+  'in_payout',
+  'bill_cleared',
+]);
 
 /**
  * Payments + verification. Plan §4 Path A:
@@ -125,6 +138,16 @@ export class PaymentsService {
           'edit',
         );
 
+        // Freeze: no new payment once the invoice is approved for payout or
+        // beyond (see FROZEN_FOR_PAYMENT). This is the manual owner/cash path, so
+        // unlike the IPN we DO throw — the person recording the payment should see
+        // that the invoice is locked rather than have it silently dropped.
+        if (FROZEN_FOR_PAYMENT.has(invoice.status as InvoiceStatus)) {
+          throw new ConflictException(
+            'This invoice is locked for payout and can no longer take payments',
+          );
+        }
+
         const newPaid = add(money(invoice.amountPaid), money(input.amount));
 
         // Reject overpayment: amountPaid must never exceed what the invoice bills.
@@ -210,6 +233,33 @@ export class PaymentsService {
         });
         if (!invoice) throw new NotFoundException('Invoice not found');
 
+        // Freeze: once an invoice is approved for payout (or beyond), the amount
+        // owed to the boat is locked. A late or duplicate IPN arriving now would
+        // append a payment and silently inflate the payout. Refuse to record it —
+        // but DO NOT throw: this runs inside the @Public SSLCommerz IPN, and a
+        // non-2xx makes the gateway retry forever with the payment recorded
+        // nowhere (money captured, invoice never updated). Instead log it and
+        // return null, exactly like the replay path, so the IPN acks 2xx and the
+        // caller skips the e-ticket. The audit row means a genuinely-late real
+        // payment is visible for manual reconciliation, never silently lost.
+        if (FROZEN_FOR_PAYMENT.has(invoice.status as InvoiceStatus)) {
+          await this.audit.log(
+            {
+              houseboatId: invoice.houseboatId,
+              action: 'gateway_payment_frozen',
+              entityType: 'invoice',
+              entityId: input.invoiceId,
+              after: {
+                status: invoice.status,
+                rejectedAmount: money(input.amount).toFixed(2),
+                gatewayToken: input.gatewayToken,
+              },
+            },
+            tx,
+          );
+          return null;
+        }
+
         await tx.invoicePayment.create({
           data: {
             id: newId(),
@@ -236,9 +286,17 @@ export class PaymentsService {
           assertTransition('customer_due', 'paid');
         }
 
+        // The gateway path accepts overpayments (it can't reject a real IPN), so
+        // track the surplus over displayTotal. It's a platform liability to the
+        // customer (surfaced in the overpayments queue and refunded), and the
+        // payout math (dueForInvoice) caps receipts at displayTotal so the boat
+        // is never paid on it. Recomputed absolutely from newPaid each time.
+        const overpaid = sub(newPaid, money(invoice.displayTotal));
+        const amountOverpaid = overpaid.greaterThan(ZERO) ? overpaid : ZERO;
+
         const updated = await tx.invoice.update({
           where: { id: input.invoiceId },
-          data: { amountPaid: newPaid, status: nextStatus },
+          data: { amountPaid: newPaid, amountOverpaid, status: nextStatus },
         });
 
         await this.audit.log(

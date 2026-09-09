@@ -12,7 +12,11 @@ import {
   PLATFORM_PERMISSION_KEY,
   RequiredPlatformPermission,
 } from './platform-permission.decorator';
-import type { PlatformPermissionMap } from './platform-permission.types';
+import {
+  expandLegacyPlatformPermissions,
+  type PlatformPermissionMap,
+  type PlatformPermPage,
+} from './platform-permission.types';
 
 /**
  * Runs after JwtAuthGuard + PermissionGuard. No-op unless the route declares
@@ -63,15 +67,25 @@ export class PlatformPermissionGuard implements CanActivate {
     }
     if (!account.platformRole) return true; // superadmin
 
-    const perms = account.platformRole.permissions as PlatformPermissionMap;
-    const modulePerms = perms[required.module];
-    const allowed =
-      required.action === 'view'
-        ? modulePerms?.view === true || modulePerms?.edit === true
-        : modulePerms?.edit === true;
-    if (!allowed) {
+    // Expand any legacy (pre-page) module keys to their pages before the lookup,
+    // so an un-migrated role keeps its exact effective access.
+    const perms = expandLegacyPlatformPermissions(
+      account.platformRole.permissions as PlatformPermissionMap,
+    );
+    const holds = (page: PlatformPermPage) => {
+      const p = perms[page];
+      return required.action === 'view'
+        ? p?.view === true || p?.edit === true
+        : p?.edit === true;
+    };
+    // page OR any of the shared-read alternates satisfies the requirement.
+    const candidates: PlatformPermPage[] = [
+      required.page,
+      ...(required.anyOf ?? []),
+    ];
+    if (!candidates.some(holds)) {
       throw new ForbiddenException(
-        `Missing platform permission: ${required.module}/${required.action}`,
+        `Missing platform permission: ${required.page}/${required.action}`,
       );
     }
     return true;

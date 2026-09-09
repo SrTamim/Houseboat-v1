@@ -102,11 +102,10 @@ export class MeService {
       if (!total.greaterThan(ZERO)) {
         throw new BadRequestException('No wallet balance to cash out');
       }
-      await tx.customerCredit.updateMany({
-        where: { accountId, status: 'open' },
-        data: { status: 'pending_cashout' },
-      });
-      return tx.cashoutRequest.create({
+      // Create the request first so its id can stamp the locked credits. Scoping
+      // the lock to THIS request means resolving it later only touches its own
+      // credits, never every pending_cashout credit on the account.
+      const request = await tx.cashoutRequest.create({
         data: {
           id: newId(),
           accountId,
@@ -124,6 +123,11 @@ export class MeService {
           createdAt: true,
         },
       });
+      await tx.customerCredit.updateMany({
+        where: { accountId, status: 'open' },
+        data: { status: 'pending_cashout', cashoutRequestId: request.id },
+      });
+      return request;
     });
   }
 

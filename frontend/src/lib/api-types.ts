@@ -126,6 +126,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/password/request-otp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AuthController_requestOtp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/password/verify-otp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AuthController_verifyOtp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/password/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AuthController_resetPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/me": {
         parameters: {
             query?: never;
@@ -309,6 +357,28 @@ export interface paths {
          *     before the `:slug` catch-all so "search" isn't read as a slug.
          */
         get: operations["HouseboatsController_search"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/houseboats/search/results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * GET /houseboats/search/results — DB-side filtered, sorted, paginated search
+         *     returning { items, total, page, pageSize, facets }. Static path declared
+         *     before `:slug`. Distinct from the bare /houseboats/search flat array (which
+         *     the home page still uses), so this shape change is non-breaking.
+         */
+        get: operations["HouseboatsController_searchResults"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1185,7 +1255,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/booking/{bookingId}/reschedule": {
+    "/api/booking/{bookingId}/request-refund": {
         parameters: {
             query?: never;
             header?: never;
@@ -1194,8 +1264,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Reschedule a booking to another departure (owner-side; reprices). */
-        post: operations["BookingController_reschedule"];
+        /**
+         * Request a refund for a HOST-cancelled trip (Path C, customer-initiated).
+         *     Web bookings only, within 6 days of the cancellation. Collects the payout
+         *     destination (bkash/nagad/bank), stored encrypted for the admin to pay.
+         */
+        post: operations["BookingController_requestRefund"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1499,7 +1573,7 @@ export interface paths {
          */
         get: operations["MoneyController_listPayoutBatches"];
         put?: never;
-        post: operations["MoneyController_prepareBatch"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1521,38 +1595,6 @@ export interface paths {
         get: operations["MoneyController_listApprovedPayouts"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/payout-batches/{batchId}/approve": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["MoneyController_approveBatch"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/payout-batches/{batchId}/pay": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["MoneyController_payBatch"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1769,6 +1811,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["QuotesController_accept"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/quotes/{quoteId}/reply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["QuotesController_reply"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2225,6 +2283,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** Shared invoice list — the queues on verify, booking-invoice, payouts and pay-to-vendors all read it. */
         get: operations["PlatformFinanceController_listInvoices"];
         put?: never;
         post?: never;
@@ -2241,7 +2300,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Full detail for one invoice — the admin "Open" drawer on the finance queues. */
+        /** Full detail for one invoice — the admin "Open" drawer on the finance queues (same four pages). */
         get: operations["PlatformFinanceController_getInvoice"];
         put?: never;
         post?: never;
@@ -2292,7 +2351,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Distinct boats with payable invoices, for the payout/pay dropdowns. */
+        /** Distinct boats with payable invoices — payouts (stage=approve) and pay-to-vendors (stage=pay) both read it. */
         get: operations["PlatformFinanceController_payableBoats"];
         put?: never;
         post?: never;
@@ -2361,6 +2420,23 @@ export interface paths {
             cookie?: never;
         };
         get: operations["PlatformFinanceController_listRefunds"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/finance/refunds/{refundId}/bank": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Decrypted payout destination for one refund — revealed on demand in the drawer. */
+        get: operations["PlatformFinanceController_refundBankDetails"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2536,6 +2612,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** Summary feeds both the Analytics page and the Commission page. */
         get: operations["PlatformFinanceController_analyticsSummary"];
         put?: never;
         post?: never;
@@ -2552,7 +2629,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Live counts for the dashboard KPIs and sidebar badges. */
+        /**
+         * Live counts for the dashboard KPIs and sidebar badges. Intentionally
+         *     ungated: the sidebar polls this on every console page for every staffer, so
+         *     a per-page grant here would 403 console-wide for a restricted role.
+         */
         get: operations["PlatformOpsController_overview"];
         put?: never;
         post?: never;
@@ -2569,7 +2650,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Non-secret config status — presence booleans, never secret values. */
+        /** Non-secret config status — presence booleans, never secret values. Feeds the System & health page. */
         get: operations["PlatformOpsController_settingsStatus"];
         put?: never;
         post?: never;
@@ -2693,22 +2774,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/platform/ops/reschedules": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["PlatformOpsController_listReschedules"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/platform/ops/notifications": {
         parameters: {
             query?: never;
@@ -2781,7 +2846,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Departures at/past their date still awaiting status advance or finalize. */
+        /** Departures at/past their date still awaiting status advance or finalize. Read on the bookings surface. */
         get: operations["PlatformOpsController_listDueDepartures"];
         put?: never;
         post?: never;
@@ -2970,6 +3035,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/platform/system/sms-balance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * SMS provider balance for the console. Never returns the API key — only the
+         *     balance (or a "not configured" flag). Polled by the page, so throttle-exempt
+         *     like health().
+         */
+        get: operations["PlatformSystemController_smsBalance"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/houseboats/{houseboatId}/dashboard": {
         parameters: {
             query?: never;
@@ -3140,6 +3226,17 @@ export interface components {
             password: string;
             rememberMe?: boolean;
         };
+        RequestOtpDto: {
+            phone: string;
+        };
+        VerifyOtpDto: {
+            phone: string;
+            code: string;
+        };
+        ResetPasswordDto: {
+            resetTicket: string;
+            password: string;
+        };
         MySettingsDto: {
             /**
              * @description Per-event notification toggles: {"booking":true,"payment_due":false,…}.
@@ -3201,6 +3298,7 @@ export interface components {
             name: string;
             description?: string;
             safetyFeatures?: string;
+            cancellationPolicy?: string;
             foodMenu?: components["schemas"]["FoodMenuDto"];
         };
         BankAccountDto: {
@@ -3220,6 +3318,7 @@ export interface components {
             name?: string;
             description?: string;
             safetyFeatures?: string;
+            cancellationPolicy?: string;
             foodMenu?: components["schemas"]["FoodMenuDto"];
             /** @description Payout destination — structured bank fields (§9). */
             bankAccount?: components["schemas"]["BankAccountDto"];
@@ -3447,9 +3546,15 @@ export interface components {
             adults: number;
             children?: number;
         };
-        RescheduleDto: {
-            newDepartureId: string;
-            reason?: string;
+        RequestRefundDto: {
+            /** @enum {string} */
+            method: "bkash" | "nagad" | "bank";
+            /** @description bKash/Nagad number, or bank account number. */
+            accountRef: string;
+            /** @description Account holder name — helps the admin match the transfer. */
+            accountName?: string;
+            /** @description Required in practice for method=bank. */
+            bankName?: string;
         };
         CheckinDto: {
             /** @enum {string} */
@@ -3573,6 +3678,9 @@ export interface components {
             date?: string;
             groupSize?: number;
             specialNeeds?: string;
+        };
+        ReplyQuoteDto: {
+            message: string;
         };
         PriceQuoteDto: {
             quotedPrice: number;
@@ -3842,6 +3950,69 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AuthController_requestOtp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RequestOtpDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AuthController_verifyOtp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerifyOtpDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AuthController_resetPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetPasswordDto"];
+            };
+        };
         responses: {
             201: {
                 headers: {
@@ -4199,6 +4370,42 @@ export interface operations {
                 /** @description At least one cabin category that seats this many. */
                 guests?: number;
                 sort?: "price_asc" | "price_desc" | "rating" | "newest";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    HouseboatsController_searchResults: {
+        parameters: {
+            query?: {
+                route?: string;
+                date?: string;
+                ac?: "ac" | "nonac" | "both";
+                minPrice?: number;
+                maxPrice?: number;
+                guests?: number;
+                /** @description Minimum average rating (e.g. 3, 4, 5). */
+                rating?: number;
+                /**
+                 * @description Amenity keywords; every one must appear in the boat's rolled-up facilities.
+                 *     A single `?amenities=x` arrives as a string — normalize to an array.
+                 */
+                amenities?: string[];
+                /** @description Size-bucket keys (small/medium/large); a single value arrives as a string. */
+                sizes?: "small" | "medium" | "large";
+                sort?: "recommended" | "newest" | "price_asc" | "price_desc" | "rating" | "reviews";
+                page?: number;
+                pageSize?: number;
             };
             header?: never;
             path?: never;
@@ -5489,9 +5696,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>[];
-                };
+                content?: never;
             };
         };
     };
@@ -5554,7 +5759,7 @@ export interface operations {
             };
         };
     };
-    BookingController_reschedule: {
+    BookingController_requestRefund: {
         parameters: {
             query?: never;
             header?: never;
@@ -5565,7 +5770,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["RescheduleDto"];
+                "application/json": components["schemas"]["RequestRefundDto"];
             };
         };
         responses: {
@@ -5587,7 +5792,7 @@ export interface operations {
                  *     to a string[]; the service maps a single value to `status:` and many to
                  *     `status: { in: [...] }`.
                  */
-                status?: "confirmed" | "rescheduled" | "cancelled" | "not_arrived" | "completed";
+                status?: "confirmed" | "cancelled" | "not_arrived" | "completed";
                 /** @description Guest name or phone. */
                 q?: string;
                 departureId?: string;
@@ -5986,25 +6191,6 @@ export interface operations {
             };
         };
     };
-    MoneyController_prepareBatch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                houseboatId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
     MoneyController_listApprovedPayouts: {
         parameters: {
             query?: never;
@@ -6017,44 +6203,6 @@ export interface operations {
         requestBody?: never;
         responses: {
             200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    MoneyController_approveBatch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                batchId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    MoneyController_payBatch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                batchId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            201: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6411,7 +6559,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>[];
+                };
             };
         };
     };
@@ -6425,6 +6575,29 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    QuotesController_reply: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                quoteId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReplyQuoteDto"];
+            };
+        };
         responses: {
             201: {
                 headers: {
@@ -7217,6 +7390,12 @@ export interface operations {
                  */
                 payoutQueue?: boolean;
                 houseboatId?: string;
+                /**
+                 * @description Only invoices whose trip the owner cancelled (`departure.status='cancelled'`).
+                 *     These keep invoice status 'paid' until the customer requests a refund, so this
+                 *     is the only way to list them. ANDs with the other predicates.
+                 */
+                departureCancelled?: boolean;
                 /** @description Free-text: matches customer name / phone, boat name, or a booking id prefix. */
                 q?: string;
                 limit?: number;
@@ -7398,6 +7577,25 @@ export interface operations {
             };
         };
     };
+    PlatformFinanceController_refundBankDetails: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                refundId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     PlatformFinanceController_listOverpayments: {
         parameters: {
             query?: {
@@ -7422,6 +7620,12 @@ export interface operations {
                  */
                 payoutQueue?: boolean;
                 houseboatId?: string;
+                /**
+                 * @description Only invoices whose trip the owner cancelled (`departure.status='cancelled'`).
+                 *     These keep invoice status 'paid' until the customer requests a refund, so this
+                 *     is the only way to list them. ANDs with the other predicates.
+                 */
+                departureCancelled?: boolean;
                 /** @description Free-text: matches customer name / phone, boat name, or a booking id prefix. */
                 q?: string;
                 limit?: number;
@@ -7707,7 +7911,7 @@ export interface operations {
     PlatformOpsController_listBookings: {
         parameters: {
             query?: {
-                status?: "confirmed" | "rescheduled" | "cancelled" | "not_arrived" | "completed";
+                status?: "confirmed" | "cancelled" | "not_arrived" | "completed";
                 houseboatId?: string;
                 /** @description Free-text: matches customer name / phone, or a booking id prefix. */
                 q?: string;
@@ -7826,27 +8030,6 @@ export interface operations {
                 status?: "active" | "exited";
                 /** @description Free-text: matches member name / phone, or boat name. */
                 q?: string;
-                limit?: number;
-                /** @description id of the last row from the previous page. */
-                cursor?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    PlatformOpsController_listReschedules: {
-        parameters: {
-            query?: {
                 limit?: number;
                 /** @description id of the last row from the previous page. */
                 cursor?: string;
@@ -8215,6 +8398,23 @@ export interface operations {
         };
     };
     PlatformSystemController_health: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PlatformSystemController_smsBalance: {
         parameters: {
             query?: never;
             header?: never;

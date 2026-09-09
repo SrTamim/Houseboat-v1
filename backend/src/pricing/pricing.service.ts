@@ -2,10 +2,11 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { HouseboatFacetsService } from '../houseboats/houseboat-facets.service';
 import { newId } from '../common/uuid';
 import { Money, money } from '../common/money';
 import {
@@ -39,6 +40,10 @@ export class PricingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    // @Optional so unit specs can construct with just prisma+audit; the facet
+    // refresh is skipped there and covered by the nightly backstop in prod.
+    @Optional()
+    private readonly facets?: HouseboatFacetsService,
   ) {}
 
   /** Create a profile + its full price table. Rejects date collisions. */
@@ -100,6 +105,8 @@ export class PricingService {
         },
         tx,
       );
+      // Default-profile prices feed minPricePerPerson; refresh in-tx.
+      await this.facets?.recompute(houseboatId, tx);
       return profile;
     });
   }
@@ -251,6 +258,8 @@ export class PricingService {
         },
         tx,
       );
+      // Rule table for the (possibly default) profile changed → refresh in-tx.
+      await this.facets?.recompute(houseboatId, tx);
       return profile;
     });
   }

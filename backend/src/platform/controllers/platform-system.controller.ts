@@ -16,7 +16,7 @@ import { UpdateSettingDto } from '../dto/platform.dto';
  * write).
  */
 @PlatformOnly()
-@PlatformPermission('settings', 'view')
+@PlatformPermission('jobs', 'view')
 @Controller('platform/system')
 export class PlatformSystemController {
   constructor(
@@ -33,7 +33,7 @@ export class PlatformSystemController {
   }
 
   /** Update one setting. Bounds + audit are enforced in the service. */
-  @PlatformPermission('settings', 'edit')
+  @PlatformPermission('jobs', 'edit')
   @Put('settings/:key')
   async updateSetting(
     @Param('key') key: string,

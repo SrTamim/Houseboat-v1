@@ -55,7 +55,7 @@ export class OwnerDashboardService {
       billingConfig,
       unpaidSubscription,
       locked,
-      lifetimeBookings,
+      lifetimeAgg,
       cabinCount,
     ] = await Promise.all([
       this.prisma.houseboat.findUniqueOrThrow({
@@ -143,14 +143,17 @@ export class OwnerDashboardService {
         orderBy: { issuedAt: 'asc' },
       }),
       this.rbac.isBillingLocked(houseboatId),
-      // Lifetime room revenue: every confirmed/completed booking's room total,
-      // no date bound. Same shape as the weekly rollup above.
-      this.prisma.booking.findMany({
+      // Lifetime room revenue: sum of every confirmed/completed booking's room
+      // total, no date bound. Aggregated in the database — previously this loaded
+      // EVERY such booking (a set that grows for the boat's whole operating life)
+      // just to sum roomTotal in JS. Scoped through the invoice, which carries
+      // houseboatId directly, so no package hop.
+      this.prisma.invoice.aggregate({
+        _sum: { roomTotal: true },
         where: {
-          departure: { package: { houseboatId } },
-          status: { in: ['confirmed', 'completed'] },
+          houseboatId,
+          booking: { status: { in: ['confirmed', 'completed'] } },
         },
-        select: { invoice: { select: { roomTotal: true } } },
       }),
       // The boat's true cabin capacity. Departures are generated with
       // availableCount = this count, so it's the rated capacity of every
@@ -189,10 +192,7 @@ export class OwnerDashboardService {
       ZERO,
     );
 
-    const lifetimeRoom = lifetimeBookings.reduce(
-      (sum, b) => add(sum, money(b.invoice?.roomTotal ?? 0)),
-      ZERO,
-    );
+    const lifetimeRoom = money(lifetimeAgg._sum.roomTotal ?? 0);
 
     const departures = departuresToday.map((d) => {
       const cabinsSold = d.bookings.reduce((n, b) => n + b.cabins.length, 0);

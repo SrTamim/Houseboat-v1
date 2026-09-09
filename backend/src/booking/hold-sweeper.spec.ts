@@ -49,14 +49,17 @@ function makeSweeper(rows: Row[]) {
 
   const tx = {
     cabinHold: {
-      findUnique: jest.fn(({ where }: any) => {
-        const r = rows.find((x) => x.id === where.id);
-        return Promise.resolve(r ? { state: r.state } : null);
-      }),
-      update: jest.fn(({ where, data }: any) => {
-        const r = rows.find((x) => x.id === where.id);
-        if (r) Object.assign(r, data);
-        return Promise.resolve(r);
+      // Batch release: flip every still-held row in the id set, return the count.
+      updateMany: jest.fn(({ where, data }: any) => {
+        const ids: string[] = where.id?.in ?? [];
+        let count = 0;
+        for (const r of rows) {
+          if (ids.includes(r.id) && r.state === (where.state ?? r.state)) {
+            Object.assign(r, data);
+            count += 1;
+          }
+        }
+        return Promise.resolve({ count });
       }),
     },
     tripDeparture: { update: jest.fn().mockResolvedValue({ availableCount: 1 }) },

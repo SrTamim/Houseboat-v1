@@ -46,6 +46,8 @@ const approved = (id: string, over: Record<string, unknown> = {}) => ({
   houseboatId: 'boat-1',
   payoutBatchId: null,
   commission: '10.00',
+  // displayTotal ≥ gateway receipts so the overpayment cap is a no-op here.
+  displayTotal: '1000.00',
   payments: [{ method: 'gateway', amount: '100.00' }],
   ...over,
 });
@@ -79,6 +81,20 @@ describe('PlatformFinanceService.payInvoices', () => {
       expect.objectContaining({ action: 'payout_paid' }),
       expect.anything(),
     );
+  });
+
+  it('caps gateway receipts at displayTotal so an overpayment does not inflate the payout', async () => {
+    const { svc, created } = makeService([
+      approved('inv-1', {
+        displayTotal: '100.00',
+        // Customer overpaid: 120 through the gateway on a 100 invoice.
+        payments: [{ method: 'gateway', amount: '120.00' }],
+      }),
+    ]);
+    await svc.payInvoices('boat-1', ['inv-1'], 'admin-1');
+    // Receipts capped at displayTotal (100), then − 10 commission = 90.
+    // Without the cap this would be (120 − 10) = 110.
+    expect(created[0].totalAmount.toFixed(2)).toBe('90.00');
   });
 
   it('only counts gateway receipts (cash never entered the platform)', async () => {

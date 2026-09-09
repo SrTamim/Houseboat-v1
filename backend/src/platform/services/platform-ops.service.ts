@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
+import { HouseboatFacetsService } from '../../houseboats/houseboat-facets.service';
 import { cursorArgs, toPage, type Page } from '../../common/paginate';
 import type {
   ListAccountsQueryDto,
@@ -9,7 +10,6 @@ import type {
   ListBookingsQueryDto,
   ListMembershipsQueryDto,
   ListNotificationsQueryDto,
-  ListReschedulesQueryDto,
   ListReviewsQueryDto,
   ListRolesQueryDto,
   ListWaitlistQueryDto,
@@ -24,6 +24,7 @@ export class PlatformOpsService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly audit: AuditService,
+    private readonly facets: HouseboatFacetsService,
   ) {}
 
   /**
@@ -293,19 +294,6 @@ export class PlatformOpsService {
             },
           },
         },
-        rescheduleHistory: {
-          select: {
-            id: true,
-            oldPrice: true,
-            newPrice: true,
-            reason: true,
-            changedAt: true,
-            prevDeparture: { select: { startDate: true } },
-            toDeparture: { select: { startDate: true } },
-            changedByAccount: { select: { id: true, name: true } },
-          },
-          orderBy: { changedAt: 'asc' },
-        },
       },
     });
     if (!booking) throw new NotFoundException('Booking not found');
@@ -360,6 +348,8 @@ export class PlatformOpsService {
       where: { id: reviewId },
       data: { hidden },
     });
+    // Hiding/unhiding changes the public rating aggregate (facets exclude hidden).
+    await this.facets.recompute(existing.houseboatId);
     await this.audit.log({
       houseboatId: existing.houseboatId,
       actorAccountId: actorId,
@@ -434,36 +424,6 @@ export class PlatformOpsService {
         account: { select: { id: true, name: true, phone: true } },
         houseboat: { select: { id: true, name: true } },
         role: { select: { id: true, name: true } },
-      },
-    });
-    return toPage(rows, query);
-  }
-
-  async listReschedules(
-    query: ListReschedulesQueryDto,
-  ): Promise<Page<{ id: string }>> {
-    const rows = await this.prisma.bookingRescheduleHistory.findMany({
-      ...cursorArgs(query),
-      select: {
-        id: true,
-        oldPrice: true,
-        newPrice: true,
-        reason: true,
-        changedAt: true,
-        booking: {
-          select: {
-            id: true,
-            customer: { select: { id: true, name: true } },
-          },
-        },
-        prevDeparture: {
-          select: {
-            startDate: true,
-            package: { select: { houseboat: { select: { name: true } } } },
-          },
-        },
-        toDeparture: { select: { startDate: true } },
-        changedByAccount: { select: { id: true, name: true } },
       },
     });
     return toPage(rows, query);

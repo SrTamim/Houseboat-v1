@@ -6,14 +6,37 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import * as nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 import * as QRCode from 'qrcode';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { newId } from '../common/uuid';
 
 export type NotifyChannel = 'sms' | 'email';
+
+/**
+ * Automated-retry policy for undelivered notifications (see NotificationRetryService).
+ * A failed send records the row with attemptCount 0 and nextAttemptAt = now + BACKOFF_MS[0];
+ * each cron retry that fails again advances to the next backoff, until MAX_ATTEMPTS is reached
+ * and the row is given up (nextAttemptAt cleared, delivered stays false as the permanent record).
+ */
+export const NOTIFY_MAX_ATTEMPTS = 5;
+/** Delay before attempt N (index = attemptCount about to be made). Last value repeats. */
+export const NOTIFY_BACKOFF_MS = [
+  5 * 60_000, // 5 min
+  30 * 60_000, // 30 min
+  2 * 60 * 60_000, // 2 h
+  12 * 60 * 60_000, // 12 h
+];
+
+/** Delay before the attempt numbered `attemptCount` (0-based). */
+export function notifyBackoffMs(attemptCount: number): number {
+  const i = Math.min(attemptCount, NOTIFY_BACKOFF_MS.length - 1);
+  return NOTIFY_BACKOFF_MS[i];
+}
 
 /**
  * Minimal replay payload stored per notification so the console can resend.
@@ -242,6 +265,48 @@ export class NotificationsService implements OnModuleInit {
     }
   }
 
+  /**
+   * Dispatch a stored payload over its channel. Shared by the manual console
+   * resend and the automated retry cron.
+   *
+   * Throws UnprocessableEntityException when the stored payload is incomplete for
+   * its channel (SMS without phone/message, email without an address) — the manual
+   * path surfaces that as a 422; the cron must catch it and treat the row as a
+   * failed attempt rather than letting it escape the scheduled task.
+   */
+  private async dispatch(
+    channel: NotifyChannel,
+    payload: NotificationPayload,
+  ): Promise<boolean> {
+    if (channel === 'sms') {
+      if (!payload.phone || !payload.message) {
+        throw new UnprocessableEntityException('Stored payload is incomplete');
+      }
+      return this.sendSms(payload.phone, payload.message);
+    }
+
+    if (!payload.email) {
+      throw new UnprocessableEntityException('Stored payload is incomplete');
+    }
+    let attachments:
+      | { filename: string; content: Buffer; cid?: string }[]
+      | undefined;
+    if (payload.bookingId && payload.html?.includes('cid:eticketqr')) {
+      try {
+        const qr = await QRCode.toBuffer(payload.bookingId, { width: 240 });
+        attachments = [{ filename: 'ticket.png', content: qr, cid: 'eticketqr' }];
+      } catch {
+        attachments = undefined;
+      }
+    }
+    return this.sendEmail(
+      payload.email,
+      payload.subject ?? 'Notification',
+      payload.html ?? `<p>${payload.message ?? ''}</p>`,
+      attachments,
+    );
+  }
+
   /** Record a delivery attempt for the audit trail. */
   private async record(
     accountId: string,
@@ -250,6 +315,11 @@ export class NotificationsService implements OnModuleInit {
     delivered: boolean,
     payload?: NotificationPayload,
   ): Promise<void> {
+    // A failed send that carries a replayable payload is scheduled for automated
+    // retry: the cron picks up delivered:false rows whose nextAttemptAt has passed.
+    // Delivered rows (and failures with no payload — unresendable) are never
+    // scheduled, so nextAttemptAt stays null for them.
+    const scheduleRetry = !delivered && payload != null;
     await this.prisma.notification.create({
       data: {
         id: newId(),
@@ -258,6 +328,9 @@ export class NotificationsService implements OnModuleInit {
         channel,
         delivered,
         payload: (payload as never) ?? undefined,
+        nextAttemptAt: scheduleRetry
+          ? new Date(Date.now() + notifyBackoffMs(0))
+          : null,
       },
     });
   }
@@ -284,34 +357,7 @@ export class NotificationsService implements OnModuleInit {
       );
     }
 
-    let ok = false;
-    if (original.channel === 'sms') {
-      if (!payload.phone || !payload.message) {
-        throw new UnprocessableEntityException('Stored payload is incomplete');
-      }
-      ok = await this.sendSms(payload.phone, payload.message);
-    } else {
-      if (!payload.email) {
-        throw new UnprocessableEntityException('Stored payload is incomplete');
-      }
-      let attachments:
-        | { filename: string; content: Buffer; cid?: string }[]
-        | undefined;
-      if (payload.bookingId && payload.html?.includes('cid:eticketqr')) {
-        try {
-          const qr = await QRCode.toBuffer(payload.bookingId, { width: 240 });
-          attachments = [{ filename: 'ticket.png', content: qr, cid: 'eticketqr' }];
-        } catch {
-          attachments = undefined;
-        }
-      }
-      ok = await this.sendEmail(
-        payload.email,
-        payload.subject ?? 'Notification',
-        payload.html ?? `<p>${payload.message ?? ''}</p>`,
-        attachments,
-      );
-    }
+    const ok = await this.dispatch(original.channel as NotifyChannel, payload);
 
     const newRowId = newId();
     await this.prisma.notification.create({
@@ -335,6 +381,98 @@ export class NotificationsService implements OnModuleInit {
     });
 
     return { delivered: ok, notificationId: newRowId };
+  }
+
+  // Re-entrancy guard: a slow scan must not overlap the next tick (mirrors
+  // hold-sweeper.service.ts).
+  private retryRunning = false;
+
+  /**
+   * Automated retry of undelivered notifications.
+   *
+   * Scans delivered:false rows that carry a replayable payload and whose
+   * nextAttemptAt has passed, and re-dispatches each. Unlike the manual resend
+   * (which appends a new row for the console trail), this UPDATES the row in
+   * place — otherwise every failed retry would spawn a new delivered:false row
+   * that the scan would re-pick forever.
+   *
+   * On success the row flips delivered:true and clears nextAttemptAt. On failure
+   * attemptCount increments and nextAttemptAt is pushed out by the backoff, until
+   * MAX_ATTEMPTS is reached and the row is given up (nextAttemptAt cleared,
+   * delivered stays false as the permanent record).
+   */
+  @Cron(CronExpression.EVERY_5_MINUTES)
+  async retryUndelivered(): Promise<void> {
+    if (this.retryRunning) return;
+    this.retryRunning = true;
+    try {
+      await this.runRetryScan();
+    } catch (e) {
+      this.logger.warn(`Notification retry scan failed: ${(e as Error).message}`);
+    } finally {
+      this.retryRunning = false;
+    }
+  }
+
+  /** The scan body, separated so tests can invoke it directly. */
+  async runRetryScan(): Promise<{ retried: number; delivered: number }> {
+    const now = new Date();
+    // payload NOT NULL excludes legacy rows and any never-resendable send; the
+    // OTP path never records a row at all, so it can never appear here.
+    const due = await this.prisma.notification.findMany({
+      where: {
+        delivered: false,
+        payload: { not: Prisma.JsonNull },
+        attemptCount: { lt: NOTIFY_MAX_ATTEMPTS },
+        nextAttemptAt: { not: null, lte: now },
+      },
+      take: 200,
+      orderBy: { nextAttemptAt: 'asc' },
+    });
+
+    let deliveredCount = 0;
+    for (const row of due) {
+      const payload = row.payload as NotificationPayload | null;
+      let ok = false;
+      if (payload) {
+        try {
+          ok = await this.dispatch(row.channel as NotifyChannel, payload);
+        } catch {
+          // Incomplete/unresendable payload — treat as a failed attempt so the
+          // row backs off and eventually gives up, never crashing the scan.
+          ok = false;
+        }
+      }
+
+      if (ok) {
+        // Idempotent: WHERE delivered:false means a row another worker already
+        // delivered won't be double-updated.
+        await this.prisma.notification.updateMany({
+          where: { id: row.id, delivered: false },
+          data: { delivered: true, nextAttemptAt: null },
+        });
+        deliveredCount++;
+      } else {
+        const nextAttempt = row.attemptCount + 1;
+        const giveUp = nextAttempt >= NOTIFY_MAX_ATTEMPTS;
+        await this.prisma.notification.updateMany({
+          where: { id: row.id, delivered: false },
+          data: {
+            attemptCount: { increment: 1 },
+            nextAttemptAt: giveUp
+              ? null
+              : new Date(Date.now() + notifyBackoffMs(nextAttempt)),
+          },
+        });
+      }
+    }
+
+    if (due.length) {
+      this.logger.log(
+        `Notification retry: ${due.length} due, ${deliveredCount} delivered`,
+      );
+    }
+    return { retried: due.length, delivered: deliveredCount };
   }
 
   /**

@@ -151,6 +151,17 @@ export class BookingService {
     invoiceId: string,
     cap: Prisma.Decimal,
   ): Promise<Prisma.Decimal> {
+    // Lock this account's open credit rows for the life of the transaction.
+    // Without it, two checkouts the same customer fires at once could both read
+    // the same open credits and each spend them — double-spending the wallet.
+    // Prisma has no FOR UPDATE, so take the row locks with raw SQL first; the
+    // second checkout then blocks here until the first commits and sees the
+    // credits already 'used'. FIFO order matches the findMany below.
+    await tx.$queryRaw`
+      SELECT id FROM customer_credit
+      WHERE account_id = ${accountId}::uuid AND status = 'open'
+      ORDER BY id ASC
+      FOR UPDATE`;
     const credits = await tx.customerCredit.findMany({
       where: { accountId, status: 'open' },
       orderBy: { id: 'asc' }, // UUIDv7 ids are time-ordered → FIFO
@@ -638,13 +649,34 @@ export class BookingService {
       commissionPct,
     });
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       // Buyout takes the whole boat — no more cabin bookings on this departure.
       const dep = await tx.tripDeparture.update({
         where: { id: dto.departureId },
         data: { availableCount: 0 },
         select: { id: true },
       });
+
+      // Void any cabins other shoppers are still holding on this departure. The
+      // buyout just set availableCount to an absolute 0; if we left these holds
+      // 'held', the sweeper would later increment the count back above 0 when
+      // each expired (its release does availableCount += 1), reopening a boat
+      // that was sold whole. Flip them to the existing 'released' state — NOT a
+      // new state, and WITHOUT touching availableCount (it's already 0). We
+      // capture the cabin ids first so watchers' carts can be cleared after
+      // commit. The DB partial-unique index only covers state='held', so leaving
+      // the index is exactly what freeing the slot means — no conflict.
+      const heldNow = await tx.cabinHold.findMany({
+        where: { departureId: dto.departureId, state: 'held' },
+        select: { cabinId: true },
+      });
+      const voidedCabinIds = [...new Set(heldNow.map((h) => h.cabinId))];
+      if (heldNow.length > 0) {
+        await tx.cabinHold.updateMany({
+          where: { departureId: dto.departureId, state: 'held' },
+          data: { state: 'released' },
+        });
+      }
 
       const booking = await tx.booking.create({
         data: {
@@ -727,11 +759,18 @@ export class BookingService {
         tx,
       );
 
-      // Realtime: the boat is now fully booked out for this departure.
-      this.realtime.emitAvailability(dep.id, 0);
-
-      return { booking, invoice };
+      return { booking, invoice, departureId: dep.id, voidedCabinIds };
     });
+
+    // Realtime (post-commit): the boat is now fully booked out, and any cabins
+    // shoppers were holding have been released — push both so their carts clear
+    // instead of failing later at checkout conversion.
+    this.realtime.emitAvailability(result.departureId, 0);
+    for (const cabinId of result.voidedCabinIds) {
+      this.realtime.emitCabinState(result.departureId, cabinId, 'released');
+    }
+
+    return { booking: result.booking, invoice: result.invoice };
   }
 
   /** Snapshot the boat's cancellation policy onto the invoice (dispute evidence). */
@@ -749,152 +788,6 @@ export class BookingService {
           tiers: policy.tiers,
         } as Prisma.InputJsonValue)
       : Prisma.JsonNull;
-  }
-
-  /**
-   * Reschedule a booking to another departure (plan §4 Path C "Reschedule").
-   * The invoice REPRICES at the new date's prices; the advance already paid
-   * carries over. If the advance now exceeds the new total, the surplus becomes
-   * a CustomerCredit. The previous trip is kept on record (reschedule history).
-   *
-   * Caller must have bookings:edit on the boat (checked by the controller guard).
-   */
-  async reschedule(
-    bookingId: string,
-    actorId: string,
-    isPlatform: boolean,
-    newDepartureId: string,
-    reason?: string,
-  ) {
-    const booking = await this.prisma.booking.findUnique({
-      where: { id: bookingId },
-      include: { invoice: true, cabins: { include: { cabin: true } } },
-    });
-    if (!booking) throw new NotFoundException('Booking not found');
-    if (!booking.invoice) throw new BadRequestException('Booking has no invoice');
-
-    // Reschedule is an owner-side action — require bookings:edit on the boat.
-    await this.rbac.assert(
-      actorId,
-      isPlatform,
-      booking.invoice.houseboatId,
-      'bookings',
-      'edit',
-    );
-    if (booking.departureId === newDepartureId) {
-      throw new BadRequestException('Already on that departure');
-    }
-
-    const newDep = await this.prisma.tripDeparture.findUnique({
-      where: { id: newDepartureId },
-      include: { package: { select: { houseboatId: true, routeId: true } } },
-    });
-    if (!newDep) throw new NotFoundException('Target departure not found');
-    if (newDep.status !== 'scheduled') {
-      throw new BadRequestException('Target departure is not bookable');
-    }
-    const houseboatId = newDep.package.houseboatId;
-    if (houseboatId !== booking.invoice.houseboatId) {
-      throw new BadRequestException('Cannot reschedule to a different boat');
-    }
-
-    // Reprice each cabin at the NEW date. A POS booking stays commission-free
-    // across reschedule; a web booking keeps the boat's rate.
-    const billing = await this.prisma.houseboatBillingConfig.findFirst({
-      where: { houseboatId },
-    });
-    const commissionPct =
-      booking.channel === 'pos' || !billing?.commissionPct
-        ? null
-        : money(billing.commissionPct);
-
-    let roomTotal = ZERO;
-    for (const bc of booking.cabins) {
-      const price = await this.pricing.priceFor(
-        houseboatId,
-        bc.cabin.cabinCategoryId,
-        bc.occupancy,
-        newDep.startDate,
-        newDep.package.routeId,
-      );
-      roomTotal = add(roomTotal, price);
-    }
-    // Reschedule does not re-apply the original coupon (fresh date, fresh bill).
-    const bill = buildBill({ roomTotal, commissionPct });
-
-    const oldPrice = money(booking.invoice.displayTotal);
-    const paid = money(booking.invoice.amountPaid);
-    const surplus = paid.greaterThan(bill.displayTotal)
-      ? sub(paid, bill.displayTotal)
-      : ZERO;
-
-    return this.prisma.$transaction(async (tx) => {
-      await tx.bookingRescheduleHistory.create({
-        data: {
-          id: newId(),
-          bookingId,
-          prevDepartureId: booking.departureId,
-          changedToDepartureId: newDepartureId,
-          oldPrice,
-          newPrice: bill.displayTotal,
-          reason,
-          changedBy: actorId,
-        },
-      });
-
-      // Move the booking + reprice its invoice. amountPaid carries over.
-      // In-place reschedule: the booking moves to the new departure. The full
-      // chain lives in booking_reschedule_history (schema note on reschedule_of),
-      // so we don't create a successor row or self-reference here.
-      await tx.booking.update({
-        where: { id: bookingId },
-        data: { departureId: newDepartureId },
-      });
-      const invoice = await tx.invoice.update({
-        where: { id: booking.invoice!.id },
-        data: {
-          roomTotal: bill.roomTotal,
-          gatewayFee: bill.gatewayFee,
-          priceShown: bill.priceShown,
-          discountAmount: bill.discountAmount,
-          displayTotal: bill.displayTotal,
-          commission: bill.commission,
-          // Surplus is pulled out as credit, so cap recorded paid at the new total.
-          amountPaid: surplus.greaterThan(ZERO) ? bill.displayTotal : paid,
-        },
-      });
-
-      if (surplus.greaterThan(ZERO)) {
-        await tx.customerCredit.create({
-          data: {
-            id: newId(),
-            accountId: booking.customerId,
-            sourceInvoiceId: invoice.id,
-            amount: surplus,
-            status: 'open',
-          },
-        });
-      }
-
-      await this.audit.log(
-        {
-          houseboatId,
-          actorAccountId: actorId,
-          action: 'booking_reschedule',
-          entityType: 'booking',
-          entityId: bookingId,
-          before: { departureId: booking.departureId, price: oldPrice.toFixed(2) },
-          after: {
-            departureId: newDepartureId,
-            price: bill.displayTotal.toFixed(2),
-            surplusCredit: surplus.toFixed(2),
-          },
-        },
-        tx,
-      );
-
-      return { invoice, surplusCredit: surplus.toFixed(2) };
-    });
   }
 
   /**
@@ -1044,7 +937,15 @@ export class BookingService {
           include: {
             invoice: true,
             departure: {
-              include: { package: { select: { houseboatId: true, routeId: true } } },
+              include: {
+                package: {
+                  select: {
+                    houseboatId: true,
+                    routeId: true,
+                    houseboat: { select: { childPolicy: true } },
+                  },
+                },
+              },
             },
           },
         },
@@ -1064,13 +965,30 @@ export class BookingService {
       throw new BadRequestException('Not enough spare places for that headcount');
     }
 
-    const joinerPrice = await this.pricing.priceFor(
+    // Price by the joiner's ADULT count, not total occupancy. The owner's rate
+    // rows are per adult party size; children are discounted off that row by the
+    // child policy and never select the row (mirrors checkout — counting children
+    // here jumped to a wrong/non-existent rate row, the reschedule/open-seat bug).
+    if (adults === 0 && children > 0) {
+      throw new BadRequestException(
+        'Add at least one adult — children cannot take a place alone',
+      );
+    }
+    const joinerPerPerson = await this.pricing.pricePerPersonFor(
       houseboatId,
       seat.cabin.cabinCategoryId,
-      occupancy,
+      adults,
       seat.booking.departure.startDate,
       seat.booking.departure.package.routeId,
     );
+    const joinerPrice = priceForParty({
+      pricePerPerson: joinerPerPerson,
+      adults,
+      children,
+      childPolicy: seat.booking.departure.package.houseboat.childPolicy as
+        | ChildBand[]
+        | null,
+    });
 
     const billing = await this.prisma.houseboatBillingConfig.findFirst({
       where: { houseboatId },

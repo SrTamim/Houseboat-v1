@@ -7,6 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RolesService } from '../rbac/roles.service';
 import { AuditService } from '../audit/audit.service';
 import { StorageService } from '../storage/storage.service';
+import { HouseboatFacetsService } from '../houseboats/houseboat-facets.service';
 import { newId } from '../common/uuid';
 import { FULL_PERMISSIONS } from '../rbac/permission.types';
 import {
@@ -33,6 +34,7 @@ export class HouseboatAdminService {
     private readonly roles: RolesService,
     private readonly audit: AuditService,
     private readonly storage: StorageService,
+    private readonly facets: HouseboatFacetsService,
   ) {}
 
   private slugify(name: string): string {
@@ -200,6 +202,8 @@ export class HouseboatAdminService {
       },
     });
     await this.recomputeCompleteness(houseboatId);
+    // Category AC/capacity/facilities feed the search facets.
+    await this.facets.recompute(houseboatId);
     return cat;
   }
 
@@ -281,6 +285,7 @@ export class HouseboatAdminService {
       },
     });
     await this.recomputeCompleteness(houseboatId);
+    await this.facets.recompute(houseboatId);
     await this.audit.log({
       houseboatId,
       actorAccountId: actorId,
@@ -319,6 +324,7 @@ export class HouseboatAdminService {
       where: { id: categoryId },
     });
     await this.recomputeCompleteness(houseboatId);
+    await this.facets.recompute(houseboatId);
     await this.audit.log({
       houseboatId,
       actorAccountId: actorId,

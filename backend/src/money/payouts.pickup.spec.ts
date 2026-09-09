@@ -2,31 +2,20 @@ import { PayoutsService } from './payouts.service';
 
 /**
  * Owner cash no longer has a separate verify step: an invoice recorded as
- * 'paid' must be settleable directly. These lock that the payout pickup pulls
+ * 'paid' must be settleable directly. The read side (duePayments) still pulls
  * BOTH 'paid' (owner-recorded) and 'payment_verified' (gateway-verified)
- * invoices, and rejects a batch when there is nothing to settle.
+ * invoices.
+ *
+ * The batch WRITE path (prepareBatch/approveBatch/markPaid) is RETIRED — it
+ * wrote an uncapped dueToBoat and bypassed the gateway-verify gate the live
+ * per-invoice payout flow (platform-finance.payBoat) enforces. It now throws.
  */
-describe('PayoutsService — payout pickup includes paid', () => {
+describe('PayoutsService — payout pickup + retired batch writes', () => {
   function makeService(findMany: jest.Mock) {
     const prisma = {
       invoice: { findMany },
-      houseboat: {
-        findUnique: jest.fn().mockResolvedValue({ bankAccount: 'ACC-1' }),
-      },
-      $transaction: jest.fn((fn: (t: unknown) => unknown) =>
-        Promise.resolve(
-          fn({
-            invoice: { findMany, update: jest.fn().mockResolvedValue({}) },
-            houseboatPayoutBatch: {
-              create: jest.fn().mockResolvedValue({ id: 'batch-1' }),
-              update: jest.fn().mockResolvedValue({ id: 'batch-1' }),
-            },
-          }),
-        ),
-      ),
     };
-    const audit = { log: jest.fn().mockResolvedValue(undefined) };
-    const svc = new PayoutsService(prisma as never, audit as never);
+    const svc = new PayoutsService(prisma as never);
     return { svc, findMany };
   }
 
@@ -47,23 +36,18 @@ describe('PayoutsService — payout pickup includes paid', () => {
     );
   });
 
-  it('prepareBatch settles a paid (unverified) cash invoice', async () => {
-    const paidCashInvoice = {
-      id: 'inv-1',
-      status: 'paid',
-      commission: '10.00',
-      payments: [{ method: 'gateway', amount: '100.00' }],
-    };
-    const findMany = jest.fn().mockResolvedValue([paidCashInvoice]);
-    const { svc } = makeService(findMany);
-
-    await expect(svc.prepareBatch('boat-1', 'prep-1')).resolves.toBeDefined();
-    expect(findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          status: { in: ['paid', 'payment_verified'] },
-        }),
-      }),
+  it('prepareBatch is retired and rejects', async () => {
+    const { svc } = makeService(jest.fn());
+    await expect(svc.prepareBatch('boat-1', 'prep-1')).rejects.toThrow(
+      /retired/i,
     );
+  });
+
+  it('approveBatch and markPaid are retired and reject', async () => {
+    const { svc } = makeService(jest.fn());
+    await expect(svc.approveBatch('batch-1', 'appr-1')).rejects.toThrow(
+      /retired/i,
+    );
+    await expect(svc.markPaid('batch-1', 'pay-1')).rejects.toThrow(/retired/i);
   });
 });

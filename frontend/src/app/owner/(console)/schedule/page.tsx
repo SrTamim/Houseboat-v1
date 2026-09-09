@@ -16,6 +16,7 @@ import { DepartureStatusPill, Pill } from '@/components/owner/Pill';
 import { BTN_B, BTN_O, BTN_SM } from '@/components/owner/buttons';
 import { Drawer } from '@/components/owner/Drawer';
 import { apiErrorMessage, formatDate, weekday } from '@/lib/owner/format';
+import { submitOrQueue, isOfflineUnavailable } from '@/lib/owner/submit-or-queue';
 
 interface Departure {
   id: string;
@@ -112,6 +113,7 @@ export default function OwnerSchedulePage() {
   const [editProfile, setEditProfile] = useState('');
   const [rowBusy, setRowBusy] = useState(false);
   const [rowError, setRowError] = useState<string | null>(null);
+  const [rowSavedOffline, setRowSavedOffline] = useState(false);
 
   // ── Cancel-departure dialog ──
   const [cancelDep, setCancelDep] = useState<Departure | null>(null);
@@ -261,16 +263,43 @@ export default function OwnerSchedulePage() {
     if (rowBusy || !editDep) return;
     setRowBusy(true);
     setRowError(null);
+    setRowSavedOffline(false);
     try {
-      await api.patch(`/houseboats/${boatId}/departures/${editDep.id}`, {
-        startDate: editDate || undefined,
+      const newDate = editDate || undefined;
+      const body = {
+        startDate: newDate,
         departureTime: editTime || undefined,
         pricingProfileId: editProfile || undefined,
-      });
-      setEditDep(null);
-      await departures.mutate();
+      };
+      const online = () =>
+        api.patch(`/houseboats/${boatId}/departures/${editDep.id}`, body);
+      // Only a date change is replayable offline (date_change). If the date is
+      // unchanged — a time/profile-only edit — stay online-only; offline it
+      // falls through to the normal network error below.
+      const dateChanged =
+        Boolean(newDate) && newDate !== editDep.startDate.slice(0, 10);
+      const res = dateChanged
+        ? await submitOrQueue(online, {
+            houseboatId: boatId,
+            action: 'date_change',
+            payload: { departureId: editDep.id, startDate: newDate },
+          })
+        : ({ status: 'sent' as const, data: await online() });
+      if (res.status === 'sent') {
+        setEditDep(null);
+        await departures.mutate();
+      } else {
+        // Queued: date captured for replay. Any time/profile change in the same
+        // edit is NOT replayed — only the date is.
+        setEditDep(null);
+        setRowSavedOffline(true);
+      }
     } catch (err) {
-      setRowError(apiErrorMessage(err, 'Could not update the departure.'));
+      setRowError(
+        isOfflineUnavailable(err)
+          ? (err as Error).message
+          : apiErrorMessage(err, 'Could not update the departure.'),
+      );
     } finally {
       setRowBusy(false);
     }
@@ -349,6 +378,12 @@ export default function OwnerSchedulePage() {
       {error ? (
         <Note kind="danger" style={{ marginBottom: 18 }}>
           {error}
+        </Note>
+      ) : null}
+
+      {rowSavedOffline ? (
+        <Note kind="ok" style={{ marginBottom: 18 }}>
+          Date change saved offline — it’ll sync when you’re back online. See Offline sync.
         </Note>
       ) : null}
 

@@ -57,16 +57,6 @@ interface BookingDetail {
     amountOverpaid: string;
     payments: { id: string; amount: string; method: string; paidAt: string | null }[];
   } | null;
-  rescheduleHistory: {
-    id: string;
-    oldPrice: string | null;
-    newPrice: string | null;
-    reason: string | null;
-    changedAt: string;
-    prevDeparture: { startDate: string };
-    toDeparture: { startDate: string };
-    changedByAccount: { id: string; name: string | null };
-  }[];
 }
 
 const BOOKING_TONE: Record<string, 'ok' | 'warn' | 'danger' | 'mut' | 'blue'> = {
@@ -264,32 +254,6 @@ export function BookingDetailDrawer({
               <p className={TD_T2}>No invoice for this booking.</p>
             )}
           </div>
-
-          {b.rescheduleHistory.length ? (
-            <div className={DSEC}>
-              <h4 className={DSEC_H4}>Reschedule history</h4>
-              <table className={MINI}>
-                <thead>
-                  <tr>
-                    <th className={MINI_TH}>From</th>
-                    <th className={MINI_TH}>To</th>
-                    <th className={MINI_TH}>By</th>
-                    <th className={MINI_TH}>When</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {b.rescheduleHistory.map((h) => (
-                    <tr key={h.id}>
-                      <td className={MINI_TD}>{formatDate(h.prevDeparture.startDate)}</td>
-                      <td className={`${MINI_TD} ${MINI_TD_T1}`}>{formatDate(h.toDeparture.startDate)}</td>
-                      <td className={MINI_TD}>{h.changedByAccount.name ?? '—'}</td>
-                      <td className={MINI_TD}>{formatDate(h.changedAt)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : null}
         </>
       )}
     </Drawer>

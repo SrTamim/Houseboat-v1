@@ -150,29 +150,10 @@ export class MoneyController {
     return this.payouts.listApprovedForBoat(houseboatId);
   }
 
-  @PlatformOnly()
-  @Post('houseboats/:houseboatId/payout-batches')
-  prepareBatch(
-    @Param('houseboatId') houseboatId: string,
-    @CurrentUser() user: AuthUser,
-  ) {
-    return this.payouts.prepareBatch(houseboatId, user.id);
-  }
-
-  @PlatformOnly()
-  @Post('payout-batches/:batchId/approve')
-  approveBatch(
-    @Param('batchId') batchId: string,
-    @CurrentUser() user: AuthUser,
-  ) {
-    return this.payouts.approveBatch(batchId, user.id);
-  }
-
-  @PlatformOnly()
-  @Post('payout-batches/:batchId/pay')
-  payBatch(@Param('batchId') batchId: string, @CurrentUser() user: AuthUser) {
-    return this.payouts.markPaid(batchId, user.id);
-  }
+  // The batch payout WRITE routes (prepare/approve/pay) were retired — the live
+  // admin payout UI uses the per-invoice /platform/finance/* flow, and the batch
+  // path wrote an uncapped dueToBoat that could diverge from it. The read routes
+  // above (payout-batches history, approved-payouts) stay for the owner console.
 
   // ── Coupons + policies (owner money settings) ──────────────
   @Get('houseboats/:houseboatId/coupons')

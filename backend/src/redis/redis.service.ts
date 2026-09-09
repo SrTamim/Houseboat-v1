@@ -160,14 +160,24 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
    * throws — a lockout store outage must not hard-fail login; it just means we
    * can't enforce lockout that moment (the @Throttle still bounds the rate).
    */
+  /**
+   * Consecutive failed-login count for the lockout check.
+   *
+   * Production is fail-CLOSED: if the lockout store is unreachable we cannot tell
+   * whether an account is under attack, so we report a saturating count that
+   * trips the lockout rather than a per-process memory count that resets on every
+   * restart (which a distributed credential-stuffing attacker could ride through).
+   * Losing logins during a Redis outage is acceptable; silently disarming the
+   * brute-force defence is not. Dev keeps the in-memory stand-in.
+   */
   async loginFailCount(id: string): Promise<number> {
     const client = this.ready;
-    if (!client) return this.memoryFailCount(id);
+    if (!client) return this.isProd ? Number.MAX_SAFE_INTEGER : this.memoryFailCount(id);
     try {
       const v = await client.get(this.failKey(id));
       return v ? parseInt(v, 10) : 0;
     } catch {
-      return this.memoryFailCount(id);
+      return this.isProd ? Number.MAX_SAFE_INTEGER : this.memoryFailCount(id);
     }
   }
 

@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { HouseboatsService } from './houseboats.service';
-import { SearchHouseboatsDto } from './dto/search.dto';
+import { SearchHouseboatsDto, SearchResultsDto } from './dto/search.dto';
 import { CurrentUser, Public } from '../auth/decorators';
 import { AuthUser } from '../auth/auth.types';
 import { readGuestToken } from '../booking/guest-token';
@@ -42,6 +42,18 @@ export class HouseboatsController {
   @Get('search')
   search(@Query() query: SearchHouseboatsDto) {
     return this.houseboats.search(query);
+  }
+
+  /**
+   * GET /houseboats/search/results — DB-side filtered, sorted, paginated search
+   * returning { items, total, page, pageSize, facets }. Static path declared
+   * before `:slug`. Distinct from the bare /houseboats/search flat array (which
+   * the home page still uses), so this shape change is non-breaking.
+   */
+  @Public()
+  @Get('search/results')
+  searchResults(@Query() query: SearchResultsDto) {
+    return this.houseboats.searchResults(query);
   }
 
   /**

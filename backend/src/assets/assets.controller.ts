@@ -185,15 +185,17 @@ export class AssetsController {
   }
 
   @PlatformOnly()
-  @PlatformPermission('ops', 'edit')
+  @PlatformPermission('routes', 'edit')
   @Post('routes')
   createRoute(@Body() dto: CreateRouteDto) {
     return this.routes.create(dto.name, dto.region);
   }
 
   // ── Platform moderation ────────────────────────────────────
+  // The boat list also backs the billing-config and coupons boat pickers, so a
+  // role scoped to either of those can still load it.
   @PlatformOnly()
-  @PlatformPermission('boats', 'view')
+  @PlatformPermission('boats', 'view', ['billing-config', 'coupons'])
   @Get('platform/houseboats')
   listForModeration(@Query() query: ListBoatsQueryDto) {
     return this.platform.listByStatus(query.status);
