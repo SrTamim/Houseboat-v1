@@ -26,6 +26,14 @@ interface CheckoutResult {
   invoice: { id: string };
 }
 
+/** Cabin checkout now returns a priced intent, not a booking (audit M-H2). */
+interface CheckoutIntent {
+  intentId: string;
+  displayTotal: string;
+  minDeposit: string;
+  fullAmount: string;
+}
+
 type PayChoice = 'advance' | 'full';
 
 // ---- design tokens (haorboat-checkout.html, v2 craft pass) ----------------
@@ -34,7 +42,8 @@ type PayChoice = 'advance' | 'full';
 const CARD = `mb-5 rounded-2xl border border-hair bg-raise-1 px-[26px] py-6 shadow-e1 ${DARK_CARD_SURFACE}`;
 const CARD_H2 =
   'flex items-center gap-[9px] font-display text-lg font-semibold text-ink';
-const CARD_SUB = 'mb-[18px] mt-1 text-[13px] text-muted';
+const CARD_SUB =
+  'mb-[18px] mt-1 text-[13px] text-muted max-[940px]:mb-3 max-[940px]:text-[12px]';
 
 /**
  * Left-column density. Identity, coupon and requests are supporting fields
@@ -44,9 +53,9 @@ const CARD_SUB = 'mb-[18px] mt-1 text-[13px] text-muted';
  * LABEL and INPUT are not duplicated because every one of their call sites is
  * in this column; they are simply sized for it.
  */
-const CARD_SM = `mb-4 rounded-2xl border border-hair bg-raise-1 px-5 py-[18px] shadow-e1 ${DARK_CARD_SURFACE}`;
+const CARD_SM = `mb-4 rounded-2xl border border-hair bg-raise-1 px-5 py-[18px] shadow-e1 max-[940px]:mb-3 max-[940px]:px-3.5 max-[940px]:py-3 ${DARK_CARD_SURFACE}`;
 const CARD_H2_SM =
-  'flex items-center gap-2 font-display text-[15px] font-semibold text-ink';
+  'flex items-center gap-2 font-display text-[15px] font-semibold text-ink max-[940px]:text-[13.5px]';
 const LABEL = 'mb-1 block text-xs font-bold text-ink';
 const INPUT =
   'w-full rounded border border-hair bg-bg px-3 py-2 text-sm text-ink transition-[border-color,box-shadow] duration-150 placeholder:text-muted focus:border-blue focus:bg-raise-1 focus:shadow-[0_0_0_3px_var(--blue-050)] focus:outline-none';
@@ -58,9 +67,9 @@ const INPUT =
  * className. PRIMARY_BTN itself is shared with the boat page and auth modal.
  */
 const AUTH_BTN_B =
-  'inline-flex w-full items-center justify-center gap-2 rounded border border-transparent bg-blue px-5 py-2.5 text-sm font-semibold text-white shadow-[var(--e1),inset_0_1px_0_rgba(255,255,255,.18)] transition-[background,transform] duration-dur ease-ease hover:bg-blue-600 active:translate-y-[.5px] disabled:cursor-not-allowed disabled:opacity-55';
+  'inline-flex w-full items-center justify-center gap-2 rounded border border-transparent bg-blue px-5 py-2.5 text-sm font-semibold text-white shadow-[var(--e1),inset_0_1px_0_rgba(255,255,255,.18)] transition-[background,transform] duration-dur ease-ease hover:bg-blue-600 active:translate-y-[.5px] disabled:cursor-not-allowed disabled:opacity-55 max-[940px]:py-2';
 const AUTH_BTN_O =
-  'mt-2 inline-flex w-full items-center justify-center rounded border border-hair bg-raise-1 px-5 py-2.5 text-sm font-semibold text-ink transition-colors duration-150 hover:border-blue hover:text-blue';
+  'mt-2 inline-flex w-full items-center justify-center rounded border border-hair bg-raise-1 px-5 py-2.5 text-sm font-semibold text-ink transition-colors duration-150 hover:border-blue hover:text-blue max-[940px]:py-2';
 const GRID2 = 'grid grid-cols-2 gap-4 max-[560px]:grid-cols-1';
 const SUMMARY_ROW = 'flex justify-between py-[5px] text-sm text-bodytext';
 
@@ -346,7 +355,9 @@ export function CheckoutFlow({
       // break the customer's own paid booking.
       convertingRef.current = true;
 
-      let invoiceId: string;
+      // The payment target: a group booking is created immediately (invoice), a
+      // cabin booking is deferred behind its deposit (intent). Exactly one is set.
+      let settleBody: { invoiceId: string } | { intentId: string };
 
       if (selection.kind === 'group') {
         const { data } = await api.post<CheckoutResult>('/booking/group-checkout', {
@@ -358,7 +369,7 @@ export function CheckoutFlow({
           specialInstructions: instructions || undefined,
           referenceName: reference || undefined,
         });
-        invoiceId = data.invoice.id;
+        settleBody = { invoiceId: data.invoice.id };
       } else {
         // The boat page normally already holds each cabin and passes the holdId
         // through the stored selection — reuse it. Re-holding a cabin we already
@@ -377,7 +388,10 @@ export function CheckoutFlow({
           });
           holds.push({ cabinId: c.cabinId, holdId: data.id });
         }
-        const { data } = await api.post<CheckoutResult>('/booking/checkout', {
+        // Checkout no longer creates the booking — it prices the selection into a
+        // BookingIntent (audit M-H2). The booking is created only when the deposit
+        // settles below. Cabins stay reserved by their live holds until then.
+        const { data } = await api.post<CheckoutIntent>('/booking/checkout', {
           departureId: selection.departureId,
           cabins: selection.cabins.map((c) => ({
             cabinId: c.cabinId,
@@ -392,26 +406,27 @@ export function CheckoutFlow({
           couponCode: coupon || undefined,
           referenceName: reference || undefined,
           specialInstructions: instructions || undefined,
-          // Accepted but ignored by the service — the deposit split is carried
-          // by `amount` on the settle call below, not by this field.
           paymentChoice: payChoice,
         });
-        invoiceId = data.invoice.id;
+        settleBody = { intentId: data.intentId };
       }
 
-      // Settle the invoice. The payment gateway is not configured yet, so this
-      // records the payment server-side and confirms the booking directly.
-      // Swapping back to the hosted gateway is this one call reverting to
-      // POST /gateway/sslcommerz/initiate + assign(gatewayPageUrl) — that whole
-      // path (and its IPN) is still in place and untouched.
+      // Settle the deposit. The gateway is not configured yet, so this records
+      // the payment server-side; for an intent it also CREATES the booking, for a
+      // group invoice it records against the existing one. Swapping back to the
+      // hosted gateway reverts this to POST /gateway/sslcommerz/initiate +
+      // assign(gatewayPageUrl) — that whole path (and its IPN) is untouched.
       //
-      // For a 50% advance the amount is passed and the invoice correctly stays
-      // customer_due; for full it is omitted and the server settles the whole
-      // outstanding.
-      await api.post<{ invoiceId: string }>('/gateway/sslcommerz/dev/settle', {
-        invoiceId,
-        ...(payChoice === 'advance' ? { amount: advance } : {}),
-      });
+      // For a 50% advance the amount is passed (server enforces the 50% floor for
+      // intents); for full it is omitted and the server settles the whole total.
+      const { data: settled } = await api.post<{ invoiceId: string }>(
+        '/gateway/sslcommerz/dev/settle',
+        {
+          ...settleBody,
+          ...(payChoice === 'advance' ? { amount: advance } : {}),
+        },
+      );
+      const invoiceId = settled.invoiceId;
 
       try {
         sessionStorage.removeItem(SELECTION_KEY);
@@ -446,9 +461,9 @@ export function CheckoutFlow({
           {holdLapsed ? (
             <div
               role="status"
-              className="mb-5 flex flex-wrap items-center justify-between gap-4 rounded-xl bg-danger px-5 py-3.5"
+              className="mb-5 flex flex-wrap items-center justify-between gap-4 rounded-xl bg-danger px-5 py-3.5 max-[940px]:mb-3 max-[940px]:gap-2 max-[940px]:px-3.5 max-[940px]:py-2.5"
             >
-              <span className="text-[15px] font-bold text-white">
+              <span className="text-[15px] font-bold text-white max-[940px]:text-[13px]">
                 Cabin hold expired — your seats were released.
               </span>
               <a
@@ -465,19 +480,19 @@ export function CheckoutFlow({
                tiles. */
             <div
               role="status"
-              className="mb-5 flex flex-wrap items-center justify-between gap-4 rounded-xl bg-amber px-5 py-3.5"
+              className="mb-5 flex flex-wrap items-center justify-between gap-4 rounded-xl bg-amber px-5 py-3.5 max-[940px]:mb-3 max-[940px]:gap-2 max-[940px]:px-3.5 max-[940px]:py-2.5"
             >
-              <span className="text-[15px] font-bold text-[#111725]">
+              <span className="text-[15px] font-bold text-[#111725] max-[940px]:text-[13px]">
                 Seat reserved, Complete your payment in
               </span>
               <span className="flex items-center gap-1.5">
-                <b className="rounded-lg bg-[#111725] px-2.5 py-1.5 font-display text-lg font-black tabular-nums text-white">
+                <b className="rounded-lg bg-[#111725] px-2.5 py-1.5 font-display text-lg font-black tabular-nums text-white max-[940px]:px-2 max-[940px]:py-1 max-[940px]:text-base">
                   {countdownMm}
                 </b>
-                <span className="font-display text-lg font-black text-[#111725]">
+                <span className="font-display text-lg font-black text-[#111725] max-[940px]:text-base">
                   :
                 </span>
-                <b className="rounded-lg bg-[#111725] px-2.5 py-1.5 font-display text-lg font-black tabular-nums text-white">
+                <b className="rounded-lg bg-[#111725] px-2.5 py-1.5 font-display text-lg font-black tabular-nums text-white max-[940px]:px-2 max-[940px]:py-1 max-[940px]:text-base">
                   {countdownSs}
                 </b>
               </span>
@@ -489,7 +504,7 @@ export function CheckoutFlow({
       {/* 40 / 60: identity + extras are read-only or optional, so the booking
           and payment detail gets the room. minmax(0,…) on both tracks stops a
           long boat name or price row widening past its share. */}
-      <div className="mx-auto grid max-w-wrap grid-cols-[minmax(0,40fr)_minmax(0,60fr)] items-start gap-[30px] px-6 pb-[60px] pt-3.5 max-[940px]:grid-cols-1 max-[940px]:pb-[90px]">
+      <div className="mx-auto grid max-w-wrap grid-cols-[minmax(0,40fr)_minmax(0,60fr)] items-start gap-[30px] px-6 pb-[60px] pt-3.5 max-[940px]:grid-cols-1">
         {/* ---------- LEFT: guest details ---------- */}
         <div>
 
@@ -681,7 +696,7 @@ export function CheckoutFlow({
           <div className={CARD_SM}>
             <h2 className={`${CARD_H2_SM} mb-3`}>💬 Special requests</h2>
             <textarea
-              className={`${INPUT} min-h-[60px] resize-y`}
+              className={`${INPUT} min-h-[60px] resize-y max-[940px]:min-h-[52px]`}
               placeholder="e.g. one vegetarian meal plan, birthday cake on Day 2, ground-deck cabin for elderly guest…"
               value={instructions}
               onChange={(e) => setInstructions(e.target.value)}
@@ -936,36 +951,13 @@ export function CheckoutFlow({
               type="button"
               disabled={busy || holdLapsed}
               onClick={pay}
-              className={`${PRIMARY_BTN} mt-3.5 max-[940px]:hidden`}
+              className={`${PRIMARY_BTN} mt-3.5`}
             >
               {payLabel}
             </button>
 
           </div>
         </aside>
-      </div>
-
-      {/* ---------- mobile pay bar ---------- */}
-      <div className="fixed inset-x-0 bottom-0 z-[70] hidden items-center justify-between gap-3.5 border-t border-hair bg-raise-1 px-5 py-3 shadow-[0_-8px_24px_rgba(15,36,64,.12)] max-[940px]:flex">
-        <div className="font-display text-lg font-black tabular-nums text-ink">
-          ৳ {money(payNow)}
-          <small className="block font-sans text-[11px] font-semibold text-muted">
-            {payChoice === 'advance' ? '50% advance' : 'full'}
-            {selection.kind === 'group'
-              ? ` · ${selection.groupHeadcount} guests`
-              : ` · ${selection.cabins.length} cabin${
-                  selection.cabins.length === 1 ? '' : 's'
-                }`}
-          </small>
-        </div>
-        <button
-          type="button"
-          disabled={busy || holdLapsed}
-          onClick={pay}
-          className={`${PRIMARY_BTN} w-auto px-7`}
-        >
-          {busy ? 'Processing…' : holdLapsed ? 'Hold expired' : '🔒 Pay now'}
-        </button>
       </div>
     </section>
   );

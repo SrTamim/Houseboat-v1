@@ -27,6 +27,7 @@ import {
   CreateRouteDto,
   LinkRouteDto,
   ListBoatsQueryDto,
+  SetHouseboatStatusDto,
 } from './dto/assets.dto';
 
 @Controller()
@@ -217,8 +218,8 @@ export class AssetsController {
   setStatus(
     @Param('houseboatId') houseboatId: string,
     @CurrentUser() user: AuthUser,
-    @Body('status') status: string,
+    @Body() dto: SetHouseboatStatusDto,
   ) {
-    return this.platform.setStatus(houseboatId, status, user.id);
+    return this.platform.setStatus(houseboatId, dto.status, user.id);
   }
 }

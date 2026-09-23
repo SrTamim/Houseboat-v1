@@ -359,9 +359,26 @@ export class PricingService {
   }
 
   // ── Group price bands (full-boat buyout) ───────────────────
-  addGroupBand(houseboatId: string, dto: GroupBandDto) {
+  async addGroupBand(houseboatId: string, dto: GroupBandDto) {
     if (dto.maxPeople < dto.minPeople) {
       throw new BadRequestException('maxPeople must be >= minPeople');
+    }
+    // Reject a band that overlaps an existing one (audit): bandForHeadcount uses
+    // findFirst, so two bands covering the same headcount would resolve
+    // nondeterministically to whichever the DB returns — a different buyout price
+    // on different requests. Two ranges [a,b] and [c,d] overlap iff a <= d && c <= b.
+    const overlap = await this.prisma.groupPriceBand.findFirst({
+      where: {
+        houseboatId,
+        minPeople: { lte: dto.maxPeople },
+        maxPeople: { gte: dto.minPeople },
+      },
+      select: { minPeople: true, maxPeople: true },
+    });
+    if (overlap) {
+      throw new BadRequestException(
+        `This range overlaps an existing band (${overlap.minPeople}–${overlap.maxPeople})`,
+      );
     }
     return this.prisma.groupPriceBand.create({
       data: {

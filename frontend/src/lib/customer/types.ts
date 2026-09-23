@@ -44,6 +44,12 @@ export interface SearchResultsPage {
     priceMax: number | null;
     destinations: { label: string; sub: string }[];
   };
+  /**
+   * True when a date was searched but NO boat departs on that exact day — the
+   * grid is showing on/after-date fallback results. Drives the "showing next
+   * available dates" toast. Absent/false when no date, or the date has departures.
+   */
+  dateExactEmpty?: boolean;
 }
 
 /** Owner-entered meal plan (Prisma `Houseboat.foodMenu` JSON). */

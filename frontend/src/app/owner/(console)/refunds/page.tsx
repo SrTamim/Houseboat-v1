@@ -173,15 +173,15 @@ export default function OwnerRefundsPage() {
               {rows.map((r) => (
                 <tr key={r.id}>
                   <td className="t1">{invoiceRef(r.invoiceId)}</td>
-                  <td>
+                  <td data-label="Guest">
                     <div className="t1">{r.customer.name ?? 'Guest'}</div>
                     <div className="t2">{formatDate(r.departureDate)}</div>
                   </td>
                   <td>
                     <Pill tone={r.isPos ? 'amb' : 'blue'}>{r.isPos ? 'POS' : 'Platform'}</Pill>
                   </td>
-                  <td className="num">{money(r.paid)}</td>
-                  <td className="num">{money(r.amount)}</td>
+                  <td className="num" data-label="Paid">{money(r.paid)}</td>
+                  <td className="num" data-label="Refund">{money(r.amount)}</td>
                   <td>
                     {r.claimDeadline ? (
                       <Pill tone={timeLeft(r.claimDeadline) === 'expired' ? 'mut' : 'warn'}>

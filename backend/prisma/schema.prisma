@@ -870,13 +870,72 @@ model Coupon {
   validFrom   DateTime? @map("valid_from") @db.Date
   validTo     DateTime? @map("valid_to") @db.Date
   isActive    Boolean   @default(true) @map("is_active")
+  /// Total redemptions allowed across all customers. null = unlimited (legacy default).
+  maxUses     Int?      @map("max_uses")
+  /// Redemptions allowed per customer account. null = unlimited.
+  perUserLimit Int?     @map("per_user_limit")
+  /// Minimum room total (price_shown) required to apply the coupon. null = no minimum.
+  minSpend    Decimal?  @map("min_spend") @db.Decimal(12, 2)
 
   houseboat Houseboat @relation(fields: [houseboatId], references: [id])
   bookings  Booking[]
 
+  @@unique([houseboatId, code])
   @@index([houseboatId])
   @@index([code])
   @@map("coupon")
+}
+
+/// A checkout that is priced and awaiting its deposit (audit M-H2). The booking
+/// is NOT created until a valid deposit (>= the required percent of the bill)
+/// is confirmed — until then the cabins stay reserved only by their live holds.
+/// The full checkout request is snapshotted here so the async gateway IPN can
+/// build the booking on confirmation. Consumed (status='consumed') exactly once;
+/// expires with the holds so an abandoned intent self-cleans.
+/// Idempotency ledger for offline-sync replay (audit #7 / F19). One row per
+/// applied offline intent, keyed by the client-generated intentId. The replay
+/// engine INSERTs the claim BEFORE applying the action; the unique PK makes a
+/// duplicate or concurrent replay fail atomically (P2002 → 'duplicate'), which
+/// the append-only audit_log (partitioned on server_time, so it cannot carry a
+/// unique index on intentId) cannot do on its own.
+model SyncIntentApplied {
+  intentId    String   @id @map("intent_id")
+  accountId   String   @map("account_id") @db.Uuid
+  houseboatId String   @map("houseboat_id") @db.Uuid
+  action      String
+  appliedAt   DateTime @default(now()) @map("applied_at") @db.Timestamptz
+
+  @@map("sync_intent_applied")
+}
+
+model BookingIntent {
+  id           String   @id @db.Uuid
+  departureId  String   @map("departure_id") @db.Uuid
+  houseboatId  String   @map("houseboat_id") @db.Uuid
+  customerId   String   @map("customer_id") @db.Uuid
+  bookedBy     String   @map("booked_by") @db.Uuid
+  channel      String   @default("web")
+  /// The validated CheckoutDto (cabins, guest, coupon, useCredit, …) as JSON.
+  payload      Json
+  /// Snapshot of the priced bill total the deposit floor is measured against.
+  displayTotal Decimal  @map("display_total") @db.Decimal(12, 2)
+  /// Full priced bill breakdown (roomTotal/gatewayFee/priceShown/discountAmount/
+  /// displayTotal/commission) captured at createIntent, so confirmIntent bills the
+  /// customer exactly the price they saw at checkout even if the owner changed
+  /// pricing in between (audit #10/F12). Nullable: legacy intents re-price.
+  billSnapshot Json?    @map("bill_snapshot")
+  /// Minimum deposit that must be paid to convert this intent into a booking.
+  minDeposit   Decimal  @map("min_deposit") @db.Decimal(12, 2)
+  /// requested / consumed / expired
+  status       String   @default("requested")
+  bookingId    String?  @map("booking_id") @db.Uuid
+  expiresAt    DateTime @map("expires_at") @db.Timestamptz
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([departureId])
+  @@index([customerId])
+  @@index([status])
+  @@map("booking_intent")
 }
 
 /// Platform-set per boat. Commission AND monthly can both apply. Billing PER BOAT.
@@ -944,6 +1003,11 @@ model CustomerCredit {
   accountId       String  @map("account_id") @db.Uuid
   sourceInvoiceId String? @map("source_invoice_id") @db.Uuid
   amount          Decimal @db.Decimal(12, 2)
+  /// refund (cancellation payout to the customer) / rebate (open-seat surplus).
+  /// Drives the boat-payout subtraction (audit M-M1): a spent refund still
+  /// reduces the boat's due; a rebate never does (it already cut displayTotal).
+  /// null on legacy rows → treated as refund-with-prior-behavior.
+  kind            String? @map("kind")
   /// null until spent
   usedInInvoiceId String? @map("used_in_invoice_id") @db.Uuid
   /// open / used / pending_cashout. `pending_cashout` credits are locked against an

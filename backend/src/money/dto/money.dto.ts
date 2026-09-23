@@ -31,7 +31,8 @@ export class OwnerInvoicesQueryDto extends PageQueryDto {
 }
 
 export class RecordPaymentDto {
-  @IsNumber() @Min(0) amount!: number;
+  // Money is numeric(12,2): reject sub-paisa precision, and a payment must be > 0.
+  @IsNumber({ maxDecimalPlaces: 2 }) @IsPositive() amount!: number;
   // gateway = platform card processing; cash/bkash/bank/online = owner channels (§6).
   @IsIn(['gateway', 'cash', 'bkash', 'bank', 'online'])
   method!: 'gateway' | 'cash' | 'bkash' | 'bank' | 'online';
@@ -40,7 +41,7 @@ export class RecordPaymentDto {
 }
 
 export class RefundRequestDto {
-  @IsNumber() @Min(0) amount!: number;
+  @IsNumber({ maxDecimalPlaces: 2 }) @IsPositive() amount!: number;
   @IsOptional() @IsString() @MaxLength(LEN_TEXT) reason?: string;
   /**
    * Encrypted at rest (AES-256-GCM) before storage — see refunds.service.ts.
@@ -53,9 +54,15 @@ export class RefundRequestDto {
 export class CreateCouponDto {
   @IsString() @MaxLength(LEN_CODE) code!: string;
   @IsIn(['percent', 'flat', 'referral']) kind!: 'percent' | 'flat' | 'referral';
-  @IsNumber() @Min(0) value!: number;
+  @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) value!: number;
   @IsOptional() @IsISO8601() validFrom?: string;
   @IsOptional() @IsISO8601() validTo?: string;
+  /** Total redemptions allowed across all customers. Omit = unlimited. */
+  @IsOptional() @IsInt() @Min(1) maxUses?: number;
+  /** Redemptions allowed per customer account. Omit = unlimited. */
+  @IsOptional() @IsInt() @Min(1) perUserLimit?: number;
+  /** Minimum room total required to apply the coupon. Omit = no minimum. */
+  @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) minSpend?: number;
 }
 
 export class SetCouponActiveDto {
@@ -72,7 +79,7 @@ export class CreatePolicyDto {
 
 export class RecordDistributionDto {
   @IsString() @MaxLength(LEN_CODE) membershipId!: string;
-  @IsNumber() @Min(0) amount!: number;
+  @IsNumber({ maxDecimalPlaces: 2 }) @IsPositive() amount!: number;
   @IsOptional() @IsString() @MaxLength(LEN_TEXT) note?: string;
 }
 

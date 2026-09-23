@@ -335,19 +335,19 @@ export default function OwnerPayrollPage() {
                       {s.account?.name ?? 'Crew'}
                     </button>
                   </td>
-                  <td>
+                  <td data-label="Basis">
                     <Pill tone={s.monthlySalary ? 'blue' : 'mut'}>
                       {s.monthlySalary ? 'salary' : 'per trip'}
                     </Pill>
                   </td>
-                  <td className="num">{payroll?.tripsWorked ?? '—'}</td>
-                  <td className="num">{payroll ? money(payroll.baseAmount) : '—'}</td>
-                  <td className="num">{payroll ? money(payroll.bonus) : '—'}</td>
-                  <td className={`num${payroll && Number(payroll.deduction) > 0 ? ' neg' : ''}`}>
+                  <td className="num" data-label="Trips">{payroll?.tripsWorked ?? '—'}</td>
+                  <td className="num" data-label="Base">{payroll ? money(payroll.baseAmount) : '—'}</td>
+                  <td className="num" data-label="Bonus">{payroll ? money(payroll.bonus) : '—'}</td>
+                  <td className={`num${payroll && Number(payroll.deduction) > 0 ? ' neg' : ''}`} data-label="Deduct">
                     {payroll ? money(payroll.deduction) : '—'}
                   </td>
-                  <td className="num">{payroll ? money(payroll.totalAmount) : '—'}</td>
-                  <td>
+                  <td className="num" data-label="Total">{payroll ? money(payroll.totalAmount) : '—'}</td>
+                  <td data-label="Paid">
                     {payroll ? (
                       <Pill tone={payroll.paid ? 'ok' : 'warn'}>
                         {payroll.paid ? `paid ${formatDate(payroll.paidAt)}` : 'unpaid'}
@@ -554,19 +554,19 @@ function StatementDrawer({
               {lines.map(({ p, running: bal }) => (
                 <tr key={p.id}>
                   <td className="t1">{periodLabel(p.period)}</td>
-                  <td className="num">{p.tripsWorked ?? '—'}</td>
-                  <td className="num">{money(p.baseAmount)}</td>
-                  <td className="num">{money(p.bonus)}</td>
-                  <td className={`num${Number(p.deduction) > 0 ? ' neg' : ''}`}>
+                  <td className="num" data-label="Trips">{p.tripsWorked ?? '—'}</td>
+                  <td className="num" data-label="Base">{money(p.baseAmount)}</td>
+                  <td className="num" data-label="Bonus">{money(p.bonus)}</td>
+                  <td className={`num${Number(p.deduction) > 0 ? ' neg' : ''}`} data-label="Deduct">
                     {money(p.deduction)}
                   </td>
-                  <td className="num">{money(p.totalAmount)}</td>
-                  <td>
+                  <td className="num" data-label="Total">{money(p.totalAmount)}</td>
+                  <td data-label="Status">
                     <Pill tone={p.paid ? 'ok' : 'warn'}>
                       {p.paid ? `paid ${formatDate(p.paidAt)}` : 'unpaid'}
                     </Pill>
                   </td>
-                  <td className="num">{money(bal.toFixed(2))}</td>
+                  <td className="num" data-label="Balance">{money(bal.toFixed(2))}</td>
                 </tr>
               ))}
               <tr className={STMT_TOTAL}>

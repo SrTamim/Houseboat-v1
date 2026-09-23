@@ -49,12 +49,16 @@ export function priceForParty(params: {
   let total = round2(perPerson.mul(params.adults));
 
   if (params.childAges && params.childAges.length > 0) {
-    for (const age of params.childAges) {
+    // Never price more children than `children`: a request with more ages than
+    // children (mismatched arrays) must not charge for the extras (audit M-M2).
+    // The DTO cross-validates equal length; this is the defensive backstop.
+    const ages = params.childAges.slice(0, params.children);
+    for (const age of ages) {
       const frac = childChargeFraction(params.childPolicy, age);
       total = add(total, round2(perPerson.mul(money(frac))));
     }
     // Any children beyond the supplied ages are charged full.
-    const extra = Math.max(0, params.children - params.childAges.length);
+    const extra = Math.max(0, params.children - ages.length);
     if (extra > 0) total = add(total, round2(perPerson.mul(extra)));
   } else {
     // No ages → full charge per child (previous behavior).

@@ -160,6 +160,11 @@ const config: Config = {
           from: { backgroundPosition: '100% 0' },
           to: { backgroundPosition: '-100% 0' },
         },
+        // Owner drawer as a mobile bottom sheet: rise from below the viewport.
+        slideUp: {
+          from: { transform: 'translateY(100%)' },
+          to: { transform: 'translateY(0)' },
+        },
       },
       animation: {
         ddIn: 'ddIn .16s cubic-bezier(.2,.7,.3,1)',
@@ -175,6 +180,7 @@ const config: Config = {
         // Owner console page-load rise + skeleton shimmer (owner.css values).
         'rise-owner': 'rise-owner .4s cubic-bezier(.2,.7,.3,1) both',
         'shimmer-owner': 'shimmer-owner 1.4s ease infinite',
+        'slide-up': 'slideUp var(--dur) var(--ease)',
       },
     },
   },

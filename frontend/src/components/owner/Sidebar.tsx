@@ -65,7 +65,7 @@ export function Sidebar({ open, user }: { open: boolean; user: string }) {
                 <Link
                   key={item.key}
                   href={item.href}
-                  className={`group relative flex items-center gap-[11px] rounded px-3 py-2 text-[13.5px] transition-[background,color] duration-dur ease-ease ${
+                  className={`group relative flex items-center gap-[11px] rounded px-3 py-2 text-[13.5px] transition-[background,color] duration-dur ease-ease max-[1024px]:py-3 max-[1024px]:text-[15px] ${
                     active
                       ? "font-semibold text-blue bg-[color-mix(in_srgb,var(--blue)_10%,transparent)] before:absolute before:-left-3 before:top-1/2 before:h-5 before:w-[3px] before:-translate-y-1/2 before:rounded-r-[3px] before:bg-blue before:content-['']"
                       : 'font-medium text-bodytext hover:bg-hover hover:text-ink'

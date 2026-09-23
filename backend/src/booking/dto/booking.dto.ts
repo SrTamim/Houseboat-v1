@@ -12,6 +12,8 @@ import {
   Min,
   MinLength,
   ValidateNested,
+  registerDecorator,
+  type ValidationOptions,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { LEN_CODE, LEN_NAME, LEN_TEXT } from '../../common/field-limits';
@@ -19,6 +21,35 @@ import {
   MAX_CABINS_PER_BOOKING,
   MAX_CHILDREN_PER_CABIN,
 } from '../booking.limits';
+
+/**
+ * childAges, when supplied, must have exactly `children` entries (audit M-M2).
+ * Without this the price loop could be handed more ages than children and charge
+ * for children that don't exist, diverging the bill from the manifest. Applied
+ * to the childAges field; validates against the sibling `children` count.
+ */
+function ChildAgesMatchChildren(options?: ValidationOptions) {
+  return function (object: object, propertyName: string) {
+    registerDecorator({
+      name: 'childAgesMatchChildren',
+      target: object.constructor,
+      propertyName,
+      options,
+      validator: {
+        validate(value: unknown, args) {
+          if (value == null) return true; // optional — omit = charge full
+          if (!Array.isArray(value)) return false;
+          const children =
+            (args?.object as { children?: number } | undefined)?.children ?? 0;
+          return value.length === children;
+        },
+        defaultMessage() {
+          return 'childAges must have exactly one age per child';
+        },
+      },
+    });
+  };
+}
 
 export class HoldCabinDto {
   @IsString() @MaxLength(LEN_CODE) cabinId!: string;
@@ -49,6 +80,7 @@ export class CabinSelectionDto {
   @IsInt({ each: true })
   @Min(0, { each: true })
   @Max(120, { each: true })
+  @ChildAgesMatchChildren()
   childAges?: number[];
   /**
    * Opt-in: leave the unfilled places in this cabin as a shared "open seat"
@@ -79,6 +111,7 @@ export class QuoteCabinDto {
   @IsInt({ each: true })
   @Min(0, { each: true })
   @Max(120, { each: true })
+  @ChildAgesMatchChildren()
   childAges?: number[];
   @IsOptional() @IsBoolean() openSeat?: boolean;
 }
@@ -136,7 +169,26 @@ export class WaitlistDto {
 export class JoinOpenSeatDto {
   @IsString() @MaxLength(LEN_CODE) openSeatCabinId!: string;
   @IsInt() @Min(1) adults!: number;
-  @IsOptional() @IsInt() @Min(0) children?: number;
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(MAX_CHILDREN_PER_CABIN, {
+    message: `You can add up to ${MAX_CHILDREN_PER_CABIN} children per cabin`,
+  })
+  children?: number;
+  /**
+   * Ages of the joiner's children, so each is charged per the boat's child_policy
+   * (audit M-M2). Omitted = children charged full, as before. Length must match
+   * children when supplied.
+   */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_CHILDREN_PER_CABIN)
+  @IsInt({ each: true })
+  @Min(0, { each: true })
+  @Max(120, { each: true })
+  @ChildAgesMatchChildren()
+  childAges?: number[];
 }
 
 export class GroupCheckoutDto {

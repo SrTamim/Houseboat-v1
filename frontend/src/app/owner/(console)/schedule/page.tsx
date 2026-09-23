@@ -514,7 +514,7 @@ export default function OwnerSchedulePage() {
         sub={`${MONTHS[filterMonth]} ${filterYear}`}
         flush
         actions={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
             <label
               style={{
                 display: 'flex',
@@ -607,25 +607,25 @@ export default function OwnerSchedulePage() {
                     <div className="t1">{formatDate(d.startDate)}</div>
                     <div className="t2">{weekday(d.startDate)}</div>
                   </td>
-                  <td>
+                  <td data-label="Trip">
                     <div className="t1">{d.package.durationLabel ?? 'Trip'}</div>
                     <div className="t2">{d.package.route.name}</div>
                   </td>
-                  <td className="t2">
+                  <td className="t2" data-label="Departs">
                     {d.departureTime
                       ? new Date(d.departureTime).toISOString().slice(11, 16)
                       : '—'}
                     {d.endDate ? ` → ${formatDate(d.endDate)}` : ''}
                   </td>
-                  <td>
+                  <td data-label="Pricing">
                     <Pill tone="mut">
                       {d.pricingProfileId
                         ? (profileName.get(d.pricingProfileId) ?? 'profile')
                         : 'default'}
                     </Pill>
                   </td>
-                  <td className="t1">{d.availableCount}</td>
-                  <td>
+                  <td className="t1" data-label="Available">{d.availableCount}</td>
+                  <td data-label="Status">
                     <DepartureStatusPill status={d.status} />
                     {d.status === 'cancelled' && d.cancelReason ? (
                       <div className="t2" style={{ marginTop: 4, maxWidth: 240 }}>
@@ -635,7 +635,7 @@ export default function OwnerSchedulePage() {
                   </td>
                   <td>
                     {d.status === 'scheduled' ? (
-                      <div style={{ display: 'flex', gap: 6 }}>
+                      <div className="rowact" style={{ display: 'flex', gap: 6 }}>
                         <button
                           type="button"
                           className={`${BTN_O} ${BTN_SM}`}
@@ -653,14 +653,16 @@ export default function OwnerSchedulePage() {
                         </button>
                       </div>
                     ) : d.status === 'cancelled' ? (
-                      <button
-                        type="button"
-                        className={`${BTN_O} ${BTN_SM}`}
-                        onClick={() => reviveDeparture(d)}
-                        disabled={busy}
-                      >
-                        Revive
-                      </button>
+                      <div className="rowact" style={{ display: 'flex', gap: 6 }}>
+                        <button
+                          type="button"
+                          className={`${BTN_O} ${BTN_SM}`}
+                          onClick={() => reviveDeparture(d)}
+                          disabled={busy}
+                        >
+                          Revive
+                        </button>
+                      </div>
                     ) : (
                       <span className="t2">—</span>
                     )}

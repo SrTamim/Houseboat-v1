@@ -289,10 +289,10 @@ export default function OwnerCostsPage() {
               {rows.map((c) => (
                 <tr key={c.id}>
                   <td className="t2">{formatDate(c.date)}</td>
-                  <td className="t1">{c.description ?? '—'}</td>
-                  <td className="t2">{c.paidByAccount?.name ?? '—'}</td>
-                  <td className="t2">{c.comment ?? '—'}</td>
-                  <td className="num">{money(c.amount)}</td>
+                  <td className="t1" data-label="Description">{c.description ?? '—'}</td>
+                  <td className="t2" data-label="Paid by">{c.paidByAccount?.name ?? '—'}</td>
+                  <td className="t2" data-label="Comment">{c.comment ?? '—'}</td>
+                  <td className="num" data-label="Amount">{money(c.amount)}</td>
                   <td className="num">
                     <button className={`${BTN_O} ${BTN_SM}`} onClick={() => openEdit(c)}>
                       Edit
@@ -361,10 +361,10 @@ export default function OwnerCostsPage() {
               {rows.map((c) => (
                 <tr key={c.id}>
                   <td className="t1">{formatDate(c.date)}</td>
-                  <td>{c.description ?? '—'}</td>
-                  <td className="t2">{c.paidByAccount?.name ?? '—'}</td>
-                  <td className="t2">{c.comment ?? '—'}</td>
-                  <td className="num">{money(c.amount)}</td>
+                  <td data-label="Description">{c.description ?? '—'}</td>
+                  <td className="t2" data-label="Paid by">{c.paidByAccount?.name ?? '—'}</td>
+                  <td className="t2" data-label="Comment">{c.comment ?? '—'}</td>
+                  <td className="num" data-label="Amount">{money(c.amount)}</td>
                 </tr>
               ))}
               <tr className={STMT_TOTAL}>

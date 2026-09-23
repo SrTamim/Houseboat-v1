@@ -112,6 +112,17 @@ export class HoldsService {
     const owner = heldBy ? { heldBy } : { heldByToken };
     try {
       const held = await this.prisma.$transaction(async (tx) => {
+        // Serialize every hold/release on THIS departure. The partial unique
+        // index blocks a second hold of the same CABIN, but the aggregate
+        // availableCount is a check-then-decrement: without a row lock two holds
+        // on DIFFERENT cabins with one slot left both read availableCount=1,
+        // both pass the guard below, and both decrement → oversell by N. Lock
+        // the departure row first (same FOR UPDATE idiom applyCredits uses for
+        // the wallet) so concurrent holds queue on the count. Prisma has no
+        // native FOR UPDATE, so take it with raw SQL; the lock is held for the
+        // life of the transaction.
+        await tx.$queryRaw`
+          SELECT id FROM trip_departure WHERE id = ${departureId}::uuid FOR UPDATE`;
         const dep = await tx.tripDeparture.findUnique({
           where: { id: departureId },
           select: { status: true, availableCount: true },

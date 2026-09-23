@@ -232,6 +232,10 @@ export function SearchBar({
   const [draftDate, setDraftDate] = useState(date);
   const [draftGuests, setDraftGuests] = useState(guests);
   const [draftAc, setDraftAc] = useState<Ac>(ac);
+  // Mobile only: collapse the full fields into a compact summary once a search
+  // is active, so the results aren't pushed off-screen. Desktop always shows the
+  // fields (this state is ignored ≥561px via the `max-[560px]:` gating below).
+  const [collapsed, setCollapsed] = useState(() => route.trim().length > 0);
 
   // Re-sync when the URL changes underneath (back/forward, pill removal, and
   // the sidebar's own instant filters).
@@ -248,15 +252,49 @@ export function SearchBar({
   const submit = () => {
     if (!canSearch) return;
     onSearch({ route: draftRoute, date: draftDate, guests: draftGuests, ac: draftAc });
+    setCollapsed(true); // give the results back their vertical space on mobile
   };
+
+  // Compact summary of the APPLIED search (props, not drafts), for the collapsed
+  // mobile bar.
+  const acSummary =
+    ac === 'ac' ? 'AC' : ac === 'nonac' ? 'Non-AC' : 'Any cabin';
+  const summaryParts = [
+    route || 'Anywhere',
+    date ? formatDate(date) : 'Any date',
+    guests ? `${guests} guests` : 'Any size',
+    acSummary,
+  ];
 
   return (
     <section className="sticky top-[72px] z-50 border-b border-hair bg-raise-1 max-[560px]:static">
       {/* Deliberately not `.reveal`: the bar sits above the fold under a sticky
           nav, so a scroll-in animation buys nothing and would leave it at
           opacity:0 if the observer never fired. */}
-      <div className="mx-auto max-w-wrap px-6 py-4">
-        <div className="grid items-stretch gap-3 [grid-template-columns:1.4fr_1.2fr_1fr_auto_auto] max-[820px]:[grid-template-columns:1fr_1fr] max-[560px]:[grid-template-columns:1fr]">
+      <div className="mx-auto max-w-wrap px-6 py-4 max-[560px]:py-3">
+        {/* Collapsed summary — mobile only, shown when a search is active and
+            the fields are folded away. Tapping it (or Edit) re-opens the form. */}
+        {collapsed ? (
+          <button
+            type="button"
+            onClick={() => setCollapsed(false)}
+            className="hidden w-full items-center gap-2 rounded border border-hair bg-field px-[14px] py-[9px] text-left transition-colors duration-dur ease-ease hover:border-[color-mix(in_srgb,var(--blue)_30%,var(--hair))] max-[560px]:flex"
+          >
+            <span className="text-base leading-none">🔍</span>
+            <span className="min-w-0 flex-1 truncate font-display text-[14px] font-bold text-ink">
+              {summaryParts.join(' · ')}
+            </span>
+            <span className="flex shrink-0 items-center gap-1 text-[12.5px] font-bold text-blue">
+              ✏️ Edit
+            </span>
+          </button>
+        ) : null}
+
+        <div
+          className={`grid items-stretch gap-3 [grid-template-columns:1.4fr_1.2fr_1fr_auto_auto] max-[820px]:[grid-template-columns:1fr_1fr] max-[560px]:[grid-template-columns:1fr] ${
+            collapsed ? 'max-[560px]:hidden' : ''
+          }`}
+        >
           <DestinationField options={destinations} value={draftRoute} onChange={setDraftRoute} />
           <DateField value={draftDate} onChange={setDraftDate} />
           <GuestsField value={draftGuests} onChange={setDraftGuests} />

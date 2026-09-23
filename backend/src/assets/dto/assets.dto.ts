@@ -153,3 +153,13 @@ export class ListBoatsQueryDto {
   @IsIn(HOUSEBOAT_STATUSES as unknown as string[])
   status?: (typeof HOUSEBOAT_STATUSES)[number];
 }
+
+/**
+ * Body for the platform status change (audit #15/F16). Was read as a raw
+ * @Body('status') string, bypassing the global ValidationPipe — a caller could
+ * write any status. Constrain it to the known set.
+ */
+export class SetHouseboatStatusDto {
+  @IsIn(HOUSEBOAT_STATUSES as unknown as string[])
+  status!: (typeof HOUSEBOAT_STATUSES)[number];
+}

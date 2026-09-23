@@ -75,6 +75,8 @@ function makeSweeper(rows: Row[]) {
         ),
       ),
     },
+    // Intent expiry runs first in the sweep (audit M-H2); no-op in this mock.
+    bookingIntent: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
     tripDeparture: {
       findUnique: jest.fn().mockResolvedValue({ availableCount: 1 }),
       update: tx.tripDeparture.update,

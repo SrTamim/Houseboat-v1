@@ -24,6 +24,9 @@ describe('PaymentsService — IDOR guard', () => {
         update: jest.fn().mockResolvedValue({ ...INVOICE, status: 'paid' }),
       },
       invoicePayment: { create: jest.fn().mockResolvedValue({}) },
+      // recordPayment takes a SELECT … FOR UPDATE row lock on the invoice first;
+      // no real DB in the unit mock, so this is a no-op stub.
+      $queryRaw: jest.fn().mockResolvedValue([]),
     };
     const prisma = {
       // recordPayment runs inside a transaction — pass our fake tx through.

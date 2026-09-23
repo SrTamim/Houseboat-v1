@@ -155,8 +155,8 @@ export default function OwnerSyncPage() {
                 {pending.map((p) => (
                   <tr key={p.intentId}>
                     <td className="t1">{humanize(p.action)}</td>
-                    <td className="t2">{formatDateTime(p.deviceTime)}</td>
-                    <td>
+                    <td className="t2" data-label="Captured">{formatDateTime(p.deviceTime)}</td>
+                    <td data-label="Status">
                       <Pill tone="mut">pending</Pill>
                     </td>
                   </tr>
@@ -198,10 +198,10 @@ export default function OwnerSyncPage() {
               {applied.map((r) => (
                 <tr key={`${r.serverTime}-${r.id}`}>
                   <td className="t1">{humanize(r.action)}</td>
-                  <td className="t2">{r.actor?.name ?? r.actor?.phone ?? 'system'}</td>
-                  <td className="t2">{r.deviceTime ? formatDateTime(r.deviceTime) : '—'}</td>
-                  <td className="t2">{formatDateTime(r.serverTime)}</td>
-                  <td>
+                  <td className="t2" data-label="Actor">{r.actor?.name ?? r.actor?.phone ?? 'system'}</td>
+                  <td className="t2" data-label="Device time">{r.deviceTime ? formatDateTime(r.deviceTime) : '—'}</td>
+                  <td className="t2" data-label="Server time">{formatDateTime(r.serverTime)}</td>
+                  <td data-label="Outcome">
                     <Pill tone="ok">applied</Pill>
                   </td>
                 </tr>
@@ -250,10 +250,10 @@ export default function OwnerSyncPage() {
               {needsReview.map((r) => (
                 <tr key={`${r.serverTime}-${r.id}`}>
                   <td className="t1">{humanize(r.action)}</td>
-                  <td className="t2">{r.actor?.name ?? r.actor?.phone ?? 'system'}</td>
-                  <td className="t2">{r.deviceTime ? formatDateTime(r.deviceTime) : '—'}</td>
-                  <td className="t2">{formatDateTime(r.serverTime)}</td>
-                  <td>
+                  <td className="t2" data-label="Actor">{r.actor?.name ?? r.actor?.phone ?? 'system'}</td>
+                  <td className="t2" data-label="Device time">{r.deviceTime ? formatDateTime(r.deviceTime) : '—'}</td>
+                  <td className="t2" data-label="Server time">{formatDateTime(r.serverTime)}</td>
+                  <td data-label="Outcome">
                     <Pill tone="danger">needs review</Pill>
                   </td>
                 </tr>

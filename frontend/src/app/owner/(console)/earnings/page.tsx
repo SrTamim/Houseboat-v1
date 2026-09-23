@@ -218,8 +218,8 @@ export default function OwnerEarningsPage() {
                         <div className="t1">{d.name}</div>
                         <div className="t2">{formatDate(d.at)}</div>
                       </td>
-                      <td>{d.shareholderPct !== null ? `${d.shareholderPct}%` : '—'}</td>
-                      <td className="num">{money(d.amount)}</td>
+                      <td data-label="Share">{d.shareholderPct !== null ? `${d.shareholderPct}%` : '—'}</td>
+                      <td className="num" data-label="Taken">{money(d.amount)}</td>
                     </tr>
                   ))}
                 </tbody>

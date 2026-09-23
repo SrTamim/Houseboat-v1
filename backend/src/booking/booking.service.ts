@@ -16,7 +16,7 @@ import { AvailabilityGateway } from '../realtime/availability.gateway';
 import { SettingsService } from '../platform/settings/settings.service';
 import { encryptJson } from '../common/crypto';
 import { newId } from '../common/uuid';
-import { money, ZERO, add, sub } from '../common/money';
+import { money, ZERO, add, sub, percentOf } from '../common/money';
 import { buildBill, CouponInput } from '../common/billing';
 import { priceForParty, ChildBand } from '../common/child-policy';
 import {
@@ -27,6 +27,7 @@ import {
 } from '../common/cancellation';
 import { InvoiceStatus, assertTransition } from '../money/invoice-state';
 import { CheckoutDto } from './dto/booking.dto';
+import { MIN_DEPOSIT_PCT } from './booking.limits';
 
 /** A cabin to price. `holdId` is only needed by the checkout conversion. */
 export interface PriceableCabin {
@@ -57,6 +58,19 @@ export interface PriceOpts {
    * 'web' everywhere it is unset. Persisted on Booking.channel at creation.
    */
   channel?: 'web' | 'pos';
+  /**
+   * The customer the booking is for. Used to enforce a coupon's per-user
+   * redemption limit. Optional: the price-quote path may omit it (limits then
+   * fall back to the global maxUses check only).
+   */
+  customerId?: string;
+  /**
+   * The caller's guest token (hb_gid). At checkout a hold still owned by a guest
+   * token (login-claim didn't run) may be converted ONLY if its heldByToken
+   * matches this — so a caller can never convert a stranger's unclaimed hold
+   * (audit B-H3). Undefined → only account-owned holds convert.
+   */
+  callerToken?: string;
 }
 
 /**
@@ -184,6 +198,7 @@ export class BookingService {
             sourceInvoiceId: c.sourceInvoiceId,
             amount: sub(amt, remaining),
             status: 'open',
+            kind: c.kind, // remainder inherits the original's kind (same money)
           },
         });
         applied = add(applied, remaining);
@@ -200,10 +215,25 @@ export class BookingService {
     return applied;
   }
 
+  /**
+   * Resolve an applicable coupon, or null when it does not apply.
+   *
+   * Beyond active + date-window, this now enforces the usage limits (audit
+   * M-H1): a coupon that is exhausted (maxUses reached), already used up by this
+   * customer (perUserLimit), or below its minSpend simply does NOT apply —
+   * returns null exactly like an invalid code, so the bill is charged in full
+   * rather than the whole checkout failing. Only non-cancelled bookings count
+   * toward a limit (a cancelled booking freed the redemption).
+   *
+   * `priceShown` (room total) drives the minSpend check; `customerId` drives the
+   * per-user check (omit it in the quote path to skip only that one).
+   */
   private async resolveCoupon(
     houseboatId: string,
     code: string | undefined,
     when: Date,
+    priceShown?: Prisma.Decimal,
+    customerId?: string,
   ): Promise<{ id: string; input: CouponInput } | null> {
     if (!code) return null;
     const coupon = await this.prisma.coupon.findFirst({
@@ -216,6 +246,36 @@ export class BookingService {
       },
     });
     if (!coupon) return null;
+
+    // Minimum spend (against the pre-discount room total).
+    if (
+      coupon.minSpend != null &&
+      priceShown != null &&
+      priceShown.lessThan(money(coupon.minSpend))
+    ) {
+      return null;
+    }
+
+    // Total redemptions across all customers.
+    if (coupon.maxUses != null) {
+      const totalUsed = await this.prisma.booking.count({
+        where: { couponId: coupon.id, status: { not: 'cancelled' } },
+      });
+      if (totalUsed >= coupon.maxUses) return null;
+    }
+
+    // Per-customer redemptions.
+    if (coupon.perUserLimit != null && customerId) {
+      const byCustomer = await this.prisma.booking.count({
+        where: {
+          couponId: coupon.id,
+          customerId,
+          status: { not: 'cancelled' },
+        },
+      });
+      if (byCustomer >= coupon.perUserLimit) return null;
+    }
+
     return {
       id: coupon.id,
       input: {
@@ -223,6 +283,39 @@ export class BookingService {
         value: money(coupon.value),
       },
     };
+  }
+
+  /**
+   * Re-verify a coupon's maxUses/perUserLimit INSIDE the booking tx, holding a
+   * FOR UPDATE lock on the coupon row so concurrent redemptions serialize (audit
+   * #8/F4). Returns false when redeeming now would exceed a limit. minSpend is
+   * not re-checked — it is a function of the (already-fixed) price, not a race.
+   */
+  private async couponRedeemableInTx(
+    tx: Prisma.TransactionClient,
+    couponId: string,
+    customerId?: string,
+  ): Promise<boolean> {
+    await tx.$queryRaw`
+      SELECT id FROM coupon WHERE id = ${couponId}::uuid FOR UPDATE`;
+    const coupon = await tx.coupon.findUnique({
+      where: { id: couponId },
+      select: { maxUses: true, perUserLimit: true },
+    });
+    if (!coupon) return false;
+    if (coupon.maxUses != null) {
+      const totalUsed = await tx.booking.count({
+        where: { couponId, status: { not: 'cancelled' } },
+      });
+      if (totalUsed >= coupon.maxUses) return false;
+    }
+    if (coupon.perUserLimit != null && customerId) {
+      const byCustomer = await tx.booking.count({
+        where: { couponId, customerId, status: { not: 'cancelled' } },
+      });
+      if (byCustomer >= coupon.perUserLimit) return false;
+    }
+    return true;
   }
 
   /**
@@ -434,6 +527,8 @@ export class BookingService {
       houseboatId,
       dto.couponCode,
       departure.startDate,
+      roomTotal,
+      opts?.customerId,
     );
     // POS counter sales earn the platform no commission; force it to 0 by
     // dropping the boat's rate. 'web' (default) keeps the configured rate.
@@ -453,6 +548,11 @@ export class BookingService {
    * Checkout: caller must already hold every cabin (holdId per cabin). We
    * convert the holds, create booking + cabins + invoice in one transaction.
    * If any hold is not valid/owned, the whole thing rolls back.
+   *
+   * This is the DIRECT path — used by owner POS (counter staff take payment
+   * their own way, no deposit gate). The customer self-service path does NOT
+   * call this; it goes createIntent → confirmIntent so a booking is only created
+   * once a valid deposit is confirmed (audit M-H2).
    */
   async checkout(
     customerId: string,
@@ -460,140 +560,452 @@ export class BookingService {
     dto: CheckoutDto,
     opts?: PriceOpts,
   ) {
-    const { houseboatId, cabinRows, coupon, bill } = await this.priceSelection(
-      dto,
-      opts,
+    const priced = await this.priceSelection(dto, { ...opts, customerId });
+    return this.prisma.$transaction((tx) =>
+      this.createBookingTx(tx, { customerId, bookedBy, dto, opts, priced }),
     );
+  }
+
+  /**
+   * The shared booking-creation transaction body: convert this caller's holds,
+   * create booking + cabins + guest + invoice, apply credits. Optionally records
+   * an initial payment (the confirmed deposit) in the SAME transaction so a
+   * booking never exists without its deposit. Reused by checkout() (POS, no
+   * initialPayment) and confirmIntent() (customer, with the deposit).
+   */
+  private async createBookingTx(
+    tx: Prisma.TransactionClient,
+    params: {
+      customerId: string;
+      bookedBy: string;
+      dto: CheckoutDto;
+      opts?: PriceOpts;
+      priced: Awaited<ReturnType<BookingService['priceSelection']>>;
+      /** The confirmed deposit to record against the new invoice, if any. */
+      initialPayment?: { amount: number; method: string; gatewayToken?: string };
+    },
+  ) {
+    const { customerId, bookedBy, dto, opts, priced, initialPayment } = params;
+    const { houseboatId, cabinRows, coupon, bill } = priced;
+
+    // Lock the departure row for the life of this tx BEFORE converting holds, so
+    // a per-cabin checkout and a whole-boat buyout (groupCheckout, which locks the
+    // same row) serialize on it. Without this the buyout's booking.count() cannot
+    // see an in-flight, uncommitted cabin conversion, so both commit and the boat
+    // is sold twice (a group buyout AND a cabin booking on one departure — the
+    // one-active-cabin trigger can't catch the group side, it writes no
+    // booking_cabin). Same idiom as hold()/groupCheckout().
+    await tx.$queryRaw`
+      SELECT id FROM trip_departure WHERE id = ${dto.departureId}::uuid FOR UPDATE`;
 
     // One instant for the whole booking, so a multi-cabin conversion judges
     // every hold against the same clock instead of drifting row to row.
     const now = new Date();
 
-    return this.prisma.$transaction(async (tx) => {
-      // Convert each hold. If a hold isn't held/owned, abort (rolls back).
-      for (const row of cabinRows) {
-        const converted = await tx.cabinHold.updateMany({
-          where: {
-            id: row.holdId,
-            cabinId: row.cabinId,
-            departureId: dto.departureId,
-            // Normally the hold is already the caller's: either it was taken
-            // signed-in, or login claimed it off the guest token. The
-            // guest-token branch is a fallback for when the claim could not run
-            // (cookie blocked/cleared between holding and paying) — the hold id
-            // is unguessable and is being converted into this caller's own
-            // booking in the same transaction, so accepting it is safe.
-            OR: [{ heldBy: bookedBy }, { heldBy: null, heldByToken: { not: null } }],
-            state: 'held',
-            // The sweeper only runs once a minute, so a lapsed hold sits in
-            // state='held' for up to ~60s. Without this an abandoned cart could
-            // still convert a cabin it no longer owns — beating a live guest who
-            // was meanwhile refused by uq_cabin_hold_active.
-            expiresAt: { gt: now },
-          },
-          data: { state: 'converted' },
-        });
-        if (converted.count !== 1) {
-          throw new BadRequestException(
-            'A held cabin expired or was taken — please re-select',
-          );
-        }
-      }
+    // Which holds this caller may convert. Normally the hold is already the
+    // account's (taken signed-in, or claimed off the guest token at login). The
+    // guest-token branch is the fallback for when the claim could not run
+    // (cookie blocked/cleared between holding and paying): it accepts a hold
+    // still owned by a token ONLY when that token is THIS browser's own hb_gid —
+    // never any stranger's unclaimed hold (audit B-H3). With no caller token,
+    // only account-owned holds convert.
+    const ownerBranches: Prisma.CabinHoldWhereInput[] = [{ heldBy: bookedBy }];
+    if (opts?.callerToken) {
+      ownerBranches.push({ heldBy: null, heldByToken: opts.callerToken });
+    }
 
-      const booking = await tx.booking.create({
-        data: {
-          id: newId(),
+    // Convert each hold. If a hold isn't held/owned, abort (rolls back).
+    for (const row of cabinRows) {
+      const converted = await tx.cabinHold.updateMany({
+        where: {
+          id: row.holdId,
+          cabinId: row.cabinId,
           departureId: dto.departureId,
-          customerId,
-          bookedBy,
-          type: 'cabin',
-          channel: opts?.channel ?? 'web',
-          headcount: cabinRows.reduce((n, r) => n + r.occupancy, 0),
-          specialInstructions: dto.specialInstructions,
-          couponId: coupon?.id,
-          referenceName: dto.referenceName,
-          status: 'confirmed',
+          OR: ownerBranches,
+          state: 'held',
+          // The sweeper only runs once a minute, so a lapsed hold sits in
+          // state='held' for up to ~60s. Without this an abandoned cart could
+          // still convert a cabin it no longer owns — beating a live guest who
+          // was meanwhile refused by uq_cabin_hold_active.
+          expiresAt: { gt: now },
         },
+        data: { state: 'converted' },
       });
+      if (converted.count !== 1) {
+        throw new BadRequestException(
+          'A held cabin expired or was taken — please re-select',
+        );
+      }
+    }
 
-      await tx.bookingCabin.createMany({
-        data: cabinRows.map((r) => ({
-          id: newId(),
-          bookingId: booking.id,
-          cabinId: r.cabinId,
-          adults: r.adults,
-          children: r.children,
-          occupancy: r.occupancy,
-          roomPrice: r.roomPrice,
-          isOpenSeat: r.isOpenSeat,
-        })),
-      });
+    // Re-check the coupon's usage limits INSIDE the tx, behind a lock on the
+    // coupon row (audit #8/F4). resolveCoupon counted redemptions in
+    // priceSelection, outside any tx — so N concurrent checkouts all saw a count
+    // below the limit and all redeemed, blowing past maxUses/perUserLimit. Here
+    // the coupon row is locked, so concurrent redemptions serialize and the
+    // (limit+1)th sees the true count. The bill was already built WITH the
+    // discount, so rather than silently re-bill we refuse this booking — the
+    // customer retries without the (now-exhausted) coupon. Rare by construction.
+    if (coupon?.id) {
+      const stillOk = await this.couponRedeemableInTx(tx, coupon.id, customerId);
+      if (!stillOk) {
+        throw new BadRequestException(
+          'This coupon has just reached its usage limit — please retry without it',
+        );
+      }
+    }
 
-      await tx.bookingGuest.create({
+    const booking = await tx.booking.create({
+      data: {
+        id: newId(),
+        departureId: dto.departureId,
+        customerId,
+        bookedBy,
+        type: 'cabin',
+        channel: opts?.channel ?? 'web',
+        headcount: cabinRows.reduce((n, r) => n + r.occupancy, 0),
+        specialInstructions: dto.specialInstructions,
+        couponId: coupon?.id,
+        referenceName: dto.referenceName,
+        status: 'confirmed',
+      },
+    });
+
+    await tx.bookingCabin.createMany({
+      data: cabinRows.map((r) => ({
+        id: newId(),
+        bookingId: booking.id,
+        cabinId: r.cabinId,
+        adults: r.adults,
+        children: r.children,
+        occupancy: r.occupancy,
+        roomPrice: r.roomPrice,
+        isOpenSeat: r.isOpenSeat,
+      })),
+    });
+
+    await tx.bookingGuest.create({
+      data: {
+        id: newId(),
+        bookingId: booking.id,
+        name: dto.leadGuestName,
+        phone: dto.leadGuestPhone,
+        email: dto.leadGuestEmail?.trim() || null,
+        nidEncrypted: this.encryptNid(dto.leadGuestNid),
+      },
+    });
+
+    const invoice = await tx.invoice.create({
+      data: {
+        id: newId(),
+        bookingId: booking.id,
+        houseboatId,
+        customerId,
+        roomTotal: bill.roomTotal,
+        gatewayFee: bill.gatewayFee,
+        priceShown: bill.priceShown,
+        discountAmount: bill.discountAmount,
+        displayTotal: bill.displayTotal,
+        commission: bill.commission,
+        dueToBoat: ZERO,
+        amountPaid: ZERO,
+        status: 'customer_due',
+        policySnapshot: await this.policySnapshot(tx, houseboatId),
+      },
+    });
+
+    // Record the confirmed deposit against the fresh invoice, in this same tx —
+    // so a booking never exists without the payment that justified creating it
+    // (audit M-H2). amountPaid drives the customer_due → paid flip when full.
+    if (initialPayment && initialPayment.amount > 0) {
+      await tx.invoicePayment.create({
         data: {
           id: newId(),
-          bookingId: booking.id,
-          name: dto.leadGuestName,
-          phone: dto.leadGuestPhone,
-          email: dto.leadGuestEmail?.trim() || null,
-          nidEncrypted: this.encryptNid(dto.leadGuestNid),
+          invoiceId: invoice.id,
+          amount: initialPayment.amount,
+          method: initialPayment.method,
+          gatewayToken: initialPayment.gatewayToken,
+          paidAt: new Date(),
         },
       });
-
-      const invoice = await tx.invoice.create({
-        data: {
-          id: newId(),
-          bookingId: booking.id,
-          houseboatId,
-          customerId,
-          roomTotal: bill.roomTotal,
-          gatewayFee: bill.gatewayFee,
-          priceShown: bill.priceShown,
-          discountAmount: bill.discountAmount,
-          displayTotal: bill.displayTotal,
-          commission: bill.commission,
-          dueToBoat: ZERO,
-          amountPaid: ZERO,
-          status: 'customer_due',
-          policySnapshot: await this.policySnapshot(tx, houseboatId),
-        },
+      const paid = money(initialPayment.amount);
+      const status = paid.greaterThanOrEqualTo(bill.displayTotal)
+        ? 'paid'
+        : 'customer_due';
+      // Track any surplus over the bill as a platform liability (audit #9/F5),
+      // exactly like recordGatewayPayment — otherwise a first deposit above the
+      // total was invisible to the overpayments queue and never refunded. Normally
+      // the gateway caps the deposit at displayTotal, but dev/settle and any
+      // direct confirm path could exceed it; record it either way.
+      const over = sub(paid, bill.displayTotal);
+      const amountOverpaid = over.greaterThan(ZERO) ? over : ZERO;
+      await tx.invoice.update({
+        where: { id: invoice.id },
+        data: { amountPaid: paid, amountOverpaid, status },
       });
+      invoice.amountPaid = paid;
+      invoice.status = status;
+    }
 
-      // Apply the customer's open credits toward this invoice (plan §credit).
-      if (dto.useCredit) {
+    // Apply the customer's open credits toward whatever remains due.
+    if (dto.useCredit) {
+      const remaining = sub(bill.displayTotal, money(invoice.amountPaid));
+      if (remaining.greaterThan(ZERO)) {
         const applied = await this.applyCredits(
           tx,
           customerId,
           invoice.id,
-          bill.displayTotal,
+          remaining,
         );
         if (applied.greaterThan(ZERO)) {
-          const status = applied.greaterThanOrEqualTo(bill.displayTotal)
+          const total = add(money(invoice.amountPaid), applied);
+          const status = total.greaterThanOrEqualTo(bill.displayTotal)
             ? 'paid'
             : 'customer_due';
           await tx.invoice.update({
             where: { id: invoice.id },
-            data: { amountPaid: applied, status },
+            data: { amountPaid: total, status },
           });
-          invoice.amountPaid = applied;
+          invoice.amountPaid = total;
           invoice.status = status;
         }
       }
+    }
 
-      await this.audit.log(
-        {
-          houseboatId,
-          actorAccountId: bookedBy,
-          action: 'booking_create',
-          entityType: 'booking',
-          entityId: booking.id,
-          after: { invoiceId: invoice.id, displayTotal: bill.displayTotal.toFixed(2) },
+    await this.audit.log(
+      {
+        houseboatId,
+        actorAccountId: bookedBy,
+        action: 'booking_create',
+        entityType: 'booking',
+        entityId: booking.id,
+        after: { invoiceId: invoice.id, displayTotal: bill.displayTotal.toFixed(2) },
+      },
+      tx,
+    );
+
+    return { booking, invoice };
+  }
+
+  /**
+   * Price a customer checkout and stash it as a BookingIntent WITHOUT creating a
+   * booking (audit M-H2). The cabins stay reserved only by their live holds; the
+   * booking is created only once a deposit of at least MIN_DEPOSIT_PCT of the
+   * bill is confirmed (see confirmIntent). Validates the holds are live and this
+   * caller's, so an intent can never be minted over cabins the caller doesn't
+   * hold. Returns what the client needs to drive payment.
+   */
+  async createIntent(
+    customerId: string,
+    bookedBy: string,
+    dto: CheckoutDto,
+    opts?: PriceOpts,
+  ): Promise<{
+    intentId: string;
+    displayTotal: string;
+    minDeposit: string;
+    fullAmount: string;
+  }> {
+    const priced = await this.priceSelection(dto, { ...opts, customerId });
+    const { houseboatId, cabinRows, bill } = priced;
+
+    // Every cabin must be a live hold owned by this caller (account, or this
+    // browser's guest token) — mirror the conversion filter so we never price an
+    // intent the caller can't later convert. Read-only check here.
+    const ownerBranches: Prisma.CabinHoldWhereInput[] = [{ heldBy: bookedBy }];
+    if (opts?.callerToken) {
+      ownerBranches.push({ heldBy: null, heldByToken: opts.callerToken });
+    }
+    const now = new Date();
+    for (const row of cabinRows) {
+      const live = await this.prisma.cabinHold.count({
+        where: {
+          id: row.holdId,
+          cabinId: row.cabinId,
+          departureId: dto.departureId,
+          OR: ownerBranches,
+          state: 'held',
+          expiresAt: { gt: now },
         },
-        tx,
-      );
+      });
+      if (live !== 1) {
+        throw new BadRequestException(
+          'A held cabin expired or was taken — please re-select',
+        );
+      }
+    }
 
-      return { booking, invoice };
+    const minDeposit = percentOf(bill.displayTotal, MIN_DEPOSIT_PCT);
+    // The intent lives as long as the cart's holds — it is meaningless once the
+    // cabins can be taken by someone else. Read the caller's furthest hold expiry.
+    const furthest = await this.prisma.cabinHold.aggregate({
+      where: {
+        departureId: dto.departureId,
+        OR: ownerBranches,
+        state: 'held',
+        expiresAt: { gt: now },
+      },
+      _max: { expiresAt: true },
     });
+    const expiresAt =
+      furthest._max.expiresAt ?? new Date(now.getTime() + 10 * 60_000);
+
+    const intent = await this.prisma.bookingIntent.create({
+      data: {
+        id: newId(),
+        departureId: dto.departureId,
+        houseboatId,
+        customerId,
+        bookedBy,
+        channel: opts?.channel ?? 'web',
+        payload: dto as unknown as Prisma.InputJsonValue,
+        displayTotal: bill.displayTotal,
+        // Freeze the exact bill the customer is seeing now, as 2dp strings, so
+        // confirmIntent bills this even if pricing changes before payment (#10).
+        billSnapshot: {
+          roomTotal: bill.roomTotal.toFixed(2),
+          gatewayFee: bill.gatewayFee.toFixed(2),
+          priceShown: bill.priceShown.toFixed(2),
+          discountAmount: bill.discountAmount.toFixed(2),
+          displayTotal: bill.displayTotal.toFixed(2),
+          commission: bill.commission.toFixed(2),
+        } as Prisma.InputJsonValue,
+        minDeposit,
+        status: 'requested',
+        expiresAt,
+      },
+    });
+
+    return {
+      intentId: intent.id,
+      displayTotal: bill.displayTotal.toFixed(2),
+      minDeposit: minDeposit.toFixed(2),
+      fullAmount: bill.displayTotal.toFixed(2),
+    };
+  }
+
+  /**
+   * Turn a paid intent into a real booking (audit M-H2). Called by the gateway
+   * once a payment is confirmed (dev/settle synchronously, or the IPN
+   * server-to-server). Enforces the deposit floor server-side — `amount` must be
+   * at least the intent's minDeposit — then runs the shared booking-creation
+   * transaction, recording the deposit in the SAME tx. Idempotent: a replayed
+   * confirmation (intent already consumed) returns the existing booking.
+   *
+   * The intent's stored payload is re-priced fresh so a stale snapshot can never
+   * bill a wrong amount; the deposit is measured against the intent's recorded
+   * displayTotal so it matches what the customer was shown.
+   */
+  async confirmIntent(
+    intentId: string,
+    payment: { amount: number; method: string; gatewayToken?: string },
+  ): Promise<{ bookingId: string; invoiceId: string; alreadyDone: boolean }> {
+    const intent = await this.prisma.bookingIntent.findUnique({
+      where: { id: intentId },
+    });
+    if (!intent) throw new NotFoundException('Booking intent not found');
+
+    // Idempotent replay: already consumed → return the booking it made.
+    if (intent.status === 'consumed' && intent.bookingId) {
+      const inv = await this.prisma.invoice.findFirst({
+        where: { bookingId: intent.bookingId },
+        select: { id: true },
+      });
+      return {
+        bookingId: intent.bookingId,
+        invoiceId: inv?.id ?? '',
+        alreadyDone: true,
+      };
+    }
+    if (intent.status !== 'requested') {
+      throw new BadRequestException('This booking intent is no longer payable');
+    }
+
+    // Deposit floor — the whole point of M-H2. Measured against the total the
+    // customer was shown (intent.displayTotal); the client-sent amount is never
+    // trusted below this.
+    if (money(payment.amount).lessThan(money(intent.minDeposit))) {
+      throw new BadRequestException(
+        `A minimum deposit of ${money(intent.minDeposit).toFixed(0)} is required`,
+      );
+    }
+
+    const dto = intent.payload as unknown as CheckoutDto;
+    // Re-price fresh (never bill off a stale snapshot). The caller-token branch
+    // is not available here (async IPN has no cookie), but the hold was already
+    // claimed onto the account by login before payment, so account ownership
+    // covers conversion. Pass channel from the intent.
+    const opts: PriceOpts = {
+      channel: intent.channel as 'web' | 'pos',
+      customerId: intent.customerId,
+    };
+    const priced = await this.priceSelection(dto, opts);
+
+    // Bill the customer exactly the price they saw at checkout (audit #10/F12).
+    // priceSelection is still run above so cabin/hold/availability are validated
+    // against live state, but the invoice bill comes from the frozen snapshot so
+    // an owner pricing change between checkout and payment cannot silently re- or
+    // under-bill. Legacy intents (no snapshot) keep the re-priced bill.
+    const snap = intent.billSnapshot as Record<string, string> | null;
+    if (snap) {
+      priced.bill = {
+        roomTotal: money(snap.roomTotal),
+        gatewayFee: money(snap.gatewayFee),
+        priceShown: money(snap.priceShown),
+        discountAmount: money(snap.discountAmount),
+        displayTotal: money(snap.displayTotal),
+        commission: money(snap.commission),
+      };
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      // Re-lock the intent inside the tx and re-check it is still requested, so
+      // two confirmations (dev/settle racing the IPN) cannot both create a
+      // booking. Whoever wins flips it to consumed; the loser sees != requested.
+      await tx.$queryRaw`
+        SELECT id FROM booking_intent WHERE id = ${intentId}::uuid FOR UPDATE`;
+      const fresh = await tx.bookingIntent.findUnique({
+        where: { id: intentId },
+        select: { status: true, bookingId: true },
+      });
+      if (!fresh) throw new NotFoundException('Booking intent not found');
+      if (fresh.status === 'consumed' && fresh.bookingId) {
+        const inv = await tx.invoice.findFirst({
+          where: { bookingId: fresh.bookingId },
+          select: { id: true },
+        });
+        return {
+          bookingId: fresh.bookingId,
+          invoiceId: inv?.id ?? '',
+          alreadyDone: true,
+        };
+      }
+      if (fresh.status !== 'requested') {
+        throw new BadRequestException('This booking intent is no longer payable');
+      }
+
+      const { booking, invoice } = await this.createBookingTx(tx, {
+        customerId: intent.customerId,
+        bookedBy: intent.bookedBy,
+        dto,
+        opts,
+        priced,
+        initialPayment: {
+          amount: payment.amount,
+          method: payment.method,
+          gatewayToken: payment.gatewayToken,
+        },
+      });
+
+      await tx.bookingIntent.update({
+        where: { id: intentId },
+        data: { status: 'consumed', bookingId: booking.id },
+      });
+
+      return { bookingId: booking.id, invoiceId: invoice.id, alreadyDone: false };
+    });
+
+    return result;
   }
 
   /**
@@ -650,6 +1062,36 @@ export class BookingService {
     });
 
     const result = await this.prisma.$transaction(async (tx) => {
+      // Lock the departure row for the life of the tx, so two concurrent buyouts
+      // (and any concurrent cabin hold — hold() locks the same row) serialize
+      // instead of both reading "available" and both selling the whole boat. The
+      // pre-tx read above is a cheap fast-fail; THIS is the authoritative check.
+      await tx.$queryRaw`
+        SELECT id FROM trip_departure WHERE id = ${dto.departureId}::uuid FOR UPDATE`;
+      const locked = await tx.tripDeparture.findUnique({
+        where: { id: dto.departureId },
+        select: { status: true, availableCount: true },
+      });
+      if (!locked) throw new NotFoundException('Departure not found');
+      if (locked.status !== 'scheduled') {
+        throw new BadRequestException('Departure is no longer bookable');
+      }
+      if (locked.availableCount <= 0) {
+        throw new BadRequestException('Departure is not available for buyout');
+      }
+      // A buyout sells the WHOLE boat, so it must be refused if any cabin is
+      // already booked (individual sale) or another buyout already exists — the
+      // group booking writes no booking_cabin rows, so the per-cabin trigger
+      // can't catch this. Count active (non-cancelled) bookings on the departure.
+      const existing = await tx.booking.count({
+        where: { departureId: dto.departureId, status: { not: 'cancelled' } },
+      });
+      if (existing > 0) {
+        throw new BadRequestException(
+          'This departure already has bookings and cannot be bought out',
+        );
+      }
+
       // Buyout takes the whole boat — no more cabin bookings on this departure.
       const dep = await tx.tripDeparture.update({
         where: { id: dto.departureId },
@@ -853,6 +1295,29 @@ export class BookingService {
     const freedCabins = booking.cabins.length;
 
     const result = await this.prisma.$transaction(async (tx) => {
+      // Lock the booking row and re-check its status INSIDE the tx. The status
+      // read above happens outside any lock, so two concurrent cancels would both
+      // pass it and then both refund + both increment availableCount (double
+      // refund credit + oversell). Serialize on the row: the loser blocks here,
+      // re-reads 'cancelled', and returns the idempotent already-cancelled result
+      // without issuing a second refund or bumping the count again.
+      await tx.$queryRaw`
+        SELECT id FROM booking WHERE id = ${bookingId}::uuid FOR UPDATE`;
+      const locked = await tx.booking.findUnique({
+        where: { id: bookingId },
+        select: { status: true },
+      });
+      if (!locked) throw new NotFoundException('Booking not found');
+      if (locked.status === 'cancelled' || locked.status === 'completed') {
+        // Already terminal — a concurrent cancel (or completion) won. No refund,
+        // no availability change; report the current availability for the caller.
+        const cur = await tx.tripDeparture.findUnique({
+          where: { id: booking.departureId },
+          select: { availableCount: true },
+        });
+        return { availableCount: cur?.availableCount ?? 0, alreadyDone: true };
+      }
+
       await tx.booking.update({
         where: { id: bookingId },
         data: { status: 'cancelled' },
@@ -877,6 +1342,7 @@ export class BookingService {
             sourceInvoiceId: booking.invoice!.id,
             amount: refund,
             status: 'open',
+            kind: 'refund', // cancellation refund → reduces boat payout even if spent (M-M1)
           },
         });
       }
@@ -896,8 +1362,15 @@ export class BookingService {
         },
         tx,
       );
-      return { availableCount: dep.availableCount };
+      return { availableCount: dep.availableCount, alreadyDone: false };
     });
+
+    // A concurrent cancel already handled this booking — don't double-fire the
+    // realtime/waitlist side effects or report a second refund. Surface the
+    // already-cancelled state so a double click is a no-op, not an error.
+    if (result.alreadyDone) {
+      throw new BadRequestException('Booking is already cancelled');
+    }
 
     // Post-commit side effects: realtime availability + waitlist fan-out.
     this.realtime.emitAvailability(booking.departureId, result.availableCount);
@@ -928,6 +1401,7 @@ export class BookingService {
     joinerId: string,
     adults: number,
     children = 0,
+    childAges?: number[],
   ) {
     const seat = await this.prisma.bookingCabin.findUnique({
       where: { id: openSeatCabinId },
@@ -985,6 +1459,9 @@ export class BookingService {
       pricePerPerson: joinerPerPerson,
       adults,
       children,
+      // Age-band the joiner's children like checkout does (audit M-M2); omitted
+      // ages fall back to full charge inside priceForParty.
+      childAges,
       childPolicy: seat.booking.departure.package.houseboat.childPolicy as
         | ChildBand[]
         | null,
@@ -1038,17 +1515,20 @@ export class BookingService {
             sourceInvoiceId: firstInvoice.id,
             amount: surplus,
             status: 'open',
+            kind: 'rebate', // open-seat surplus; displayTotal already cut → never re-subtracted (M-M1)
           },
         });
       }
 
-      // 2. The seat is now filled — no longer offered to others.
-      await tx.bookingCabin.update({
-        where: { id: openSeatCabinId },
-        data: { isOpenSeat: false, occupancy: seat.occupancy + occupancy },
-      });
-
-      // 3. Create the joiner's own booking + cabin + invoice for the spare place.
+      // 2. Create the joiner's own booking + cabin + invoice for the spare place.
+      //
+      // ORDER MATTERS: insert the joiner's booking_cabin BEFORE flipping the
+      // seat's own row to is_open_seat=false (step 3). The one-active-cabin
+      // trigger exempts an EXISTING open-seat row from the clash count, so while
+      // the original is still is_open_seat=true the joiner INSERT passes; if we
+      // flipped first, the original would be counted and the INSERT would throw.
+      // The later seat flip is an in-place UPDATE (cabin unchanged), which the
+      // trigger skips. (Audit #5 / F10.)
       const joinerBill = buildBill({
         roomTotal: joinerPrice,
         commissionPct: joinerCommissionPct,
@@ -1076,6 +1556,13 @@ export class BookingService {
           roomPrice: joinerPrice,
           isOpenSeat: false,
         },
+      });
+
+      // 3. The seat is now filled — no longer offered to others. In-place UPDATE
+      // (cabin unchanged) so the trigger's UPDATE-skip applies.
+      await tx.bookingCabin.update({
+        where: { id: openSeatCabinId },
+        data: { isOpenSeat: false, occupancy: seat.occupancy + occupancy },
       });
       const joinerInvoice = await tx.invoice.create({
         data: {

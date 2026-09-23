@@ -645,6 +645,7 @@ export default function OwnerPosPage() {
       <PageHead
         title="Counter sale"
         desc="Sell a cabin to someone standing at the ghat. The guest gets an account on their phone number, and the booking is identical to an online one."
+        descHideOnMobile
       />
 
       {done ? (
@@ -749,11 +750,6 @@ export default function OwnerPosPage() {
               }
             >
               <BoatCabinMap decks={decks} onSelect={toggle} />
-              <Note kind="info" style={{ marginTop: 14 }}>
-                Tapping a free cabin holds it for 10 minutes — it shows as held to every
-                other operator at once, so no one can sell it twice. Tap it again to release
-                it. Complete the sale before the timer runs out, or the hold is released.
-              </Note>
             </AsyncBlock>
           </Card>
 

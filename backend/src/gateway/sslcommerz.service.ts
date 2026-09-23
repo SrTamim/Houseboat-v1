@@ -108,14 +108,22 @@ export class SslcommerzService {
       status?: string;
       tran_id?: string;
       amount?: string;
+      currency?: string;
       val_id?: string;
     };
-    // VALID or VALIDATED both mean the money moved.
+    // VALID or VALIDATED both mean the money moved. Reject any non-BDT
+    // settlement outright (audit M-M4): the whole bill is in Taka, so a payment
+    // validated in another currency must never be recorded as if it were BDT.
     if (
       (data.status === 'VALID' || data.status === 'VALIDATED') &&
       data.tran_id &&
       data.amount &&
-      data.val_id
+      data.val_id &&
+      // Require an explicit BDT currency. A real validation response always
+      // carries currency; a missing one signals a malformed/unexpected response
+      // and must not be recorded as if it were Taka (audit #18/F7).
+      data.currency != null &&
+      data.currency.toUpperCase() === 'BDT'
     ) {
       return {
         tranId: data.tran_id,

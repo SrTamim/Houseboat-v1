@@ -8,10 +8,18 @@ import {
 } from 'class-validator';
 import { LEN_CODE } from '../../common/field-limits';
 
+/**
+ * Pay against EITHER a booking intent (first deposit — creates the booking on
+ * confirmation, audit M-H2) OR an existing invoice (top-up of the remaining
+ * balance on a booking already made). Exactly one of intentId / invoiceId.
+ */
 export class InitiatePaymentDto {
-  @IsUUID() invoiceId!: string;
-  /** Optional partial (deposit) amount. Defaults to the full outstanding. */
-  @IsOptional() @IsNumber() @IsPositive() amount?: number;
+  /** A BookingIntent awaiting its deposit. Creates the booking when paid. */
+  @IsOptional() @IsUUID() intentId?: string;
+  /** An existing invoice to top up (remaining balance). */
+  @IsOptional() @IsUUID() invoiceId?: string;
+  /** Optional partial (deposit) amount. Defaults to the full outstanding/total. */
+  @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @IsPositive() amount?: number;
 }
 
 /**

@@ -11,6 +11,9 @@ function makeService(invoices: any[], bankAccount: unknown = { bankName: 'X' }) 
   const created: any[] = [];
   const updated: any[] = [];
   const tx = {
+    // payInvoices takes SELECT ... FOR UPDATE row locks on the target invoices
+    // before the status re-check (double-payout guard). Stub it as a no-op.
+    $queryRaw: jest.fn().mockResolvedValue([]),
     invoice: {
       findMany: jest.fn().mockResolvedValue(invoices),
       update: jest.fn(({ where, data }: any) => {
@@ -109,6 +112,45 @@ describe('PlatformFinanceService.payInvoices', () => {
     await svc.payInvoices('boat-1', ['inv-1'], 'admin-1');
     // (100 gateway − 10 commission) = 90; cash ignored.
     expect(created[0].totalAmount.toFixed(2)).toBe('90.00');
+  });
+
+  it('subtracts a SPENT refund credit from the boat due (M-M1)', async () => {
+    const { svc, created } = makeService([
+      approved('inv-1', {
+        // Customer was refunded ৳40 as a credit that they have since spent
+        // ('used'). It must still reduce the boat's due — else the refund is
+        // paid twice. (100 gateway − 10 commission) − 40 refund = 50.
+        creditsFrom: [{ amount: '40.00', status: 'used', kind: 'refund' }],
+      }),
+    ]);
+    await svc.payInvoices('boat-1', ['inv-1'], 'admin-1');
+    expect(created[0].totalAmount.toFixed(2)).toBe('50.00');
+  });
+
+  it('does NOT subtract a rebate credit (already cut displayTotal) (M-M1)', async () => {
+    const { svc, created } = makeService([
+      approved('inv-1', {
+        // An open-seat rebate is not an outstanding liability against this
+        // invoice, so the due stays (100 − 10) = 90.
+        creditsFrom: [{ amount: '40.00', status: 'used', kind: 'rebate' }],
+      }),
+    ]);
+    await svc.payInvoices('boat-1', ['inv-1'], 'admin-1');
+    expect(created[0].totalAmount.toFixed(2)).toBe('90.00');
+  });
+
+  it('legacy null-kind credit keeps prior behavior: open subtracted, used not', async () => {
+    const { svc, created } = makeService([
+      approved('inv-1', {
+        creditsFrom: [
+          { amount: '30.00', status: 'open', kind: null }, // subtracted
+          { amount: '40.00', status: 'used', kind: null }, // NOT (legacy)
+        ],
+      }),
+    ]);
+    await svc.payInvoices('boat-1', ['inv-1'], 'admin-1');
+    // (100 − 10) − 30 = 60.
+    expect(created[0].totalAmount.toFixed(2)).toBe('60.00');
   });
 
   it('rejects a non-approved invoice', async () => {

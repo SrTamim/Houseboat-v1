@@ -287,7 +287,7 @@ export default function OwnerDashboardPage() {
                       <td>
                         <Pill tone={t.tone}>{t.label}</Pill>
                       </td>
-                      <td>{t.detail}</td>
+                      <td data-label="Detail">{t.detail}</td>
                       <td>
                         <div className="rowact">
                           <Link className={`${BTN_O} ${BTN_SM}`} href={t.href}>
@@ -335,23 +335,23 @@ export default function OwnerDashboardPage() {
                         <div className="t1">{d.label ?? 'Trip'}</div>
                         <div className="t2">{d.ghat ?? '—'}</div>
                       </td>
-                      <td className="t2">
+                      <td className="t2" data-label="Depart">
                         {d.departureTime
                           ? new Date(d.departureTime).toISOString().slice(11, 16)
                           : '—'}
                       </td>
-                      <td>
+                      <td data-label="Cabins">
                         <b className={MONEY}>
                           {d.cabinsSold} / {d.cabinsTotal}
                         </b>
                         <span className="t2"> · {d.guests} guests</span>
                       </td>
-                      <td>
+                      <td data-label="Crew">
                         <Pill tone={d.crewPresent === d.crewTotal && d.crewTotal > 0 ? 'ok' : 'warn'}>
                           {d.crewPresent} of {d.crewTotal} present
                         </Pill>
                       </td>
-                      <td>
+                      <td data-label="Status">
                         <DepartureStatusPill status={d.status} />
                       </td>
                     </tr>
@@ -402,10 +402,10 @@ export default function OwnerDashboardPage() {
                   {data?.recentActivity.map((a) => (
                     <tr key={a.id}>
                       <td className="t1">{a.actor?.name ?? a.actor?.phone ?? 'system'}</td>
-                      <td>
+                      <td data-label="Action">
                         <Pill tone="mut">{humanize(a.action)}</Pill>
                       </td>
-                      <td className="num t2">{formatDateTime(a.serverTime)}</td>
+                      <td className="num t2" data-label="When">{formatDateTime(a.serverTime)}</td>
                     </tr>
                   ))}
                 </tbody>

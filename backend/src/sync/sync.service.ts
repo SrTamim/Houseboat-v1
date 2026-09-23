@@ -1,14 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RbacService } from '../rbac/rbac.service';
 import { OpsService } from '../ops/ops.service';
 import { AuditService } from '../audit/audit.service';
 import { MaintenanceService } from '../maintenance/maintenance.service';
 import { OwnerBookingsService } from '../booking/owner-bookings.service';
+import { PaymentsService } from '../money/payments.service';
+import { TripsService } from '../trips/trips.service';
 import { OfflineAction, SyncIntentDto } from './dto/sync.dto';
 import { PermPage, PermissionMap } from '../rbac/permission.types';
 import { expandLegacyPermissions } from '../rbac/rbac.service';
-import { newId } from '../common/uuid';
 
 export interface IntentResult {
   intentId: string;
@@ -52,6 +54,8 @@ export class SyncService {
     private readonly audit: AuditService,
     private readonly maintenance: MaintenanceService,
     private readonly bookings: OwnerBookingsService,
+    private readonly payments: PaymentsService,
+    private readonly trips: TripsService,
   ) {}
 
   async replay(
@@ -62,17 +66,35 @@ export class SyncService {
     const results: IntentResult[] = [];
 
     for (const intent of intents) {
+      // 1. Idempotency claim. Insert the intentId into the dedupe ledger BEFORE
+      //    doing anything: the unique PK makes a duplicate or a concurrent replay
+      //    of the same intentId fail atomically (P2002), so a money action can
+      //    never apply twice. This replaces the old non-atomic find-then-apply
+      //    (two overlapping batches both passed the read and both applied).
+      //    audit_log is partitioned on server_time and cannot hold a unique index
+      //    on intentId, hence this dedicated ledger. If the action then fails, we
+      //    release the claim (below) so a genuine re-sync can retry.
       try {
-        // 1. Idempotency: has this intent already been applied? We record each
-        //    applied intent in audit_log with entityId = intentId.
-        const seen = await this.prisma.auditLog.findFirst({
-          where: { entityType: 'sync_intent', entityId: intent.intentId },
+        await this.prisma.syncIntentApplied.create({
+          data: {
+            intentId: intent.intentId,
+            accountId,
+            houseboatId: intent.houseboatId,
+            action: intent.action,
+          },
         });
-        if (seen) {
+      } catch (e) {
+        if (
+          e instanceof Prisma.PrismaClientKnownRequestError &&
+          e.code === 'P2002'
+        ) {
           results.push({ intentId: intent.intentId, status: 'duplicate' });
           continue;
         }
+        throw e;
+      }
 
+      try {
         // 2. Re-authorize AS OF device_time — membership must have been active
         //    (and not exited) at that moment.
         const deviceTime = new Date(intent.deviceTime);
@@ -82,8 +104,12 @@ export class SyncService {
           intent.houseboatId,
           intent.action,
           deviceTime,
+          new Date(), // server-received time — device_time cannot be trusted alone
         );
         if (!authorized) {
+          // Release the claim — the action did not apply, so a re-authorized
+          // retry (rare) or an audit re-run must not be blocked as a duplicate.
+          await this.releaseClaim(intent.intentId);
           await this.queueConflict(accountId, intent, 'unauthorized_at_device_time');
           results.push({
             intentId: intent.intentId,
@@ -94,9 +120,13 @@ export class SyncService {
         }
 
         // 3. Apply the action.
-        await this.applyIntent(accountId, intent, deviceTime);
+        await this.applyIntent(accountId, isPlatform, intent, deviceTime);
         results.push({ intentId: intent.intentId, status: 'applied' });
       } catch (e) {
+        // The action failed AFTER we claimed the intentId. Release the claim so
+        // the operator's retry isn't silently swallowed as a duplicate; the
+        // conflict queue still records it for review.
+        await this.releaseClaim(intent.intentId);
         await this.queueConflict(accountId, intent, String(e));
         results.push({
           intentId: intent.intentId,
@@ -116,21 +146,36 @@ export class SyncService {
     return { summary, results };
   }
 
-  /** Was the account allowed to do this action on this boat at device_time? */
+  /**
+   * Was the account allowed to do this action on this boat?
+   *
+   * Membership must have been active at device_time AND still be active at the
+   * server-received time. device_time is client-supplied and manipulable, so
+   * checking it alone let a fired/exited manager backdate device_time into their
+   * old membership window and replay mutations (audit S-M3). Requiring current
+   * validity too closes that: a lapsed membership is refused regardless of the
+   * timestamp the device claims.
+   */
   private async wasAuthorized(
     accountId: string,
     isPlatform: boolean,
     houseboatId: string,
     action: OfflineAction,
     at: Date,
+    receivedAt: Date,
   ): Promise<boolean> {
     if (isPlatform) return true;
     const membership = await this.prisma.houseboatMember.findFirst({
       where: {
         accountId,
         houseboatId,
+        // Active at BOTH the claimed device time and the actual replay time.
         startDate: { lte: at },
-        OR: [{ endDate: null }, { endDate: { gte: at } }],
+        AND: [
+          { OR: [{ endDate: null }, { endDate: { gte: at } }] },
+          { startDate: { lte: receivedAt } },
+          { OR: [{ endDate: null }, { endDate: { gte: receivedAt } }] },
+        ],
       },
       include: { role: true },
     });
@@ -146,6 +191,7 @@ export class SyncService {
 
   private async applyIntent(
     accountId: string,
+    isPlatform: boolean,
     intent: SyncIntentDto,
     deviceTime: Date,
   ): Promise<void> {
@@ -174,16 +220,19 @@ export class SyncService {
         // just any boat this actor happens to be authorized on.
         const invoiceId = p.invoiceId as string;
         await this.assertEntityBoat('invoice', invoiceId, intent.houseboatId);
-        // Delegated to payments in a fuller build; recorded here for audit.
-        await this.prisma.invoicePayment.create({
-          data: {
-            id: newId(),
-            invoiceId,
-            amount: Number(p.amount),
-            method: 'cash',
-            receivedBy: accountId,
-            paidAt: deviceTime,
-          },
+        // Route through the real payments path (audit #6/F18) so the invoice's
+        // amountPaid/status actually advance under a row lock with the overpay +
+        // payout-freeze guards — a raw invoicePayment insert left the invoice
+        // showing unpaid (cash invisible, double-collectible). recordPayment
+        // re-asserts bookings:edit at replay time; on a payout-frozen invoice it
+        // throws, which the replay loop catches and queues as a conflict — the
+        // correct outcome for a late offline cash payment. Cash is excluded from
+        // payout receipts (dueForInvoice filters gateway), so settling here does
+        // not affect what the boat is paid.
+        await this.payments.recordPayment(invoiceId, accountId, isPlatform, {
+          amount: Number(p.amount),
+          method: 'cash',
+          receivedBy: accountId,
         });
         break;
       }
@@ -199,10 +248,17 @@ export class SyncService {
       case 'date_change': {
         const departureId = p.departureId as string;
         await this.assertEntityBoat('departure', departureId, intent.houseboatId);
-        await this.prisma.tripDeparture.update({
-          where: { id: departureId },
-          data: { startDate: new Date(p.startDate as string) },
-        });
+        // Route through the online updateDeparture (audit #11/F20) so the same
+        // guards apply: a date change is REFUSED when the departure has active
+        // bookings (a raw update silently rescheduled confirmed guests and
+        // re-anchored their cancellation window), the new date must be an
+        // operating date, and endDate is recomputed from the package duration.
+        await this.trips.updateDeparture(
+          intent.houseboatId,
+          departureId,
+          { startDate: p.startDate as string },
+          accountId,
+        );
         break;
       }
       case 'checkin_set': {
@@ -336,6 +392,18 @@ export class SyncService {
   }
 
   /** Different-intent conflicts and failures go here for a human. */
+  /**
+   * Release a dedupe claim after the action failed to apply, so a legitimate
+   * re-sync of the same intentId isn't rejected as a duplicate. Best-effort: if
+   * the delete itself fails the worst case is the intent can't be retried (it
+   * still shows in the conflict queue for manual handling), never a double-apply.
+   */
+  private async releaseClaim(intentId: string): Promise<void> {
+    await this.prisma.syncIntentApplied
+      .delete({ where: { intentId } })
+      .catch(() => undefined);
+  }
+
   private async queueConflict(
     accountId: string,
     intent: SyncIntentDto,

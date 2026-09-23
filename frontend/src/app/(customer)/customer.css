@@ -1720,3 +1720,38 @@
     .reveal{opacity:1!important;transform:none!important;transition:none!important}
     .orbfield,.aurora-move{display:none}
   }
+/* Boat page (mobile): hide the default <details> disclosure triangle on the
+   About / Safety collapsibles. Desktop renders these as plain sections instead
+   (a pure-CSS force-open of <details> is unreliable in Chromium). */
+.boat-summary{list-style:none}
+.boat-summary::-webkit-details-marker{display:none}
+
+/* Boat page booking grid: desktop = content column + sticky summary column;
+   mobile/tablet (≤940px) = single column in the sequence cabins → summary →
+   group → reviews. Uses named areas (not Tailwind arbitrary areas, which mangle
+   multi-row strings in v3.4). Marker classes are bk-* to avoid Tailwind bg-*. */
+.boat-grid{
+  display:grid;
+  align-items:start;
+  gap:34px;
+  grid-template-columns:1fr 360px;
+  grid-template-areas:"cabins summary" "group summary" "reviews summary";
+}
+.boat-grid>.bk-cabins{grid-area:cabins}
+.boat-grid>.bk-summary{grid-area:summary}
+.boat-grid>.bk-group{grid-area:group}
+.boat-grid>.bk-reviews{grid-area:reviews}
+@media (max-width:940px){
+  .boat-grid{
+    grid-template-columns:1fr;
+    grid-template-areas:"cabins" "summary" "group" "reviews";
+    /* one consistent, tighter gap between sections on small screens */
+    gap:14px;
+  }
+  /* cards carry mb-[22px] for the desktop stack; on mobile the grid gap is the
+     only spacing, so drop the extra margin to keep gaps uniform + shorter. */
+  .boat-grid>.bk-cabins,
+  .boat-grid>.bk-summary,
+  .boat-grid>.bk-group,
+  .boat-grid>.bk-reviews{margin-bottom:0}
+}

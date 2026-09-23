@@ -403,12 +403,12 @@ export default function OwnerTeamPage() {
                     <div className="t1">{m.account.name ?? 'Member'}</div>
                     <div className="t2">{maskPhone(m.account.phone)}</div>
                   </td>
-                  <td>
+                  <td data-label="Role">
                     <Pill tone="blue">{m.role.name}</Pill>
                   </td>
-                  <td>{m.shareholderPct ? `${Number(m.shareholderPct)}%` : '—'}</td>
-                  <td className="t2">{formatDate(m.startDate)}</td>
-                  <td>
+                  <td data-label="Share">{m.shareholderPct ? `${Number(m.shareholderPct)}%` : '—'}</td>
+                  <td className="t2" data-label="Since">{formatDate(m.startDate)}</td>
+                  <td data-label="Status">
                     <Pill tone={m.status === 'active' ? 'ok' : 'mut'}>
                       {m.status === 'active' ? 'active' : `exited ${formatDate(m.endDate)}`}
                     </Pill>
@@ -479,7 +479,7 @@ export default function OwnerTeamPage() {
                 {roles.data?.map((r) => (
                   <tr key={r.id}>
                     <td className="t1">{r.name}</td>
-                    <td className="t2">
+                    <td className="t2" data-label="Modules granted">
                       {Object.keys(r.permissions ?? {}).length} of {PAGES.length}
                     </td>
                     <td>

@@ -57,6 +57,9 @@ function makePrisma(rows: Row[]) {
   };
 
   const tx = {
+    // createBookingTx takes SELECT ... FOR UPDATE on trip_departure before
+    // converting holds (buyout-vs-conversion serialization). No-op in the mock.
+    $queryRaw: jest.fn().mockResolvedValue([]),
     cabinHold: {
       updateMany: jest.fn(({ where, data }: any) => {
         let count = 0;
@@ -240,9 +243,45 @@ describe('BookingService.checkout — expired holds cannot convert', () => {
     );
   });
 
-  it('accepts a guest-token hold that login never claimed, when still live', async () => {
-    // Fallback branch: cookie cleared between holding and paying, so heldBy is
-    // still null. Live holds must keep working through that path.
+  it('accepts a guest-token hold that login never claimed, when the caller owns the token', async () => {
+    // Fallback branch: cookie kept but login-claim didn't run, so heldBy is
+    // still null. The caller presents its own hb_gid, which matches the hold's
+    // heldByToken — so this must keep working (audit B-H3 keeps the legit path).
+    const rows = [liveHold({ heldBy: null, heldByToken: 'guest-token' })];
+    const { svc, rows: after } = makeService(rows, [
+      { cabinId: 'cab-1', holdId: 'h-1' },
+    ]);
+
+    await expect(
+      svc.checkout(CUSTOMER, CUSTOMER, dto([{ cabinId: 'cab-1', holdId: 'h-1' }]), {
+        channel: 'web',
+        callerToken: 'guest-token',
+      }),
+    ).resolves.toBeDefined();
+
+    expect(after[0].state).toBe('converted');
+  });
+
+  it('REFUSES a guest-token hold that belongs to another browser (B-H3)', async () => {
+    // The classic theft: an authenticated caller supplies a stranger's holdId.
+    // The hold is still guest-owned (heldBy null) but its token is NOT the
+    // caller's — so it must not convert.
+    const rows = [liveHold({ heldBy: null, heldByToken: 'someone-elses-token' })];
+    const { svc, rows: after } = makeService(rows, [
+      { cabinId: 'cab-1', holdId: 'h-1' },
+    ]);
+
+    await expect(
+      svc.checkout(CUSTOMER, CUSTOMER, dto([{ cabinId: 'cab-1', holdId: 'h-1' }]), {
+        channel: 'web',
+        callerToken: 'my-own-token',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(after[0].state).toBe('held');
+  });
+
+  it('REFUSES a guest-token hold when the caller presents no token at all (B-H3)', async () => {
     const rows = [liveHold({ heldBy: null, heldByToken: 'guest-token' })];
     const { svc, rows: after } = makeService(rows, [
       { cabinId: 'cab-1', holdId: 'h-1' },
@@ -250,9 +289,9 @@ describe('BookingService.checkout — expired holds cannot convert', () => {
 
     await expect(
       svc.checkout(CUSTOMER, CUSTOMER, dto([{ cabinId: 'cab-1', holdId: 'h-1' }])),
-    ).resolves.toBeDefined();
+    ).rejects.toBeInstanceOf(BadRequestException);
 
-    expect(after[0].state).toBe('converted');
+    expect(after[0].state).toBe('held');
   });
 
   it('refuses an expired guest-token hold too', async () => {

@@ -267,14 +267,14 @@ export default function OwnerBookingsPage() {
                       <div className="t1">{lead?.name ?? b.customer.name ?? 'Guest'}</div>
                       <div className="t2">{maskPhone(lead?.phone ?? b.customer.phone)}</div>
                     </td>
-                    <td>
+                    <td data-label="Departure">
                       <div className="t1">{formatDate(b.departure.startDate)}</div>
                       <div className="t2">
                         {b.departure.package.durationLabel ?? '—'} ·{' '}
                         {b.departure.package.route.name}
                       </div>
                     </td>
-                    <td>
+                    <td data-label="Cabins">
                       <div className="t1">
                         {b.cabins.map((c) => c.cabin.name).join(', ') || '—'}
                       </div>
@@ -290,7 +290,7 @@ export default function OwnerBookingsPage() {
                         {channelLabel(b.channel)}
                       </Pill>
                     </td>
-                    <td className="num">{money(b.invoice?.displayTotal ?? 0)}</td>
+                    <td className="num" data-label="Pays">{money(b.invoice?.displayTotal ?? 0)}</td>
                     <td>
                       <div className="flex flex-wrap gap-1.5">
                         <BookingStatusPill status={b.status} />

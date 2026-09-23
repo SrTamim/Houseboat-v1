@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { newId } from '../common/uuid';
@@ -26,6 +27,9 @@ export class CouponsService {
       value: number;
       validFrom?: string;
       validTo?: string;
+      maxUses?: number;
+      perUserLimit?: number;
+      minSpend?: number;
     },
     actorId: string,
   ) {
@@ -48,8 +52,8 @@ export class CouponsService {
       throw new BadRequestException('validFrom must not be after validTo');
     }
 
-    // Service-level check, not a unique index: an index migration would fail
-    // on any pre-existing duplicate rows.
+    // Pre-check for a friendly error; the (houseboatId, code) unique index is the
+    // authoritative backstop against a concurrent duplicate (caught below).
     const duplicate = await this.prisma.coupon.findFirst({
       where: { houseboatId, code: input.code },
       select: { id: true },
@@ -58,17 +62,31 @@ export class CouponsService {
       throw new ConflictException('Coupon code already exists for this boat');
     }
 
-    const coupon = await this.prisma.coupon.create({
-      data: {
-        id: newId(),
-        houseboatId,
-        code: input.code,
-        kind: input.kind,
-        value: input.value,
-        validFrom: input.validFrom ? new Date(input.validFrom) : undefined,
-        validTo: input.validTo ? new Date(input.validTo) : undefined,
-      },
-    });
+    const coupon = await this.prisma.coupon
+      .create({
+        data: {
+          id: newId(),
+          houseboatId,
+          code: input.code,
+          kind: input.kind,
+          value: input.value,
+          validFrom: input.validFrom ? new Date(input.validFrom) : undefined,
+          validTo: input.validTo ? new Date(input.validTo) : undefined,
+          maxUses: input.maxUses ?? null,
+          perUserLimit: input.perUserLimit ?? null,
+          minSpend: input.minSpend ?? null,
+        },
+      })
+      .catch((e) => {
+        // Lost a race to the unique index — same friendly message as the precheck.
+        if (
+          e instanceof Prisma.PrismaClientKnownRequestError &&
+          e.code === 'P2002'
+        ) {
+          throw new ConflictException('Coupon code already exists for this boat');
+        }
+        throw e;
+      });
 
     await this.audit.log({
       houseboatId,
@@ -82,6 +100,9 @@ export class CouponsService {
         value: coupon.value.toString(),
         validFrom: input.validFrom ?? null,
         validTo: input.validTo ?? null,
+        maxUses: input.maxUses ?? null,
+        perUserLimit: input.perUserLimit ?? null,
+        minSpend: input.minSpend ?? null,
       },
     });
 

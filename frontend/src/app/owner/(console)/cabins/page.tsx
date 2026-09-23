@@ -314,9 +314,9 @@ export default function OwnerCabinsPage() {
                   <td>
                     <Pill tone={c.isAc ? 'blue' : 'mut'}>{c.isAc ? 'AC' : 'non-AC'}</Pill>
                   </td>
-                  <td>{c.baseCapacity}</td>
-                  <td>{c.extendedCapacity ?? '—'}</td>
-                  <td className="t2">{c.facilities ?? '—'}</td>
+                  <td data-label="Base capacity">{c.baseCapacity}</td>
+                  <td data-label="Extended">{c.extendedCapacity ?? '—'}</td>
+                  <td className="t2" data-label="Facilities">{c.facilities ?? '—'}</td>
                   <td>
                     <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                       <button className={`${BTN_O} ${BTN_SM}`} onClick={() => openCategory(c)}>

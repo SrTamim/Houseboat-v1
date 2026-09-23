@@ -75,6 +75,9 @@ function makePrisma(rows: Array<Record<string, unknown>>) {
       }),
       update: jest.fn().mockResolvedValue({ availableCount: 4 }),
     },
+    // hold() takes a SELECT … FOR UPDATE row lock on the departure before
+    // reading it; the unit mock has no real DB, so this is a no-op stub.
+    $queryRaw: jest.fn().mockResolvedValue([]),
     $transaction: (fn: (tx: unknown) => unknown) => fn(prisma),
   };
   return { prisma, state };

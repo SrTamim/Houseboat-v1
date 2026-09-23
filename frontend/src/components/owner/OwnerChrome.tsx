@@ -45,6 +45,14 @@ export function OwnerChrome({
   const [signingOut, setSigningOut] = useState(false);
   const { boat } = useActiveBoat();
   const title = usePageTitle();
+  const pathname = usePathname();
+
+  // Close the mobile nav whenever the route changes so a tapped link (or any
+  // programmatic navigation) doesn't leave the off-canvas drawer covering the
+  // page it navigated to.
+  useEffect(() => {
+    setNavOpen(false);
+  }, [pathname]);
 
   // Drain the offline capture queue when connectivity returns (and once on
   // load, to clear any backlog left from a previous offline session). This is
@@ -85,10 +93,20 @@ export function OwnerChrome({
   return (
     <div className="grid min-h-screen grid-cols-[var(--sbw)_1fr] max-[1024px]:grid-cols-[1fr]">
       <Sidebar open={navOpen} user={displayName} />
+      {/* Backdrop behind the off-canvas sidebar on mobile. Sits under the
+          sidebar (z-70) but over the header (z-40), dimming the page; tapping
+          it closes the nav. Desktop never shows it. */}
+      {navOpen ? (
+        <div
+          className="fixed inset-0 z-[60] hidden bg-[rgba(8,12,20,0.5)] backdrop-blur-[3px] animate-fade max-[1024px]:block print:hidden"
+          onClick={() => setNavOpen(false)}
+          aria-hidden
+        />
+      ) : null}
       <div className="flex min-w-0 flex-col">
         <header className="sticky top-0 z-40 flex h-[var(--hh)] items-center gap-3.5 border-b border-hair px-6 [background:color-mix(in_srgb,var(--bg)_72%,transparent)] [backdrop-filter:saturate(180%)_blur(16px)] [-webkit-backdrop-filter:saturate(180%)_blur(16px)] print:hidden">
           <button
-            className="hidden h-10 w-10 rounded border border-hair bg-raise-1 text-[17px] text-ink max-[1024px]:grid max-[1024px]:place-items-center"
+            className="hidden h-10 w-10 rounded border border-hair bg-raise-1 text-[17px] text-ink max-[1024px]:grid max-[1024px]:h-11 max-[1024px]:w-11 max-[1024px]:place-items-center"
             onClick={() => setNavOpen((v) => !v)}
             aria-label="Menu"
           >

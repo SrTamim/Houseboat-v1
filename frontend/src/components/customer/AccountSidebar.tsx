@@ -56,7 +56,7 @@ export function AccountSidebar() {
   };
 
   return (
-    <aside className="rounded-2xl border border-hair bg-raise-1 p-2.5 shadow-e1 md:sticky md:top-[94px] max-md:flex max-md:gap-1 max-md:overflow-x-auto">
+    <aside className="min-w-0 rounded-2xl border border-hair bg-raise-1 p-2.5 shadow-e1 md:sticky md:top-[94px] max-md:flex max-md:max-w-full max-md:gap-1 max-md:overflow-x-auto">
       <div className="px-3 pb-1.5 pt-3 text-[11px] font-bold uppercase tracking-[0.06em] text-muted max-md:hidden">
         My account
       </div>
@@ -95,6 +95,16 @@ export function AccountSidebar() {
           <span className="w-5 text-center text-base">↩</span> Sign out
         </button>
       </div>
+      {/* On mobile the sidebar collapses to a horizontal pill strip and the
+          bordered sign-out block above is hidden, so surface sign-out as a
+          trailing pill here — otherwise mobile users have no way to sign out. */}
+      <button
+        className="hidden flex-none items-center gap-[11px] rounded px-3 py-[11px] text-[14.5px] font-semibold text-bodytext transition-colors hover:bg-bg hover:text-ink max-md:flex"
+        onClick={signOut}
+      >
+        <span className="w-5 text-center text-base">↩</span>
+        <span className="whitespace-nowrap">Sign out</span>
+      </button>
     </aside>
   );
 }

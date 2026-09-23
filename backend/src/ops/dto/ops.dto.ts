@@ -41,7 +41,10 @@ export class CreateInventoryItemDto {
 
 export class StockMovementDto {
   @IsIn(['in', 'out', 'count']) direction!: 'in' | 'out' | 'count';
-  @IsNumber() qty!: number;
+  // Whole, non-negative. Without @Min a negative qty on an 'out' movement would
+  // subtract a negative and INCREMENT stock (audit #13/F21). 0 is allowed so a
+  // 'count' can zero an item; the service enforces any direction-specific rule.
+  @IsInt() @Min(0) qty!: number;
   @IsOptional() @IsString() @MaxLength(LEN_CODE) tripId?: string;
 }
 

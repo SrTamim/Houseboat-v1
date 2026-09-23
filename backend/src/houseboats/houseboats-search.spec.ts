@@ -29,6 +29,8 @@ const boatRow = {
 function makeService(opts: {
   boats?: (typeof boatRow)[];
   count?: number;
+  /** rows tripDeparture.count returns for the exact-date window (0 = empty day). */
+  exactDateCount?: number;
 } = {}) {
   const boats = opts.boats ?? [boatRow];
   const houseboat = {
@@ -46,14 +48,17 @@ function makeService(opts: {
         { route: { name: 'Tanguar Haor', region: 'Sunamganj' } },
       ]),
   };
-  const tripDeparture = { findMany: jest.fn().mockResolvedValue([]) };
+  const tripDeparture = {
+    findMany: jest.fn().mockResolvedValue([]),
+    count: jest.fn().mockResolvedValue(opts.exactDateCount ?? 0),
+  };
   const prisma = { houseboat, houseboatRoute, tripDeparture };
   const svc = new HouseboatsService(
     prisma as never,
     {} as never,
     {} as never,
   );
-  return { svc, houseboat, houseboatRoute };
+  return { svc, houseboat, houseboatRoute, tripDeparture };
 }
 
 describe('HouseboatsService.search (flat, home page)', () => {
@@ -118,6 +123,53 @@ describe('HouseboatsService.searchResults (DB-side)', () => {
     expect(args.orderBy).toEqual({
       minPricePerPerson: { sort: 'asc', nulls: 'last' },
     });
+  });
+
+  it('matches a route NAME by name/region and skips the uuid id clause', async () => {
+    // Route.id is @db.Uuid: an id clause with a plain name would make Postgres
+    // cast the name to uuid and 500 the whole query. Guard must drop it.
+    const { svc, houseboat } = makeService();
+    await svc.searchResults({ route: 'Tanguar Haor' });
+
+    const or = houseboat.findMany.mock.calls[0][0].where.routes.some.route.OR;
+    expect(or).toEqual([
+      { region: { contains: 'Tanguar Haor', mode: 'insensitive' } },
+      { name: { contains: 'Tanguar Haor', mode: 'insensitive' } },
+    ]);
+    expect(or.some((c: Record<string, unknown>) => 'id' in c)).toBe(false);
+  });
+
+  it('keeps the id clause when route is a valid UUID', async () => {
+    const uuid = '019fcdd6-4aed-7159-827a-579fc0bc6a8b';
+    const { svc, houseboat } = makeService();
+    await svc.searchResults({ route: uuid });
+
+    const or = houseboat.findMany.mock.calls[0][0].where.routes.some.route.OR;
+    expect(or).toEqual([
+      { id: uuid },
+      { region: { contains: uuid, mode: 'insensitive' } },
+      { name: { contains: uuid, mode: 'insensitive' } },
+    ]);
+  });
+
+  it('flags dateExactEmpty when the chosen date has no departures', async () => {
+    const { svc, tripDeparture } = makeService({ exactDateCount: 0 });
+    const res = await svc.searchResults({ date: '2026-09-12' });
+    expect(res.dateExactEmpty).toBe(true);
+    expect(tripDeparture.count).toHaveBeenCalledTimes(1);
+  });
+
+  it('clears dateExactEmpty when the chosen date HAS departures', async () => {
+    const { svc } = makeService({ exactDateCount: 1 });
+    const res = await svc.searchResults({ date: '2026-09-11' });
+    expect(res.dateExactEmpty).toBe(false);
+  });
+
+  it('never flags dateExactEmpty when no date is searched', async () => {
+    const { svc, tripDeparture } = makeService();
+    const res = await svc.searchResults({ route: 'Tanguar Haor' });
+    expect(res.dateExactEmpty).toBe(false);
+    expect(tripDeparture.count).not.toHaveBeenCalled();
   });
 
   it('maps sort=reviews and sort=rating to the indexed columns', async () => {

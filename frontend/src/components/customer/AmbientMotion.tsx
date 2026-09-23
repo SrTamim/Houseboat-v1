@@ -11,18 +11,25 @@
 export function AmbientMotion() {
   return (
     <>
+      {/* Wrapper clips the -inset-[20%] bleed so it never widens the page
+          (a fixed, negatively-inset layer can otherwise extend scrollWidth and
+          cause a phantom horizontal scrollbar on mobile). */}
       <div
         aria-hidden
-        className="pointer-events-none fixed -inset-[20%] -z-30 opacity-50 mix-blend-multiply [mask-image:radial-gradient(120%_120%_at_50%_0%,#000_40%,transparent_92%)] motion-reduce:hidden dark:opacity-90 dark:mix-blend-screen"
-        style={{
-          background:
-            'radial-gradient(38% 44% at 20% 30%, color-mix(in srgb,var(--blue) 55%,transparent), transparent 60%),' +
-            'radial-gradient(34% 40% at 82% 22%, color-mix(in srgb,#7a5cff 50%,transparent), transparent 60%),' +
-            'radial-gradient(40% 46% at 62% 82%, color-mix(in srgb,var(--amber) 42%,transparent), transparent 62%)',
-          filter: 'blur(60px) saturate(120%)',
-          animation: 'auroraDrift 26s ease-in-out infinite alternate',
-        }}
-      />
+        className="pointer-events-none fixed inset-0 -z-30 overflow-hidden motion-reduce:hidden"
+      >
+        <div
+          className="absolute -inset-[20%] opacity-50 mix-blend-multiply [mask-image:radial-gradient(120%_120%_at_50%_0%,#000_40%,transparent_92%)] dark:opacity-90 dark:mix-blend-screen"
+          style={{
+            background:
+              'radial-gradient(38% 44% at 20% 30%, color-mix(in srgb,var(--blue) 55%,transparent), transparent 60%),' +
+              'radial-gradient(34% 40% at 82% 22%, color-mix(in srgb,#7a5cff 50%,transparent), transparent 60%),' +
+              'radial-gradient(40% 46% at 62% 82%, color-mix(in srgb,var(--amber) 42%,transparent), transparent 62%)',
+            filter: 'blur(60px) saturate(120%)',
+            animation: 'auroraDrift 26s ease-in-out infinite alternate',
+          }}
+        />
+      </div>
       <div
         aria-hidden
         className="pointer-events-none fixed inset-0 -z-20 overflow-hidden motion-reduce:hidden"

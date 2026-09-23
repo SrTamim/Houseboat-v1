@@ -146,6 +146,28 @@ api.interceptors.response.use(
       url.includes('/auth/register') ||
       url.includes('/auth/logout');
 
+    // A stale CSRF token → self-heal. The token hash is bound to the hb_sid
+    // session cookie (backend security/csrf.ts), and that cookie rotates on
+    // login/register and on silent refresh. Any cached token minted against a
+    // prior session then 403s the first mutation of the new one — e.g. checkout
+    // Pay right after signing in. We already dropped the cache above; here we
+    // await a fresh token bound to the CURRENT session and replay the request
+    // once, so the failure never reaches the user.
+    //
+    // Gate on the csrf-csrf error message so genuine authorization 403s
+    // ("Forbidden resource" from Nest) are NOT replayed. The CSRF middleware
+    // runs before Nest routing (backend main.ts), so its body is the
+    // http-errors default carrying this exact message.
+    const isCsrfFailure =
+      status === 403 &&
+      error?.response?.data?.message === 'invalid csrf token';
+
+    if (isCsrfFailure && config && !config._retried && !isAuthCall) {
+      config._retried = true;
+      await refreshCsrfToken();
+      return api(config);
+    }
+
     if (status === 401 && config && !config._retried && !isAuthCall) {
       config._retried = true;
       try {

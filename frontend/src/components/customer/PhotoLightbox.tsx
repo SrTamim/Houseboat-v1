@@ -94,7 +94,7 @@ export function PhotoLightbox({
   if (photos.length === 0) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-5">
+    <div className="fixed inset-0 z-[115] flex items-center justify-center p-5">
       <button
         type="button"
         aria-label="Close photos"

@@ -28,6 +28,9 @@ describe('PaymentsService.recordGatewayPayment (G9)', () => {
           ? jest.fn().mockRejectedValue(opts.createThrows)
           : jest.fn().mockResolvedValue({}),
       },
+      // recordGatewayPayment takes a SELECT … FOR UPDATE row lock on the invoice
+      // first; no real DB in the unit mock, so this is a no-op stub.
+      $queryRaw: jest.fn().mockResolvedValue([]),
     };
     const prisma = {
       $transaction: jest.fn((fn: (t: unknown) => unknown) =>

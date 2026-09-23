@@ -219,13 +219,13 @@ export default function OwnerBillingPage() {
                         </div>
                       ) : null}
                     </td>
-                    <td className="num">{isTrial ? '—' : money(r.monthlyFee ?? 0)}</td>
-                    <td className="num">{money(r.amountDue)}</td>
-                    <td className="t2">{formatDate(r.issuedAt)}</td>
-                    <td className="t2">
+                    <td className="num" data-label="Monthly fee">{isTrial ? '—' : money(r.monthlyFee ?? 0)}</td>
+                    <td className="num" data-label="Due">{money(r.amountDue)}</td>
+                    <td className="t2" data-label="Issued">{formatDate(r.issuedAt)}</td>
+                    <td className="t2" data-label="Last date to pay">
                       {isTrial ? '—' : lastPayDate(r.issuedAt, s?.graceDays)}
                     </td>
-                    <td>
+                    <td data-label="Status">
                       <Pill tone={STATUS_TONES[r.status] ?? 'mut'}>
                         {STATUS_LABELS[r.status] ?? humanize(r.status)}
                       </Pill>

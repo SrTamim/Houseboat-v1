@@ -150,9 +150,9 @@ export default function OwnerAttendancePage() {
                     <div className="t1">{r.name ?? 'Crew'}</div>
                     <div className="t2">{maskPhone(r.phone ?? undefined)}</div>
                   </td>
-                  <td className="t2">{r.role ?? '—'}</td>
-                  <td className="num">{r.tripsWorked}</td>
-                  <td className="num">
+                  <td className="t2" data-label="Role">{r.role ?? '—'}</td>
+                  <td className="num" data-label="Trips worked">{r.tripsWorked}</td>
+                  <td className="num" data-label="Days on leave">
                     {r.leaveDays > 0 ? (
                       <Pill tone="amb">{r.leaveDays}</Pill>
                     ) : (

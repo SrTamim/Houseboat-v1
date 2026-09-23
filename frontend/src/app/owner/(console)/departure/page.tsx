@@ -271,6 +271,7 @@ export default function OwnerDeparturePage() {
       <PageHead
         title="Departures"
         desc="The manifest for one trip: who is aboard, what is still owed, and which crew turned up."
+        descHideOnMobile
         actions={active ? <DepartureStatusPill status={active.status} /> : undefined}
       />
 
@@ -389,20 +390,20 @@ export default function OwnerDeparturePage() {
                         <td className="t1">
                           {b.cabins.map((c) => c.cabin.name).join(', ') || '—'}
                         </td>
-                        <td>{b.guests[0]?.name ?? b.customer.name ?? 'Guest'}</td>
-                        <td>
+                        <td data-label="Guest">{b.guests[0]?.name ?? b.customer.name ?? 'Guest'}</td>
+                        <td data-label="Source">
                           {b.channel === 'pos' ? (
                             <Pill tone="amb">{channelLabel(b.channel)}</Pill>
                           ) : (
                             <span className="t2">{channelLabel(b.channel)}</span>
                           )}
                         </td>
-                        <td className="t2">
+                        <td className="t2" data-label="Phone">
                           <a href={telHref(phone)}>{phone}</a>
                         </td>
-                        <td>{b.cabins.reduce((n, c) => n + c.occupancy, 0)}</td>
-                        <td className="num">{money(paid.toFixed(2))}</td>
-                        <td className="num">
+                        <td data-label="Heads">{b.cabins.reduce((n, c) => n + c.occupancy, 0)}</td>
+                        <td className="num" data-label="Advance">{money(paid.toFixed(2))}</td>
+                        <td className="num" data-label="Due">
                           {due > 0 ? (
                             <Pill tone="warn">{money(due.toFixed(2))}</Pill>
                           ) : (
@@ -542,8 +543,8 @@ export default function OwnerDeparturePage() {
                   {crew.data?.map((c) => (
                     <tr key={c.id}>
                       <td className="t1">{c.staff.account?.name ?? 'Crew'}</td>
-                      <td className="t2">{c.staff.role?.name ?? '—'}</td>
-                      <td>
+                      <td className="t2" data-label="Designation">{c.staff.role?.name ?? '—'}</td>
+                      <td data-label="Status">
                         <Pill tone={c.present ? 'ok' : 'warn'}>
                           {c.present ? 'present' : 'absent'}
                         </Pill>

@@ -150,9 +150,9 @@ export default function OwnerQuotesPage() {
                     <div className="t1">{q.customer?.name ?? 'Guest'}</div>
                     <div className="t2">{maskPhone(q.customer?.phone)}</div>
                   </td>
-                  <td className="t2">{formatDate(q.date)}</td>
-                  <td>{q.groupSize ?? '—'}</td>
-                  <td className="t2">
+                  <td className="t2" data-label="Date">{formatDate(q.date)}</td>
+                  <td data-label="Group size">{q.groupSize ?? '—'}</td>
+                  <td className="t2" data-label="Special needs">
                     {q.specialNeeds ?? '—'}
                     {q.customerReply ? (
                       <div className="mt-1 text-[12px] text-blue">
@@ -160,7 +160,7 @@ export default function OwnerQuotesPage() {
                       </div>
                     ) : null}
                   </td>
-                  <td>
+                  <td data-label="Expires">
                     {q.expiresAt ? (
                       <Pill tone={timeLeft(q.expiresAt) === 'expired' ? 'mut' : 'warn'}>
                         {timeLeft(q.expiresAt)}
@@ -169,7 +169,7 @@ export default function OwnerQuotesPage() {
                       <span className="t2">—</span>
                     )}
                   </td>
-                  <td className="num">{q.quotedPrice ? money(q.quotedPrice) : '—'}</td>
+                  <td className="num" data-label="Quoted">{q.quotedPrice ? money(q.quotedPrice) : '—'}</td>
                   <td>
                     <Pill tone={STATUS_TONES[q.status] ?? 'mut'}>{humanize(q.status)}</Pill>
                   </td>

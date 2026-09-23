@@ -147,8 +147,8 @@ export default function OwnerPayoutsPage() {
               approved.map((i) => (
                 <tr key={i.id}>
                   <td className="t1">{batchRef(i.id)}</td>
-                  <td className="t2">{batchRef(i.bookingId)}</td>
-                  <td className={`num${isNegative(i.dueToBoat) ? ' neg' : ''}`}>
+                  <td className="t2" data-label="Booking">{batchRef(i.bookingId)}</td>
+                  <td className={`num${isNegative(i.dueToBoat) ? ' neg' : ''}`} data-label="Due to boat">
                     {money(i.dueToBoat)}
                   </td>
                 </tr>
@@ -192,14 +192,14 @@ export default function OwnerPayoutsPage() {
               {batches.map((b) => (
                 <tr key={b.id}>
                   <td className="t1">{batchRef(b.id)}</td>
-                  <td>{b.invoiceCount}</td>
-                  <td className={`num${isNegative(b.totalAmount) ? ' neg' : ''}`}>
+                  <td data-label="Invoices">{b.invoiceCount}</td>
+                  <td className={`num${isNegative(b.totalAmount) ? ' neg' : ''}`} data-label="Total">
                     {money(b.totalAmount)}
                   </td>
-                  <td className="t2">{b.preparedBy ?? '—'}</td>
-                  <td className="t2">{b.approvedBy ?? '—'}</td>
-                  <td className="t2">{b.paidAt ? formatDate(b.paidAt) : '—'}</td>
-                  <td>
+                  <td className="t2" data-label="Prepared">{b.preparedBy ?? '—'}</td>
+                  <td className="t2" data-label="Approved">{b.approvedBy ?? '—'}</td>
+                  <td className="t2" data-label="Paid">{b.paidAt ? formatDate(b.paidAt) : '—'}</td>
+                  <td data-label="Status">
                     <Pill tone={STATUS_TONES[b.status] ?? 'mut'}>{b.status}</Pill>
                   </td>
                 </tr>

@@ -275,12 +275,30 @@ export class TripsService {
     const data: Prisma.TripDepartureUpdateInput = {};
 
     if (dto.startDate) {
+      const startDate = new Date(dto.startDate);
+      const startIso = startDate.toISOString().slice(0, 10);
+      const currentIso = dep.startDate.toISOString().slice(0, 10);
+
+      // Moving the date of a departure that already has active bookings would
+      // silently reschedule confirmed guests to a new day and re-anchor their
+      // cancellation window, with no notice or consent. Refuse it (audit B-M4):
+      // cancel the departure (which handles refunds + notifications) instead.
+      // A no-op "change" to the same date is allowed (e.g. editing only times).
+      if (startIso !== currentIso) {
+        const activeBookings = await this.prisma.booking.count({
+          where: { departureId, status: { not: 'cancelled' } },
+        });
+        if (activeBookings > 0) {
+          throw new BadRequestException(
+            'This departure has bookings — its date cannot be changed. Cancel the departure instead.',
+          );
+        }
+      }
+
       const boat = await this.prisma.houseboat.findUnique({
         where: { id: houseboatId },
         select: { operatingDates: true },
       });
-      const startDate = new Date(dto.startDate);
-      const startIso = startDate.toISOString().slice(0, 10);
       const operating = (boat?.operatingDates ?? []).map((d) =>
         d.toISOString().slice(0, 10),
       );

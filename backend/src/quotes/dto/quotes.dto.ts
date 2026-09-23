@@ -17,7 +17,9 @@ export class CreateQuoteDto {
 }
 
 export class PriceQuoteDto {
-  @IsNumber() @IsPositive() quotedPrice!: number;
+  // 2dp to match the money-DTO convention (numeric(12,2) is the DB ceiling);
+  // owner-set but should not carry sub-paisa noise (audit #14/F22).
+  @IsNumber({ maxDecimalPlaces: 2 }) @IsPositive() quotedPrice!: number;
 }
 
 export class ReplyQuoteDto {

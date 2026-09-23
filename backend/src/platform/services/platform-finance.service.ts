@@ -243,7 +243,7 @@ export class PlatformFinanceService {
         commission: true,
         dueToBoat: true,
         payoutBatchId: true,
-        creditsFrom: { select: { amount: true, status: true } }, // refund subtract
+        creditsFrom: { select: { amount: true, status: true, kind: true } }, // refund subtract
         houseboat: { select: { id: true, name: true, slug: true } },
         customer: { select: { id: true, name: true, phone: true, email: true } },
         booking: {
@@ -307,6 +307,7 @@ export class PlatformFinanceService {
     const live = this.dueForInvoice({
       commission: invoice.commission,
       displayTotal: invoice.displayTotal,
+      status: invoice.status,
       payments: invoice.payments,
       creditsFrom: invoice.creditsFrom,
     });
@@ -336,8 +337,9 @@ export class PlatformFinanceService {
   private dueForInvoice(inv: {
     commission: unknown;
     displayTotal?: unknown;
+    status?: unknown;
     payments: { method: string; amount: unknown }[];
-    creditsFrom?: { amount: unknown; status: string }[];
+    creditsFrom?: { amount: unknown; status: string; kind?: string | null }[];
   }) {
     let gatewayReceipts = inv.payments
       .filter((p) => p.method === 'gateway')
@@ -354,11 +356,25 @@ export class PlatformFinanceService {
     // left intact. If such an invoice is later re-verified and paid out, the boat
     // would receive the full receipts even though the platform already handed the
     // customer that refund. Subtract those refund credits from the boat's due.
-    // Excludes 'used' credits (already spent by the customer on another booking,
-    // so no longer an outstanding refund liability).
+    // Subtract refund credits sourced from this invoice. A REFUND credit
+    // (kind='refund', from a cancellation) is money the platform disbursed on the
+    // customer's behalf while amountPaid was left intact, so it must reduce the
+    // boat's due whether the customer has since spent it ('used') or not (audit
+    // M-M1): excluding 'used' let a customer spend the refund AND the boat still
+    // be paid the full receipts — the refund paid twice.
+    //
+    // A REBATE credit (kind='rebate', open-seat first-booker surplus) is NOT
+    // subtracted here: that scenario already reduced this invoice's own
+    // displayTotal, so subtracting the rebate again would double-count. Legacy
+    // rows (kind null) are treated as refunds but still exclude 'used', matching
+    // the prior behavior so historical settlements don't shift.
     if (inv.creditsFrom?.length) {
       const refunded = inv.creditsFrom
-        .filter((c) => c.status !== 'used')
+        .filter((c) => {
+          if (c.kind === 'rebate') return false;
+          if (c.kind === 'refund') return true; // incl. 'used' → M-M1 fix
+          return c.status !== 'used'; // legacy null kind → prior behavior
+        })
         .reduce((s, c) => add(s, money(c.amount as string)), ZERO);
       due = sub(due, refunded);
     }
@@ -381,7 +397,7 @@ export class PlatformFinanceService {
           displayTotal: true, // overpayment cap in dueForInvoice
           houseboatId: true,
           payments: { select: { method: true, amount: true } },
-          creditsFrom: { select: { amount: true, status: true } }, // refund subtract
+          creditsFrom: { select: { amount: true, status: true, kind: true } }, // refund subtract
         },
       });
       if (!inv) throw new NotFoundException('Invoice not found');
@@ -484,8 +500,9 @@ export class PlatformFinanceService {
    * receipt (HouseboatPayoutBatch, status 'paid') snapshotting the boat's bank
    * details, moves each invoice payout_approved → bill_cleared, and offsets a
    * negative total against platform_balance. Everything in one transaction; the
-   * per-invoice status + payoutBatchId===null re-checks inside the tx make a
-   * concurrent double-pay fail rather than pay twice.
+   * invoice rows are locked FOR UPDATE up front so a concurrent double-pay
+   * serializes and the second attempt is rejected (payoutBatchId !== null)
+   * rather than paying twice.
    */
   async payInvoices(
     houseboatId: string,
@@ -504,6 +521,22 @@ export class PlatformFinanceService {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      // Lock every target invoice row FOR UPDATE before the status/payoutBatchId
+      // re-checks, so two concurrent payInvoices calls for the same invoice(s)
+      // serialize: the loser blocks here, then reads payoutBatchId !== null below
+      // and is rejected instead of creating a second payout batch (double-pay).
+      // A findMany + in-app check without this lock does NOT prevent the race
+      // under Read Committed — both readers see payoutBatchId === null. Lock in a
+      // stable (sorted) id order so two overlapping calls can't deadlock each
+      // other by grabbing the same rows in opposite orders. Prisma has no native
+      // FOR UPDATE; take it with raw SQL, one row at a time (the selected set is
+      // small), matching the idiom in payments.service.recordPayment.
+      const orderedIds = [...new Set(invoiceIds)].sort();
+      for (const id of orderedIds) {
+        await tx.$queryRaw`
+          SELECT id FROM invoice WHERE id = ${id}::uuid FOR UPDATE`;
+      }
+
       const invoices = await tx.invoice.findMany({
         where: { id: { in: invoiceIds } },
         select: {
@@ -514,7 +547,7 @@ export class PlatformFinanceService {
           commission: true,
           displayTotal: true, // overpayment cap in dueForInvoice
           payments: { select: { method: true, amount: true } },
-          creditsFrom: { select: { amount: true, status: true } }, // refund subtract
+          creditsFrom: { select: { amount: true, status: true, kind: true } }, // refund subtract
         },
       });
       if (invoices.length !== invoiceIds.length) {
@@ -793,6 +826,13 @@ export class PlatformFinanceService {
     outcome: 'approved' | 'rejected',
   ) {
     return this.prisma.$transaction(async (tx) => {
+      // Lock the request row so two concurrent resolves (approve racing reject,
+      // or a double-click) serialize: the loser blocks, then reads status !=
+      // 'pending' and is rejected instead of both moving the locked credits
+      // (audit #18/F6). The scoped updateMany below is already idempotent, but the
+      // lock matches the rest of the money paths and prevents the wasted work.
+      await tx.$queryRaw`
+        SELECT id FROM cashout_request WHERE id = ${id}::uuid FOR UPDATE`;
       const req = await tx.cashoutRequest.findUnique({
         where: { id },
         select: { id: true, accountId: true, status: true, amount: true },

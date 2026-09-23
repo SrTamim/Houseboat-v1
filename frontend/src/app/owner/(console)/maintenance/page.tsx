@@ -315,17 +315,17 @@ export default function OwnerMaintenancePage() {
                     <div className="t1">{r.topic}</div>
                     <div className="t2">{formatDateTime(r.requestedAt)}</div>
                   </td>
-                  <td>
+                  <td data-label="Urgency">
                     <Pill tone={URGENCY_TONES[r.urgency] ?? 'mut'}>
                       {humanize(r.urgency)}
                     </Pill>
                   </td>
-                  <td>
+                  <td data-label="Status">
                     <Pill tone={STATUS_TONES[r.status] ?? 'mut'}>
                       {humanize(r.status)}
                     </Pill>
                   </td>
-                  <td className="num">{r.comments.length || '—'}</td>
+                  <td className="num" data-label="Comments">{r.comments.length || '—'}</td>
                   <td>
                     <div className="rowact">
                       <button

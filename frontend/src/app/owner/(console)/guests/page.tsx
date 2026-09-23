@@ -160,11 +160,11 @@ export default function OwnerGuestsPage() {
                       <div className="t2">{g.cancellations} cancelled</div>
                     ) : null}
                   </td>
-                  <td className="t2">{maskPhone(g.phone)}</td>
-                  <td>{g.bookings}</td>
-                  <td className="t2">{formatDate(g.lastTrip)}</td>
-                  <td className="num">{money(g.lifetimeValue)}</td>
-                  <td>
+                  <td className="t2" data-label="Phone">{maskPhone(g.phone)}</td>
+                  <td data-label="Trips">{g.bookings}</td>
+                  <td className="t2" data-label="Last trip">{formatDate(g.lastTrip)}</td>
+                  <td className="num" data-label="Lifetime">{money(g.lifetimeValue)}</td>
+                  <td data-label="Credit">
                     {Number(g.openCredit) > 0 ? (
                       <Pill tone="amb">{money(g.openCredit)}</Pill>
                     ) : (

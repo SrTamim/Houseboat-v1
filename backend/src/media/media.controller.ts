@@ -30,7 +30,9 @@ const MAX_UPLOAD_BYTES = 15 * 1024 * 1024; // 15 MB
 /**
  * Boat + cabin media galleries. Images are uploaded straight to Cloudflare R2
  * via a presigned URL then confirmed here; videos are YouTube links. Read is
- * public (guest-facing galleries); writes need assets:edit on the boat.
+ * public (guest-facing galleries); writes need profile:edit on the boat (the
+ * gallery is part of the boat profile — the per-route @RequirePermission below is
+ * the source of truth; this line previously said assets:edit by mistake).
  */
 @Controller('houseboats/:houseboatId/media')
 export class MediaController {

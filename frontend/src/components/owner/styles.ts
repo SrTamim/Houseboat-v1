@@ -26,8 +26,12 @@ export const BTN_SM = 'px-[11px] py-1.5 text-[12.5px]';
 /** Primary blue (was `.btn.btn-b`). */
 export const BTN_B = `${BTN} bg-blue text-white shadow-[var(--e1),inset_0_1px_0_rgba(255,255,255,0.18)] hover:bg-blue-600`;
 
-/** Outline / secondary (was `.btn.btn-o`). */
-export const BTN_O = `${BTN} border-hair bg-raise-1 text-ink shadow-e1 hover:border-[color-mix(in_srgb,var(--blue)_45%,var(--hair))] hover:bg-[color-mix(in_srgb,var(--blue)_6%,var(--raise-1))] hover:text-blue`;
+/** Outline / secondary (was `.btn.btn-o`). Inside a mobile table-card action
+    cluster (`.rowact`, ≤1024px) it takes a solid blue fill so the secondary
+    action stands out from the dark card — scoped to the `.rowact` ancestor so
+    BTN_O elsewhere (drawers, page heads, filter bars) is unchanged, and confined
+    to BTN_O so BTN_B/BTN_DANGER/BTN_OK keep their own colors. */
+export const BTN_O = `${BTN} border-hair bg-raise-1 text-ink shadow-e1 hover:border-[color-mix(in_srgb,var(--blue)_45%,var(--hair))] hover:bg-[color-mix(in_srgb,var(--blue)_6%,var(--raise-1))] hover:text-blue [.rowact_&]:max-[1024px]:border-transparent [.rowact_&]:max-[1024px]:bg-blue [.rowact_&]:max-[1024px]:text-white [.rowact_&]:max-[1024px]:hover:bg-blue-600 [.rowact_&]:max-[1024px]:hover:text-white`;
 
 /** Positive / confirm (was `.btn.btn-ok`). */
 export const BTN_OK = `${BTN} bg-ok text-white shadow-e1 hover:brightness-[1.06]`;
@@ -119,23 +123,24 @@ export const INV_SEARCH =
 /* ---------- filter bar + segmented control (was .filterbar / .seg / .seg-b) ---------- */
 
 /** Row of filters above a table (was `.filterbar`). */
-export const FILTERBAR = 'mb-[18px] flex flex-wrap items-center gap-3';
+export const FILTERBAR = 'mb-[18px] flex flex-wrap items-center gap-3 max-[1024px]:gap-2';
 /** Bare date/month/select dropped into a filter bar (was `.filterbar > input/select`). */
 export const FILTERBAR_CTRL =
-  'h-10 cursor-pointer rounded border border-hair bg-field px-3 text-[13.5px] font-medium text-ink placeholder:text-muted focus:border-blue focus:shadow-ring focus:outline-none [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:[filter:var(--picker-icon-filter,none)]';
+  'h-10 max-[1024px]:h-9 max-[1024px]:text-[13px] cursor-pointer rounded border border-hair bg-field px-3 text-[13.5px] font-medium text-ink placeholder:text-muted focus:border-blue focus:shadow-ring focus:outline-none [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:[filter:var(--picker-icon-filter,none)]';
 
 /** Child-variant version applied to the FilterBar container so bare `<input>` /
     `<select>` children inherit the filter control look (was `.filterbar > input`
     / `.filterbar > select` + the date-picker-indicator tint). */
 export const FILTERBAR_CHILDREN =
-  '[&>input]:h-10 [&>input]:cursor-pointer [&>input]:rounded [&>input]:border [&>input]:border-hair [&>input]:bg-field [&>input]:px-3 [&>input]:text-[13.5px] [&>input]:font-medium [&>input]:text-ink [&>input::placeholder]:text-muted [&>input:focus]:border-blue [&>input:focus]:shadow-ring [&>input:focus]:outline-none ' +
-  '[&>select]:h-10 [&>select]:cursor-pointer [&>select]:rounded [&>select]:border [&>select]:border-hair [&>select]:bg-field [&>select]:px-3 [&>select]:text-[13.5px] [&>select]:font-medium [&>select]:text-ink [&>select:focus]:border-blue [&>select:focus]:shadow-ring [&>select:focus]:outline-none ' +
+  '[&>input]:h-10 [&>input]:max-[1024px]:h-9 [&>input]:max-[1024px]:text-[13px] [&>input]:cursor-pointer [&>input]:rounded [&>input]:border [&>input]:border-hair [&>input]:bg-field [&>input]:px-3 [&>input]:text-[13.5px] [&>input]:font-medium [&>input]:text-ink [&>input::placeholder]:text-muted [&>input:focus]:border-blue [&>input:focus]:shadow-ring [&>input:focus]:outline-none ' +
+  '[&>select]:h-10 [&>select]:max-[1024px]:h-9 [&>select]:max-[1024px]:text-[13px] [&>select]:cursor-pointer [&>select]:rounded [&>select]:border [&>select]:border-hair [&>select]:bg-field [&>select]:px-3 [&>select]:text-[13.5px] [&>select]:font-medium [&>select]:text-ink [&>select:focus]:border-blue [&>select:focus]:shadow-ring [&>select:focus]:outline-none ' +
   '[&>input[type=date]::-webkit-calendar-picker-indicator]:cursor-pointer [&>input[type=date]::-webkit-calendar-picker-indicator]:[filter:var(--picker-icon-filter,none)] [&>input[type=month]::-webkit-calendar-picker-indicator]:cursor-pointer [&>input[type=month]::-webkit-calendar-picker-indicator]:[filter:var(--picker-icon-filter,none)]';
 /** Segmented-control track (was `.seg`). */
-export const SEG = 'inline-flex rounded border border-hair bg-field p-[3px]';
+export const SEG =
+  'inline-flex rounded border border-hair bg-field p-[3px] max-[1024px]:max-w-full max-[1024px]:overflow-x-auto';
 /** One segment button, base (was `.seg-b`). Add SEG_B_ON when active. */
 export const SEG_B =
-  'rounded-[7px] border-none bg-transparent px-[13px] py-[7px] text-[12.5px] font-semibold text-bodytext transition-all duration-dur ease-ease hover:text-blue';
+  'shrink-0 whitespace-nowrap rounded-[7px] border-none bg-transparent px-[13px] py-[7px] text-[12.5px] font-semibold text-bodytext transition-all duration-dur ease-ease hover:text-blue';
 /** Active segment (was `.seg-b.on`). Append to SEG_B. */
 export const SEG_B_ON = 'bg-raise-1 text-blue shadow-e1';
 /** Count suffix inside a segment (was `.seg-b .ct`). */
@@ -182,7 +187,41 @@ export const TBL =
   '[&_.num]:whitespace-nowrap [&_.num]:text-right [&_.num]:font-display [&_.num]:font-semibold [&_.num]:tabular-nums [&_.num]:tracking-[-0.01em] [&_.num]:text-ink ' +
   '[&_.num.neg]:text-danger ' +
   '[&_.rowact]:flex [&_.rowact]:justify-end [&_.rowact]:gap-1.5 [&_.rowact]:opacity-55 [&_.rowact]:transition-opacity [&_.rowact]:duration-dur ' +
-  '[&_tbody_tr:hover_.rowact]:opacity-100 [&_.rowact]:[@media(hover:none)]:opacity-100';
+  '[&_tbody_tr:hover_.rowact]:opacity-100 [&_.rowact]:[@media(hover:none)]:opacity-100 ' +
+  /* ---- mobile card-stack (≤1024px) ----
+     CSS can't read <th> text, so headers drop and each <tr> becomes a card.
+     Meaning still reads from the .t1/.t2/.num helpers and self-labeling pills.
+     Layout is a 2-column grid (not a single stack) to keep cards short: the
+     first cell (always the identity column across every owner table) spans both
+     columns as the card title; the action cell spans both at the bottom; the
+     remaining cells auto-flow into 2 columns. `!min-w-0` releases TableWrap's
+     inline min-width; `!h-auto` overrides the desktop cell height. Works for
+     both cell shapes (class on <td> and class on a child <div>). */
+  'max-[1024px]:!min-w-0 max-[1024px]:block ' +
+  '[&_thead]:max-[1024px]:hidden ' +
+  '[&_tbody]:max-[1024px]:block ' +
+  '[&_tbody_tr]:max-[1024px]:mb-3 [&_tbody_tr]:max-[1024px]:grid [&_tbody_tr]:max-[1024px]:grid-cols-2 [&_tbody_tr]:max-[1024px]:gap-x-4 [&_tbody_tr]:max-[1024px]:gap-y-1 [&_tbody_tr]:max-[1024px]:rounded-xl [&_tbody_tr]:max-[1024px]:border [&_tbody_tr]:max-[1024px]:border-[color-mix(in_srgb,var(--blue)_14%,var(--hair))] [&_tbody_tr]:max-[1024px]:bg-raise-1 [&_tbody_tr]:max-[1024px]:p-2.5 [&_tbody_tr]:max-[1024px]:shadow-e1 ' +
+  '[&_tbody_td]:max-[1024px]:block [&_tbody_td]:max-[1024px]:!h-auto [&_tbody_td]:max-[1024px]:min-w-0 [&_tbody_td]:max-[1024px]:border-0 [&_tbody_td]:max-[1024px]:px-0 [&_tbody_td]:max-[1024px]:py-0.5 ' +
+  '[&_tbody_tr_td:first-child]:max-[1024px]:col-span-2 [&_tbody_tr_td:first-child]:max-[1024px]:mb-0.5 [&_tbody_tr_td:first-child]:max-[1024px]:border-b [&_tbody_tr_td:first-child]:max-[1024px]:border-hair-2 [&_tbody_tr_td:first-child]:max-[1024px]:pb-1.5 [&_tbody_tr_td:first-child]:max-[1024px]:text-[14px] ' +
+  '[&_tbody_tr_td:last-child]:max-[1024px]:col-span-2 [&_tbody_tr_td:has(.rowact)]:max-[1024px]:col-span-2 [&_tbody_tr_td:has(.rowact)]:max-[1024px]:mt-0.5 [&_tbody_tr_td:has(.rowact)]:max-[1024px]:border-t [&_tbody_tr_td:has(.rowact)]:max-[1024px]:border-hair-2 [&_tbody_tr_td:has(.rowact)]:max-[1024px]:pt-1.5 ' +
+  '[&_tbody_td:empty]:max-[1024px]:hidden ' +
+  // Mobile card cell labels: the card-stack hides <thead>, so a data cell with a
+  // `data-label` attribute surfaces its column name as a small muted caption
+  // above the value (≤1024px). Opt-in — tag data cells, never the first/title
+  // cell, status pills, or action cells. `attr()` in content is universally
+  // supported. New tables just add `data-label` to follow this convention.
+  '[&_td[data-label]]:max-[1024px]:before:block [&_td[data-label]]:max-[1024px]:before:mb-0.5 ' +
+  '[&_td[data-label]]:max-[1024px]:before:content-[attr(data-label)] ' +
+  '[&_td[data-label]]:max-[1024px]:before:text-[11px] [&_td[data-label]]:max-[1024px]:before:font-bold [&_td[data-label]]:max-[1024px]:before:uppercase [&_td[data-label]]:max-[1024px]:before:tracking-[0.06em] [&_td[data-label]]:max-[1024px]:before:text-muted ' +
+  '[&_.num]:max-[1024px]:text-left [&_td.num]:max-[1024px]:text-left ' +
+  '[&_.rowact]:max-[1024px]:flex-wrap [&_.rowact]:max-[1024px]:justify-start [&_.rowact]:max-[1024px]:gap-2 [&_.rowact]:max-[1024px]:opacity-100 ' +
+  // In-card action buttons: bigger tap target + lift off the card. The secondary
+  // BTN_O variant additionally takes a solid blue fill inside `.rowact` (defined
+  // on the BTN_O const itself) so it stands out from the dark card; BTN_B/
+  // BTN_DANGER/BTN_OK keep their own colors.
+  '[&_.rowact_button]:max-[1024px]:font-semibold [&_.rowact_button]:max-[1024px]:shadow-e1 [&_.rowact_button]:max-[1024px]:px-3 [&_.rowact_button]:max-[1024px]:py-2 ' +
+  '[&_tbody_tr:hover]:max-[1024px]:bg-raise-1 [&_tbody_tr:hover_td:first-child]:max-[1024px]:shadow-none ' +
+  '[&_tfoot_td]:max-[1024px]:block [&_tfoot_td]:max-[1024px]:!h-auto [&_tfoot_td]:max-[1024px]:col-span-2';
 
 /* ---------- table cell content (was .tbl td .t1/.t2/.num/.rowact) ---------- */
 
@@ -261,6 +300,9 @@ export const PAGE_HEAD_ACTS = 'flex flex-wrap gap-2.5';
     children with nth-child delays; reduced-motion disables the animation. */
 export const CONTENT =
   'w-full max-w-[1360px] px-6 py-7 max-[560px]:px-4 max-[560px]:py-[18px] ' +
+  // Guard against a stray wide child scrolling the whole page sideways on
+  // mobile (tables reflow to cards; nothing should push past the viewport).
+  'max-[1024px]:overflow-x-hidden ' +
   '[&>*]:animate-rise-owner [&>*]:motion-reduce:animate-none ' +
   '[&>*:nth-child(2)]:[animation-delay:0.04s] ' +
   '[&>*:nth-child(3)]:[animation-delay:0.08s] ' +

@@ -80,23 +80,29 @@ export function CustomerFooter() {
               </div>
             </div>
 
-            <div>
-              <h4 className={H4}>Company</h4>
-              <ul className="grid list-none gap-3 p-0">
-                <li><Link href="/about" className={LINK}>About us</Link></li>
-                <li><Link href="/owner/signup" className={LINK}>Become a host</Link></li>
-                <li><Link href="/privacy" className={LINK}>Privacy</Link></li>
-                <li><Link href="/terms" className={LINK}>Terms &amp; Conditions</Link></li>
-              </ul>
-            </div>
+            {/* Company + Support: side by side in one row on small screens so the
+                footer isn't so tall. `min-[641px]:contents` dissolves this
+                wrapper above 640 so both columns rejoin the parent grid and the
+                desktop/tablet layouts stay exactly as before. */}
+            <div className="grid grid-cols-2 gap-10 min-[641px]:contents">
+              <div>
+                <h4 className={H4}>Company</h4>
+                <ul className="grid list-none gap-3 p-0">
+                  <li><Link href="/about" className={LINK}>About us</Link></li>
+                  <li><Link href="/owner/signup" className={LINK}>Become a host</Link></li>
+                  <li><Link href="/privacy" className={LINK}>Privacy</Link></li>
+                  <li><Link href="/terms" className={LINK}>Terms &amp; Conditions</Link></li>
+                </ul>
+              </div>
 
-            <div>
-              <h4 className={H4}>Support</h4>
-              <ul className="grid list-none gap-3 p-0">
-                <li><Link href="/help" className={LINK}>Help Center</Link></li>
-                <li><Link href="/cancellation" className={LINK}>Cancellation</Link></li>
-                <li><Link href="/refund" className={LINK}>Refund policy</Link></li>
-              </ul>
+              <div>
+                <h4 className={H4}>Support</h4>
+                <ul className="grid list-none gap-3 p-0">
+                  <li><Link href="/help" className={LINK}>Help Center</Link></li>
+                  <li><Link href="/cancellation" className={LINK}>Cancellation</Link></li>
+                  <li><Link href="/refund" className={LINK}>Refund policy</Link></li>
+                </ul>
+              </div>
             </div>
 
             <div className="grid content-start gap-6">

@@ -31,7 +31,7 @@ export function SearchBoatCard({ boat }: { boat: SearchBoat }) {
     <article
       className={`group flex flex-col overflow-hidden rounded-2xl border border-hair bg-raise-1 shadow-[var(--e1),var(--top-hi)] transition-[transform,box-shadow] duration-200 ease-ease hover:-translate-y-[5px] hover:shadow-e3 dark:hover:border-[color-mix(in_srgb,var(--blue)_34%,var(--hair))] ${DARK_CARD_SURFACE}`}
     >
-      <div className="relative aspect-[16/10] overflow-hidden bg-chip">
+      <div className="relative aspect-[16/10] overflow-hidden bg-chip max-[560px]:aspect-[16/7]">
         {badge ? (
           <span className="absolute left-[10px] top-[10px] z-[2] rounded-[6px] bg-blue px-[9px] py-1 text-[10.5px] font-extrabold tracking-[.02em] text-white shadow-[0_4px_10px_-3px_rgba(15,36,64,.4)]">
             {badge}

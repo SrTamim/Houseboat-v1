@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import { ThemeToggle } from '@/components/admin/ThemeToggle';
 import { NAV_BTN_B as BTN_B, NAV_BTN_O as BTN_O } from '@/lib/customer/boat-card';
 import { useAuthModal } from '@/components/customer/AuthModalProvider';
@@ -22,9 +23,14 @@ export interface NavUser {
 export function CustomerNav({ user }: { user?: NavUser | null }) {
   const [open, setOpen] = useState(false);
   const { openAuth } = useAuthModal();
+  const pathname = usePathname();
+  // Close the mobile drawer on route change so a tapped link doesn't leave it hanging open.
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
   return (
     <header className="sticky top-0 z-[60] border-b border-hair bg-[color-mix(in_srgb,var(--bg)_72%,transparent)] backdrop-blur-[16px] backdrop-saturate-[180%] [-webkit-backdrop-filter:saturate(180%)_blur(16px)] dark:border-b-[color-mix(in_srgb,var(--blue)_14%,var(--hair))] dark:bg-[color-mix(in_srgb,var(--bg)_62%,transparent)]">
-      <div className="mx-auto flex h-[72px] max-w-wrap items-center gap-6 px-6">
+      <div className="mx-auto flex h-[72px] max-w-wrap items-center gap-6 px-6 max-[520px]:gap-3 max-[520px]:px-4">
         <Link
           href="/"
           className="flex items-center gap-[11px] font-display text-[22px] font-bold tracking-[-0.03em] text-ink"
@@ -56,14 +62,19 @@ export function CustomerNav({ user }: { user?: NavUser | null }) {
           </Link>
         </nav>
 
-        <div className="flex items-center gap-3 max-[940px]:ml-auto">
+        <div className="flex items-center gap-3 max-[940px]:ml-auto max-[520px]:gap-2">
           <ThemeToggle />
           {user ? (
-            <Link href="/account/trips" className={BTN_O}>
+            <Link
+              href="/account/trips"
+              className={`${BTN_O} max-[520px]:px-3.5`}
+            >
               👤 {user.name?.split(' ')[0] ?? 'Account'}
             </Link>
           ) : (
-            <>
+            // Below 520px the bar is too tight for two auth buttons + burger, so
+            // hide these inline ones and surface Login/Register inside the drawer.
+            <div className="flex items-center gap-3 max-[520px]:hidden">
               <button
                 type="button"
                 onClick={() => openAuth('login')}
@@ -78,18 +89,81 @@ export function CustomerNav({ user }: { user?: NavUser | null }) {
               >
                 Register
               </button>
-            </>
+            </div>
           )}
           <button
             className="hidden h-11 w-11 rounded border border-hair bg-raise-1 text-[20px] text-ink shadow-e1 max-[940px]:grid max-[940px]:place-items-center"
             aria-label="Menu"
             aria-expanded={open}
+            aria-controls="customer-mobile-menu"
             onClick={() => setOpen((v) => !v)}
           >
             ☰
           </button>
         </div>
       </div>
+
+      {/* Mobile drawer — only mounts below 940px when the burger is toggled open.
+          Keeps the same tokens as the glass bar. Links close it via the pathname
+          effect above; the backdrop and explicit onClick cover same-page taps. */}
+      {open && (
+        <div id="customer-mobile-menu" className="hidden max-[940px]:block">
+          <button
+            type="button"
+            aria-label="Close menu"
+            className="fixed inset-0 top-[72px] z-[55] cursor-default bg-black/30"
+            onClick={() => setOpen(false)}
+          />
+          <nav className="relative z-[56] border-t border-hair bg-raise-1 px-6 py-4 text-[15px] font-medium text-bodytext shadow-e2">
+            <Link
+              href="/about"
+              className="block rounded py-3 transition-colors duration-dur ease-ease hover:text-blue"
+              onClick={() => setOpen(false)}
+            >
+              About
+            </Link>
+            <Link
+              href="/help"
+              className="block rounded py-3 transition-colors duration-dur ease-ease hover:text-blue"
+              onClick={() => setOpen(false)}
+            >
+              Help
+            </Link>
+            <Link
+              href="/owner/signup"
+              className="block rounded py-3 transition-colors duration-dur ease-ease hover:text-blue"
+              onClick={() => setOpen(false)}
+            >
+              Become a host
+            </Link>
+            {!user && (
+              // Mirror of the inline auth buttons for the <520px case where they hide.
+              <div className="mt-2 flex gap-3 border-t border-hair pt-4 min-[521px]:hidden">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpen(false);
+                    openAuth('login');
+                  }}
+                  className={BTN_O}
+                >
+                  Login
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpen(false);
+                    openAuth('register');
+                  }}
+                  className={`btn-sheen ${BTN_B}`}
+                >
+                  Register
+                </button>
+              </div>
+            )}
+          </nav>
+        </div>
+      )}
     </header>
   );
 }

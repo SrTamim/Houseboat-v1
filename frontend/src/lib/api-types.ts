@@ -1132,7 +1132,16 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Convert holds → confirmed booking + invoice. Instant confirmation. */
+        /**
+         * Price the checkout into a BookingIntent (audit M-H2). No booking is created
+         *     here — the cabins stay reserved by their live holds, and the booking is
+         *     created only once a valid deposit is confirmed (gateway → confirmIntent).
+         *     Returns the intent id + the minimum deposit the customer must pay.
+         *
+         *     callerToken = this browser's hb_gid, so a hold still owned by a guest token
+         *     (login-claim didn't run) is accepted ONLY if it belongs to THIS browser —
+         *     never any stranger's unclaimed hold (audit B-H3).
+         */
         post: operations["BookingController_checkout"];
         delete?: never;
         options?: never;
@@ -1858,7 +1867,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Start a hosted payment for an invoice. Returns the URL to redirect to. */
+        /** Start a hosted payment for an intent or invoice. Returns the URL to open. */
         post: operations["GatewayController_initiate"];
         delete?: never;
         options?: never;
@@ -1876,18 +1885,13 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Settle an invoice WITHOUT taking money, so a booking can be confirmed
-         *     before the payment gateway is configured.
+         * Settle WITHOUT taking money, so a booking can be confirmed before the
+         *     gateway is configured. Gated on `gateway.bypass` (PAYMENTS_BYPASS=true), off
+         *     by default (validate-env fails prod boot if it is set).
          *
-         *     Gated on `gateway.bypass` (PAYMENTS_BYPASS=true). Off by default, so an
-         *     unset production environment refuses every call even if this route ships.
-         *     Delete the route — or just clear the flag — once SSLCommerz is live; the
-         *     whole `initiate` → hosted page → IPN path is untouched and still works.
-         *
-         *     Ownership, status and amount checks are the same ones `initiate` applies,
-         *     and the payment itself goes through the identical `recordGatewayPayment`
-         *     used by the IPN — so a 50% advance records as a partial and correctly
-         *     leaves the invoice `customer_due`, exactly as a real deposit would.
+         *     Routes exactly like the IPN: an intent target creates the booking via
+         *     confirmIntent (deposit floor enforced there too); an invoice target records
+         *     the top-up via recordGatewayPayment.
          */
         post: operations["GatewayController_devSettle"];
         delete?: never;
@@ -3371,6 +3375,10 @@ export interface components {
             name: string;
             region?: string;
         };
+        SetHouseboatStatusDto: {
+            /** @enum {string} */
+            status: "draft" | "pending" | "live" | "suspended";
+        };
         UploadImageDto: {
             cabinId?: string;
             sortOrder?: number;
@@ -3545,6 +3553,12 @@ export interface components {
             openSeatCabinId: string;
             adults: number;
             children?: number;
+            /**
+             * @description Ages of the joiner's children, so each is charged per the boat's child_policy
+             *     (audit M-M2). Omitted = children charged full, as before. Length must match
+             *     children when supplied.
+             */
+            childAges?: number[];
         };
         RequestRefundDto: {
             /** @enum {string} */
@@ -3654,6 +3668,12 @@ export interface components {
             value: number;
             validFrom?: string;
             validTo?: string;
+            /** @description Total redemptions allowed across all customers. Omit = unlimited. */
+            maxUses?: number;
+            /** @description Redemptions allowed per customer account. Omit = unlimited. */
+            perUserLimit?: number;
+            /** @description Minimum room total required to apply the coupon. Omit = no minimum. */
+            minSpend?: number;
         };
         SetCouponActiveDto: {
             active: boolean;
@@ -3686,8 +3706,11 @@ export interface components {
             quotedPrice: number;
         };
         InitiatePaymentDto: {
-            invoiceId: string;
-            /** @description Optional partial (deposit) amount. Defaults to the full outstanding. */
+            /** @description A BookingIntent awaiting its deposit. Creates the booking when paid. */
+            intentId?: string;
+            /** @description An existing invoice to top up (remaining balance). */
+            invoiceId?: string;
+            /** @description Optional partial (deposit) amount. Defaults to the full outstanding/total. */
             amount?: number;
         };
         SslcommerzIpnDto: {
@@ -4951,7 +4974,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetHouseboatStatusDto"];
+            };
+        };
         responses: {
             200: {
                 headers: {
@@ -6801,6 +6828,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                houseboatId: string;
                 staffId: string;
             };
             cookie?: never;
@@ -6933,6 +6961,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                houseboatId: string;
                 departureId: string;
             };
             cookie?: never;
@@ -6954,6 +6983,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                houseboatId: string;
                 departureId: string;
             };
             cookie?: never;

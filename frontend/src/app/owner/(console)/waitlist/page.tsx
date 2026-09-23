@@ -109,7 +109,7 @@ export default function OwnerWaitlistPage() {
                     <div className="t1">{formatDate(g.date)}</div>
                     <div className="t2">{g.label ?? 'Trip'}</div>
                   </td>
-                  <td>
+                  <td data-label="Waiting">
                     <div className="t1">{g.entries.length}</div>
                     <div className="t2">
                       {/* Name the cabin when there is one: the same customer can
@@ -125,8 +125,8 @@ export default function OwnerWaitlistPage() {
                       {g.entries.length > 2 ? ` +${g.entries.length - 2}` : ''}
                     </div>
                   </td>
-                  <td className="t2">{g.partySizes.join(', ')}</td>
-                  <td>
+                  <td className="t2" data-label="Party sizes">{g.partySizes.join(', ')}</td>
+                  <td data-label="Cabins free">
                     <Pill tone={g.cabinsFree > 0 ? 'ok' : 'mut'}>
                       {g.cabinsFree > 0 ? `${g.cabinsFree} free` : 'full'}
                     </Pill>

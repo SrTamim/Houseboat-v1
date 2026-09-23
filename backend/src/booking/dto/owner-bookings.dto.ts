@@ -100,7 +100,7 @@ export class PosHeldCabinDto {
    * Owner-typed room price for a cabin whose occupancy tier has no configured
    * rate. Replaces the computed price for this cabin only. Counter-sale only.
    */
-  @IsOptional() @IsNumber() @Min(0) @Max(MONEY_MAX) priceOverride?: number;
+  @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(MONEY_MAX) priceOverride?: number;
 }
 
 export class PosCheckoutDto {
@@ -147,12 +147,12 @@ export class PosCheckoutDto {
    * Ad-hoc flat discount (taka) the owner grants at the counter, deducted from
    * the total on top of any coupon. The boat absorbs it.
    */
-  @IsOptional() @IsNumber() @Min(0) @Max(MONEY_MAX) discount?: number;
+  @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(MONEY_MAX) discount?: number;
   /**
    * How much the customer actually handed over. Defaults to the full total when
    * omitted. 0 = nothing paid yet (booking still confirms; invoice stays due).
    */
-  @IsOptional() @IsNumber() @Min(0) @Max(MONEY_MAX) amountPaid?: number;
+  @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(MONEY_MAX) amountPaid?: number;
 }
 
 /** One cabin in a price quote (no hold needed — read-only). */
@@ -167,7 +167,7 @@ export class PosQuoteCabinDto {
   @Min(0, CHILD_AGES)
   @Max(120, CHILD_AGES)
   childAges?: number[];
-  @IsOptional() @IsNumber() @Min(0) @Max(MONEY_MAX) priceOverride?: number;
+  @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(MONEY_MAX) priceOverride?: number;
 }
 
 /** Read-only price preview for a counter-sale selection. Creates nothing. */
@@ -181,5 +181,5 @@ export class PosQuoteDto {
   cabins!: PosQuoteCabinDto[];
 
   @IsOptional() @IsString() @MaxLength(LEN_CODE) couponCode?: string;
-  @IsOptional() @IsNumber() @Min(0) @Max(MONEY_MAX) discount?: number;
+  @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(MONEY_MAX) discount?: number;
 }

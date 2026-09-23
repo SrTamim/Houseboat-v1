@@ -126,6 +126,15 @@ export class PaymentsService {
   ) {
     return this.prisma
       .$transaction(async (tx) => {
+        // Lock the invoice row for the life of the tx. amountPaid is read here,
+        // the overpay check runs against it, and the new total is written back —
+        // a check-then-write. Without the lock two concurrent payments both read
+        // the same amountPaid, both pass the overpay guard, and the second
+        // update overwrites (not accumulates) → amountPaid ends wrong and the
+        // guard is defeated. Same FOR UPDATE idiom applyCredits uses for the
+        // wallet; Prisma has no native FOR UPDATE so take it with raw SQL.
+        await tx.$queryRaw`
+          SELECT id FROM invoice WHERE id = ${invoiceId}::uuid FOR UPDATE`;
         const invoice = await tx.invoice.findUnique({ where: { id: invoiceId } });
         if (!invoice) throw new NotFoundException('Invoice not found');
 
@@ -228,6 +237,13 @@ export class PaymentsService {
   }) {
     return this.prisma
       .$transaction(async (tx) => {
+        // Lock the invoice row — the gateway path recomputes amountPaid and
+        // amountOverpaid ABSOLUTELY from the current amountPaid, so a concurrent
+        // IPN reading a stale value would compute both wrong. Serialize the two
+        // (the unique gatewayToken already makes an exact replay a no-op; this
+        // guards two DISTINCT partial payments landing at once). See recordPayment.
+        await tx.$queryRaw`
+          SELECT id FROM invoice WHERE id = ${input.invoiceId}::uuid FOR UPDATE`;
         const invoice = await tx.invoice.findUnique({
           where: { id: input.invoiceId },
         });
@@ -350,28 +366,35 @@ export class PaymentsService {
     }
     assertTransition(invoice.status as InvoiceStatus, 'payment_verified');
 
-    // Stamp the verifier on the most recent payment.
-    const lastPayment = await this.prisma.invoicePayment.findFirst({
-      where: { invoiceId },
-      orderBy: { paidAt: 'desc' },
-    });
-    if (lastPayment) {
-      await this.prisma.invoicePayment.update({
-        where: { id: lastPayment.id },
-        data: { verifiedBy: verifierId },
+    // Stamp the last payment AND flip the invoice status atomically — otherwise a
+    // crash between them leaves the invoice verified with no verifier stamped, or
+    // the stamp with the status not advanced.
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const lastPayment = await tx.invoicePayment.findFirst({
+        where: { invoiceId },
+        orderBy: { paidAt: 'desc' },
       });
-    }
-
-    const updated = await this.prisma.invoice.update({
-      where: { id: invoiceId },
-      data: { status: 'payment_verified' },
-    });
-    await this.audit.log({
-      houseboatId: invoice.houseboatId,
-      actorAccountId: verifierId,
-      action: 'payment_verify',
-      entityType: 'invoice',
-      entityId: invoiceId,
+      if (lastPayment) {
+        await tx.invoicePayment.update({
+          where: { id: lastPayment.id },
+          data: { verifiedBy: verifierId },
+        });
+      }
+      const inv = await tx.invoice.update({
+        where: { id: invoiceId },
+        data: { status: 'payment_verified' },
+      });
+      await this.audit.log(
+        {
+          houseboatId: invoice.houseboatId,
+          actorAccountId: verifierId,
+          action: 'payment_verify',
+          entityType: 'invoice',
+          entityId: invoiceId,
+        },
+        tx,
+      );
+      return inv;
     });
     return updated;
   }

@@ -102,4 +102,17 @@ describe('priceForParty', () => {
     });
     expect(total.toFixed(2)).toBe('10000.00');
   });
+
+  it('ignores childAges beyond the children count (M-M2 backstop)', () => {
+    // 1 adult (5,000) + 1 child, but 3 ages sent → only the FIRST age (2, free)
+    // is priced; the extra ages must NOT add charge. Total = 5,000.
+    const total = priceForParty({
+      pricePerPerson: perPerson,
+      adults: 1,
+      children: 1,
+      childAges: [2, 2, 2],
+      childPolicy: policy,
+    });
+    expect(total.toFixed(2)).toBe('5000.00');
+  });
 });

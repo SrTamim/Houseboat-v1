@@ -31,3 +31,15 @@ export const MAX_CABINS_PER_BOOKING = 4;
  * real walk-ups and already pass allowOverCapacity.
  */
 export const MAX_CHILDREN_PER_CABIN = 4;
+
+/**
+ * Minimum deposit, as a percent of the bill's display total, required to turn a
+ * priced checkout into a confirmed booking (audit M-H2).
+ *
+ * The customer UI offers a 50% advance or 100% full payment; this is the
+ * server-side floor that makes that real — the client value is no longer
+ * trusted, so a hand-crafted "pay ৳1" request is rejected. A booking is created
+ * only once a payment of at least this share of the total is confirmed; until
+ * then the cabins are reserved solely by their live holds.
+ */
+export const MIN_DEPOSIT_PCT = 50;

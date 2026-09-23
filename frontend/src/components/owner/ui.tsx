@@ -15,17 +15,26 @@ export function PageHead({
   title,
   desc,
   actions,
+  descHideOnMobile,
 }: {
   title: string;
   desc?: React.ReactNode;
   actions?: React.ReactNode;
+  /** Hide the description ≤1024px to save vertical space (desktop keeps it). */
+  descHideOnMobile?: boolean;
 }) {
   return (
     <div className="mb-6 flex flex-wrap items-start justify-between gap-[18px]">
       <div>
         <h1 className="text-[27px] tracking-[-0.03em] max-[560px]:text-[22px]">{title}</h1>
         {desc ? (
-          <p className="mt-2 max-w-[74ch] text-[13.5px] leading-[1.55] text-muted">{desc}</p>
+          <p
+            className={`mt-2 max-w-[74ch] text-[13.5px] leading-[1.55] text-muted${
+              descHideOnMobile ? ' max-[1024px]:hidden' : ''
+            }`}
+          >
+            {desc}
+          </p>
         ) : null}
       </div>
       {actions ? <div className="flex flex-wrap gap-2.5">{actions}</div> : null}
@@ -64,20 +73,20 @@ export function Kpi({
     : 'text-blue [background:linear-gradient(145deg,color-mix(in_srgb,var(--blue)_22%,var(--raise-1)),color-mix(in_srgb,var(--blue)_10%,var(--raise-1)))] [box-shadow:inset_0_0_0_1px_color-mix(in_srgb,var(--blue)_24%,transparent),var(--top-hi)]';
   return (
     <div
-      className={`relative flex min-h-[132px] flex-col overflow-hidden rounded-2xl border border-hair bg-raise-1 p-[18px] shadow-[var(--e2),var(--top-hi)] after:pointer-events-none after:absolute after:-right-10 after:-top-10 after:h-[130px] after:w-[130px] after:rounded-full after:content-[''] ${glow}${
+      className={`relative flex min-h-[132px] max-[1024px]:min-h-0 flex-col overflow-hidden rounded-2xl border border-hair bg-raise-1 p-[18px] max-[1024px]:p-3 shadow-[var(--e2),var(--top-hi)] after:pointer-events-none after:absolute after:-right-10 after:-top-10 after:h-[130px] after:w-[130px] after:rounded-full after:content-[''] ${glow}${
         alert ? ' border-t-2 border-t-danger' : ''
       }`}
     >
       <div className="relative z-[1] flex items-center gap-[11px]">
         <span
-          className={`grid h-[38px] w-[38px] flex-none place-items-center rounded-[11px] text-[17px] ${chip}`}
+          className={`grid h-[38px] w-[38px] max-[1024px]:h-7 max-[1024px]:w-7 max-[1024px]:text-[13px] flex-none place-items-center rounded-[11px] text-[17px] ${chip}`}
         >
           {icon}
         </span>
         <span className="text-[11.5px] font-semibold tracking-[0.01em] text-muted">{label}</span>
       </div>
       <div
-        className={`mt-auto pt-[14px] font-display text-[31px] font-semibold leading-none tracking-[-0.035em] tabular-nums ${
+        className={`mt-auto pt-[14px] max-[1024px]:pt-2 font-display text-[31px] max-[1024px]:text-[22px] font-semibold leading-none tracking-[-0.035em] tabular-nums ${
           alert ? 'text-danger' : 'text-ink'
         }`}
       >
@@ -110,7 +119,7 @@ export function Kpi({
 
 export function Kpis({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mb-6 grid grid-cols-[repeat(auto-fill,minmax(212px,1fr))] gap-4">{children}</div>
+    <div className="mb-6 grid grid-cols-[repeat(auto-fill,minmax(212px,1fr))] gap-4 max-[1024px]:grid-cols-2 max-[1024px]:gap-2.5">{children}</div>
   );
 }
 
@@ -157,7 +166,10 @@ export function TableWrap({
   minWidth?: number;
 }) {
   return (
-    <div className="overflow-x-auto">
+    // Desktop scrolls a wide table sideways; on mobile (≤1024px) the TBL rules
+    // reflow each row into a card, so the wrapper stops scrolling and the
+    // inline min-width is released (see the `max-[1024px]:!min-w-0` in TBL).
+    <div className="overflow-x-auto max-[1024px]:overflow-x-visible">
       <table className={TBL} style={{ minWidth: minWidth ?? 640 }}>
         {children}
       </table>
@@ -226,12 +238,12 @@ export function Seg({
   onChange: (v: string) => void;
 }) {
   return (
-    <div className="inline-flex rounded border border-hair bg-field p-[3px]">
+    <div className="inline-flex rounded border border-hair bg-field p-[3px] max-[1024px]:max-w-full max-[1024px]:overflow-x-auto">
       {options.map((o) => (
         <button
           key={o.value}
           type="button"
-          className={`rounded-[7px] px-[13px] py-[7px] text-[12.5px] font-semibold transition-all duration-dur ease-ease ${
+          className={`shrink-0 whitespace-nowrap rounded-[7px] px-[13px] py-[7px] text-[12.5px] font-semibold transition-all duration-dur ease-ease ${
             o.value === value
               ? 'bg-raise-1 text-blue shadow-e1'
               : 'bg-transparent text-bodytext hover:text-blue'
@@ -252,7 +264,7 @@ export function FilterBar({ children }: { children: React.ReactNode }) {
   // The old `.filterbar > input/select` element rules styled bare date/month/
   // select controls dropped straight in; reproduced here as child variants so
   // pages passing bare controls render identically (was owner.css).
-  return <div className={`flex flex-wrap items-center gap-3 ${FILTERBAR_CHILDREN}`}>{children}</div>;
+  return <div className={`flex flex-wrap items-center gap-3 max-[1024px]:gap-2 ${FILTERBAR_CHILDREN}`}>{children}</div>;
 }
 
 /**
@@ -285,7 +297,7 @@ export function Search({
   }, [local, debounceMs]);
 
   return (
-    <div className="relative min-w-[200px] max-w-[340px] flex-1">
+    <div className="relative min-w-[200px] max-w-[340px] flex-1 max-[1024px]:max-w-full">
       <span className="absolute left-[13px] top-1/2 -translate-y-1/2 text-[14px] text-muted">
         🔍
       </span>
@@ -294,7 +306,7 @@ export function Search({
         placeholder={placeholder}
         value={local}
         onChange={(e) => setLocal(e.target.value)}
-        className="h-10 w-full rounded border border-hair bg-field pl-[38px] pr-[14px] text-[14px] text-ink transition-[border-color,box-shadow] duration-dur ease-ease placeholder:text-muted focus:border-blue focus:shadow-ring focus:outline-none"
+        className="h-10 max-[1024px]:h-9 w-full rounded border border-hair bg-field pl-[38px] pr-[14px] text-[14px] max-[1024px]:text-[13px] text-ink transition-[border-color,box-shadow] duration-dur ease-ease placeholder:text-muted focus:border-blue focus:shadow-ring focus:outline-none"
       />
     </div>
   );
@@ -313,7 +325,7 @@ export function Select({
 }) {
   return (
     <select
-      className="h-10 cursor-pointer rounded border border-hair bg-field px-3 text-[13.5px] font-medium text-ink focus:border-blue focus:shadow-ring focus:outline-none"
+      className="h-10 max-[1024px]:h-9 max-[1024px]:text-[13px] cursor-pointer rounded border border-hair bg-field px-3 text-[13.5px] font-medium text-ink focus:border-blue focus:shadow-ring focus:outline-none"
       value={value}
       aria-label={ariaLabel}
       onChange={(e) => onChange(e.target.value)}

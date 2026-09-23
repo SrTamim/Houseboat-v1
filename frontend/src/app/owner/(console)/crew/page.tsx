@@ -228,25 +228,25 @@ export default function OwnerCrewPage() {
                         {s.nid ? ` · NID ••${s.nid.slice(-4)}` : ''}
                       </div>
                     </td>
-                    <td className="t2">{s.designation ?? '—'}</td>
-                    <td>
+                    <td className="t2" data-label="Designation">{s.designation ?? '—'}</td>
+                    <td data-label="Status">
                       <Pill tone={onLeave ? 'mut' : 'ok'}>
                         {onLeave ? 'on leave' : 'available'}
                       </Pill>
                     </td>
-                    <td>
+                    <td data-label="Pay">
                       <Pill tone={salaried ? 'blue' : 'mut'}>
                         {salaried ? 'salaried' : 'per trip'}
                       </Pill>
                     </td>
-                    <td className="num">
+                    <td className="num" data-label="Rate">
                       {salaried
                         ? `${money(s.monthlySalary)}/mo`
                         : s.perTripRate
                           ? `${money(s.perTripRate)}/trip`
                           : '—'}
                     </td>
-                    <td className="t2">{s.emergencyContact ?? '—'}</td>
+                    <td className="t2" data-label="Emergency contact">{s.emergencyContact ?? '—'}</td>
                     <td>
                       <div className="rowact">
                         <button

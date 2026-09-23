@@ -81,6 +81,10 @@ export class HrService {
     if (!account) {
       throw new NotFoundException('No account with that phone — register first');
     }
+    // A role must belong to THIS boat (audit #16/F15) — mirrors membership.service.
+    // addMember. Without this a caller could attach another boat's role row to a
+    // staff record. (Display/HR metadata, not the RBAC source, but keep it tight.)
+    if (dto.roleId) await this.assertRoleOnBoat(dto.roleId, houseboatId);
     return this.prisma.houseboatStaff.create({
       data: {
         id: newId(),
@@ -137,6 +141,15 @@ export class HrService {
       select: { id: true },
     });
     if (!staff) throw new NotFoundException('Crew member not found on this houseboat.');
+  }
+
+  /** A roleId assigned to staff must belong to this houseboat (audit #16/F15). */
+  private async assertRoleOnBoat(roleId: string, houseboatId: string) {
+    const role = await this.prisma.role.findFirst({
+      where: { id: roleId, houseboatId },
+      select: { id: true },
+    });
+    if (!role) throw new NotFoundException('Role not found on this houseboat.');
   }
 
   /**
@@ -199,9 +212,23 @@ export class HrService {
     return { ok: true };
   }
 
+  /** A departureId must belong to this houseboat before we read/mutate its crew. */
+  private async assertDepartureOwned(houseboatId: string, departureId: string) {
+    const dep = await this.prisma.tripDeparture.findFirst({
+      where: { id: departureId, package: { houseboatId } },
+      select: { id: true },
+    });
+    if (!dep) {
+      throw new NotFoundException('Departure not found on this houseboat.');
+    }
+  }
+
   // ── Leave ──────────────────────────────────────────────────
   /** Records a leave row and keeps the denormalized staff.status in sync. */
-  setLeave(staffId: string, dto: LeaveDto) {
+  async setLeave(houseboatId: string, staffId: string, dto: LeaveDto) {
+    // IDOR guard: the controller only authorizes the URL :houseboatId, so verify
+    // the staffId actually belongs to it before writing (mirrors updateStaff).
+    await this.assertStaffOwned(houseboatId, staffId);
     const fromDate = dto.fromDate ? new Date(dto.fromDate) : null;
     const toDate = dto.toDate ? new Date(dto.toDate) : null;
     // Don't mark on_leave for a window that has already passed — it would just
@@ -232,10 +259,15 @@ export class HrService {
   // ── Crew / attendance ──────────────────────────────────────
   /** Set/override a crew member's presence for a departure (upsert the row). */
   async setCrewPresence(
+    houseboatId: string,
     departureId: string,
     staffId: string,
     present: boolean,
   ) {
+    // IDOR guards: the controller authorizes only the URL :houseboatId, so both
+    // the departure AND the staff must belong to it before we write.
+    await this.assertDepartureOwned(houseboatId, departureId);
+    await this.assertStaffOwned(houseboatId, staffId);
     return this.prisma.tripCrew.upsert({
       where: { departureId_staffId: { departureId, staffId } },
       update: { present },
@@ -243,7 +275,9 @@ export class HrService {
     });
   }
 
-  listCrew(departureId: string) {
+  async listCrew(houseboatId: string, departureId: string) {
+    // IDOR guard: the departure must belong to the authorized boat.
+    await this.assertDepartureOwned(houseboatId, departureId);
     return this.prisma.tripCrew.findMany({
       where: { departureId },
       include: {

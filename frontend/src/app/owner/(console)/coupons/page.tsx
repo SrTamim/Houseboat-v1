@@ -29,6 +29,9 @@ interface Coupon {
   isActive: boolean;
   usageCount: number;
   totalDeducted: string;
+  maxUses: number | null;
+  perUserLimit: number | null;
+  minSpend: string | null;
 }
 
 const KIND_TONES: Record<string, 'blue' | 'amb' | 'ok'> = {
@@ -57,6 +60,9 @@ export default function OwnerCouponsPage() {
   const [value, setValue] = useState('');
   const [validFrom, setValidFrom] = useState('');
   const [validTo, setValidTo] = useState('');
+  const [maxUses, setMaxUses] = useState('');
+  const [perUserLimit, setPerUserLimit] = useState('');
+  const [minSpend, setMinSpend] = useState('');
 
   const { data, error: loadError, isLoading, mutate } = useSWR<Coupon[]>(
     `/houseboats/${boatId}/coupons`,
@@ -76,12 +82,18 @@ export default function OwnerCouponsPage() {
         value: Number(value),
         validFrom: validFrom || undefined,
         validTo: validTo || undefined,
+        maxUses: maxUses ? Number(maxUses) : undefined,
+        perUserLimit: perUserLimit ? Number(perUserLimit) : undefined,
+        minSpend: minSpend ? Number(minSpend) : undefined,
       });
       setOpen(false);
       setCode('');
       setValue('');
       setValidFrom('');
       setValidTo('');
+      setMaxUses('');
+      setPerUserLimit('');
+      setMinSpend('');
       await mutate();
     } catch (err) {
       setError(apiErrorMessage(err, 'Could not create the coupon.'));
@@ -127,13 +139,15 @@ export default function OwnerCouponsPage() {
       ) : null}
 
       <Card flush style={{ marginBottom: 20 }}>
-        <TableWrap minWidth={860}>
+        <TableWrap minWidth={1040}>
           <thead>
             <tr>
               <th>Code</th>
               <th>Kind</th>
               <th className="num">Value</th>
               <th className="num">Uses</th>
+              <th className="num">Limit</th>
+              <th className="num">Min spend</th>
               <th className="num">Deducted</th>
               <th>Valid from</th>
               <th>Valid to</th>
@@ -161,13 +175,24 @@ export default function OwnerCouponsPage() {
                   <td>
                     <Pill tone={KIND_TONES[c.kind] ?? 'mut'}>{c.kind}</Pill>
                   </td>
-                  <td className="num">
+                  <td className="num" data-label="Value">
                     {c.kind === 'percent' ? `${Number(c.value)}%` : money(c.value)}
                   </td>
-                  <td className="num">{c.usageCount}</td>
-                  <td className="num">{money(c.totalDeducted)}</td>
-                  <td className="t2">{c.validFrom ? formatDate(c.validFrom) : 'always'}</td>
-                  <td className="t2">{c.validTo ? formatDate(c.validTo) : 'no end'}</td>
+                  <td className="num" data-label="Uses">{c.usageCount}</td>
+                  <td className="num" data-label="Limit">
+                    {c.maxUses != null
+                      ? `${c.usageCount}/${c.maxUses}`
+                      : '∞'}
+                    {c.perUserLimit != null ? ` (${c.perUserLimit}/user)` : ''}
+                  </td>
+                  <td className="num" data-label="Min spend">
+                    {c.minSpend != null && Number(c.minSpend) > 0
+                      ? money(c.minSpend)
+                      : '—'}
+                  </td>
+                  <td className="num" data-label="Deducted">{money(c.totalDeducted)}</td>
+                  <td className="t2" data-label="Valid from">{c.validFrom ? formatDate(c.validFrom) : 'always'}</td>
+                  <td className="t2" data-label="Valid to">{c.validTo ? formatDate(c.validTo) : 'no end'}</td>
                   <td>
                     {!c.isActive ? (
                       <Pill tone="mut">disabled</Pill>
@@ -282,9 +307,44 @@ export default function OwnerCouponsPage() {
             </Field>
           </div>
 
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <Field label="Max total uses">
+              <input
+                type="number"
+                min={1}
+                step="1"
+                value={maxUses}
+                onChange={(e) => setMaxUses(e.target.value)}
+                placeholder="unlimited"
+              />
+            </Field>
+            <Field label="Uses per customer">
+              <input
+                type="number"
+                min={1}
+                step="1"
+                value={perUserLimit}
+                onChange={(e) => setPerUserLimit(e.target.value)}
+                placeholder="unlimited"
+              />
+            </Field>
+          </div>
+
+          <Field label="Minimum room total (৳)">
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              value={minSpend}
+              onChange={(e) => setMinSpend(e.target.value)}
+              placeholder="no minimum"
+            />
+          </Field>
+
           <Note kind="warn">
-            Leaving both dates blank makes the coupon valid forever. There is no usage cap,
-            so treat an open-ended percent coupon carefully.
+            Leaving the limits blank makes the coupon unlimited and (with no dates) valid
+            forever. Set a total-use or per-customer cap so a shared code can’t be redeemed
+            without bound — the discount comes out of your earnings.
           </Note>
         </form>
       </Drawer>

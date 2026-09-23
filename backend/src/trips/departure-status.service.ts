@@ -9,14 +9,25 @@ import { PrismaService } from '../prisma/prisma.service';
  *
  * Dates are stored as @db.Date and times as @db.Time separately; we combine them
  * (falling back to start/end of day when a time isn't set) to get the instant.
+ *
+ * The stored day + time are Bangladesh WALL-CLOCK (Asia/Dhaka, UTC+6, no DST) —
+ * a 09:00 departure means 09:00 in Dhaka. Building the instant with setUTCHours
+ * alone treated 09:00 as 09:00 UTC (= 15:00 Dhaka), so a trip stayed "scheduled"
+ * / bookable up to 6h after it had physically left and the completed cascade ran
+ * 6h late (audit B-M3). Subtract the offset so the instant is the real UTC time.
  */
+const DHAKA_OFFSET_MIN = 6 * 60; // UTC+6, fixed (Bangladesh has no DST)
+
 @Injectable()
 export class DepartureStatusService {
   private readonly logger = new Logger(DepartureStatusService.name);
 
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Combine a Date (day) with an optional Time into one instant. */
+  /**
+   * Combine a Date (day) with an optional Time into one UTC instant, reading the
+   * stored day+time as Asia/Dhaka wall-clock.
+   */
   private combine(day: Date, time: Date | null, endOfDay = false): Date {
     const d = new Date(day);
     if (time) {
@@ -26,7 +37,8 @@ export class DepartureStatusService {
     } else {
       d.setUTCHours(0, 0, 0, 0);
     }
-    return d;
+    // The values above are Dhaka wall-clock; shift back to true UTC.
+    return new Date(d.getTime() - DHAKA_OFFSET_MIN * 60_000);
   }
 
   @Cron(CronExpression.EVERY_5_MINUTES)

@@ -6,6 +6,8 @@ import useSWR from 'swr';
 import { fetcher } from '@/lib/api';
 import type { SearchBoat, SearchResultsPage } from '@/lib/customer/types';
 import { SearchBoatCard } from '@/components/customer/SearchBoatCard';
+import { Toast } from '@/components/customer/Toast';
+import { formatDate } from '@/lib/owner/format';
 import { SearchBar } from './SearchBar';
 import { FilterSidebar } from './FilterSidebar';
 import {
@@ -69,6 +71,7 @@ export function SearchResults() {
 
   const [page, setPage] = useState(1);
   const [drawer, setDrawer] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
 
   // Sidebar facets need the whole live set — bare fetch (same key HomeHero uses,
@@ -195,6 +198,29 @@ export function SearchResults() {
     };
   }, [pageKey]);
 
+  // Tell the user when their chosen date has no departures. The grid falls back
+  // to on/after-date boats (backend `gte`), which is otherwise silent. Keyed on
+  // the loaded flag + date so it fires once per result and re-shows when the
+  // date changes; cleared (no toast) when the date has departures or is unset.
+  const dateExactEmpty = results?.dateExactEmpty ?? false;
+  const closeToast = useCallback(() => setToast(null), []);
+  useEffect(() => {
+    if (isLoading) return; // wait for this date's real result, not stale data
+    if (filters.date && dateExactEmpty) {
+      const pretty = formatDate(filters.date);
+      setToast(
+        total > 0
+          ? `No boats depart on ${pretty}. Showing the next available dates.`
+          : `No boats available on or after ${pretty}. Try another date.`,
+      );
+    } else {
+      setToast(null);
+    }
+    // total is intentionally read but not a dep: it settles with `results`, and
+    // dateExactEmpty already changes identity when a new result lands.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateExactEmpty, filters.date, isLoading]);
+
   const hasFilters =
     !!filters.route ||
     !!filters.date ||
@@ -207,6 +233,7 @@ export function SearchResults() {
 
   return (
     <>
+      {toast && <Toast message={toast} onClose={closeToast} />}
       <SearchBar
         destinations={destinations}
         route={filters.route ?? ''}

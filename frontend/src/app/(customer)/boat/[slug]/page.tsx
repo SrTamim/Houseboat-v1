@@ -101,7 +101,7 @@ export default async function BoatPage({
       <CustomerNav user={user} />
 
       <section>
-        <div className="mx-auto max-w-wrap px-6 pb-[60px] pt-[22px] max-[940px]:pb-[90px]">
+        <div className="mx-auto max-w-wrap px-6 pb-[60px] pt-[22px] max-[940px]:px-3">
           <nav
             aria-label="Breadcrumb"
             className="mb-3.5 text-[13px] text-muted"
@@ -116,8 +116,11 @@ export default async function BoatPage({
             › <b className="text-ink">{boat.name}</b>
           </nav>
 
-          <div className="flex flex-wrap items-center gap-3.5">
-            <h1 className="font-display text-[30px] font-semibold tracking-[-.02em] text-ink max-[640px]:text-2xl">
+          {/* gap-y kept tight so that when the row wraps on narrow screens the
+              lines don't drift apart (the old single gap-3.5 grew the vertical
+              gap as the screen shrank). On mobile the title takes its own line. */}
+          <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5 max-[640px]:gap-x-2.5">
+            <h1 className="w-full font-display text-[30px] font-semibold tracking-[-.02em] text-ink max-[640px]:text-2xl min-[641px]:w-auto">
               {boat.name}
             </h1>
             {boat.ratingAvg != null ? (
@@ -146,35 +149,99 @@ export default async function BoatPage({
             <BoatGallery photos={photos} boatName={boat.name} />
 
             <div>
-              <h2 className="mb-2.5 font-display text-[19px] font-semibold text-ink">
-                About this boat
-              </h2>
-              <p className="text-[14.5px] text-bodytext">
-                {boat.description ??
-                  'A houseboat cruising the wetlands of Bangladesh’s haors.'}
-              </p>
+              {/*
+                Two renderings of the same content:
+                - Desktop (≥941px): plain, always-visible sections.
+                - Mobile/tablet (≤940px): native <details>, collapsed by default.
+                A pure-CSS "force <details> open on desktop" is unreliable in
+                Chromium, so we swap markup by breakpoint instead.
+              */}
 
-              <div className="mt-3.5 flex flex-wrap gap-2">
-                {cabinCount > 0 ? (
-                  <span className={CHIP}>🛏️ {cabinCount} cabins</span>
+              {/* ---- desktop: always open ---- */}
+              <div className="max-[940px]:hidden">
+                <h2 className="mb-2.5 font-display text-[19px] font-semibold text-ink">
+                  About this boat
+                </h2>
+                <p className="text-[14.5px] text-bodytext">
+                  {boat.description ??
+                    'A houseboat cruising the wetlands of Bangladesh’s haors.'}
+                </p>
+                <div className="mt-3.5 flex flex-wrap gap-2">
+                  {cabinCount > 0 ? (
+                    <span className={CHIP}>🛏️ {cabinCount} cabins</span>
+                  ) : null}
+                  {maxGuests > 0 ? (
+                    <span className={CHIP}>👥 up to {maxGuests} guests</span>
+                  ) : null}
+                  {duration ? <span className={CHIP}>🕑 {duration}</span> : null}
+                  {ghat ? <span className={CHIP}>⚓ Boards at {ghat}</span> : null}
+                </div>
+
+                {boat.safetyFeatures?.trim() ? (
+                  <>
+                    <h2 className="mb-2.5 mt-[22px] font-display text-[19px] font-semibold text-ink">
+                      Safety &amp; facilities
+                    </h2>
+                    <p className="text-[14.5px] text-bodytext">
+                      {boat.safetyFeatures}
+                    </p>
+                  </>
                 ) : null}
-                {maxGuests > 0 ? (
-                  <span className={CHIP}>👥 up to {maxGuests} guests</span>
-                ) : null}
-                {duration ? <span className={CHIP}>🕑 {duration}</span> : null}
-                {ghat ? <span className={CHIP}>⚓ Boards at {ghat}</span> : null}
               </div>
 
-              {boat.safetyFeatures?.trim() ? (
-                <>
-                  <h2 className="mb-2.5 mt-[22px] font-display text-[19px] font-semibold text-ink">
-                    Safety &amp; facilities
-                  </h2>
-                  <p className="text-[14.5px] text-bodytext">
-                    {boat.safetyFeatures}
-                  </p>
-                </>
-              ) : null}
+              {/* ---- mobile/tablet: collapsible, collapsed by default ---- */}
+              <div className="min-[941px]:hidden">
+                <details className="group border-b border-hair">
+                  <summary className="boat-summary flex cursor-pointer list-none select-none items-center justify-between gap-2 py-3">
+                    <h2 className="m-0 font-display text-[19px] font-semibold text-ink">
+                      About this boat
+                    </h2>
+                    <span
+                      aria-hidden="true"
+                      className="text-muted transition-transform group-open:rotate-180"
+                    >
+                      ⌄
+                    </span>
+                  </summary>
+                  <div className="pb-3 pt-1">
+                    <p className="text-[14.5px] text-bodytext">
+                      {boat.description ??
+                        'A houseboat cruising the wetlands of Bangladesh’s haors.'}
+                    </p>
+                    <div className="mt-3.5 flex flex-wrap gap-2">
+                      {cabinCount > 0 ? (
+                        <span className={CHIP}>🛏️ {cabinCount} cabins</span>
+                      ) : null}
+                      {maxGuests > 0 ? (
+                        <span className={CHIP}>👥 up to {maxGuests} guests</span>
+                      ) : null}
+                      {duration ? <span className={CHIP}>🕑 {duration}</span> : null}
+                      {ghat ? <span className={CHIP}>⚓ Boards at {ghat}</span> : null}
+                    </div>
+                  </div>
+                </details>
+
+                {boat.safetyFeatures?.trim() ? (
+                  <details className="group border-b border-hair">
+                    <summary className="boat-summary flex cursor-pointer list-none select-none items-center justify-between gap-2 py-3">
+                      <h2 className="m-0 font-display text-[19px] font-semibold text-ink">
+                        Safety &amp; facilities
+                      </h2>
+                      <span
+                        aria-hidden="true"
+                        className="text-muted transition-transform group-open:rotate-180"
+                      >
+                        ⌄
+                      </span>
+                    </summary>
+                    <div className="pb-3 pt-1">
+                      <p className="text-[14.5px] text-bodytext">
+                        {boat.safetyFeatures}
+                      </p>
+                    </div>
+                  </details>
+                ) : null}
+              </div>
             </div>
           </div>
 
@@ -187,57 +254,6 @@ export default async function BoatPage({
             isSignedIn={!!user}
             boatPhotos={photos}
           />
-
-          {/* guest reviews */}
-          <div className="mt-[30px]">
-            <h2 className="mb-3.5 font-display text-[19px] font-semibold text-ink">
-              Guest reviews
-              {boat.reviewCount > 0 ? (
-                <span className="ml-2 text-sm font-semibold text-muted">
-                  {boat.ratingAvg != null ? `★ ${boat.ratingAvg.toFixed(1)} · ` : ''}
-                  {boat.reviewCount} review{boat.reviewCount === 1 ? '' : 's'}
-                </span>
-              ) : null}
-            </h2>
-            {boat.reviews.length === 0 ? (
-              <p className="text-[14.5px] text-muted">
-                No reviews yet — be the first to sail and share yours.
-              </p>
-            ) : (
-              <div className="grid gap-3.5">
-                {boat.reviews.map((r) => (
-                  <div
-                    key={r.id}
-                    className="rounded-2xl border border-hair bg-raise-1 p-4 shadow-e1"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <b className="text-[14.5px] text-ink">
-                        {r.customer?.name ?? 'Guest'}
-                      </b>
-                      <span
-                        className="text-[15px] leading-none text-amber"
-                        aria-label={`${r.rating} out of 5`}
-                      >
-                        {'★'.repeat(r.rating)}
-                        <span className="text-hair">{'★'.repeat(5 - r.rating)}</span>
-                      </span>
-                    </div>
-                    {r.text ? (
-                      <p className="mt-2 text-[14px] text-bodytext">{r.text}</p>
-                    ) : null}
-                    {r.ownerReply ? (
-                      <div className="mt-3 rounded-lg border border-hair bg-chip px-3 py-2.5">
-                        <div className="text-[11px] font-bold uppercase tracking-[0.04em] text-muted">
-                          Reply from the host
-                        </div>
-                        <p className="mt-1 text-[13px] text-bodytext">{r.ownerReply}</p>
-                      </div>
-                    ) : null}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
       </section>
 

@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { THEME_SCRIPT } from '@/lib/theme-script';
 import { AuthModalProvider } from '@/components/customer/AuthModalProvider';
 // Self-hosted customer fonts — matches the approved design previews.
@@ -22,6 +22,12 @@ export const metadata: Metadata = {
   description:
     'Book houseboats on Tanguar Haor, Nikli Haor, Padma River and more. Real-time cabin availability, honest ৳ pricing, instant confirmation.',
 };
+
+// Without this, the App Router does NOT emit a viewport meta tag, so phones fall
+// back to a ~980px desktop viewport and every responsive breakpoint below stays
+// dormant. Scoped to the customer group on purpose — admin/owner are
+// desktop-only consoles and keep their current (viewport-less) rendering.
+export const viewport: Viewport = { width: 'device-width', initialScale: 1 };
 
 /**
  * Applies to every customer route: public funnel (/, /search, /boat/[slug],

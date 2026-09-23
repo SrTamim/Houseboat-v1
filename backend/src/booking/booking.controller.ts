@@ -189,13 +189,27 @@ export class BookingController {
     return this.holds.listActive(departureId, null, token);
   }
 
-  /** Convert holds → confirmed booking + invoice. Instant confirmation. */
+  /**
+   * Price the checkout into a BookingIntent (audit M-H2). No booking is created
+   * here — the cabins stay reserved by their live holds, and the booking is
+   * created only once a valid deposit is confirmed (gateway → confirmIntent).
+   * Returns the intent id + the minimum deposit the customer must pay.
+   *
+   * callerToken = this browser's hb_gid, so a hold still owned by a guest token
+   * (login-claim didn't run) is accepted ONLY if it belongs to THIS browser —
+   * never any stranger's unclaimed hold (audit B-H3).
+   */
   @Throttle({ default: { ttl: 60_000, limit: 15 } })
   @Post('checkout')
-  checkout(@CurrentUser() user: AuthUser, @Body() dto: CheckoutDto) {
-    // Customer books for themselves here; POS mode would pass a different customerId.
-    // 'web' channel → platform earns commission (owner POS passes 'pos').
-    return this.booking.checkout(user.id, user.id, dto, { channel: 'web' });
+  checkout(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: CheckoutDto,
+    @Req() req: Request,
+  ) {
+    return this.booking.createIntent(user.id, user.id, dto, {
+      channel: 'web',
+      callerToken: readGuestToken(req) ?? undefined,
+    });
   }
 
   /** Full-boat group buyout: pick a band + headcount, one total, one payer. */
@@ -246,6 +260,7 @@ export class BookingController {
       user.id,
       dto.adults,
       dto.children ?? 0,
+      dto.childAges,
     );
   }
 

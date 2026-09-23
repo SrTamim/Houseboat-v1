@@ -405,22 +405,30 @@ export function BoatBooking({
   );
 
   /**
-   * A selected cabin has children whose ages are not all filled in yet. The
-   * server prices each child from its age, so quoting now would show a total
-   * that changes as soon as the guest finishes typing.
+   * One cabin has children whose ages are not all filled in yet. The server
+   * prices each child from its age (and the checkout DTO requires one age per
+   * child), so a blank age means the selection can't be priced or booked. Single
+   * source of truth for "empty age", reused by needsChildAges and the close gate.
+   */
+  const cabinNeedsAges = useCallback(
+    (cabinId: string): boolean => {
+      const p = pax[cabinId];
+      if (!p) return false;
+      for (let i = 0; i < p.children; i++) {
+        const age = p.childAges[i];
+        if (age === undefined || age === null || Number.isNaN(age)) return true;
+      }
+      return false;
+    },
+    [pax],
+  );
+
+  /**
+   * Any selected cabin still missing child ages — quoting waits until all are in.
    */
   const needsChildAges = useMemo(
-    () =>
-      selectedCabins.some((c) => {
-        const p = pax[c.id];
-        if (!p) return false;
-        for (let i = 0; i < p.children; i++) {
-          const age = p.childAges[i];
-          if (age === undefined || age === null || Number.isNaN(age)) return true;
-        }
-        return false;
-      }),
-    [selectedCabins, pax],
+    () => selectedCabins.some((c) => cabinNeedsAges(c.id)),
+    [selectedCabins, cabinNeedsAges],
   );
 
   // Debounced server quote. The server is the single source of truth for price
@@ -491,6 +499,17 @@ export function BoatBooking({
 
     setPax((prev) => ({ ...prev, [cabinId]: merged }));
 
+    // Clear the "fill the ages" block as soon as this cabin no longer needs them
+    // — every age filled, or the child count lowered to 0. Computed on `merged`
+    // because the pax state above hasn't applied yet.
+    const stillNeedsAges = Array.from({ length: merged.children }).some((_, i) => {
+      const a = merged.childAges[i];
+      return a === undefined || a === null || Number.isNaN(a);
+    });
+    if (!stillNeedsAges) {
+      setAgeError((e) => (e[cabinId] ? { ...e, [cabinId]: false } : e));
+    }
+
     // The hold follows the selection: taken the moment a cabin gains its first
     // guest, released the moment it loses its last. Fire-and-forget so the
     // stepper stays responsive; failures surface on the card.
@@ -543,18 +562,33 @@ export function BoatBooking({
     }
   };
 
-  // Map slot → scroll to the cabin card and flash it (preview 938–947).
-  const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const focusCabin = useCallback((cabinId: string) => {
-    const el = cardRefs.current[cabinId];
-    if (!el) return;
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    el.style.transition = 'box-shadow .2s';
-    el.style.boxShadow = '0 0 0 3px var(--blue)';
-    setTimeout(() => {
-      el.style.boxShadow = '';
-    }, 900);
-  }, []);
+  // Boat-map tile → open that cabin's selection popup. `null` = closed.
+  const [selectCabinId, setSelectCabinId] = useState<string | null>(null);
+  // Set true for a cabin when the guest tries to close it with a child age still
+  // blank — drives the inline message + red age inputs. Cleared once ages are in.
+  const [ageError, setAgeError] = useState<Record<string, boolean>>({});
+  // The first empty age input in the open cabin, to focus when a close is blocked.
+  const firstEmptyAgeRef = useRef<HTMLInputElement | null>(null);
+
+  /**
+   * Close the cabin popup, but refuse while it has a child with no age (the
+   * server can't price a child without its age). The guest fills the age(s) — or
+   * lowers the child count to 0 — to close. Both the ✕ and the dim-overlay close
+   * route through here.
+   */
+  const tryCloseCabin = useCallback(
+    (cabinId: string) => {
+      if (cabinNeedsAges(cabinId)) {
+        setAgeError((e) => ({ ...e, [cabinId]: true }));
+        // Focus the first empty age so the guest is taken straight to the fix.
+        requestAnimationFrame(() => firstEmptyAgeRef.current?.focus());
+        return;
+      }
+      setAgeError((e) => (e[cabinId] ? { ...e, [cabinId]: false } : e));
+      setSelectCabinId(null);
+    },
+    [cabinNeedsAges],
+  );
 
   const ready = group ? groupValid : selectedCabins.length > 0 && !!quote;
   const totalText = group
@@ -802,10 +836,9 @@ export function BoatBooking({
         };
 
   return (
-    <div className="grid grid-cols-[1fr_360px] items-start gap-[34px] max-[940px]:grid-cols-1">
-      <div>
+    <div className="boat-grid">
         {/* ---------- CABINS ---------- */}
-        <div className={CARD}>
+        <div className={`${CARD} bk-cabins max-[940px]:p-3`}>
           <h2 className={SECTION_H2}>Choose your cabins</h2>
           <p className="mb-4 text-[15px] text-bodytext">
             Add adults or children to a cabin to select it. Pick as many cabins
@@ -828,10 +861,21 @@ export function BoatBooking({
             <p className="text-sm text-muted">
               This boat has no cabins published yet.
             </p>
-          ) : null}
+          ) : (
+            /* The boat layout IS the cabin picker: tap a cabin to open its
+               selection popup. No inline card list — keeps the page compact
+               (esp. mobile, where the tall card column pushed the summary off
+               screen). */
+            <BoatMap cabins={mapCabins} onFocusCabin={setSelectCabinId} />
+          )}
+        </div>
 
-          {orderedCabins.map((c) => {
-            const av = availByCabin.get(c.id);
+        {/* ---------- cabin selection popup (opened from the boat map) ---------- */}
+        {selectCabinId
+          ? (() => {
+              const c = orderedCabins.find((x) => x.id === selectCabinId);
+              if (!c) return null;
+              const av = availByCabin.get(c.id);
             // Ours three ways, and all three are needed:
             //   holds        — the hold response landed in this tab.
             //   pendingHolds — the request is still in flight. The server's
@@ -871,16 +915,28 @@ export function BoatBooking({
 
             return (
               <div
-                key={c.id}
-                ref={(el) => {
-                  cardRefs.current[c.id] = el;
-                }}
-                className={`relative mb-6 flex items-center gap-3.5 rounded-2xl border bg-raise-1 p-3 pb-[42px] transition-[border-color,box-shadow] duration-150 max-[640px]:flex-wrap ${
-                  picked
-                    ? 'border-blue shadow-[0_0_0_3px_var(--blue-050)]'
-                    : 'border-hair'
-                } ${unavailable ? 'opacity-95' : ''}`}
+                className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+                onClick={() => tryCloseCabin(c.id)}
               >
+                <div
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label={`${c.name} — select guests`}
+                  onClick={(e) => e.stopPropagation()}
+                  className={`relative flex max-h-[90vh] w-[min(94vw,560px)] flex-col gap-3.5 overflow-y-auto rounded-2xl border bg-raise-1 p-4 shadow-e3 ${
+                    picked
+                      ? 'border-blue shadow-[0_0_0_3px_var(--blue-050)]'
+                      : 'border-hair'
+                  } ${unavailable ? 'opacity-95' : ''}`}
+                >
+                  <button
+                    type="button"
+                    aria-label="Close"
+                    onClick={() => tryCloseCabin(c.id)}
+                    className="absolute right-3 top-3 z-[2] grid h-8 w-8 place-items-center rounded-full border border-hair bg-raise-1 text-muted shadow-e1 transition-colors hover:text-ink"
+                  >
+                    ✕
+                  </button>
                 <button
                   type="button"
                   onClick={() =>
@@ -893,7 +949,7 @@ export function BoatBooking({
                     })
                   }
                   aria-label={`View ${c.name} photos`}
-                  className="group relative h-24 w-[132px] flex-none overflow-hidden rounded bg-chip max-[640px]:h-[170px] max-[640px]:w-full"
+                  className="group relative h-[180px] w-full flex-none overflow-hidden rounded-xl bg-chip"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
@@ -945,7 +1001,7 @@ export function BoatBooking({
                   ) : null}
                 </div>
 
-                <div className="flex w-[230px] flex-none flex-col justify-center gap-2.5 border-l border-hair pl-4 max-[640px]:w-full max-[640px]:border-l-0 max-[640px]:border-t max-[640px]:pl-0 max-[640px]:pt-3">
+                <div className="flex w-full flex-col justify-center gap-2.5 border-t border-hair pt-3.5">
                   {unavailable ? (
                     <>
                       {heldByOther ? (
@@ -1039,6 +1095,17 @@ export function BoatBooking({
                           </div>
                         ) : null}
                         {p.children > 0 ? (
+                          (() => {
+                            // Index of the first blank age — gets the focus ref so
+                            // a blocked close jumps the guest straight to it.
+                            const firstEmpty = Array.from({
+                              length: p.children,
+                            }).findIndex((_, i) => {
+                              const a = p.childAges[i];
+                              return a === undefined || a === null || Number.isNaN(a);
+                            });
+                            const showAgeError = !!ageError[c.id];
+                            return (
                           <div className="grid gap-1.5 pt-1">
                             {Array.from({ length: p.children }).map((_, i) => {
                               const raw = p.childAges[i];
@@ -1047,9 +1114,12 @@ export function BoatBooking({
                               const charge = typed
                                 ? chargeForAge(boat.childPolicy, raw)
                                 : null;
+                              // Empty + the guest tried to close → flag it red.
+                              const emptyErrored = !typed && showAgeError;
                               return (
                                 <div key={i} className="flex items-center gap-2">
                                   <input
+                                    ref={i === firstEmpty ? firstEmptyAgeRef : undefined}
                                     type="number"
                                     min={0}
                                     max={childAgeMax}
@@ -1067,10 +1137,13 @@ export function BoatBooking({
                                       setCabinPax(c.id, { childAges: ages });
                                     }}
                                     aria-label={`Child ${i + 1} age`}
+                                    aria-invalid={emptyErrored || undefined}
                                     className={`w-[92px] rounded border bg-field px-2 py-1.5 text-[13px] text-ink ${
-                                      charge && !charge.matched
-                                        ? 'border-[color-mix(in_srgb,var(--amber)_55%,transparent)]'
-                                        : 'border-hair'
+                                      emptyErrored
+                                        ? 'border-[color-mix(in_srgb,var(--danger)_60%,transparent)]'
+                                        : charge && !charge.matched
+                                          ? 'border-[color-mix(in_srgb,var(--amber)_55%,transparent)]'
+                                          : 'border-hair'
                                     }`}
                                   />
                                   {charge ? (
@@ -1088,59 +1161,75 @@ export function BoatBooking({
                                       </span>
                                     )
                                   ) : (
-                                    <span className="text-[11.5px] font-semibold text-muted">
+                                    <span
+                                      className={`text-[11.5px] font-semibold ${
+                                        emptyErrored ? 'text-danger' : 'text-muted'
+                                      }`}
+                                    >
                                       Enter age to price
                                     </span>
                                   )}
                                 </div>
                               );
                             })}
+                            {showAgeError ? (
+                              <div
+                                role="alert"
+                                className="text-[11.5px] font-bold text-danger"
+                              >
+                                Enter every child’s age to continue — or set children
+                                back to 0 to close.
+                              </div>
+                            ) : null}
                           </div>
+                            );
+                          })()
                         ) : null}
                       </div>
                     </>
                   )}
                 </div>
 
-                {/* attached tab strip, overlapping the card's bottom edge */}
-                <div className="absolute -bottom-4 left-4 flex flex-wrap gap-2">
-                  {(
-                    [
-                      ['info', '⚓ Boat info'],
-                      ['incl', '✔️ Inclusions'],
-                      ['itin', '🗺️ Itinerary'],
-                      ['pol', '🛡️ Policies'],
-                    ] as const
-                  ).map(([tab, label]) => (
-                    <button
-                      key={tab}
-                      type="button"
-                      className={TAB_BTN}
-                      onClick={() =>
-                        setInfoFor({
-                          cabin: {
-                            name: c.name,
-                            deck: c.deck,
-                            isAc: c.isAc,
-                            capacity: c.capacity,
-                            facilities: c.facilities,
-                          },
-                          tab,
-                        })
-                      }
-                    >
-                      {label}
-                    </button>
-                  ))}
+                  {/* info actions — inline in the popup */}
+                  <div className="flex flex-wrap gap-2 border-t border-hair pt-3.5">
+                    {(
+                      [
+                        ['info', '⚓ Boat info'],
+                        ['incl', '✔️ Inclusions'],
+                        ['itin', '🗺️ Itinerary'],
+                        ['pol', '🛡️ Policies'],
+                      ] as const
+                    ).map(([tab, label]) => (
+                      <button
+                        key={tab}
+                        type="button"
+                        className={TAB_BTN}
+                        onClick={() =>
+                          setInfoFor({
+                            cabin: {
+                              name: c.name,
+                              deck: c.deck,
+                              isAc: c.isAc,
+                              capacity: c.capacity,
+                              facilities: c.facilities,
+                            },
+                            tab,
+                          })
+                        }
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             );
-          })}
-        </div>
+          })()
+          : null}
 
         {/* ---------- GROUP BUYOUT ---------- */}
         {bands.length > 0 ? (
-          <div className={CARD}>
+          <div className={`${CARD} bk-group`}>
             <h2 className={SECTION_H2}>👥 Book the whole boat (group)</h2>
             <p className="mb-4 text-[15px] text-bodytext">
               Buy out the entire houseboat at a flat group rate. Pick a size band
@@ -1279,7 +1368,7 @@ export function BoatBooking({
 
         {/* ---------- REVIEWS ---------- */}
         {boat.reviews.length > 0 ? (
-          <div className={CARD}>
+          <div className={`${CARD} bk-reviews`}>
             <h2 className={SECTION_H2}>
               Guest reviews
               {boat.ratingAvg != null
@@ -1318,10 +1407,9 @@ export function BoatBooking({
             })}
           </div>
         ) : null}
-      </div>
 
       {/* ---------- RIGHT: sticky summary + deck map ---------- */}
-      <aside className="sticky top-24 self-start max-[940px]:static">
+      <aside className="bk-summary sticky top-24 self-start max-[940px]:static">
         {countdown ? (
           <div
             role="status"
@@ -1469,7 +1557,7 @@ export function BoatBooking({
             type="button"
             disabled={!ready}
             onClick={reserve}
-            className={`${PRIMARY_BTN} mt-4 max-[940px]:hidden`}
+            className={`${PRIMARY_BTN} mt-4`}
           >
             {ready ? `Reserve · ${totalText}` : 'Select cabins'}
           </button>
@@ -1484,29 +1572,7 @@ export function BoatBooking({
             </p>
           ) : null}
         </div>
-
-        {mapCabins.length > 0 ? (
-          <BoatMap cabins={mapCabins} onFocusCabin={focusCabin} />
-        ) : null}
       </aside>
-
-      {/* ---------- mobile sticky book bar ---------- */}
-      <div className="fixed bottom-0 left-0 right-0 z-[70] hidden items-center justify-between gap-3.5 border-t border-hair bg-raise-1 px-5 py-3 shadow-[0_-8px_24px_rgba(15,36,64,.12)] max-[940px]:flex">
-        <div className="font-display text-lg font-black text-ink">
-          {totalText}
-          <small className="block font-sans text-[11px] font-semibold text-muted">
-            {guestsLabel}
-          </small>
-        </div>
-        <button
-          type="button"
-          disabled={!ready}
-          onClick={reserve}
-          className={`${PRIMARY_BTN} w-auto px-7`}
-        >
-          Reserve
-        </button>
-      </div>
 
       {infoFor ? (
         <CabinInfoModal

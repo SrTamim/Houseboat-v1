@@ -239,12 +239,12 @@ export default function OwnerAuditPage() {
               {rows.map((r) => (
                 <tr key={`${r.serverTime}-${r.id}`}>
                   <td className="t1">{r.actor?.name ?? r.actor?.phone ?? 'system'}</td>
-                  <td>
+                  <td data-label="Action">
                     <Pill tone="mut">{humanize(r.action)}</Pill>
                   </td>
-                  <td className="t2">{r.entityType ? humanize(r.entityType) : '—'}</td>
-                  <td className="t2">{formatDateTime(r.serverTime)}</td>
-                  <td>
+                  <td className="t2" data-label="Entity">{r.entityType ? humanize(r.entityType) : '—'}</td>
+                  <td className="t2" data-label="Server time">{formatDateTime(r.serverTime)}</td>
+                  <td data-label="Source">
                     <Pill tone={r.syncedOffline ? 'amb' : 'blue'}>
                       {r.syncedOffline ? 'offline replay' : 'online'}
                     </Pill>

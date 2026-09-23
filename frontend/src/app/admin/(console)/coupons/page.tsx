@@ -76,6 +76,9 @@ const EMPTY_FORM = {
   value: '',
   validFrom: '',
   validTo: '',
+  maxUses: '',
+  perUserLimit: '',
+  minSpend: '',
 };
 
 export default function Coupons() {
@@ -131,6 +134,9 @@ export default function Coupons() {
         value: Number(form.value),
         validFrom: form.validFrom || undefined,
         validTo: form.validTo || undefined,
+        maxUses: form.maxUses ? Number(form.maxUses) : undefined,
+        perUserLimit: form.perUserLimit ? Number(form.perUserLimit) : undefined,
+        minSpend: form.minSpend ? Number(form.minSpend) : undefined,
       });
       setOpen(false);
       setForm(EMPTY_FORM);
@@ -320,6 +326,42 @@ export default function Coupons() {
                 type="date"
                 value={form.validTo}
                 onChange={(e) => setForm({ ...form, validTo: e.target.value })}
+              />
+            </div>
+            <div className={FIELD}>
+              <label className={FIELD_LABEL}>Max total uses</label>
+              <input
+                className={FIELD_INPUT}
+                type="number"
+                min={1}
+                step="1"
+                placeholder="unlimited"
+                value={form.maxUses}
+                onChange={(e) => setForm({ ...form, maxUses: e.target.value })}
+              />
+            </div>
+            <div className={FIELD}>
+              <label className={FIELD_LABEL}>Uses per customer</label>
+              <input
+                className={FIELD_INPUT}
+                type="number"
+                min={1}
+                step="1"
+                placeholder="unlimited"
+                value={form.perUserLimit}
+                onChange={(e) => setForm({ ...form, perUserLimit: e.target.value })}
+              />
+            </div>
+            <div className={FIELD}>
+              <label className={FIELD_LABEL}>Minimum room total (৳)</label>
+              <input
+                className={FIELD_INPUT}
+                type="number"
+                min={0}
+                step="0.01"
+                placeholder="no minimum"
+                value={form.minSpend}
+                onChange={(e) => setForm({ ...form, minSpend: e.target.value })}
               />
             </div>
           </div>

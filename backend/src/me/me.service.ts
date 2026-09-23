@@ -94,6 +94,13 @@ export class MeService {
       if (already) {
         throw new ConflictException('You already have a cash-out being reviewed');
       }
+      // Lock this account's open credits for the tx, exactly as applyCredits does
+      // at checkout, so a cash-out and a concurrent booking can't both claim the
+      // same credits (one would then lock/spend rows the other already moved).
+      await tx.$queryRaw`
+        SELECT id FROM customer_credit
+        WHERE account_id = ${accountId}::uuid AND status = 'open'
+        FOR UPDATE`;
       const open = await tx.customerCredit.findMany({
         where: { accountId, status: 'open' },
         select: { id: true, amount: true },

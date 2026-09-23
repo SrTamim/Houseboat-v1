@@ -22,7 +22,7 @@ export function BoatCard({ boat }: { boat: SearchBoat }) {
   const cabinLabel = `${boat.cabinCount} ${boat.cabinCount === 1 ? 'cabin' : 'cabins'}`;
 
   return (
-    <article className="group overflow-hidden rounded-2xl border border-hair bg-raise-1 shadow-[var(--e2),var(--top-hi)] transition-[transform,box-shadow] duration-200 ease-ease hover:-translate-y-1.5 hover:shadow-e3 dark:border-[color-mix(in_srgb,var(--blue)_12%,var(--hair))] dark:bg-[linear-gradient(160deg,color-mix(in_srgb,var(--blue)_8%,var(--raise-1)),var(--raise-1)_62%)] dark:hover:border-[color-mix(in_srgb,var(--blue)_34%,var(--hair))]">
+    <article className="group flex h-full w-full flex-col overflow-hidden rounded-2xl border border-hair bg-raise-1 shadow-[var(--e2),var(--top-hi)] transition-[transform,box-shadow] duration-200 ease-ease hover:-translate-y-1.5 hover:shadow-e3 dark:border-[color-mix(in_srgb,var(--blue)_12%,var(--hair))] dark:bg-[linear-gradient(160deg,color-mix(in_srgb,var(--blue)_8%,var(--raise-1)),var(--raise-1)_62%)] dark:hover:border-[color-mix(in_srgb,var(--blue)_34%,var(--hair))]">
       <div className="relative aspect-[16/11] overflow-hidden bg-chip">
         {badge ? (
           <span className="absolute left-3 top-3 z-[2] rounded-sm bg-blue px-[11px] py-[5px] text-[11px] font-bold tracking-[.02em] text-white shadow-[0_4px_10px_-3px_rgba(15,36,64,.4)]">
@@ -43,7 +43,7 @@ export function BoatCard({ boat }: { boat: SearchBoat }) {
           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.07]"
         />
       </div>
-      <div className="px-[18px] py-4">
+      <div className="flex grow flex-col px-[18px] py-4">
         <div className="flex items-start justify-between gap-2.5">
           <h3 className="font-display text-[17px] tracking-[-.02em]">{boat.name}</h3>
           {boat.ratingAvg != null ? (
@@ -66,7 +66,7 @@ export function BoatCard({ boat }: { boat: SearchBoat }) {
             ❄️ {acLabel}
           </span>
         </div>
-        <div className="mt-3.5 flex items-end justify-between border-t border-hair-2 pt-3.5">
+        <div className="mt-auto flex items-end justify-between border-t border-hair-2 pt-3.5">
           <div className="font-display text-[21px] font-bold tabular-nums tracking-[-.03em] text-ink">
             {boat.priceFrom != null ? (
               <>

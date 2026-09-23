@@ -9,9 +9,9 @@
  * `::before` triangle is the mast and `::after` is the wake at the waterline.
  * Cabins are laid out two-per-row per deck, each a lit window.
  *
- * Clicking a slot doesn't select the cabin — it scrolls to the matching cabin
- * card and flashes it (preview 938–947), which is why the caller passes
- * `onFocusCabin` rather than a selection handler.
+ * Clicking a slot opens that cabin's selection popup on the boat page (the map
+ * is the primary cabin picker; there is no inline card list). Blocked cabins
+ * (sold / held) are still clickable — the popup shows their status + waitlist.
  */
 export interface BoatMapCabin {
   id: string;
@@ -43,15 +43,15 @@ export function BoatMap({
   });
 
   return (
-    <div className="mt-5 rounded-2xl border border-hair bg-raise-1 p-5 shadow-e1">
+    <div className="mt-5 rounded-2xl border border-hair bg-raise-1 p-5 shadow-e1 max-[940px]:p-2.5">
       <h3 className="font-display text-[15px] font-semibold text-ink">
         🗺️ Boat layout
       </h3>
       <p className="mb-4 mt-1 text-xs text-muted">
-        See where your cabins are. Tap a cabin to jump to it.
+        Tap a cabin to choose guests and add it to your booking.
       </p>
 
-      <div className="relative isolate rounded-[120px_120px_22px_22px/72px_72px_22px_22px] border-[2.5px] border-[var(--blue-100)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--blue)_8%,var(--raise-1)),var(--raise-1)_30%)] px-[18px] pb-[26px] pt-11 shadow-[inset_0_2px_0_rgba(255,255,255,.5),0_10px_30px_-12px_var(--blue)] before:absolute before:-top-[22px] before:left-1/2 before:-translate-x-1/2 before:border-x-[11px] before:border-b-[22px] before:border-x-transparent before:border-b-[var(--blue-100)] before:content-[''] after:absolute after:-bottom-[9px] after:-left-0.5 after:-right-0.5 after:-z-10 after:h-3.5 after:rounded-b-[40%] after:bg-[linear-gradient(180deg,var(--blue-100),transparent)] after:opacity-70 after:content-[''] dark:shadow-[inset_0_1px_0_rgba(255,255,255,.06),0_10px_30px_-12px_#000]">
+      <div className="relative isolate rounded-[120px_120px_22px_22px/72px_72px_22px_22px] border-[2.5px] border-[var(--blue-100)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--blue)_8%,var(--raise-1)),var(--raise-1)_30%)] px-[18px] pb-[26px] pt-11 max-[940px]:px-2.5 shadow-[inset_0_2px_0_rgba(255,255,255,.5),0_10px_30px_-12px_var(--blue)] before:absolute before:-top-[22px] before:left-1/2 before:-translate-x-1/2 before:border-x-[11px] before:border-b-[22px] before:border-x-transparent before:border-b-[var(--blue-100)] before:content-[''] after:absolute after:-bottom-[9px] after:-left-0.5 after:-right-0.5 after:-z-10 after:h-3.5 after:rounded-b-[40%] after:bg-[linear-gradient(180deg,var(--blue-100),transparent)] after:opacity-70 after:content-[''] dark:shadow-[inset_0_1px_0_rgba(255,255,255,.06),0_10px_30px_-12px_#000]">
         <span className="absolute left-1/2 top-2 z-[2] flex -translate-x-1/2 items-center gap-[5px] text-[11px] font-extrabold tracking-[.05em] text-blue">
           ⚑ Bow
         </span>
@@ -76,13 +76,12 @@ export function BoatMap({
                     <button
                       key={c.id}
                       type="button"
-                      disabled={blocked}
                       onClick={() => onFocusCabin(c.id)}
                       className={`relative flex min-h-[56px] flex-col justify-center gap-[3px] rounded-lg border-2 px-1.5 py-[11px] text-center transition-all duration-150 ${
                         held
-                          ? 'cursor-not-allowed border-dashed border-[color-mix(in_srgb,var(--amber)_45%,transparent)] bg-[color-mix(in_srgb,var(--amber)_12%,transparent)] shadow-none'
+                          ? 'border-dashed border-[color-mix(in_srgb,var(--amber)_45%,transparent)] bg-[color-mix(in_srgb,var(--amber)_12%,transparent)] shadow-none'
                           : blocked
-                            ? 'cursor-not-allowed border-dashed border-[color-mix(in_srgb,var(--danger)_35%,transparent)] bg-[color-mix(in_srgb,var(--danger)_9%,transparent)] shadow-none'
+                            ? 'border-dashed border-[color-mix(in_srgb,var(--danger)_35%,transparent)] bg-[color-mix(in_srgb,var(--danger)_9%,transparent)] shadow-none'
                             : selected
                               ? 'border-blue bg-[var(--blue-050)] shadow-[inset_0_0_0_3px_var(--raise-1),0_6px_16px_-6px_var(--blue)]'
                               : 'border-hair bg-bg shadow-[inset_0_0_0_3px_var(--raise-1)] hover:-translate-y-0.5 hover:border-[var(--blue-100)]'

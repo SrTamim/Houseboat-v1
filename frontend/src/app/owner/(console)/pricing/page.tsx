@@ -297,6 +297,7 @@ export default function OwnerPricingPage() {
       <PageHead
         title="Pricing"
         desc="Pick a route, then set per-person prices for each cabin category and party size. Each route keeps its own General / Weekend / Holiday tables — switching routes never loses what you saved."
+        descHideOnMobile
       />
 
       <FilterBar>
@@ -501,6 +502,12 @@ export default function OwnerPricingPage() {
                       }
                       return (
                         <td key={occ} className="num">
+                          {/* The occupancy count lives in the <th>, which the
+                              mobile card-stack hides — so surface it inline as a
+                              field label ≤1024px. Desktop keeps the column head. */}
+                          <span className="hidden max-[1024px]:block mb-1 text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+                            {occ} {occ === 1 ? 'person' : 'people'}
+                          </span>
                           <input
                             type="number"
                             min={0}
@@ -509,6 +516,7 @@ export default function OwnerPricingPage() {
                             value={draft[cellKey(cat.id, occ)] ?? ''}
                             onChange={(e) => setCell(cat.id, occ, e.target.value)}
                             placeholder="—"
+                            className="max-[1024px]:!w-full max-[1024px]:!text-left"
                             style={{ width: 90, textAlign: 'right' }}
                           />
                         </td>
@@ -562,7 +570,7 @@ export default function OwnerPricingPage() {
                   <td className="t1">
                     {b.minPeople} – {b.maxPeople} people
                   </td>
-                  <td className="num">{money(b.totalPrice)}</td>
+                  <td className="num" data-label="Total price">{money(b.totalPrice)}</td>
                 </tr>
               ))}
             </tbody>

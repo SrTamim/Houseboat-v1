@@ -69,8 +69,12 @@ export class HrController {
 
   @Post('houseboats/:houseboatId/staff/:staffId/leave')
   @RequirePermission({ module: 'crew', action: 'edit' })
-  setLeave(@Param('staffId') staffId: string, @Body() dto: LeaveDto) {
-    return this.hr.setLeave(staffId, dto);
+  setLeave(
+    @Param('houseboatId') houseboatId: string,
+    @Param('staffId') staffId: string,
+    @Body() dto: LeaveDto,
+  ) {
+    return this.hr.setLeave(houseboatId, staffId, dto);
   }
 
   @Post('houseboats/:houseboatId/staff/:staffId/payroll')
@@ -127,16 +131,25 @@ export class HrController {
   // ── Crew presence (per departure) ──────────────────────────
   @Get('houseboats/:houseboatId/departures/:departureId/crew')
   @RequirePermission({ module: 'departure', action: 'view' })
-  listCrew(@Param('departureId') departureId: string) {
-    return this.hr.listCrew(departureId);
+  listCrew(
+    @Param('houseboatId') houseboatId: string,
+    @Param('departureId') departureId: string,
+  ) {
+    return this.hr.listCrew(houseboatId, departureId);
   }
 
   @Post('houseboats/:houseboatId/departures/:departureId/crew')
   @RequirePermission({ module: 'departure', action: 'edit' })
   setCrew(
+    @Param('houseboatId') houseboatId: string,
     @Param('departureId') departureId: string,
     @Body() dto: CrewPresenceDto,
   ) {
-    return this.hr.setCrewPresence(departureId, dto.staffId, dto.present ?? true);
+    return this.hr.setCrewPresence(
+      houseboatId,
+      departureId,
+      dto.staffId,
+      dto.present ?? true,
+    );
   }
 }

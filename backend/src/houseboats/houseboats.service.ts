@@ -51,15 +51,27 @@ const SEARCH_CARD_SELECT = {
 
 type SearchCardRow = Prisma.HouseboatGetPayload<{ select: typeof SEARCH_CARD_SELECT }>;
 
-/** A route/region/name substring filter, shared by both search paths. */
+/** Matches a canonical UUID, so a plain name is never cast to Route.id (@db.Uuid). */
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * A route/region/name substring filter, shared by both search paths.
+ *
+ * The frontend sends `route` as the destination NAME, not an id, so the id-match
+ * only runs when `route` is a well-formed UUID. Route.id is `@db.Uuid`; matching
+ * it against a name would make Postgres try to cast the name to uuid and abort
+ * the whole query ("invalid input syntax for type uuid"), which returned 500 and
+ * left the search grid empty.
+ */
 function routeWhere(route: string): Prisma.HouseboatWhereInput['routes'] {
   return {
     some: {
       route: {
         OR: [
-          { id: route },
-          { region: { contains: route, mode: 'insensitive' } },
-          { name: { contains: route, mode: 'insensitive' } },
+          ...(UUID_RE.test(route) ? [{ id: route }] : []),
+          { region: { contains: route, mode: 'insensitive' as const } },
+          { name: { contains: route, mode: 'insensitive' as const } },
         ],
       },
     },
@@ -225,6 +237,30 @@ export class HouseboatsService {
     return sortSearchCards(filtered, q.sort);
   }
 
+  /**
+   * True when at least one bookable departure lands ON the exact `date` (the
+   * `[date, date+1)` day window). Distinct from availableBoatIdsFrom's `gte`
+   * fallback: search shows on/after-date boats, so without this the user can't
+   * tell their chosen day was actually empty. Same predicate as the fallback so
+   * the two stay consistent. `startDate` is @db.Date; new Date('YYYY-MM-DD') is
+   * UTC midnight, matching the stored date boundaries.
+   */
+  private async exactDateHasDepartures(date: string): Promise<boolean> {
+    const from = new Date(date);
+    if (Number.isNaN(from.getTime())) return false;
+    const to = new Date(from);
+    to.setUTCDate(to.getUTCDate() + 1);
+    const n = await this.prisma.tripDeparture.count({
+      where: {
+        status: 'scheduled',
+        availableCount: { gt: 0 },
+        startDate: { gte: from, lt: to },
+        package: { houseboat: { status: 'live' } },
+      },
+    });
+    return n > 0;
+  }
+
   /** Grouped one-shot: boat ids with a bookable departure on/after `date`. */
   private async availableBoatIdsFrom(date: string): Promise<Set<string> | null> {
     const from = new Date(date);
@@ -332,13 +368,21 @@ export class HouseboatsService {
       }),
     ]);
 
-    const facets = await this.searchFacets();
+    const [facets, dateExactEmpty] = await Promise.all([
+      this.searchFacets(),
+      // Only meaningful when a date was chosen: true = nothing departs ON that
+      // exact day, so the grid (gte fallback) is showing later dates.
+      q.date != null
+        ? this.exactDateHasDepartures(q.date).then((has) => !has)
+        : Promise.resolve(false),
+    ]);
     return {
       items: boats.map(toSearchCard),
       total,
       page,
       pageSize,
       facets,
+      dateExactEmpty,
     };
   }
 

@@ -257,11 +257,11 @@ export default function OwnerInventoryPage() {
                     {i.name}
                     {i.unit ? <span className="t2"> ({i.unit})</span> : null}
                   </td>
-                  <td className="num">{Number(i.currentQty)}</td>
-                  <td className="num">
+                  <td className="num" data-label="On hand">{Number(i.currentQty)}</td>
+                  <td className="num" data-label="Reorder at">
                     {i.reorderThreshold ? Number(i.reorderThreshold) : '—'}
                   </td>
-                  <td>
+                  <td data-label="Status">
                     <Pill tone={isLow(i) ? 'danger' : 'ok'}>
                       {isLow(i) ? 'low — reorder' : 'ok'}
                     </Pill>
@@ -338,8 +338,8 @@ export default function OwnerInventoryPage() {
                     {i.name}
                     {i.unit ? <span className="t2"> ({i.unit})</span> : null}
                   </td>
-                  <td className="num">{Number(i.currentQty)}</td>
-                  <td>{renderLastCount(i.lastCount)}</td>
+                  <td className="num" data-label="Expected">{Number(i.currentQty)}</td>
+                  <td data-label="Last count">{renderLastCount(i.lastCount)}</td>
                   <td>
                     <div className="rowact">
                       <button

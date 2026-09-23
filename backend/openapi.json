@@ -1617,6 +1617,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetHouseboatStatusDto"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -2534,7 +2544,7 @@
             "description": ""
           }
         },
-        "summary": "Convert holds → confirmed booking + invoice. Instant confirmation.",
+        "summary": "Price the checkout into a BookingIntent (audit M-H2). No booking is created\nhere — the cabins stay reserved by their live holds, and the booking is\ncreated only once a valid deposit is confirmed (gateway → confirmIntent).\nReturns the intent id + the minimum deposit the customer must pay.\n\ncallerToken = this browser's hb_gid, so a hold still owned by a guest token\n(login-claim didn't run) is accepted ONLY if it belongs to THIS browser —\nnever any stranger's unclaimed hold (audit B-H3).",
         "tags": [
           "Booking"
         ]
@@ -4010,7 +4020,7 @@
             "description": ""
           }
         },
-        "summary": "Start a hosted payment for an invoice. Returns the URL to redirect to.",
+        "summary": "Start a hosted payment for an intent or invoice. Returns the URL to open.",
         "tags": [
           "Gateway"
         ]
@@ -4035,7 +4045,7 @@
             "description": ""
           }
         },
-        "summary": "Settle an invoice WITHOUT taking money, so a booking can be confirmed\nbefore the payment gateway is configured.\n\nGated on `gateway.bypass` (PAYMENTS_BYPASS=true). Off by default, so an\nunset production environment refuses every call even if this route ships.\nDelete the route — or just clear the flag — once SSLCommerz is live; the\nwhole `initiate` → hosted page → IPN path is untouched and still works.\n\nOwnership, status and amount checks are the same ones `initiate` applies,\nand the payment itself goes through the identical `recordGatewayPayment`\nused by the IPN — so a 50% advance records as a partial and correctly\nleaves the invoice `customer_due`, exactly as a real deposit would.",
+        "summary": "Settle WITHOUT taking money, so a booking can be confirmed before the\ngateway is configured. Gated on `gateway.bypass` (PAYMENTS_BYPASS=true), off\nby default (validate-env fails prod boot if it is set).\n\nRoutes exactly like the IPN: an intent target creates the booking via\nconfirmIntent (deposit floor enforced there too); an invoice target records\nthe top-up via recordGatewayPayment.",
         "tags": [
           "Gateway"
         ]
@@ -4209,6 +4219,14 @@
       "post": {
         "operationId": "HrController_setLeave",
         "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "staffId",
             "required": true,
@@ -4417,6 +4435,14 @@
         "operationId": "HrController_listCrew",
         "parameters": [
           {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "departureId",
             "required": true,
             "in": "path",
@@ -4447,6 +4473,14 @@
       "post": {
         "operationId": "HrController_setCrew",
         "parameters": [
+          {
+            "name": "houseboatId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "departureId",
             "required": true,
@@ -7820,6 +7854,23 @@
           "name"
         ]
       },
+      "SetHouseboatStatusDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "pending",
+              "live",
+              "suspended"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
       "UploadImageDto": {
         "type": "object",
         "properties": {
@@ -8431,7 +8482,17 @@
           },
           "children": {
             "type": "number",
-            "minimum": 0
+            "minimum": 0,
+            "maximum": 4
+          },
+          "childAges": {
+            "description": "Ages of the joiner's children, so each is charged per the boat's child_policy\n(audit M-M2). Omitted = children charged full, as before. Length must match\nchildren when supplied.",
+            "type": "array",
+            "items": {
+              "type": "number",
+              "maximum": 120,
+              "minimum": 0
+            }
           }
         },
         "required": [
@@ -8697,7 +8758,7 @@
         "properties": {
           "amount": {
             "type": "number",
-            "minimum": 0
+            "minimum": 1
           },
           "method": {
             "type": "string",
@@ -8728,7 +8789,7 @@
         "properties": {
           "amount": {
             "type": "number",
-            "minimum": 0
+            "minimum": 1
           },
           "reason": {
             "type": "string",
@@ -8767,6 +8828,21 @@
           },
           "validTo": {
             "type": "string"
+          },
+          "maxUses": {
+            "type": "number",
+            "description": "Total redemptions allowed across all customers. Omit = unlimited.",
+            "minimum": 1
+          },
+          "perUserLimit": {
+            "type": "number",
+            "description": "Redemptions allowed per customer account. Omit = unlimited.",
+            "minimum": 1
+          },
+          "minSpend": {
+            "type": "number",
+            "description": "Minimum room total required to apply the coupon. Omit = no minimum.",
+            "minimum": 0
           }
         },
         "required": [
@@ -8821,7 +8897,7 @@
           },
           "amount": {
             "type": "number",
-            "minimum": 0
+            "minimum": 1
           },
           "note": {
             "type": "string",
@@ -8889,18 +8965,20 @@
       "InitiatePaymentDto": {
         "type": "object",
         "properties": {
+          "intentId": {
+            "type": "string",
+            "description": "A BookingIntent awaiting its deposit. Creates the booking when paid."
+          },
           "invoiceId": {
-            "type": "string"
+            "type": "string",
+            "description": "An existing invoice to top up (remaining balance)."
           },
           "amount": {
             "type": "number",
-            "description": "Optional partial (deposit) amount. Defaults to the full outstanding.",
+            "description": "Optional partial (deposit) amount. Defaults to the full outstanding/total.",
             "minimum": 1
           }
-        },
-        "required": [
-          "invoiceId"
-        ]
+        }
       },
       "SslcommerzIpnDto": {
         "type": "object",
@@ -9178,7 +9256,8 @@
             ]
           },
           "qty": {
-            "type": "number"
+            "type": "number",
+            "minimum": 0
           },
           "tripId": {
             "type": "string",

@@ -48,6 +48,17 @@ export class HoldSweeperService {
 
   private async runSweep(): Promise<void> {
     const now = new Date();
+
+    // Expire abandoned booking intents (audit M-H2): a checkout that was priced
+    // but never paid. The cabins it referenced are freed by the hold sweep below
+    // (the intent holds no inventory itself), so this is bookkeeping — it stops a
+    // late payment from trying to build a booking on lapsed holds and keeps the
+    // table from growing. Idempotent: only touches rows still 'requested'.
+    await this.prisma.bookingIntent.updateMany({
+      where: { status: 'requested', expiresAt: { lte: now } },
+      data: { status: 'expired' },
+    });
+
     const graceMin =
       (await this.settings?.getNumber('hold.graceMin')) ?? HOLD_GRACE_MIN;
     const staleBefore = new Date(now.getTime() - graceMin * 60_000);
@@ -118,5 +129,134 @@ export class HoldSweeperService {
       if (dep) this.realtime.emitAvailability(departureId, dep.availableCount);
     }
     this.logger.debug(`Swept ${released} stale/expired hold(s)`);
+  }
+
+  /** Re-entrancy guard for the reconciliation pass. */
+  private reconciling = false;
+
+  /**
+   * Nightly reconciliation of the denormalized TripDeparture.availableCount
+   * against the live cabin state (audit backstop).
+   *
+   * availableCount is a cache maintained by increments/decrements across holds,
+   * conversions, cancellations and buyouts. The per-cabin unique index is what
+   * actually prevents double-booking, so a drifted counter can only mis-display
+   * (a stale/negative count, a fully-booked trip advertising a cabin) — never
+   * oversell. This recomputes the truth — cabins with no live booking AND no
+   * unexpired hold, counting an open-seat cabin with spare places as free — and
+   * corrects any departure whose stored count disagrees. Same rule the waitlist
+   * recompute and the boat-page snapshot use.
+   */
+  @Cron(CronExpression.EVERY_DAY_AT_4AM)
+  async reconcileAvailability(): Promise<void> {
+    if (this.reconciling) return;
+    this.reconciling = true;
+    try {
+      await this.runReconcile();
+    } finally {
+      this.reconciling = false;
+    }
+  }
+
+  private async runReconcile(): Promise<void> {
+    const now = new Date();
+    // Only future/active trips matter for availability display.
+    const departures = await this.prisma.tripDeparture.findMany({
+      where: { status: 'scheduled' },
+      select: {
+        id: true,
+        availableCount: true,
+        package: {
+          select: {
+            houseboat: {
+              select: {
+                decks: {
+                  select: {
+                    cabins: {
+                      select: {
+                        id: true,
+                        category: {
+                          select: { baseCapacity: true, extendedCapacity: true },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      take: 2000,
+    });
+    if (departures.length === 0) return;
+
+    const depIds = departures.map((d) => d.id);
+    const [bookingCabins, holds] = await Promise.all([
+      this.prisma.bookingCabin.findMany({
+        where: {
+          booking: { departureId: { in: depIds }, status: { not: 'cancelled' } },
+        },
+        select: {
+          cabinId: true,
+          occupancy: true,
+          isOpenSeat: true,
+          booking: { select: { departureId: true } },
+        },
+      }),
+      this.prisma.cabinHold.findMany({
+        where: { departureId: { in: depIds }, state: 'held', expiresAt: { gt: now } },
+        select: { cabinId: true, departureId: true },
+      }),
+    ]);
+
+    const heldByDep = new Map<string, Set<string>>();
+    for (const h of holds) {
+      const s = heldByDep.get(h.departureId) ?? new Set<string>();
+      s.add(h.cabinId);
+      heldByDep.set(h.departureId, s);
+    }
+    const bookedByDep = new Map<
+      string,
+      Map<string, { occupancy: number; isOpenSeat: boolean }>
+    >();
+    for (const bc of bookingCabins) {
+      const depId = bc.booking.departureId;
+      if (!depId) continue;
+      const m = bookedByDep.get(depId) ?? new Map();
+      m.set(bc.cabinId, { occupancy: bc.occupancy, isOpenSeat: bc.isOpenSeat });
+      bookedByDep.set(depId, m);
+    }
+
+    let fixed = 0;
+    for (const dep of departures) {
+      const held = heldByDep.get(dep.id) ?? new Set<string>();
+      const booked = bookedByDep.get(dep.id) ?? new Map();
+      const cabins =
+        dep.package?.houseboat?.decks.flatMap((d) => d.cabins) ?? [];
+      let free = 0;
+      for (const cabin of cabins) {
+        if (held.has(cabin.id)) continue;
+        const bc = booked.get(cabin.id);
+        if (!bc) {
+          free += 1;
+        } else if (bc.isOpenSeat) {
+          const cap =
+            cabin.category.extendedCapacity ?? cabin.category.baseCapacity;
+          if (cap - bc.occupancy > 0) free += 1;
+        }
+      }
+      if (free !== dep.availableCount) {
+        await this.prisma.tripDeparture.update({
+          where: { id: dep.id },
+          data: { availableCount: free },
+        });
+        this.realtime.emitAvailability(dep.id, free);
+        fixed += 1;
+      }
+    }
+    if (fixed > 0) {
+      this.logger.warn(`Reconciled availableCount on ${fixed} departure(s)`);
+    }
   }
 }
